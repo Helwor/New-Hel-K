@@ -1,0 +1,561 @@
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+--	file:   gui_music.lua
+--	brief:  yay music
+--	author: cake
+--
+--	Copyright (C) 2007.
+--	Licensed under the terms of the GNU GPL, v2 or later.
+--
+-- UPDATE:
+-- user can now add brand new albums of his own in sounds/music
+-- useIncludedAlbums option is no longer needed, it was only useful to create own user albums from the place holders of the 2 (hardcoded) existing original albums
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+function widget:GetInfo()
+	return {
+		name    = "Music Player v2",
+		desc    = "Plays music based on situation",
+		author  = "cake, trepan, Smoth, Licho, xponen",
+		date    = "Mar 01, 2008, Aug 20 2009, Nov 23 2011",
+		license = "GNU GPL, v2 or later",
+		layer   = 0,
+		enabled = true -- loaded by default?
+	}
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- see `widget:GameID` below.
+-- getting initially same set of tracks during replay
+-- continue last album after a reload in case of random option
+local seed 
+local gameID = Spring.GetGameRulesParam('GameID')
+local randomChosen = false
+local randomAlbumUseSeed = nil 
+local continueAlbum = false
+local function SetRandomSeed()
+	if seed then
+		math.randomseed(seed)
+		seed = math.random(1e8)
+	end
+end
+
+local includedAlbums
+
+local function Deduplicate(files)
+	-- NOTE: local user file paths have backslashes "\" and may have upper case compared to the game version of it
+	-- since we list all files with RAW_FIRST mode, we may have duplicate with those differences
+	-- however Spring.PlaySoundStream will always play the local version of that file if it exists, no matter how the path is actually written
+	local i = 1
+	local file = files[i]
+	if not file then
+		return
+	end
+	local common = {}
+	while file do
+		local uni_file = file:lower():gsub('/', '\\')
+		if common[uni_file] then
+			table.remove(files, i)
+		else
+			common[uni_file] = true
+			i = i + 1
+		end
+		file = files[i]
+	end
+end
+
+local function FindAlbums(path)
+	local musicTypes = {war = true, peace = true, briefing = true, victory = true, defeat = true}
+	local vfsMode = VFS.RAW_FIRST
+	local supportedFileTypes = '*.{ogg,mp3}'
+	local albums = {}
+	local dirs = VFS.SubDirs(path, 'peace', vfsMode, true)
+	if not dirs[1] then
+		 -- workaround for recursion and pattern recognition for old VFS.SubDirs version
+		local function ScanSubDirs(path)
+			local subdirs = VFS.SubDirs(path, nil, vfsMode)
+			Deduplicate(subdirs)
+			for _, subdir in pairs(subdirs) do
+				local folder = subdir:match('([%w]+)[/\\]$')
+				if folder == 'peace' then
+					dirs[#dirs+1] = subdir
+				elseif not musicTypes[folder] then
+					ScanSubDirs(subdir)
+				end
+			end
+		end
+		ScanSubDirs(path)
+	end
+	for i, path in ipairs(dirs) do
+		path = path:gsub('peace[\\/]', '')
+		local tracks = {}
+		for musicType in pairs(musicTypes) do
+			local files = VFS.DirList(path .. musicType .. '/', supportedFileTypes, vfsMode)
+			Deduplicate(files)
+			tracks[musicType .. 'Tracks'] = files
+			-- Echo("musicType .. 'Tracks' is ", musicType .. 'Tracks')
+		end
+
+		local dir = path:gsub('sounds[\\/]music[\\/]', '')
+		local name = dir:gsub('[\\/]$', '')
+		local humanName
+		if name == '' then
+			name = 'denny'
+			humanName = 'Schneidemesser (default)'
+		elseif name == 'ost23_uf' then
+			name = 'superintendent'
+			humanName = 'Superintendent'
+		else
+			humanName = name
+		end
+		albums[name] = {
+			tracks = tracks,
+			dir = dir,
+			humanName = humanName,
+		}
+	end
+	return albums
+end
+includedAlbums = FindAlbums('sounds/music/')
+
+
+local trackListName = includedAlbums.denny and 'denny' or next(includedAlbums)
+
+local trackList = includedAlbums[trackListName].tracks
+
+options_path = 'Settings/Audio'
+options = {
+	-- useIncludedTracks = {
+	-- 	name = "Use Included Tracks",
+	-- 	type = 'bool',
+	-- 	value = true,
+	-- 	desc = 'Use the tracks included with Zero-K',
+	-- 	noHotkey = true,
+	-- },
+	pausemusic = {
+		name = 'Pause Music',
+		type = 'bool',
+		value = false,
+		desc = "Music pauses with game",
+		noHotkey = true,
+	},
+	albumSelection = {
+		name = 'Track list',
+		type = 'radioButton',
+		value = trackListName,
+		items =	(function()
+			local t = {}
+			for k, v in pairs(includedAlbums) do
+				t[#t+1] = {key = k, name = v.humanName}
+			end
+			t[#t+1] = {key = 'random', name = 'Chosen at random'}
+			return t
+		end)(),
+		OnChange = function(self)
+			local value = self.value
+			if value == 'random' then
+				if randomChosen then
+					return
+				end
+				randomChosen = true
+				if continueAlbum then
+					value = continueAlbum
+				else
+					if randomAlbumUseSeed then 
+						math.randomseed(seed)
+					end
+
+					value = trackListName
+					local r = math.random(#self.items - 1)
+
+					local item = self.items[r]
+					-- if item.key == 'random' then -- in case the item 'random' is not at last position
+					-- 	item = self.items[r-1] or self.items[r+1]
+					-- end
+					value = item.key
+				end
+			else
+				randomChosen = false
+			end
+			if value ~= trackListName then
+				if includedAlbums[value] and includedAlbums[value].tracks then
+					trackListName = value
+					trackList = includedAlbums[value].tracks
+					if WG.Music then
+						WG.Music.StopTrack()
+					end
+				end
+			end
+		end,
+	},
+}
+
+local unitExceptions = include("Configs/snd_music_exception.lua")
+
+local warThreshold = 5000
+local peaceThreshold = 1000
+local PLAYLIST_FILE = 'sounds/music/playlist.lua'
+local LOOP_BUFFER = 0.015 -- if looping track is this close to the end, go ahead and loop
+local UPDATE_PERIOD = 1
+local MUSIC_VOLUME_DEFAULT = 0.25
+
+local musicType = 'peace'
+local dethklok = {} -- keeps track of the number of doods killed in each time frame
+local timeframetimer = 0
+local timeframetimer_short = 0
+local loopTrack = ''
+local previousTrack = ''
+local previousTrackType = ''
+local haltMusic = false
+local looping = false
+local musicMuted = false
+local musicPaused = false
+
+local initialized = false
+local gameStarted = Spring.GetGameFrame() > 0
+local widgetReloaded = gameStarted
+
+local myTeam = Spring.GetMyTeamID()
+local isSpec = Spring.GetSpectatingState() or Spring.IsReplay()
+local defeat = false
+
+local spToggleSoundStreamPaused = Spring.PauseSoundStream
+local spGetUnitRulesParam = Spring.GetUnitRulesParam
+
+local UnitDefs = UnitDefs
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+local function GetMusicType()
+	return musicType
+end
+
+local function StartLoopingTrack(trackInit, trackLoop)
+	if not (VFS.FileExists(trackInit) and VFS.FileExists(trackLoop)) then
+		Spring.Log(widget:GetInfo().name, LOG.ERROR, "Missing one or both tracks for looping")
+	end
+	haltMusic = true
+	Spring.StopSoundStream()
+	musicType = 'custom'
+	
+	loopTrack = trackLoop
+	Spring.PlaySoundStream(trackInit, WG.music_volume or MUSIC_VOLUME_DEFAULT)
+	looping = 0.5
+end
+
+local function StartTrack(track)
+	if not trackList.peaceTracks then
+		Spring.Echo("Missing peaceTracks file, no music started")
+		return
+	end
+
+	haltMusic = false
+	looping = false
+	Spring.StopSoundStream()
+	
+	local newTrack = previousTrack
+	if musicType == 'custom' then
+		previousTrackType = "peace"
+		musicType = "peace"
+	end
+	if track then
+		newTrack = track -- play specified track
+		musicType = 'custom'
+	else
+		if not gameStarted then
+			if trackList.briefingTracks[1] then
+				musicType = 'briefing'
+			else
+				return
+			end
+		end
+		local wantedTracks = trackList[musicType .. 'Tracks']
+		local len = #wantedTracks
+		if len == 0 then
+			return
+		elseif len == 1 then
+			newTrack = wantedTracks[len]
+		elseif len == 2 then
+			newTrack = wantedTracks[len] ~= previousTrack and wantedTracks[len] or wantedTracks[len - 1]
+		else
+			SetRandomSeed()
+			local r = math.random(len - 1)
+			if previousTrack == wantedTracks[1] or r ~= 1 and previousTrack == wantedTracks[r] then
+				r = r + 1
+			end
+			newTrack = wantedTracks[r]
+		end
+	end
+	previousTrack = newTrack
+	-- Spring.Echo('now playing', newTrack)
+	Spring.PlaySoundStream(newTrack,WG.music_volume or MUSIC_VOLUME_DEFAULT)
+	
+	WG.music_start_volume = WG.music_volume
+end
+
+local function StopTrack(noContinue)
+	looping = false
+	Spring.StopSoundStream()
+	if noContinue then
+		haltMusic = true
+	else
+		haltMusic = false
+		StartTrack()
+	end
+end
+
+local function SetWarThreshold(num)
+	if num and num >= 0 then
+		warThreshold = num
+	else
+		warThreshold = 5000
+	end
+end
+
+local function SetPeaceThreshold(num)
+	if num and num >= 0 then
+		peaceThreshold = num
+	else
+		peaceThreshold = 1000
+	end
+end
+
+function widget:Update(dt)
+	if not initialized then
+		initialized = true
+		-- these are here to give epicmenu time to set the values properly
+		-- (else it's always default at startup)
+		-- local vfsMode = (options.useIncludedTracks.value and VFS.RAW_FIRST) or VFS.RAW
+		-- local supportedFileTypes = '*.{ogg,mp3}'
+		-- for name, data in pairs(includedAlbums) do
+		-- 	local dir = 'sounds/music/' .. data.dir
+		-- 	data.tracks = {
+		-- 		warTracks       = VFS.DirList(dir .. 'war/'     , supportedFileTypes, vfsMode),
+		-- 		peaceTracks     = VFS.DirList(dir .. 'peace/'   , supportedFileTypes, vfsMode),
+		-- 		briefingTracks  = VFS.DirList(dir .. 'briefing/', supportedFileTypes, vfsMode),
+		-- 		victoryTracks   = VFS.DirList(dir .. 'victory/' , supportedFileTypes, vfsMode),
+		-- 		defeatTracks    = VFS.DirList(dir .. 'defeat/'  , supportedFileTypes, vfsMode),
+		-- 	}
+		-- end
+		if gameID then
+			-- update the tracklistName case: reload, random chosen at start
+			widget:GameID(gameID)
+		else
+			math.randomseed(os.clock()* 100)
+		end
+		-- trackList = includedAlbums[trackListName].tracks or trackList
+	elseif randomAlbumUseSeed == nil then
+		-- case replay: widget:gameID() hasn't been triggered yet
+		randomAlbumUseSeed = false
+		continueAlbum = false
+	end
+	
+	timeframetimer_short = timeframetimer_short + dt
+	if timeframetimer_short > 0.03 then
+		local playedTime, totalTime = Spring.GetSoundStreamTime()
+		playedTime = tonumber( ("%.2f"):format(playedTime) )
+		if looping then
+			if looping == 0.5 then
+				looping = 1
+			elseif playedTime >= totalTime - LOOP_BUFFER then
+				Spring.StopSoundStream()
+				Spring.PlaySoundStream(loopTrack,WG.music_volume or MUSIC_VOLUME_DEFAULT)
+			end
+		end
+		timeframetimer_short = 0
+	end
+	if not musicMuted and WG.music_volume == 0 then
+		Spring.StopSoundStream()
+		musicMuted = true
+		musicPaused = false
+	elseif musicMuted and WG.music_volume > 0 then
+		musicMuted = false
+	end
+	timeframetimer = timeframetimer + dt
+	if (timeframetimer > UPDATE_PERIOD) then -- every second
+		timeframetimer = 0
+		local totalKilled = 0
+		for i = 1, 10, 1 do --calculate the first half of the table (1-15)
+			totalKilled = totalKilled + (dethklok[i] * 2)
+		end
+		
+		for i = 11, 20, 1 do -- calculate the second half of the table (16-45)
+			totalKilled = totalKilled + dethklok[i]
+		end
+		
+		for i = 20, 1, -1 do -- shift value(s) to the end of table
+			dethklok[i+1] = dethklok[i]
+		end
+		dethklok[1] = 0 -- empty the first row
+		
+		if (musicType == 'war' or musicType == 'peace') then
+			if (totalKilled >= warThreshold) then
+				musicType = 'war'
+			elseif (totalKilled <= peaceThreshold) then
+				musicType = 'peace'
+			end
+		end
+		
+		local playedTime, totalTime = Spring.GetSoundStreamTime()
+		playedTime = math.floor(playedTime)
+		totalTime = math.floor(totalTime)
+		local _, _, paused = Spring.GetGameSpeed()
+		if ( previousTrackType == "peace" and musicType == 'war' )
+		 or (playedTime >= totalTime)	-- both zero means track stopped
+		 and not(haltMusic or looping) then
+			previousTrackType = musicType
+			if not musicMuted and not (paused and options.pausemusic.value) then -- prevents music player from starting again until it is not muted and not "paused" (see: pausemusic option).
+				StartTrack()
+			end
+		end
+		if not musicPaused and totalTime > 0 and paused and options.pausemusic.value then -- game got paused with the pausemusic option enabled, so pause the music stream.
+			spToggleSoundStreamPaused()
+			musicPaused = true
+		end
+		if musicPaused and (not paused or not options.pausemusic.value) then -- user disabled pausemusic option or game gets unpaused so unpause the music.
+			spToggleSoundStreamPaused()
+			musicPaused = false
+		end
+	end
+end
+function widget:GameID(id)
+	-- Idempotence issue:
+	-- -when on replay we can't know the id until player connect, meanwhile the briefing track (if any) is playing and is not following the randomseed sequence
+	-- -when not on replay the GameID trigger after first round of Update
+	-- In any case option.OnChange got triggered before
+	gameID = id
+	seed = tonumber('0x' .. id)
+	-- when number given is too big, the resulting sequence is the same / when difference between numbers is too small, the resulting number is the same
+	while seed > 1e8 do
+		seed = seed^0.8
+	end
+	if options.albumSelection.value == 'random' then
+		if Spring.GetSoundStreamTime() < 0.5 then -- we don't change current album if a briefing track has started
+			randomChosen = false
+			randomAlbumUseSeed = true
+			options.albumSelection:OnChange()
+		end
+	end
+	randomAlbumUseSeed = false
+	continueAlbum = false
+end
+function widget:GameStart()
+	if not gameStarted then
+		gameStarted = true
+		previousTrackType = musicType
+		musicType = "peace"
+		if Spring.GetSoundStreamTime() > 0 then -- if there's a briefing track playing, stop it and start peace track.
+			Spring.StopSoundStream()
+		end
+	end
+end
+
+-- Safety of a heisenbug. (Running game through chobby)
+-- see: https://github.com/ZeroK-RTS/Zero-K/commit/0d2398cbc7c05eabda9f25dc3eeb56363793164e#diff-55f47403c24513e47b4350a108deb5f0)
+function widget:GameFrame()
+	widget:GameStart()
+	widgetHandler:RemoveCallIn('GameFrame')
+end
+
+function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer)
+	if unitExceptions[unitDefID] then
+		return
+	end
+	
+	if (damage < 1.5) then return end
+	
+	if (UnitDefs[unitDefID] == nil) then return end
+		
+	if paralyzer then
+		return
+	else
+		dethklok[1] = dethklok[1] + damage
+	end
+end
+
+function widget:UnitDestroyed(unitID, unitDefID, teamID)
+	if unitExceptions[unitDefID] then
+		return
+	end
+	if spGetUnitRulesParam(unitID, "wasMorphedTo") then
+		return
+	end
+	local metalCost = UnitDefs[unitDefID].metalCost
+	local unitWorth = metalCost > 8000 and 700
+		or metalCost > 3000 and 500
+		or metalCost > 1000 and 300
+		or metalCost > 500 and 200
+		or 50
+	dethklok[1] = dethklok[1] + unitWorth
+end
+
+function widget:TeamDied(team)
+	if team == myTeam and not isSpec then
+		defeat = true
+	end
+end
+
+local function PlayGameOverMusic(gameWon)
+	local track
+	if gameWon then
+		if #trackList.victoryTracks <= 0 then
+			return
+		end
+		SetRandomSeed()
+		track = trackList.victoryTracks[math.random(1, #trackList.victoryTracks)]
+		musicType = "victory"
+	else
+		if #trackList.defeatTracks <= 0 then
+			return
+		end
+		SetRandomSeed()
+		track = trackList.defeatTracks[math.random(1, #trackList.defeatTracks)]
+		musicType = "defeat"
+	end
+	looping = false
+	Spring.StopSoundStream()
+	Spring.PlaySoundStream(track,WG.music_volume or MUSIC_VOLUME_DEFAULT)
+	WG.music_start_volume = WG.music_volume
+end
+
+function widget:GameOver()
+	PlayGameOverMusic(not defeat)
+	widgetHandler:RemoveCallIn('Update') -- stop music player on game over.
+end
+
+function widget:Initialize()
+	WG.Music = WG.Music or {}
+	WG.Music.StartTrack = StartTrack
+	WG.Music.StartLoopingTrack = StartLoopingTrack
+	WG.Music.StopTrack = StopTrack
+	WG.Music.SetWarThreshold = SetWarThreshold
+	WG.Music.SetPeaceThreshold = SetPeaceThreshold
+	WG.Music.GetMusicType = GetMusicType
+	WG.Music.PlayGameOverMusic = PlayGameOverMusic
+	
+	for i = 1, 30, 1 do
+		dethklok[i]=0
+	end
+end
+
+function widget:Shutdown()
+	Spring.StopSoundStream()
+	WG.Music = nil
+end
+-- save up current album to be continued in case of /luaui reload or simple widget reload
+function widget:GetConfigData()
+	return {currentGameAlbum = {gameID = gameID, trackListName =  trackListName}}
+end
+function widget:SetConfigData(data)
+	if not gameID then -- no reload occurred (or replay case before user connect), nothing to do
+		return
+	end
+	local current = data.currentGameAlbum
+	if current and current.gameID == gameID then
+		continueAlbum = current.trackListName
+	end
+end
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------

@@ -1,0 +1,90 @@
+--- Window module
+
+--- Window fields.
+-- Inherits from Control.
+-- @see control.Control
+-- @table Window
+Window = Control:Inherit{
+	classname = 'window',
+	resizable = true,
+	draggable = true,
+	bringToFrontOnClick = true,
+	noFont = true,
+
+	minWidth  = 50,
+	minHeight = 50,
+	defaultWidth  = 400,
+	defaultHeight = 300,
+}
+
+local this = Window
+local inherited = this.inherited
+
+--// =============================================================================
+--[[
+function Window:UpdateClientArea()
+	inherited.UpdateClientArea(self)
+
+	if (not WG['blur_api']) then
+		return
+	end
+
+	if (self.blurId) then
+		WG['blur_api'].RemoveBlurRect(self.blurId)
+	end
+
+	local screeny = select(2, gl.GetViewSizes()) - self.y
+
+	self.blurId = WG['blur_api'].InsertBlurRect(self.x, screeny, self.x + self.width, screeny-self.height)
+end
+--]]
+--// =============================================================================
+
+function Window:New(obj)
+	if obj.noFont == nil and obj.caption then
+		obj.noFont = false
+	end
+	obj = inherited.New(self, obj)
+	obj:BringToFront()
+	return obj
+end
+
+function Window:DrawControl()
+	--// gets overriden by the skin/theme
+end
+
+function Window:MouseDown(...)
+	if self.bringToFrontOnClick then
+		self:BringToFront()
+	end
+	return inherited.MouseDown(self, ...)
+end
+
+VFS.Include(CHILI_DIRNAME .. "headers/skinutils.lua", nil, VFS.RAW_FIRST)
+
+
+function Window.SetUseLists(bool)
+	Spring.Echo('=>Window setting Use Lists: '..tostring(bool))
+	DrawWindow = bool and DrawWindowList or DrawWindowNoList
+	DrawButton = bool and DrawButtonList or DrawButtonNoList
+	Spring.Echo('=>',DrawButton == DrawButtonList, DrawButton ==  DrawButtonNoList)
+end
+
+
+function Window:TweakDraw()
+	gl.Color(0.6, 1, 0.6, 0.65)
+
+	local w = self.width
+	local h = self.height
+
+	if (self.resizable or self.tweakResizable) then
+		TextureHandler.LoadTexture(0, (LUAUI_DIRNAME or LUA_DIRNAME) .. "widgets/chili/skins/default/tweak_overlay_resizable.png", self)
+	else
+		TextureHandler.LoadTexture(0, (LUAUI_DIRNAME or LUA_DIRNAME) .. "widgets/chili/skins/default/tweak_overlay.png", self)
+	end
+		local texInfo = gl.TextureInfo((LUAUI_DIRNAME or LUA_DIRNAME) .. "widgets/chili/skins/default/tweak_overlay.png") or {xsize = 1, ysize = 1}
+		local tw, th = texInfo.xsize, texInfo.ysize
+
+		gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, self.x, self.y, w, h, 31, 31, 31, 31, tw, th, 0)
+	gl.Texture(0, false)
+end

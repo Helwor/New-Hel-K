@@ -1,0 +1,1299 @@
+function widget:GetInfo()
+	return {
+		name      = "Draw Marker From Image",
+		desc      = "Place marker drawn from images, use Ctrl + Alt to show the UI",
+		author    = "Helwor",
+		date      = "Dec 2023",
+		license   = "GNU GPL, v2 or later",
+		-- layer     = 2, -- after Unit Start State
+		layer     = - 10e35,
+		enabled   = true,  --  loaded by default?
+		-- api       = true,
+		handler   = true,
+	}
+end
+
+local spGetGroundHeight 	= Spring.GetGroundHeight
+local spWorldToScreenCoords = Spring.WorldToScreenCoords
+local spTraceScreenRay 		= Spring.TraceScreenRay
+local spGetMouseState 		= Spring.GetMouseState
+local spGetModKeyState 		= Spring.GetModKeyState
+local spGetSelectedUnits 	= Spring.GetSelectedUnits
+local spMarkerAddLine 		= Spring.MarkerAddLine
+
+
+local drawingsDir = "LuaUI\\Widgets\\Drawings\\"
+
+local DEBUG_CONTOUR = false
+local CONTOUR_MODE = true
+local SPAGHETTI_MODE = true
+local alwaysUp = false
+local angleSmoothness = 0.05
+local COUNT_FOR_ANGLE = 3
+local PRECISION = 0.5
+
+-- local listFile = "LuaUI\\Widgets\\Drawings\\Draw_19.txt"
+local buttonWidth = 100
+local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
+local buttonPadding = {5,10,5,10}
+local pixDetect = 0.6 -- any rgb color below this value will accept a point of line, any alpha value below (1-pixDetect) will deny it
+-- hax to customize selected button appearance
+local oriBGColor
+local oriFocusColor
+local oriPressedColor
+local selectedColor
+local function MakeSelectedColor(r,g,b,a)
+	-- return {1, g * 0.8, b * 0.8, a * 1.5}
+	return {r * 0.5, g * 2, b * 0.5, a * 1.5}
+end
+--
+local holder = {}
+local selector, win, scroll
+local deselectOnRelease = false
+local selected = false
+local initialized = false
+
+local vsx, vsy = Spring.GetViewGeometry()
+
+options_path = 'Hel-k/'..widget:GetInfo().name
+options_order = {'alwaysUp', 'contour', 'spaghetti', 'simplifyAngle'}
+options = {}
+options.contour = {
+	name = 'Contour Mode',
+	type = 'bool',
+	value = CONTOUR_MODE,
+	desc = 'fill the contours in Contour Mode',
+	OnChange = function(self)
+		CONTOUR_MODE = self.value
+	end,
+}
+
+options.spaghetti = {
+	name = 'Spaghetti Mode',
+	type = 'bool',
+	value = SPAGHETTI_MODE,
+	desc = 'fill the contours in Contour Mode',
+	OnChange = function(self)
+		SPAGHETTI_MODE = self.value
+	end,
+}
+
+options.simplifyAngle = {
+	name = 'Simplify Angle Tolerance',
+	type = 'number',
+	min = 0.000, max = 0.1, step = 0.005,
+	value = angleSmoothness,
+	desc = '',
+	OnChange = function(self)
+		angleSmoothness = self.value
+	end,
+}
+
+options.alwaysUp = {
+	name = 'Always Up',
+	desc = 'Always show the UI without key pressed Ctrl + Alt',
+	type = 'bool',
+	value = alwaysUp,
+	OnChange = function(self)
+		alwaysUp = self.value
+		if win then
+			if not alwaysUp then
+				local alt, ctrl = Spring.GetModKeyState()
+				if not (alt and ctrl) then
+					win:Hide()
+				end
+			elseif win.hidden then
+				win:Show()
+			end
+		end
+	end,
+}
+
+-- Making Contour
+--- making Rotator clockwise usage: rasterRot[x][z] = rotatedCoords
+local rasterRot = setmetatable(
+	{},
+	{
+		__index = function(self, k) 
+			local t = {}
+			rawset(self, k, t)
+			return t
+		end
+	}
+)
+local rotateRight, r = {}, 0
+local add = function(_, x, z)
+	r = r + 1
+	rotateRight[r] = {z,x}
+end
+f.SpiralSquare(1, 1, add)
+for i, r in ipairs(rotateRight) do
+	rasterRot[ r[1] ][ r[2] ] = rotateRight[i + 1] or rotateRight[1]
+end
+setmetatable(rasterRot, nil)
+--[[ verif
+local function verif(_, x, z)
+	local coords = rasterRot[z][x]
+	Echo(x, z .. ' =>> ' .. coords[2], coords[1])
+end
+f.SpiralSquare(1, 1, verif)
+--]]
+
+-- local deg = math.deg(math.atan2(x,z))
+
+local function GetRaster(imageFile)
+	local t = setmetatable(
+		{},
+		{
+			__index = function(self, k) 
+				local t = {}
+				rawset(self, k, t)
+				return t
+			end
+		}
+	)
+	gl.Texture(0, imageFile)
+	local info = gl.TextureInfo(imageFile)
+	if not info or info.xsize == -1 then
+		Echo("CAN'T LOAD FILE " .. imageFile)
+		return
+	end
+	-- f.Page(info)
+
+	local sizeX = info.xsize
+	local sizeY = info.ysize
+	if sizeX > 150 or sizeY > 150 then
+		sizeX, sizeY = sizeX * 150/sizeX, sizeY * 150/sizeX
+	elseif sizeX < 50 or sizeY < 50 then
+		sizeX, sizeY = sizeX * 1.5, sizeY * 1.5
+	end
+	gl.TexRect(0, 0, sizeX, sizeY)
+	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
+	-- so we ask line by line...
+	local lines, l = {}, 0
+	local left, right = math.huge, -math.huge
+	for y = sizeY-1, 0, -1 do -- y0 is at bottom
+		t[y+1] = gl.ReadPixels(0, y, sizeX, 1)
+	end
+
+	gl.Texture(0, false)
+	gl.DeleteTexture(imageFile)
+	return t
+end
+
+--- Contours
+local function SearchAround(y, x, diry, dirx, raster, c, inDeadEnd)
+	-- inverse the direction then rotate clockwise
+	diry, dirx = diry * -1, dirx * -1
+	local dbg
+	local loopy, loopx
+	local End = inDeadEnd and 7 or 8
+	for i = 1, End do
+		local dirs = rasterRot[diry][dirx]
+		-- dbg = table.concat({x, y, dirx, diry, '=>', dirs[2], dirs[1], '=>', x + dirs[2], y + dirs[1]}, ',')
+		diry, dirx = dirs[1], dirs[2]
+		local _y, _x = y + diry, x + dirx
+		local color = raster[_y][_x]
+		if color then
+			-- if DBG then
+			-- 	Echo(dbg .. string.color(color) ..' COLOR', color.contour)
+			-- end
+			local something = color[4] > (1 - pixDetect) and (color[1] < pixDetect or color[2] < pixDetect or color[3] < pixDetect)
+			-- if inDeadEnd then
+			-- 	-- Echo('i', i,'something', something, 'contour', color.contour)
+			-- end
+			if something then
+				if color.contour then
+
+					loopy, loopx = _y, _x
+					if color.contourStart then
+						return _y, _x, diry, dirx, color
+						-- break
+					elseif i == 8 then
+						-- Echo('dead end', _y, _x)
+						_y, _x, diry, dirx, color = SearchAround(_y, _x, diry, dirx, raster, c, true)
+						if color then
+							-- Echo('found suite')
+							return _y, _x, diry, dirx, color, true
+						end
+					end
+						
+					-- Echo('maybe loop')
+				else
+					-- Echo('found', _x, _y)
+					return _y, _x, diry, dirx, color
+				end
+			end
+		else
+			-- Echo('NO COLOR?')
+		end
+	end
+
+	return loopy, loopx
+
+end
+
+local function AcquireContour(point, y, x, raster, diry, dirx)
+	local contour, c = {}, 0 
+	local tries = 0
+	point[1], point[2], point[3], point[4] = 0, 1, 1, 1
+	-- point.txt = '0'..1
+	point.contourStart = true
+	-- Echo('START', x, y)
+	while point do
+		tries = tries + 1
+		if tries > 15000 then
+			Echo('TOO MANY TRIES CONTOUR')
+			break
+		end
+		c = c + 1
+		contour[c] = {x, y} -- final result given in x,y not y,x
+		if point.contour then
+			-- end the loop of the contour
+			break
+		end
+		-- if DBG then
+		-- 	Echo(string.color({1,1,0,1}) .. 'POINT ADDED ' .. x, y)
+		-- end
+		point.contour = true
+		local _diry, _dirx, _point = diry, dirx, point
+		local switch
+		y, x, diry, dirx, point, switch = SearchAround(y, x, diry, dirx, raster, c+1)
+		if switch then
+			contour[c], contour[c-1] = contour[c-1], contour[c]
+		end
+		-- if c > 1 and _diry == diry and _dirx == dirx then
+		-- 	-- simplify orthogonal lines
+		-- 	-- simplify later fully?
+		-- 	-- _point.txt = 'LL'
+		-- 	-- contour[c] = nil
+		-- 	-- c = c - 1
+		-- end
+		if point then
+			-- point[1], point[2], point[3], point[4] = 1, 0, 0, 1
+			-- point.txt = ('0' .. c+1):sub(-2)
+		end
+	end
+	-- Echo('return contour', #contour)
+	return contour
+end
+local function AcquireContours(raster)
+	local left, top, right, bottom = math.huge, -math.huge, -math.huge, math.huge
+	local contours, c = {}, 0
+	local inShape = false
+	local simple = not SPAGHETTI_MODE
+	local wasContour = false
+	for y, t in pairs(raster) do
+		for x, pixel in pairs(t) do
+			local something = pixel[4] > (1 - pixDetect) and (pixel[1] < pixDetect or pixel[2] < pixDetect or pixel[3] < pixDetect)
+
+			if something then
+				if x < left then left = x end
+				if y < bottom then bottom = y end
+				if x > right then right = x end
+				if y > top then top = y end
+				if not inShape then
+					if not pixel.contour then
+						c = c + 1
+						-- Echo('****CONTOUR ' .. c)
+						contours[c] = AcquireContour(pixel, y, x, raster, 0, 1)
+						if wasContour then
+							contours[c].filling = true
+						end
+					end
+				end
+				inShape = simple and pixel
+			elseif inShape then
+				if not inShape.contour then
+					c = c + 1
+					-- Echo('****CONTOUR AFTER ' .. c)
+					contours[c] = AcquireContour(inShape, y, x-1, raster, 0, -1)
+				end
+				inShape = false
+			end
+			wasContour = pixel.contour
+		end
+	end
+	if c > 0 then
+		contours.left, contours. top, contours.right, contours.bottom = left, top, right, bottom
+		return contours
+	end
+end
+local function SimplifyContours(contours)
+	local abs, diag = math.abs, math.diag
+	local atan2 = math.atan2
+	local remove = table.remove
+	local f = function(n, dec)
+		return tostring(n):ftrim(dec or 2)
+	end
+	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
+	local step = math.max(3, diag(sizeX, sizeY) / 30)
+	-- Echo('*--------------------------------------------------')
+	-- Echo('--------------------------------------------------')
+	-- Echo('STEP', step)
+	for c, contour in ipairs(contours) do
+		-- Echo('**** CONTOUR '.. i ..' ****')
+		local len = #contour
+		if len > 2 then
+			-- local sensitivity = 1.04
+			local i = 1
+			local start = contour[1]
+			local last = start
+			local cur
+			local travel
+			local deviationx, deviationy = 0, 0
+			local segI  = 1
+			local makeAngle
+			local angleX, angleY = 0, 0
+			local angle
+			local lastAngle
+			while i < len do
+				i = i + 1 
+				cur = contour[i]
+				local devX, devY = (cur[1] - last[1]), (cur[2] - last[2])
+				local dist = diag(devX, devY)
+				-- local straight = diag(cur[1] - start[1], cur[2] - start[2])
+				if last == start then
+					-- Echo(string.color({0,1,0,1}) .. '***start new segment', 'x'..start[1], 'y'..start[2])
+					travel = 0
+					segI = i - 1
+					makeAngle = COUNT_FOR_ANGLE
+					angleX, angleY = 0, 0
+					deviationx, deviationy = 0, 0
+					angle = false
+					lastAngle = false
+				end
+				travel = travel + dist
+				deviationx, deviationy = deviationx + devX, deviationy + devY
+
+				if makeAngle then
+					makeAngle = makeAngle - dist
+					angleX, angleY = angleX + devX, angleY + devY
+					if makeAngle <= 0 then
+						makeAngle = false
+						angle = atan2(angleX, angleY)
+						lastAngle = angle
+					end
+				else
+					lastAngle = lastAngle * (COUNT_FOR_ANGLE-1)/COUNT_FOR_ANGLE + atan2(devX, devY)/COUNT_FOR_ANGLE
+				end
+				deviationx = deviationx + devX
+				deviationy = deviationy + devY
+				local devAngle = angle and abs(angle - atan2(deviationx, deviationy)) 
+				local devLastAngle = lastAngle and abs(lastAngle - angle)
+				-- Echo(i,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], 'dist:'..f(dist),'straight:'..f(straight),'travel:'..f(travel), 'ratio:'..f(travel/straight))
+				-- Echo("angle is ", angle)
+				-- Echo('travel'..f(travel),'deviation',devX, devY, 'angle', angle, 'devAngle', devAngle )
+				if travel > step or i == len then
+					-- local ratio = travel/straight
+					-- local ratioed = ratio > sensitivity
+					local devied = devAngle and devAngle > angleSmoothness -- deviation from origin of segment
+					local devied2 = devLastAngle and devLastAngle > 1/(COUNT_FOR_ANGLE * PRECISION) -- deviation from a little distance
+					-- Echo(i,devied,devied2,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], "lastAngle is ", lastAngle)
+					-- Echo(i,devied,devied2,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], lastAngle and "lastAngle:"..f(lastAngle), devLastAngle and 'devLastAngle:'..f(devLastAngle))
+					if --[[ratioed or]] devied or devied2 or i == len then
+						-- Echo(string.color({1,1,0,1})..'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2] .. ' => ', ratioed and 'ratio:' .. f(ratio), devied and 'devied:'..f(devAngle), devied2 and 'devied2:'..f(devLastAngle), (i == len) and 'end')
+						if segI < i-2 then
+							-- Echo(i, string.color({1,0,0,1}) .. '<<<<< remove from', segI+1, 'to', i-2)
+							for i = i - 2, segI + 1, -1  do
+								remove(contour, i)
+								len = len - 1
+							end
+						end
+
+						i = segI + 1
+						start = last
+
+						-- COUNT = (COUNT or 0) + 1
+						-- if COUNT == 10000 then
+						-- 	Echo("COUNT is ", COUNT, 'segments', #contour)
+						-- 	return
+						-- end
+					else
+						last = cur
+					end
+				else
+					last = cur
+				end
+			end
+		end
+		-- Echo("COUNT is ", COUNT, 'segments', #contour)
+		-- Echo('contour', c, 'segments', #contour)
+		-- Echo("step is ", step)
+	end
+	-- Echo("contours", #contours, 'COUNT',COUNT)
+end
+local function ContourToLineObj(contours)
+	local count = 0
+	for i, contour in ipairs(contours) do
+		for i, point in ipairs(contour) do
+			count = count + 1
+		end
+	end
+	-- Echo("count is ", count)
+	local lines, l = {}, 0
+	local bottom, top = math.huge, -math.huge
+	local left, right = math.huge, -math.huge
+	for i, contour in ipairs(contours) do
+		for i, coord in ipairs(contour) do 
+			local x, y = coord[1], coord[2]
+			if x < left then
+				left = x
+			elseif x > right then
+				right = x
+			end
+			if y > top then
+				top = y
+			elseif y < bottom then
+				bottom = y
+			end
+		end
+		local i = 2
+		local line = contour[1]
+		local nex = contour[2]
+		if not nex then
+			line[3], line[4] = line[1]+1, line[2]+1
+			l = l + 1
+			lines[l] = line
+		else
+			while nex do 
+				line[3], line[4] = nex[1], nex[2]
+				l = l + 1
+				lines[l] = line
+				line = nex
+				i = i + 1
+				nex = contour[i]
+			end
+		end
+	end
+
+	lines.left, lines.top, lines.right, lines.bottom = left, top, right or left, bottom or top
+	local midx, midy = (right - left) / 2, (top - bottom) / 2
+	lines.midx, lines.midy = midx, midy
+	local offx, offy = -left - midx, -top + midy
+	for i, line in ipairs(lines) do
+		line[1], line[2], line[3], line[4] = line[1] + offx, line[2] + offy, line[3] + offx, line[4] + offy
+	end
+	-- Echo('LINES', l)
+	-- Echo("lines.left, lines.top, lines.right, lines.bottom is ", lines.left, lines.top, lines.right, lines.bottom)
+	return lines, l
+end
+
+
+
+
+-------
+local function ImageToLineObj(imageFile)
+	gl.Texture(0, imageFile)
+	local info = gl.TextureInfo(imageFile)
+	if not info or info.xsize == -1 then
+		Echo("CAN'T LOAD FILE " .. imageFile)
+		return
+	end
+	-- f.Page(info)
+
+	local sizeX = info.xsize
+	local sizeY = info.ysize
+	if sizeX > 150 or sizeY > 150 then
+		sizeX, sizeY = sizeX * 150/sizeX, sizeY * 150/sizeY
+	elseif sizeX < 50 or sizeY < 50 then
+		sizeX, sizeY = sizeX * 1.5, sizeY * 1.5
+	end
+
+	gl.TexRect(0, 0, sizeX, sizeY)
+	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
+	-- so we ask line by line...
+	local lines, l = {}, 0
+	local left, right = math.huge, -math.huge
+	for y = sizeY-1, 0, -1 do -- y0 is at bottom
+		local pixels = gl.ReadPixels(0, y, sizeX, 1)
+		local started = false
+		local line, lastX, lastY
+		local oldcount = l
+		for x, color in ipairs(pixels) do
+			if y == 40 then
+				-- Echo(y,x,string.color(color) .. 'ABCDEF', unpack(color))
+			end
+			local something = color[4] > (1 - pixDetect) and (color[1] < pixDetect or color[2] < pixDetect or color[3] < pixDetect)
+			if line then
+				if not something then
+					if line[1] == lastX then
+						lastX = lastX + 1
+						if lastX > right then
+							right = lastX
+						end
+					end
+					line[3], line[4] = lastX, lastY
+					line = false
+				else
+					lastX, lastY = x, y
+					if lastX > right then
+						right = lastX
+					end
+				end
+			elseif something then
+				lastX, lastY = x, y
+				line = {lastX, lastY}
+				if x < left then
+					left = x
+				end
+				l = l + 1
+				lines[l] = line
+			end
+		end
+		if line then
+			if line[1] == lastX then
+				lastX = lastX + 1
+				if lastX > right then
+					right = lastX
+				end
+			end
+			line[3], line[4] = lastX, lastY
+		end
+	end
+	gl.Texture(0, false)
+	gl.DeleteTexture(imageFile)
+	if l == 0 then
+		return
+	end
+
+	bottom, top = lines[l][2], lines[1][2]
+
+	lines.left, lines.top, lines.right, lines.bottom = left, top, right or left, bottom
+	local midx, midy = (right - left) / 2, (top - bottom) / 2
+	lines.midx, lines.midy = midx, midy
+	local offx, offy = -left - midx, -top + midy
+	for i, line in ipairs(lines) do
+		line[1], line[2], line[3], line[4] = line[1] + offx, line[2] + offy, line[3] + offx, line[4] + offy
+	end
+
+	return lines, l
+end
+
+
+
+
+-- OLD METHOD
+local function CoordListToLines(source)
+	local file = io.open(source, "r")
+	local lines, l = {}, 0
+	local currentline = false
+	local top, left, bottom, right = false, math.huge, false, -math.huge
+	for line in file:lines() do
+		if line:find('D') and not currentline then
+			local _, _, x1, y1 = line:find("(%d+).-(%d+)")
+			x1, y1 = tonumber(x1), tonumber(y1)
+			if x1 < left then
+				left = x1
+			end
+			currentline = {x1, vsy - y1}
+			l = l + 1
+			lines[l] = currentline
+		elseif line:find('U') then
+			local _, _, x2, y2 = line:find("(%d+).-(%d+)")
+			x2, y2 = tonumber(x2), tonumber(y2)
+			if x2 > right then
+				right = x2
+			end
+			currentline[3], currentline[4] = x2, vsy - y2
+			currentline = false
+		end
+	end
+	if l == 0 then
+		return
+	end
+	top, bottom = lines[1][2], lines[l][4]
+	file:close()
+	-- add border of one pixel to fix some display issue in UI
+	left, right, top, bottom = left - 1, right + 1, top + 1, bottom - 1
+
+	-- setup coords from image
+	local midx, midy = (right - left) / 2, (top - bottom) / 2
+	local offx, offy = -left - midx, -top + midy
+	for i, line in ipairs(lines) do
+		line[1], line[2], line[3], line[4] 
+		 = line[1] + offx, line[2] + offy, line[3] + offx, line[4] + offy
+	end
+	lines.left, lines.top, lines.right, lines.bottom, lines.midx, lines.midy = 
+		left, top, right, bottom, midx, midy
+	return lines, l
+end
+--
+local function FuseMiniLines(lines, l, margin, maxtries) -- OLD FIXME IMPROVE not good for every type of drawing
+	local maxtries = maxtries or 15000
+	local abs = math.abs
+	local i = 1
+	local tries = 0
+	-- Echo('starting lines', l)
+	-- fuse mini lines
+	while i <= l do
+		tries = tries + 1 ; if tries > maxtries then Echo('TOO MANY TRIES I') break end
+		local line = lines[i]
+		-- if line[2] == line[4] and (line[3] - line[1]) < margin then
+		if abs(line[2] - line[4]) < margin and abs(line[3] - line[1]) < margin then
+			local point = {
+				line[1] + (line[3] - line[1]) / 2,
+				line[2]
+			}
+
+			local j = i + 1
+			while j <= l do
+				tries = tries + 1 ; if tries > maxtries then Echo('TOO MANY TRIES J') break end
+				local line2 = lines[j]
+				-- if line2[2] == line2[4] and (line2[3] - line2[1]) < margin then
+				if abs(line2[2] - line2[4]) < margin and abs(line2[3] - line2[1]) < margin then
+					local point2 = {
+						line2[1] + (line2[3] - line2[1]) / 2,
+						line2[2]
+					}
+					if abs(point2[1] - point[1]) < margin and abs(point2[2] - point[2]) < margin then
+						-- line[1], line[2], line[3], line[4] = point[1], point[2], point2[1], point2[2]
+						line[3], line[4] = line2[3], line2[4]
+						table.remove(lines, j)
+						l = l - 1
+						i = i - 1
+						break
+					end
+				end
+				j = j + 1
+			end
+		end
+		i = i + 1
+	end
+	-- Echo('ending lines 1', l)
+	return l
+end
+
+local function FillGaps(lines, l, bigmargin, maxtries) -- OLD FIXME IMPROVE
+	maxtries = maxtries or 15000
+	local i = 1
+	local tries = 0
+	while i <= l do
+		tries = tries + 1 ; if tries > maxtries then Echo('TOO MANY TRIES I2') break end
+
+		local line = lines[i]
+
+		local j = i + 1
+		local bestDist = bigmargin
+		local bestJ = false
+		local alt = false
+		while j <= l do
+			tries = tries + 1 ; if tries > maxtries then Echo('TOO MANY TRIES J2') break end
+			local line2 = lines[j]
+			local dist = ((line[4] - line2[2])^2 + (line[3] - line2[1])^2)^0.5
+			local dist2 = ((line[4] - line2[4])^2 + (line[3] - line2[3])^2)^0.5
+			if dist > 0 and dist < bestDist then
+				bestDist, bestJ = dist, j
+				alt = false
+			elseif dist2 > 0 and dist2 < bestDist then
+				alt = true
+				bestDist, bestJ = dist2, j
+			end
+			if j == l and bestJ then
+				line2 = lines[bestJ]
+			-- if abs(line[4] - line2[2]) < bigmargin and abs(line[3] - line2[1]) < bigmargin then
+				-- join two segments
+				-- Echo('join, dist', ((line[4] - line2[2])^2 + (line[3] - line2[1])^2)^0.5,'line', unpack(line))
+				if alt then
+					table.insert(lines, bestJ, {line[3], line[4], line2[3], line2[4]})
+				else
+					table.insert(lines, bestJ, {line[3], line[4], line2[1], line2[2]})
+				end
+				l = l + 1
+				i =  i + 1
+				break
+			end
+			j = j + 1
+		end
+		i = i + 1
+	end
+	-- Echo('ending lines 2', l)
+end
+
+-- for i, line in ipairs(lines) do
+-- 	if abs(line[4] - line[2]) < 1 then
+-- 		if abs(line[1] - line[3]) < margin then
+-- 			local midx = (line[3] - line[1]) / 2
+-- 			-- line[1] = line[1] + midx
+-- 			-- line[3] = line[1]
+-- 			line[3] = line[3] + 5
+-- 		end
+-- 	end
+-- end
+
+
+--- controls
+
+
+local function SetupCoords(mx, my, lines, ret, l)
+
+	for i, line in ipairs(lines) do
+		local x1, y1, x2, y2 = line[1] + mx, line[2] + my, line[3] + mx, line[4] + my
+		-- onlyCoords, useMinimap, includeSky, ignoreWater
+		local _, c1 = spTraceScreenRay(x1, y1, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
+		local _, c2 = spTraceScreenRay(x2, y2, true, false, false, false)
+		if c1 and c2 then
+			l = l + 1
+			ret[l] = {c1, c2}
+		end
+	end
+	return l
+end
+local function Deselect()
+	-- hax to make the button appear "selected" with special color when mouse in or out
+	if not selected then 
+		return
+	end
+	local control = selected.control
+	local bgColor, focusColor, pressedColor = control.backgroundColor, control.focusColor, control.pressBackgroundColor
+	bgColor[1], bgColor[2], bgColor[3], bgColor[4] = unpack(oriBGColor)
+	focusColor[1], focusColor[2], focusColor[3], focusColor[4] = unpack(oriFocusColor)
+	pressedColor[1], pressedColor[2], pressedColor[3], pressedColor[4] = unpack(oriPressedColor)
+	control:Invalidate()
+	selected = false
+	return true
+end
+local function Select(obj)
+	Deselect()
+	selected = obj
+	local control = obj.control
+	local bgColor, focusColor, pressedColor = control.backgroundColor, control.focusColor, control.pressBackgroundColor
+	local r,g,b,a = unpack(selectedColor)
+	bgColor[1], bgColor[2], bgColor[3], bgColor[4] = r, g, b, a
+	focusColor[1], focusColor[2], focusColor[3], focusColor[4] = r, g, b, a
+	pressedColor[1], pressedColor[2], pressedColor[3], pressedColor[4] = r, g, b, a
+	control:Invalidate()
+	return true
+end
+local totalHeight -- keep track of the total height because we don't update the client area after each change but at the end
+local function AddControl(obj, index)
+	local backgroundColor = {0.3,0.3,0.3,1}
+	local w = buttonWidth 
+	local wmargin = buttonPadding[1] + buttonPadding[3]-- FIXME count the button's item margin correctly
+	local hmargin = buttonPadding[2] + buttonPadding[4]-- FIXME count the button's item margin correctly
+	local hratio =  (obj.midy+1) / (obj.midx+1)
+	-- for reducing image when height ratio is too big and repositionning at the middle of the button
+	local reduce = 1
+	if hratio > 2 then
+		reduce = 2 / hratio
+		hratio = 2
+	end
+	local h = (w - wmargin) * (hratio) + hmargin
+	h = math.floor(h + 0.5)
+	local y
+	local off = 0
+	local control = WG.Chili.Button:New{
+		caption = '',
+		tooltip = obj.filename,
+		y = y,
+		width = w,
+		height = h,
+		-- width = '100%',
+		-- height = '100%',
+		backgroundColor = backgroundColor,
+		padding = buttonPadding,
+		OnMouseDown = {	function(self) Select(obj) end },
+		children = {
+			WG.Chili.Image:New{
+				width = '100%',
+				height = '100%',
+				file = '',
+				DrawControl = function(self)
+					-- Echo('self.width', self.width, obj.midx * 2, obj.midx * 2 / self.width)
+					-- Echo("self.clientArea[4] is ", unpack(self.clientArea))
+					local ratio = self.width / ((obj.midx+1) * 2)
+					gl.PushMatrix()
+					gl.Color(1,1,1,0.5)
+					gl.Scale(ratio * reduce, ratio * reduce, 1)
+					gl.Translate((obj.midx+1) / reduce, (obj.midy+1), 0)
+					gl.Scale(1,-1,1)
+					gl.CallList(obj.list)
+					gl.PopMatrix()
+				end,
+			}
+		}
+	}
+	-- control:AddChild(image)
+	selector:AddChild(control, false, index)
+	if not oriBGColor then
+		oriBGColor = {unpack(control.backgroundColor)}
+		oriFocusColor = {unpack(control.focusColor)}
+		oriPressedColor = {unpack(control.pressBackgroundColor)}
+		local r,g,b,a = unpack(control.focusColor)
+		selectedColor = MakeSelectedColor(r,g,b,a)
+
+	end
+	obj.control = control
+	-- local lastChild = selector.children[#selector.children]
+	-- win:SetPos(nil, nil, nil, lastChild.y + lastChild.height + 45)
+	-- selector:SetPos(nil, nil, nil, lastChild.y + lastChild.height + 12)
+end
+
+local lastTimeY
+local lastHeight
+local paddingBot = -2
+
+local function MakeWin()
+	local lastHeight
+	selector = WG.Chili.StackPanel:New{
+		y = 0,
+		width = "100%",
+		bottom = 0,
+		padding = {0,0,0,0},
+		itemMargin = {0, 0, 0, paddingBot},
+  		itemPadding   = {0, 0, 0, 0},
+		resizeItems = false,
+		centerItems = false,
+		autosize = true,
+		-- autoArrangeV = true,
+		orientation   = "vertical",
+		preserveChildrenOrder = true,
+		OnResize = {
+			function(self)
+				if lastHeight == self.height  or self.height <= 10 then
+					return -- avoid spam
+				end
+				local now = os.clock()
+				lastHeight = self.height
+				local off = scroll.y + win.padding[2] + scroll.bottom + win.padding[4]
+				local newWinHeight = self.height + off
+				local totalHeight = newWinHeight
+				local children = self.children
+				local clen = #children
+				if clen >= 2 then -- avoid working during spam of useless resize
+					local lastChildY = children[clen].y
+					if lastChildY == 0 or newWinHeight < lastChildY then
+						return -- avoid spam
+					end
+				end
+				local children = selector.children
+				local lastY, lastObj, lastI, opt
+				local scrollbar = false
+				for i = clen, 1, -1 do
+					local child = children[i]
+					if child.y  + (off - paddingBot) > MAX_WIN_HEIGHT then
+						lastY = child.y
+						scrollbar = true
+					else
+						if not lastY then
+							lastY = child.y + child.height
+						end
+						break
+					end
+				end
+				if lastY then
+					if lastY == lastTimeY then
+						-- avoid spam
+						return
+					end
+					newWinHeight = lastY - paddingBot + off
+
+					if win.maxHeight == newWinHeight then
+						lastTimeY = lastY
+						return
+					end
+				end
+				if newWinHeight > MAX_WIN_HEIGHT then
+					win.maxHeight = newWinHeight
+				else
+					win.maxHeight = MAX_WIN_HEIGHT
+				end
+				lastTimeY = lastY
+				if newWinHeight and win.height ~= math.min(newWinHeight, win.maxHeight) then
+					local selWidth = buttonWidth + (scrollbar and scroll.scrollbarSize or 0)
+					local winWidth = selWidth + 23
+					if winWidth == win.width then
+						winWidth = nil
+						selWidth = nil
+					end
+					win:SetPos(nil, nil, winWidth, math.min(newWinHeight, win.maxHeight))
+					if selWidth then
+						scroll:SetPos(nil,nil,selWidth)
+					end
+				end
+			end
+		},
+		children = {},
+	}
+	scroll = WG.Chili.ScrollPanel:New{
+		y = 14,
+		width = buttonWidth,
+		bottom = 10,
+		padding = {0,0,0,0},
+		itemPadding = {0,0,0,0},
+		itemMargin = {0,0,0,0},
+		horizontalScrollbar = false,
+		orientation   = "vertical",
+		children = {
+			selector
+		},
+	}
+
+
+	
+
+
+	win = WG.Chili.Window:New{
+		parent = WG.Chili.Screen0,
+		caption = 'Marker Selector',
+		x = vsx - (buttonWidth + 23 + 4),
+		y = 200,
+		height = 0,
+		padding = {12,7,5,5},
+		resizable = false,
+		maxHeight = 200,
+		width = buttonWidth + 23,
+		children = {
+			scroll
+		}
+	}
+	if not alwaysUp then
+		local alt, ctrl, meta, shift = Spring.GetModKeyState()
+		if not (ctrl and alt) then
+			win:Hide()
+		end
+	end
+end
+
+local function AddLineObj(lines, l, file, index)
+	index = index or #holder+1
+	lines.index = index
+	holder[index] = lines
+	lines.list = gl.CreateList(
+		gl.BeginEnd,
+		GL.LINES,
+		function()
+			for _, line in ipairs(lines) do
+				gl.Vertex(line[1], line[2], 0)
+				gl.Vertex(line[3], line[4], 0)
+			end
+		end
+	)
+	lines.filename = file:gsub(drawingsDir, '')
+	local size = 0
+	local read = io.open(file, 'r')
+	if read then
+		size = read:seek('end')
+		read:close()
+	end
+	lines.size = size
+	holder[file] = lines
+	AddControl(lines, index)
+end
+local function AddNewContouredImage(file, index)
+	local raster = GetRaster(file)
+	if not raster then
+		Echo('Contour test failed, no raster')
+	else
+		local contours = AcquireContours(raster)
+		local f
+		for i, contour in ipairs(contours) do
+			if contour.filling then
+				if not f then
+					f = i
+				end
+			else
+				if f then
+					contours[i], contours[f] = contours[f], contours[i]
+					if contours[f+1].filling then
+						f = f + 1
+					end
+				end
+			end
+
+		end
+		if not contours then
+			Echo('Contour test failed, no contours')
+		else
+			SimplifyContours(contours)
+			if DEBUG_CONTOUR then
+				for i, line in ipairs(raster) do
+					local txt = ''
+					for i, color in ipairs(line) do
+						txt = txt .. string.color(color) .. (color.txt or 'XX')
+					end
+					Echo(i..txt)
+				end
+			end
+			local lines, l = ContourToLineObj(contours)
+			lines.contour = true
+			AddLineObj(lines, l, file, index)
+		end
+	end
+end
+
+local function AddNewImage(file, index)
+	local lines, l = ImageToLineObj(file)
+	lines.contour = false
+	-- l = FuseMiniLines(lines, l, 9)
+	-- FillGaps(lines, l, 12)
+	AddLineObj(lines, l, file, index)
+end
+
+local function RemoveLineObj(obj, file)
+	holder[file] = nil
+	-- local y = obj.control.y
+	selector:RemoveChild(obj.control)
+	gl.DeleteList(obj.list)
+end
+
+local function Init()
+	MakeWin()
+	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif}', vfsMode)
+	-- Echo("Spring.GetKeyState('ctrl') is ", Spring.GetKeyPressed('ctrl'))
+
+	-- OLD METHOD
+	--[[
+	local lines, l = CoordListToLines(listFile)
+	
+	-- l = FuseMiniLines(lines, l, 9)
+	-- FillGaps(lines, l, 12)
+	holder[#holder+1] = lines
+	lines.list = gl.CreateList(
+		gl.BeginEnd,
+		GL.LINES,
+		function()
+			for _, line in ipairs(lines) do
+				gl.Vertex(line[1], line[2], 0)
+				gl.Vertex(line[3], line[4], 0)
+			end
+		end
+	)
+	AddControl(lines)
+	--]]
+	local wHeight = win.height
+	if CONTOUR_MODE then
+		for i, file in ipairs(files) do
+			AddNewContouredImage(file)
+		end
+	else
+
+		for i, file in ipairs(files) do
+			AddNewImage(file)
+		end
+	end
+	initialized = true
+end
+
+local function UpdateFiles()
+	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif}')
+	local count = 0
+	for i, file in ipairs(files) do
+		count = count + 1
+		files[file] = true
+		local obj = holder[file]
+		local toAdd = not obj
+		if obj then
+			local toRemove = obj.contour ~= CONTOUR_MODE
+			if not toRemove then
+				local size = 0
+				local read = io.open(file)
+				if read then
+					size = read:seek('end')
+					read:close()
+				end
+				if size ~= obj.size then
+					toRemove = true
+					toAdd = size ~= 0 and obj.index
+				end
+			end
+			if toRemove then
+				RemoveLineObj(obj, file)
+			end
+		end
+
+		if toAdd then
+			local index = tonumber(toAdd)
+			if CONTOUR_MODE then
+				AddNewContouredImage(file, index)
+			else
+				AddNewImage(file, index)
+			end
+		end
+	end
+	if holder[count + 1] then
+		for file, obj in pairs(holder) do
+			if type(file) ~= 'number' then
+				if not files[file] then
+					RemoveLineObj(obj, file)
+				end
+			end
+		end
+	end
+end
+
+--- Callins
+
+
+function widget:KeyPress(key, mods, isRepeat)
+	if isRepeat then
+		return
+	end
+	if mods.ctrl and mods.alt then
+		if win and win.hidden then
+			win:Show()
+		end
+	elseif not (alwaysUp or win and win.hidden) then
+		win:Hide()
+	end
+end
+function widget:KeyRelease(key, mods)
+	if deselectOnRelease and not mods.shift then
+		deselectOnRelease = false
+		Deselect()
+	end
+	if not (mods.ctrl and mods.alt) then
+		if not (alwaysUp or win and win.hidden) then
+			win:Hide()
+		end
+	end
+end
+local l, len = 0, 0
+local t = 0
+local toDraw = {}
+local PENDING = {}
+local glVertex = gl.Vertex
+local toCome = function(start, End)
+	for i = start, End do
+		local line = toDraw[i]
+		local c1, c2 = line[1], line[2]
+		glVertex(c1[1], c1[2], c1[3])
+		glVertex(c2[1], c2[2], c2[3])
+	end
+end
+local drawing
+function widget:MousePress(mx, my, button)
+	if button == 3 then
+		if selected then
+			Deselect(selected)
+			return true
+		end
+	elseif button == 1 then
+		if selected and not WG.Chili.Screen0:IsAbove(mx, my) then
+			local pending = false
+			if len > 0 then
+				pending = len + 1
+			end
+			len = SetupCoords(mx, my, selected, toDraw, len)
+			if pending then
+				PENDING[pending] = gl.CreateList(gl.BeginEnd, GL.LINES, toCome, pending, len)
+			end
+			drawing = true
+			-- Echo('lines ready', len)
+
+			if not select(4, spGetModKeyState()) then -- not shift, don't keep it selected
+				Deselect()
+			else
+				deselectOnRelease = true
+			end
+			return true
+		end
+	end
+end
+local timePassed = 0
+function widget:Update(dt)
+	timePassed = timePassed + dt
+	if drawing then
+		t = t + dt
+		if t > 0.04 then
+			t = 0
+			l = l + 1
+			if PENDING[l] then
+				gl.DeleteList(PENDING[l])
+				PENDING[l] = nil
+			end
+			local line = toDraw[l]
+			if line then
+				-- Echo(line)
+				local c1, c2 = unpack(line)
+				spMarkerAddLine(c1[1], 0, c1[3], c2[1], 0, c2[3])
+				toDraw[l] = nil
+			else
+				l = 0
+				len = 0
+				drawing = false
+				-- Echo('done')
+			end
+		end
+	end
+end
+
+
+
+local frame = gl.CreateList(
+	function()
+		gl.Shape(GL.LINES, {
+			{v={-1,0.5,0}}, {v={-1,1,0}},
+			{v={-1,1,0}}, {v={-0.5,1,0}},
+
+			{v={1,0.5,0}}, {v={1,1,0}},
+			{v={1,1,0}}, {v={0.5,1,0}},
+
+			{v={-1,-0.5,0}}, {v={-1,-1,0}},
+			{v={-1,-1,0}}, {v={-0.5,-1,0}},
+
+			{v={1,-0.5,0}}, {v={1,-1,0}},
+			{v={1,-1,0}}, {v={0.5,-1,0}},
+			 
+		})
+	end
+)
+function widget:DrawWorld()
+	for _, list in pairs(PENDING) do
+		gl.CallList(list)
+	end
+end
+function widget:DrawScreen()
+	if not initialized then
+		Init()
+		timePassed = 0
+	else
+		if timePassed > 3 then
+			UpdateFiles()
+			timePassed = 0
+		end
+	end
+
+	if selected then
+		local mx, my  = spGetMouseState()
+		gl.PushMatrix()
+		gl.Translate(mx,my,0)
+		gl.CallList(selected.list)
+		-- show a frame
+			-- gl.Scale(selected.midx, selected.midy, 1)
+			-- gl.CallList(frame)
+		--
+		gl.PopMatrix()
+	end
+	-- gl.Texture(0, imageFile)
+	-- local info = gl.TextureInfo(imageFile)
+	-- gl.TexRect(0, 0, info.xsize, info.ysize)
+	-- gl.Texture(0, false)
+
+
+	-- if holder[1] then
+	-- 	local lines = holder[1]
+	-- 	gl.PushMatrix()
+	-- 	-- gl.Translate(vsx - lines.midx-1, lines.midy, 0)
+	-- 	gl.Translate(500, 500, 0)
+	-- 	gl.LineStipple(false)
+	-- 	gl.CallList(lines.list)
+	-- 	gl.PopMatrix()
+	-- end
+	
+end
+
+function widget:Shutdown()
+	for _, obj in ipairs(holder) do
+		if obj.list then
+			gl.DeleteList(obj.list)
+		end
+	end
+	for _, list in pairs(PENDING) do
+		gl.DeleteList(list)
+	end
+	gl.DeleteList(frame)
+end
+
+f.DebugWidget(widget)
+
