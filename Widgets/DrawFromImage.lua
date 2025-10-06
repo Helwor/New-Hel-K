@@ -32,10 +32,10 @@ local glVertex = gl.Vertex
 
 local drawingsDir = "LuaUI\\Widgets\\Drawings\\"
 
-local tasks = {}
 local DEBUG_CONTOUR = false
 local mode = 'contour'
 local alwaysUp = false
+local placingFrame = false
 local angleSmoothness = 0.05
 local COUNT_FOR_ANGLE = 3
 local PRECISION = 0.5
@@ -44,23 +44,25 @@ local screen_ratio = 1/2 -- the final result on screen as marker is reshrinked b
 -- local listFile = "LuaUI\\Widgets\\Drawings\\Draw_19.txt"
 local buttonWidth = 75
 local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
-local buttonPadding = {5,10,5,10}
 local pixDetect = 0.6 -- any rgb color below this value will accept a point of line, any alpha value below (1-pixDetect) will deny it
 
 local LBPressed, LBx, LBy = false
 local mirrorH, mirrorV = 1, 1
+
 
 -- hax to customize selected button appearance
 local oriBGColor
 local oriFocusColor
 local oriPressedColor
 local selectedColor
+local buttonPadding = {5,10,5,10}
 local function MakeSelectedColor(r,g,b,a)
 	-- return {1, g * 0.8, b * 0.8, a * 1.5}
 	return {r * 0.5, g * 2, b * 0.5, a * 1.5}
 end
 --
 local holder = {}
+local tasks = {}
 local selector, win, scroll
 local deselectOnRelease = false
 local selected = false
@@ -73,9 +75,19 @@ local taskDelay = 1
 local vsx, vsy = Spring.GetViewGeometry()
 
 options_path = 'Hel-k/'..widget:GetInfo().name
-options_order = {'alwaysUp', 'mode', 'simplifyAngle'}
+options_order = {'alwaysUp', 'mode', 'simplifyAngle','placingFrame'}
 options = {}
 
+options.placingFrame = {
+	name = 'Show Placing Frame',
+	desc = 'Useful when you plan have to mirror the image and you\'re unsure where it will land',
+	type = 'bool',
+	value = placingFrame,
+	OnChange = function(self)
+		placingFrame = self.value
+	end,
+
+}
 options.mode = {
 	name = 'Mode',
 	type = 'radioButton',
@@ -898,6 +910,14 @@ local function MakeSelector()
 		resizable = false,
 		maxHeight = 200,
 		width = buttonWidth + 23,
+		OnClick = {
+			function()
+				if select(3, Spring.GetModKeyState()) then
+					WG.crude.OpenPath(widget.options_path)
+					return true
+				end
+			end
+		},
 		children = {
 			scroll
 		}
@@ -1186,8 +1206,11 @@ function widget:MousePress(mx, my, button)
 				if widgetHandler.mouseOwner == widget then
 					widgetHandler.mouseOwner = nil
 				end
+				LBPressed = false
+				mirrorH, mirrorV = 1, 1
+			else
+				Deselect(selected)
 			end
-			Deselect(selected)
 			return true
 		end
 	elseif button == 1 then
@@ -1204,7 +1227,7 @@ end
 
 function widget:Update(dt)
 	if LBPressed then
-		local mx, my, lb = Spring.GetMouseState()
+		local mx, my, lb = spGetMouseState()
 		if lb then
 			mirrorH = mx - LBx < -10 and -1 or 1
 			mirrorV = my - LBy < -10 and -1 or 1
@@ -1298,10 +1321,10 @@ function widget:DrawScreen()
 		end
 		gl.Scale(mirrorH, mirrorV, 1)
 		gl.CallList(selected.list)
-		-- show a frame
-			-- gl.Scale(selected.midx, selected.midy, 1)
-			-- gl.CallList(frame)
-		--
+		if placingFrame then
+			gl.Scale(selected.midx, selected.midy, 1)
+			gl.CallList(frame)
+		end
 		gl.PopMatrix()
 	end
 	-- gl.Texture(0, imageFile)
