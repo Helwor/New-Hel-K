@@ -2,11 +2,12 @@ function widget:GetInfo()
 	return {
 		name      = "Draw Marker From Image",
 		desc      = "Place marker drawn from images, use Ctrl + Alt to show the UI, put images png/jpg/tif in the LuaUI/Widgets/Drawings dir, they get updated live during widget run"
-					.."\nUse shift to place multiple, right click to cancel. Images are stored as json file for faster loading",
+					.."\nUse shift to place multiple, right click to cancel."
+					.."\nClick on map and drag: left to mirror horizontally, down to mirror vertically."
+					.."\nImages are stored as json file for faster loading",
 		author    = "Helwor",
 		date      = "Dec 2023",
 		license   = "GNU GPL, v2 or later",
-		-- layer     = 2, -- after Unit Start State
 		layer     = - 10e35,
 		enabled   = true,  --  loaded by default?
 		-- api       = true,
@@ -45,6 +46,10 @@ local buttonWidth = 75
 local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
 local buttonPadding = {5,10,5,10}
 local pixDetect = 0.6 -- any rgb color below this value will accept a point of line, any alpha value below (1-pixDetect) will deny it
+
+local LBPressed, LBx, LBy = false
+local mirrorH, mirrorV = 1, 1
+
 -- hax to customize selected button appearance
 local oriBGColor
 local oriFocusColor
@@ -667,12 +672,14 @@ local function ImageToLineObj(imageFile)
 end
 
 
-local function SetupCoords(mx, my, lines, ret, l)
+local function SetupCoords(mx, my, lines, ret, l, mirrorH, mirrorV)
+	local midx, midy = lines.midx, lines.midy
 	for i, line in ipairs(lines) do
-		local x1, y1, x2, y2 = line[1] + mx, line[2] + my, line[3] + mx, line[4] + my
+		local x1, y1, x2, y2 = line[1] * (mirrorH or 1), line[2] * (mirrorV or 1), line[3] * (mirrorH or 1), line[4] * (mirrorV or 1)
+		-- local x1, y1, x2, y2 = line[1] + mx, line[2] + my, line[3] + mx, line[4] + my
 		-- onlyCoords, useMinimap, includeSky, ignoreWater
-		local _, c1 = spTraceScreenRay(x1, y1, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
-		local _, c2 = spTraceScreenRay(x2, y2, true, false, false, false)
+		local _, c1 = spTraceScreenRay(x1 + mx, y1 + my, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
+		local _, c2 = spTraceScreenRay(x2 + mx, y2 + my, true, false, false, false)
 		if c1 and c2 then
 			l = l + 1
 			ret[l] = {c1, c2}
@@ -693,6 +700,9 @@ local function Deselect()
 	pressedColor[1], pressedColor[2], pressedColor[3], pressedColor[4] = unpack(oriPressedColor)
 	control:Invalidate()
 	selected = false
+	LBPressed = false
+	mirrorH, mirrorV = 1, 1
+
 	return true
 end
 
@@ -1071,9 +1081,10 @@ local function UpdateFiles()
 		local loaded
 		local toAdd
 		if not obj then
+			toAdd = true
 			loaded = LoadLines(file)
-			if not loaded or ObjectMatch(loaded) then
-				toAdd = true
+			if loaded and not ObjectMatch(loaded) then
+				loaded = nil
 			end
 		else
 			if not ObjectMatch(obj) then
@@ -1081,7 +1092,6 @@ local function UpdateFiles()
 				toAdd = obj.index
 			end
 		end
-
 		if toAdd then
 			local index = tonumber(toAdd)
 			if loaded then
@@ -1095,7 +1105,7 @@ local function UpdateFiles()
 			end
 		end
 	end
-	if holder[count + 1] then
+	if holder[count + 1] then -- some file got deleted
 		for file, obj in pairs(holder) do
 			if type(file) ~= 'number' then
 				if not files[file] then
@@ -1148,35 +1158,63 @@ local toCome = function(start, End)
 	end
 end
 local drawing
+
+local function OrderDraw(mx, my, mirrorH, mirrorV)
+	local pending = false
+	if len > 0 then
+		pending = len + 1
+	end
+	len = SetupCoords(mx, my, selected, toDraw, len, mirrorH, mirrorV)
+	if pending then
+		PENDING[pending] = gl.CreateList(gl.BeginEnd, GL.LINES, toCome, pending, len)
+	end
+	drawing = true
+	-- Echo('lines ready', len)
+
+	if not select(4, spGetModKeyState()) then -- not shift, don't keep it selected
+		Deselect()
+	else
+		deselectOnRelease = true
+	end	
+end
+
+
 function widget:MousePress(mx, my, button)
 	if button == 3 then
 		if selected then
+			if LBPressed then -- fix the widget keeping wrongly ownership of the mouse
+				if widgetHandler.mouseOwner == widget then
+					widgetHandler.mouseOwner = nil
+				end
+			end
 			Deselect(selected)
 			return true
 		end
 	elseif button == 1 then
+		if LBPressed then
+			return
+		end
 		if selected and not WG.Chili.Screen0:IsAbove(mx, my) then
-			local pending = false
-			if len > 0 then
-				pending = len + 1
-			end
-			len = SetupCoords(mx, my, selected, toDraw, len)
-			if pending then
-				PENDING[pending] = gl.CreateList(gl.BeginEnd, GL.LINES, toCome, pending, len)
-			end
-			drawing = true
-			-- Echo('lines ready', len)
-
-			if not select(4, spGetModKeyState()) then -- not shift, don't keep it selected
-				Deselect()
-			else
-				deselectOnRelease = true
-			end
+			LBPressed = 0
+			LBx, LBy = mx, my
 			return true
 		end
 	end
 end
+
 function widget:Update(dt)
+	if LBPressed then
+		local mx, my, lb = Spring.GetMouseState()
+		if lb then
+			mirrorH = mx - LBx < -10 and -1 or 1
+			mirrorV = my - LBy < -10 and -1 or 1
+		else
+			OrderDraw(LBx, LBy, mirrorH, mirrorV)
+
+			LBPressed = false
+			mirrorH, mirrorV = 1, 1
+		end
+	end
 	updateTime = updateTime + dt
 	taskTime = taskTime + dt
 
@@ -1253,7 +1291,12 @@ function widget:DrawScreen()
 	if selected then
 		local mx, my  = spGetMouseState()
 		gl.PushMatrix()
-		gl.Translate(mx,my,0)
+		if LBPressed then
+			gl.Translate(LBx,LBy,0)
+		else
+			gl.Translate(mx,my,0)
+		end
+		gl.Scale(mirrorH, mirrorV, 1)
 		gl.CallList(selected.list)
 		-- show a frame
 			-- gl.Scale(selected.midx, selected.midy, 1)
