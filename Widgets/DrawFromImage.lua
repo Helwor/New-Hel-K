@@ -44,7 +44,7 @@ local screen_ratio = 1/2 -- the final result on screen as marker is reshrinked b
 -- local listFile = "LuaUI\\Widgets\\Drawings\\Draw_19.txt"
 local buttonWidth = 75
 local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
-local pixDetect = 0.6 -- any rgb color below this value will accept a point of line, any alpha value below (1-pixDetect) will deny it
+local pixDetect = 0.6 -- any rgb color below this value will accept a pixel as valid, any alpha value below (1-pixDetect) will deny it
 
 local LBPressed, LBx, LBy = false
 local mirrorH, mirrorV = 1, 1
@@ -136,7 +136,7 @@ options.alwaysUp = {
 }
 
 -- Making Contour
---- making Rotator clockwise usage: rasterRot[x][z] = rotatedCoords
+--- making Rotator clockwise usage: rotateClock[x][z] = rotatedCoords
 
 
 local function SpiralSquare(layers, step, callback, offset, reverse, ortho)
@@ -185,7 +185,7 @@ local function SpiralSquare(layers, step, callback, offset, reverse, ortho)
 	end
 end
 
-local rasterRot = setmetatable(
+local rotateClock = setmetatable(
 	{},
 	{
 		__index = function(self, k) 
@@ -195,18 +195,18 @@ local rasterRot = setmetatable(
 		end
 	}
 )
-local rotateRight, r = {}, 0
+local clockCoords, r = {}, 0
 local add = function(_, x, z)
 	r = r + 1
-	rotateRight[r] = {z,x}
+	clockCoords[r] = {z,x}
 end
 f.SpiralSquare(1, 1, add)
-for i, r in ipairs(rotateRight) do
-	rasterRot[ r[1] ][ r[2] ] = rotateRight[i + 1] or rotateRight[1]
+for i, r in ipairs(clockCoords) do
+	rotateClock[ r[1] ][ r[2] ] = clockCoords[i + 1] or clockCoords[1]
 end
-setmetatable(rasterRot, nil)
+setmetatable(rotateClock, nil)
 
-local rasterRotInv = setmetatable(
+local rotateAntiClock = setmetatable(
 	{},
 	{
 		__index = function(self, k) 
@@ -216,19 +216,19 @@ local rasterRotInv = setmetatable(
 		end
 	}
 )
-local rotateLeft, r = {}, 0
+local antiClockCoords, r = {}, 0
 local add = function(_, x, z)
 	r = r + 1
-	rotateLeft[r] = {z,x}
+	antiClockCoords[r] = {z,x}
 end
-
-for i, r in ipairs(rotateLeft) do
-	rasterRotInv[ r[1] ][ r[2] ] = rotateLeft[i + 1] or rotateLeft[1]
+f.SpiralSquare(1, 1, add, nil, true)
+for i, r in ipairs(antiClockCoords) do
+	rotateAntiClock[ r[1] ][ r[2] ] = antiClockCoords[i + 1] or antiClockCoords[1]
 end
-
+-- setmetatable(rotateAntiClock, nil)
 --[[ verif
 local function verif(_, x, z)
-	local coords = rasterRot[z][x]
+	local coords = rotateClock[z][x]
 	Echo(x, z .. ' =>> ' .. coords[2], coords[1])
 end
 f.SpiralSquare(1, 1, verif)
@@ -251,6 +251,8 @@ local function GetRaster(imageFile)
 	local info = gl.TextureInfo(imageFile)
 	if not info or info.xsize == -1 then
 		Echo("CAN'T LOAD FILE " .. imageFile)
+		gl.Texture(0, false)
+		gl.DeleteTexture(imageFile)
 		return
 	end
 	-- f.Page(info)
@@ -276,16 +278,15 @@ local function GetRaster(imageFile)
 end
 
 --- Contours
-local function SearchAround(y, x, diry, dirx, raster, index, c, inv, inDeadEnd)
+local function SearchAround(y, x, diry, dirx, raster, index, c, inv)
 	-- check clockwise, starting just next to the point we come from
 	diry, dirx = diry * -1, dirx * -1
-	local dbg
 	local loopy, loopx
 	local spaghetti_mode = mode == 'spaghetti'
 	local End = inDeadEnd and 7 or 8
+
 	for i = 1, End do
-		local dirs = inv and rasterRotInv[diry][dirx] or rasterRot[diry][dirx]
-		-- dbg = table.concat({x, y, dirx, diry, '=>', dirs[2], dirs[1], '=>', x + dirs[2], y + dirs[1]}, ',')
+		local dirs = inv and rotateAntiClock[diry][dirx] or rotateClock[diry][dirx]
 		diry, dirx = dirs[1], dirs[2]
 		local _y, _x = y + diry, x + dirx
 		local point = raster[_y][_x]
@@ -312,7 +313,8 @@ local function AcquireContour(point, _y, _x, raster, diry, dirx, c)
 	-- point.txt = '0'..1
 	-- point.contourStart = c
 	-- Echo('START', x, y)
-	local inv = false
+	local inv = dirx == -1
+
 	local join = {}
 	local phase1 = true
 	local lastY, lastX
@@ -321,7 +323,7 @@ local function AcquireContour(point, _y, _x, raster, diry, dirx, c)
 			if lastY == y and lastX == x then
 				break
 			end
-			inv = true
+			inv = not inv
 		end
 		local contour, i = {}, 0 
 		local tries = 0
