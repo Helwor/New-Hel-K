@@ -114,9 +114,7 @@ local WIDGET_DIRNAME = LUAUI_DIRNAME .. 'Widgets/'
 local oriConfigLayout = widgetHandler.ConfigureLayout
 function widgetHandler:ConfigureLayout(command)
     if command:find('insertwidget') == 1 then
-
         local basename, mode = unpack(command:sub(14):explode(' ')) -- is it something new? now explode
-        Echo("basename is ", basename)
         if not basename or basename == '' then
             Echo('No basename found in command')
             return true
@@ -124,14 +122,11 @@ function widgetHandler:ConfigureLayout(command)
         if not basename:find('%.lua$') then 
             basename = basename .. '.lua'
         end
-        -- Echo("basename is ", basename)
         local filename = WIDGET_DIRNAME ..basename
         mode = mode and VFS[mode] or VFS.RAW_FIRST
-        Echo("basename, mode, filename, VFS.FileExists( filename, mode) is ", basename, mode, filename, VFS.FileExists( filename, mode))
         if basename and VFS.FileExists( filename, mode) then
             for name, ki in pairs(self.knownWidgets) do
                 if (ki.basename == basename) then
-                    Echo('found in knownWidgets')
                     local newWantedMode = 
                         ki.fromZip and (
                             mode == VFS.RAW
