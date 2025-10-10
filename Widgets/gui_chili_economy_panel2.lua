@@ -620,14 +620,13 @@ function UpdateCustomParamResourceData()
 		local teamID = Spring.GetLocalTeamID()
 		local mStor = select(2, spGetTeamResources(teamID, "metal")) - HIDDEN_STORAGE
 		cp.metalStorageReserve = Spring.GetTeamRulesParam(teamID, "metalReserve") or 0
-		if mStor <= 0 and bar_reserve_metal.bars[1].percent ~= 0 then
-			bar_reserve_metal.bars[1].percent = 0
-			bar_reserve_metal:Invalidate()
+		if mStor <= 0  then
+			if bar_reserve_metal.bars[1].percent ~= 0 then
+				bar_reserve_metal.bars[1].percent = 0
+				bar_reserve_metal:Invalidate()
+			end
 		elseif bar_reserve_metal.bars[1].percent*mStor ~= cp.metalStorageReserve then
 			bar_reserve_metal.bars[1].percent = cp.metalStorageReserve/mStor
-			if bar_reserve_metal.bars[1].percent == math.huge or bar_reserve_metal.bars[1].percent == -math.huge then
-				Spring.Echo("PERCENT STILL INF !", bar_reserve_metal.bars[1].percent)
-			end
 			bar_reserve_metal:Invalidate()
 		end
 		
