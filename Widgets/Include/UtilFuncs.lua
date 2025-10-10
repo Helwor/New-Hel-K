@@ -2997,17 +2997,27 @@ end
 
 
 
-function string:explode(div) --copied from gui_epicmenu.lua
-  if (div == '') then return false end
-  local pos, arr = 0, {}
-  -- for each divider found
-  for st, sp in function() return self:find(div, pos, true) end do
-	table.insert(arr, self:sub(pos, st-1)) -- Attach chars left of current divider
-	pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr, self:sub(pos)) -- Attach chars right of last divider
-  return arr
+function string:explode(div, regex) --copied and improved from gui_epicmenu.lua
+	div = div or ','
+	local arr = {}
+	if (div == '') then
+		for i = 1, #self do
+			arr[i] = self:sub(i,i)
+		end
+		return arr
+	end
+	local pos, i = 0, 0
+	-- for each divider found
+	for st, sp in function() return self:find(div, pos, not regex) end do
+		i = i + 1
+		arr[i] = self:sub(pos, st-1) -- Attach chars left of current divider
+		pos = sp + 1 -- Jump past current divider
+	end
+	i = i + 1
+	arr[i] = self:sub(pos) -- Attach chars right of last divider
+	return arr
 end
+
 
 do
 	-- copied
