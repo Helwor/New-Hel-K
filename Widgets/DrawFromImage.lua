@@ -394,7 +394,7 @@ local function MakeCategories()
 		beNew = true
 	end
 	local y = win.height - win.padding[2] - win.padding[4] - scroll.clientArea[4] - scroll.bottom
-	local bheight = scroll.clientArea[4] / c 
+	local bheight = (scroll.clientArea[4] - 1) / c + 1
 	if beNew then
 		local scrollPoses = {}
 		local controls = {}	
@@ -413,7 +413,7 @@ local function MakeCategories()
 					x = 1,
 					y = y,
 					width = 13,
-					height = bheight + 1,
+					height = bheight,
 					OnClick = {
 						function(self)
 							scroll:SetScrollPos(nil, scrollPoses[i], nil, true)
@@ -422,7 +422,7 @@ local function MakeCategories()
 				}
 				win:AddChild(control)
 				controls[i] = control
-				y = y + bheight
+				y = y + bheight - 1
 			end
 		end
 		newCats.byKey = byKey
@@ -444,7 +444,7 @@ local function MakeCategories()
 		if controls[1] and controls[1].height ~= bheight then
 			for i, control in ipairs(controls) do 
 				control:SetPosRelative(nil, y, nil, bheight, clientArea, dontUpdateRelative)
-				y = y + bheight + 1
+				y = y + bheight - 1
 			end
 		end
 	end
@@ -1037,8 +1037,8 @@ local function MakeCustomizationPanel()
         caption = 'Close',
         OnClick = {
         	function(self)
-        		-- cp.win:Dispose()
         		cp.win:Hide()
+        		customize = false
         	end
         },
         --backgroundColor=color.sub_close_bg,
@@ -2013,7 +2013,7 @@ function MarkerMaker:FastUpdate()
 		local newTask = {self.file, self.index, self}
 		table.insert(tasks, 1, newTask)
 		tasks[self.file] = newTask
-		self:Remove()
+		self:Remove(true)
 		taskTime = taskDelay
 		updateTime = 0
 	end
@@ -2083,9 +2083,12 @@ function MarkerMaker:UpdateFiles()
 	-- end
 end
 
-function MarkerMaker:Remove()
+function MarkerMaker:Remove(fastUpdate)
 	if selected == self then
 		selected:Deselect()
+	end
+	if customize == self and not fastUpdate then
+		customPanel.closeButton.OnClick[1](customPanel.closeButton)
 	end
 	if not holder[self.file] then
 		error('trying to remove object already removed')
