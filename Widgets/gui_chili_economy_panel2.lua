@@ -36,6 +36,7 @@ local spGetTeamResources = Spring.GetTeamResources
 local spGetModKeyState = Spring.GetModKeyState
 local Chili
 
+
 local spGetTeamRulesParam = Spring.GetTeamRulesParam
 
 local WARNING_IMAGE = LUAUI_DIRNAME .. "Images/Crystal_Clear_app_error.png"
@@ -52,10 +53,44 @@ local col_line    = {220/255,220/255,220/255,1}
 local col_reserve = {0, 0, 0, 0}
 local text_red    = '\255\255\100\100'
 
+
+local symbols = {
+	wind = '🚩',
+	overdrive = '⚡', 
+	usage = '⚖️', -- balance
+	efficiency = '〰', 
+}
+-- ⚡ HIGH VOLTAGE SIGN (U+26A1)
+-- 📈 CHART WITH UPWARDS TREND (U+1F4C8)
+-- 📉 CHART WITH DOWNWARDS TREND (U+1F4C9)
+-- 📊 BAR CHART (U+1F4CA)
+-- ↕ ARROW UP DOWN (U+2195)
+-- ↨ ARROW UP DOWN BASE (U+21A8)
+-- ⇅ DOUBLE ARROW UP DOWN (U+21C5)
+-- 🔄 ANTICLOCKWISE ARROWS BUTTON (U+1F504)
+-- 〰 SINUSOIDAL U+3030
+-- 🔩 NUT AND BOLT (U+1F529)
+-- 🌀 TYPHOON (U+1F300)
+-- ⚖️ BALANCE SCALE (U+2696)
+-- 💨 DASH SYMBOL (U+1F4A8)
+-- 🚩 TRIANGULAR FLAG (U+1F6A9)
+-- 🔋 BATTERY (U+1F50B)
+-- 🔰 JAPONESE APPRENTICE(U+1F530)
+-- ➗ DIVIDE (U+2797)
+-- 🍃 LEAVES (U+1F343)
+-- ⚠ WARNING SIGN (U+26A0)
+-- 📌 PIN (U+1F4CC)
+-- ⛓ CHAIN (U+26D3)
+-- 📏 RULER (U+1F4CF)
+-- ◫ DIVIDED SQUARE (U+25EB)
+-- 📐 SQUARE (U+1F4D0)
+-- 🔍 MAGNIFYING GLASS (U+1F50D)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 local window
+
+local extraPanels
 
 local fancySkinLeft, fancySkinRight
 
@@ -63,6 +98,7 @@ local metalWarningPanel
 local energyWarningPanel
 local metalNoStorage
 local energyNoStorage
+
 
 local window_main_display
 local window_metal
@@ -80,6 +116,7 @@ local lbl_expense_metal
 local lbl_expense_energy
 local lbl_income_metal
 local lbl_income_energy
+
 
 local positiveColourStr
 local negativeColourStr
@@ -211,30 +248,33 @@ local function Format(input, override)
 end
 
 local lastWind = 0
-local blink = false
-local function FormatPercent(input, colorFunc)
+local blinkWind = false
+local function FormatPercent(input, colorFunc, symbol)
 	local leadingString = ""
 	if colorFunc then
 		local color = colorFunc(input)
 		leadingString = string.char(255, color[1] * 255, color[2] * 255, color[3] * 255)
 	end
-	local diff = (input - lastWind) / 0.015
-	local num = math.min(4, math.floor(math.abs(diff) + 0.5))
-	blink = num >= 1
-	local chev = diff < 0 and "<" or ">"
-	return leadingString .. chev:rep(num) .. '🚩' .. ("%.0f"):format(100*input) .. "%" .. WhiteStr
+	if symbol == symbols.wind then
+		local diff = (input - lastWind) / 0.015
+		local num = math.min(4, math.floor(math.abs(diff) + 0.5))
+		blinkWind = num >= 1
+		local chev = diff < 0 and "<" or ">"
+		return leadingString .. chev:rep(num) .. symbol .. ("%.0f"):format(100*input) .. "%" .. WhiteStr
+	else
+		return leadingString .. (symbol and (symbol .. ' ') or '') .. ("%.0f"):format(100*input) .. "%" .. WhiteStr
+	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local extraPanels
 local function UpdateWindPanel()
 	if extraPanels.wind and extraPanels.wind.window then
 		local windStrength = Spring.GetGameRulesParam("WindStrength")
 
 		if windStrength then
-			extraPanels.wind.window.SetText(FormatPercent(windStrength,  extraPanels.wind.colorFunc))
+			extraPanels.wind.window.SetText(FormatPercent(windStrength,  extraPanels.wind.colorFunc, extraPanels.wind.symbol))
 			lastWind = windStrength
 		end
 
@@ -293,7 +333,7 @@ extraPanels = {
 		labelCount = 3,
 	},
 	wind = {
-		title = "",
+		title = "Wind",
 		onShow = UpdateWindPanel,
 		labelRight = "0%",
 		colorFunc = function (value)
@@ -307,10 +347,10 @@ extraPanels = {
 
 options_path = 'Settings/HUD Panels/Economy Panel'
 
-local function UpdateExtraPanelHide(wantHide)
+local function UpdateExtraPanelHide(wantHide, windHide)
 	for key, data in pairs(extraPanels) do
 		if data.window then
-			data.window.SetTempHide(wantHide)
+			data.window.SetTempHide(wantHide, windHide)
 		end
 	end
 end
@@ -320,19 +360,40 @@ local function option_recreateWindow()
 	if options.ecoPanelHideSpec.value then
 		local spectating = select(1, Spring.GetSpectatingState())
 		if spectating then
-			UpdateExtraPanelHide(true)
+			UpdateExtraPanelHide(true, options.windPanelHideSpec.value)
 			return false
 		end
 	end
 	
 	if externalForceHide then
-		UpdateExtraPanelHide(true)
+		UpdateExtraPanelHide(true, true)
 		return false
 	end
 	
 	CreateWindow(x,y,w,h)
 	UpdateExtraPanelHide(false)
 	return true
+end
+
+local function ChangeWindowClass(window, className)
+	local currentSkin = Chili.theme.skin.general.skinName
+	local skin = Chili.SkinHandler.GetSkin(currentSkin)
+	local newSkin = skin[className]
+	if not newSkin then
+		Echo(' error no such skin for class', className)
+		return
+	end
+	window.class = className
+	window.tiles = newSkin.tiles
+	window.TileImageFG = newSkin.TileImageFG
+	-- window.backgroundColor = newSkin.backgroundColor
+	window.TileImageBK = newSkin.TileImageBK
+	window.DrawControl = newSkin.DrawControl
+	if newSkin.padding then
+		window.padding = newSkin.padding
+		window:UpdateClientArea()
+	end
+	window:Invalidate()
 end
 
 local function ApplySkin(skinWindow, className)
@@ -373,8 +434,8 @@ options_order = {
 	'lbl_metal', 'metalFlash', 'metalWarning',
 	'lbl_energy', 'energyFlash', 'energyWarning', 'eExcessFlash',
 	'lbl_reserve', 'enableReserveBar', 'defaultEnergyReserve','defaultMetalReserve',
-	'lbl_extra', 'panel_efficiency', 'panel_usage', 'panel_overdrive', 'transp_wind', 'panel_wind',
-	'lbl_visual', 'ecoPanelHideSpec',
+	'lbl_extra', 'panel_efficiency', 'panel_usage', 'panel_overdrive', 'panel_wind', 'compact',
+	'lbl_visual', 'ecoPanelHideSpec', 'windPanelHideSpec',
 	'flowAsArrows', 'opacity',
 	'colourBlind','fontSize','warningFontSize', 'fancySkinning'}
 
@@ -463,10 +524,22 @@ options = {
 		OnChange = option_toggleExtra,
 		extraKey = 'wind',
 	},
-	transp_wind = {
-		name  = 'Transparent Wind Panel',
+	compact = {
+		name  = 'Compact Extra Panels',
+		desc  = 'Discreet panels with no borders and symbol instead of caption',
 		type  = 'bool',
 		value = false,
+		OnChange = function(self)
+			if extraPanels then
+				for name, panel in pairs(extraPanels) do
+					if panel.window then
+						panel.window.UpdateCompact(self.value)
+						-- local opt = options['panel_' .. name]
+						-- option_toggleExtra(opt, opt.value)
+					end
+				end
+			end
+		end,
 		desc = "",
 	},
 	lbl_visual = {name='Visuals', type='label'},
@@ -475,7 +548,15 @@ options = {
 		type  = 'bool',
 		value = false,
 		noHotkey = true,
-		desc = "Should the panel hide when spectating?",
+		desc = "Should the panels hide when spectating? (except Wind Panel)",
+		OnChange = option_recreateWindow
+	},
+	windPanelHideSpec = {
+		name  = 'Hide Include Wind Panel',
+		type  = 'bool',
+		value = false,
+		noHotkey = true,
+		desc = "Should the Wind Panel hide when spectating?",
 		OnChange = option_recreateWindow
 	},
 	flowAsArrows = {
@@ -632,9 +713,11 @@ function UpdateCustomParamResourceData()
 		
 		local eStor = select(2, spGetTeamResources(teamID, "energy")) - HIDDEN_STORAGE
 		cp.energyStorageReserve = Spring.GetTeamRulesParam(teamID, "energyReserve") or 0
-		if eStor <= 0 and bar_reserve_energy.bars[1].percent ~= 0 then
-			bar_reserve_energy.bars[1].percent = 0
-			bar_reserve_energy:Invalidate()
+		if eStor <= 0 then
+			if  bar_reserve_energy.bars[1].percent ~= 0 then
+				bar_reserve_energy.bars[1].percent = 0
+				bar_reserve_energy:Invalidate()
+			end
 		elseif bar_reserve_energy.bars[1].percent*eStor ~= cp.energyStorageReserve then
 			bar_reserve_energy.bars[1].percent = cp.energyStorageReserve/eStor
 			bar_reserve_energy:Invalidate()
@@ -771,9 +854,9 @@ local energyWarnOpt = options.energyWarning
 
 local initialReserveSet = false
 function widget:GameFrame(n)
-	if blink and n%(TEAM_SLOWUPDATE_RATE/2) < 1 then
+	if blinkWind and n%(TEAM_SLOWUPDATE_RATE/2) < 1 then
 		if not extraPanels.wind then
-			blink = false
+			blinkWind = false
 		else
 			extraPanels.wind.window.SetText("")
 		end
@@ -985,8 +1068,8 @@ function widget:GameFrame(n)
 
 	local odEff = (cp.team_metalOverdrive > 0) and (cp.team_energyOverdrive / cp.team_metalOverdrive) or 0
 	local odColor = GetGridColor((odEff < 1) and 0 or (odEff < 4.2 and 4.2 or odEff)) -- grids below 4.2 have dark colors which make the text illegible; 0 is okay though
-	local odEffStr = string.char(255, odColor[1] * 255, odColor[2] * 255, odColor[3] * 255) .. ("%.1f"):format(odEff) .. WhiteStr
-
+	local odStrColor = string.char(255, odColor[1] * 255, odColor[2] * 255, odColor[3] * 255)
+	local odEffStr = odStrColor .. ("%.1f"):format(odEff) .. WhiteStr
 	--Figure out what advice to show
 
 	local advice = strings["advice_expand_both"]
@@ -1074,24 +1157,31 @@ function widget:GameFrame(n)
 	--// Net income indicator on resource bars.
 	bar_metal:SetCaption(GetFlowStr(netMetal, options.flowAsArrows.value, positiveColourStr, negativeColourStr))
 	bar_overlay_energy:SetCaption(GetFlowStr(netEnergy, options.flowAsArrows.value, positiveColourStr, negativeColourStr))
-
-	if extraPanels.overdrive.window then
-		extraPanels.overdrive.window.SetText(odEffStr, 1)
-		extraPanels.overdrive.window.SetText(team_metalOverdrive, 2)
-		extraPanels.overdrive.window.SetText(team_energyOverdrive, 3)
-	end
-	if extraPanels.usage.window then
-		if mInco+mReci > 0 then
-			extraPanels.usage.window.SetText(FormatPercent(mPull/(mInco + mReci), extraPanels.usage.colorFunc))
+	local odPanel = extraPanels.overdrive
+	if odPanel.window then
+		local symbol = odPanel.symbol
+		if symbol then
+			odPanel.window.SetText(odStrColor .. symbol .. ' ' .. odEffStr, 1)
 		else
-			extraPanels.usage.window.SetText(FormatPercent(0, extraPanels.usage.colorFunc))
+			odPanel.window.SetText(odEffStr, 1)
+		end
+		odPanel.window.SetText(team_metalOverdrive, 2)
+		odPanel.window.SetText(team_energyOverdrive, 3)
+	end
+	local usagePanel = extraPanels.usage
+	if usagePanel.window then
+		if mInco + mReci > 0 then
+			usagePanel.window.SetText(FormatPercent(mPull/(mInco + mReci), usagePanel.colorFunc, usagePanel.symbol))
+		else
+			usagePanel.window.SetText(FormatPercent(0, usagePanel.colorFunc, usagePanel.symbol))
 		end
 	end
-	if extraPanels.efficiency.window then
+	local effPanel = extraPanels.efficiency
+	if effPanel.window then
 		local energyEff = (realEnergyPull > 0 and eInco/realEnergyPull) or 0
 		local metalEff = (mPull > 0 and (mInco+mReci)/mPull) or 0
 		local efficiency = math.min(energyEff, metalEff)
-		extraPanels.efficiency.window.SetText(FormatPercent(efficiency, extraPanels.efficiency.colorFunc))
+		effPanel.window.SetText(FormatPercent(efficiency, effPanel.colorFunc, effPanel.symbol))
 	end
 	UpdateWindPanel()
 
@@ -1264,6 +1354,8 @@ end
 
 local function GetExtraPanel(name, extraData)
 	local show = true
+	local compact = options.compact.value
+	extraData.symbol = compact and symbols[name]
 	extraData.labelCount = extraData.labelCount or 1
 	extraData.minWidth = extraData.minWidth or 100
 	
@@ -1288,8 +1380,8 @@ local function GetExtraPanel(name, extraData)
 		dockableSavePositionOnly = true,
 	}
 	local holderPanel = Chili.Panel:New{
-		classname = options.transp_wind and "panel" or "main_window_small_tall",
-		backgroundColor = {0, 0, 0, 0},
+		classname = compact and "panel" or "main_window_small_tall",
+		backgroundColor = compact and {0,0,0,0} or nil,
 		parent = extraWindow,
 		padding = {0,0,0,0},
 		y      = 0,
@@ -1306,7 +1398,7 @@ local function GetExtraPanel(name, extraData)
 		y      = 10,
 		width  = "90%",
 		height = 20,
-		caption = extraData.title,
+		caption = compact and '' or extraData.title,
 		valign = "center",
 		align  = "center",
 		autosize = false,
@@ -1351,14 +1443,28 @@ local function GetExtraPanel(name, extraData)
 		end
 	end
 	
-	function externalFunctions.SetTempHide(shouldHide)
+	function externalFunctions.SetTempHide(shouldHide, windHide)
 		if shouldHide then
-			holderPanel:SetVisibility(false)
-			return
+			if name ~= 'wind' or windHide then
+				holderPanel:SetVisibility(false)
+				return
+			end
 		end
 		holderPanel:SetVisibility(show)
 	end
-	
+
+	function externalFunctions.UpdateCompact(wantCompact)
+		if compact ~= wantCompact then
+				compact = wantCompact
+				title:SetCaption(compact and '' or extraData.title)
+				ChangeWindowClass(holderPanel, compact and "panel" or "main_window_small_tall")
+				if compact then
+					holderPanel.backgroundColor = {0,0,0,0}
+				end
+				extraData.symbol = compact and symbols[name] or ''
+		end
+	end
+
 	return externalFunctions
 end
 function DoExtraToggle(name, value)
