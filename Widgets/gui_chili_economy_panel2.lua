@@ -1354,8 +1354,8 @@ end
 
 local function GetExtraPanel(name, extraData)
 	local show = true
-	local compact = options.compact.value
-	extraData.symbol = compact and symbols[name]
+	local compact = false
+
 	extraData.labelCount = extraData.labelCount or 1
 	extraData.minWidth = extraData.minWidth or 100
 	
@@ -1380,8 +1380,7 @@ local function GetExtraPanel(name, extraData)
 		dockableSavePositionOnly = true,
 	}
 	local holderPanel = Chili.Panel:New{
-		classname = compact and "panel" or "main_window_small_tall",
-		backgroundColor = compact and {0,0,0,0} or nil,
+		classname = "main_window_small_tall",
 		parent = extraWindow,
 		padding = {0,0,0,0},
 		y      = 0,
@@ -1398,7 +1397,7 @@ local function GetExtraPanel(name, extraData)
 		y      = 10,
 		width  = "90%",
 		height = 20,
-		caption = compact and '' or extraData.title,
+		caption = extraData.title,
 		valign = "center",
 		align  = "center",
 		autosize = false,
@@ -1464,9 +1463,13 @@ local function GetExtraPanel(name, extraData)
 				extraData.symbol = compact and symbols[name] or ''
 		end
 	end
-
+	if options.compact.value then
+		-- externalFunctions.UpdateCompact(true)
+	end
+	Echo('create', name)
 	return externalFunctions
 end
+
 function DoExtraToggle(name, value)
 	if not extraPanels[name] then
 		return
