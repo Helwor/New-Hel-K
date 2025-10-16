@@ -437,7 +437,7 @@ options_order = {
 	'lbl_extra', 'panel_efficiency', 'panel_usage', 'panel_overdrive', 'panel_wind', 'compact',
 	'lbl_visual', 'ecoPanelHideSpec', 'windPanelHideSpec',
 	'flowAsArrows', 'opacity',
-	'colourBlind','fontSize','warningFontSize', 'fancySkinning'}
+	'colourBlind','fontSize', 'extraFontSize', 'warningFontSize', 'fancySkinning'}
 
 options = {
 	lbl_metal = {name='Metal Warnings', type='label'},
@@ -534,8 +534,6 @@ options = {
 				for name, panel in pairs(extraPanels) do
 					if panel.window then
 						panel.window.UpdateCompact(self.value)
-						-- local opt = options['panel_' .. name]
-						-- option_toggleExtra(opt, opt.value)
 					end
 				end
 			end
@@ -604,7 +602,30 @@ options = {
 		name  = "Font Size",
 		type  = "number",
 		value = 20, min = 8, max = 40, step = 1,
-		OnChange = option_recreateWindow
+		OnChange = function(self)
+			option_recreateWindow(self, self.value)
+			if extraPanels then
+				for name, panel in pairs(extraPanels) do
+					if panel.window then
+						panel.window.UpdateFontSize(self.value)
+					end
+				end
+			end
+		end
+	},
+	extraFontSize = {
+		name  = "Extra Panels Font Size",
+		type  = "number",
+		value = 20, min = 8, max = 40, step = 1,
+		OnChange = function(self)
+			if extraPanels then
+				for name, panel in pairs(extraPanels) do
+					if panel.window then
+						panel.window.UpdateFontSize(self.value)
+					end
+				end
+			end
+		end
 	},
 	warningFontSize = {
 		name  = "Warning Font Size",
@@ -1416,7 +1437,7 @@ local function GetExtraPanel(name, extraData)
 			align  = "center",
 			autosize = false,
 			parent = holderPanel,
-			objectOverrideFont = WG.GetSpecialFont(options.fontSize.value, "res_outline", {
+			objectOverrideFont = WG.GetSpecialFont(options.extraFontSize.value, "res_outline", {
 				outline = true, outlineWidth = 2, outlineWeight = 2,
 			}),
 		}
@@ -1463,10 +1484,20 @@ local function GetExtraPanel(name, extraData)
 				extraData.symbol = compact and symbols[name] or ''
 		end
 	end
-	if options.compact.value then
-		-- externalFunctions.UpdateCompact(true)
+
+	function externalFunctions.UpdateFontSize(size)
+		for i, label in ipairs(labels) do
+			label.objectOverrideFont = WG.GetSpecialFont(size, "res_outline", {
+				outline = true, outlineWidth = 2, outlineWeight = 2,
+			})
+			label.font = label.objectOverrideFont
+			label:Invalidate()
+		end
 	end
-	Echo('create', name)
+
+	if options.compact.value then
+		externalFunctions.UpdateCompact(true)
+	end
 	return externalFunctions
 end
 
