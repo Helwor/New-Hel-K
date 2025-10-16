@@ -602,16 +602,7 @@ options = {
 		name  = "Font Size",
 		type  = "number",
 		value = 20, min = 8, max = 40, step = 1,
-		OnChange = function(self)
-			option_recreateWindow(self, self.value)
-			if extraPanels then
-				for name, panel in pairs(extraPanels) do
-					if panel.window then
-						panel.window.UpdateFontSize(self.value)
-					end
-				end
-			end
-		end
+		OnChange = option_recreateWindow,
 	},
 	extraFontSize = {
 		name  = "Extra Panels Font Size",
