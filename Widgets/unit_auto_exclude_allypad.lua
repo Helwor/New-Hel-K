@@ -13,7 +13,7 @@ function widget:GetInfo()
 	}
 end
 local Echo = Spring.Echo
-
+local DEBUG = false
 local isSpec  = false
 
 local function Sleep(bool)
@@ -136,7 +136,7 @@ do
 		if lastOne and now - lastTime < 0.5 and lastTeam == myTeam then
 			return lastOne
 		else
-			lastOne = spGetTeamUnitsByDefs(myTeam, landableIndex)[1]
+			lastOne = spGetTeamUnitsByDefs(myTeam, padIndex)[1]
 			if lastOne then
 				lastTime = now
 				lastTeam = myTeam
@@ -195,11 +195,15 @@ function widget:PlayerChanged(playerID) -- updating
 				if IsExcluded(padID) ~= shouldBeExcluded  then
 					if myAircraftID then
 						GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, padID, 0)
-						-- Echo('Excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
+						if DEBUG then
+							Echo('Player changed, Excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
+						end
 					else
 						toSwitch[padID] = true
 						gotToSwitch = true
-						-- Echo('Wanting to excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
+						if DEBUG then
+							Echo('Player Changed, Wanting to excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
+						end
 					end
 				end
 			end
@@ -221,14 +225,16 @@ function widget:UnitGiven(unitID, defID, toTeam, fromTeam)
 	if pad[defID] then
 		toSwitch[unitID] = nil
 		if IsExcluded(unitID) then
-			local myAircraftID = spGetTeamUnitsByDefs(myTeam, landableIndex)[1]
+			local myAircraftID = GetMyAircraft()
 			if myAircraftID then
 				GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, unitID, 0)
 			else
 				toSwitch[unitID] = true
 				gotToSwitch = true
 			end
-			-- Echo('Unexcluding my new Pad '..unitID..' from team '..fromTeam..' for my team '..myTeam..'.')
+			if DEBUG then
+				Echo('Unexcluding my new Pad '..unitID..' from team '..fromTeam..' for my team '..myTeam..'.')
+			end
 		end
 	elseif landable[defID] then
 		if gotToSwitch then
@@ -248,23 +254,37 @@ end
 
 function widget:UnitCreated(unitID, defID, teamID)
 	-- Echo('Created', unitID, pad[defID] and 'pad' or 'not a pad', teamID == myTeam and 'mine' or 'not mine')
+
 	if teamID == myTeam then
-		if gotToSwitch and landable[defID] and GetMyPad() then
+		if gotToSwitch and landable[defID] then
+			local myPadID = GetMyPad()
 			for padID in pairs(toSwitch) do
 				toSwitch[padID] = nil
-				-- Echo('Got a new Aircraft, switching exclusion of Pad '..padID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
-				GiveOrderTo(unitID, CMD_EXCLUDE_PAD, padID, 0)
+				if myPadID then
+					if DEBUG then
+						Echo('Got a new Aircraft, switching exclusion of Pad '..padID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
+					end
+					GiveOrderTo(unitID, CMD_EXCLUDE_PAD, padID, 0)
+				else
+					if DEBUG then 
+						Echo('Got a new Aircraft, but not switching Pad '..padID..' because not having own pad.(current: '..tostring(IsExcluded(unitID))..')')
+					end
+				end
 			end
 			gotToSwitch = false
 		end
 	else
-		if pad[defID] and not spGetTeamUnitsByDefs(myTeam, padIndex)[1] then
+		if pad[defID] and not GetMyPad() then
 			local myAircraftID =  GetMyAircraft()
 			if myAircraftID then
-				-- Echo('Excluding a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
+				if DEBUG then
+					Echo('Excluding a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
+				end
 				GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, unitID, 0)
 			else
-				-- Echo('Wanting to exclude a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
+				if DEBUG then
+					Echo('Wanting to exclude a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
+				end
 				toSwitch[unitID] = true
 				gotToSwitch = true
 			end
