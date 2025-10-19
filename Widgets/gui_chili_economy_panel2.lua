@@ -348,9 +348,9 @@ extraPanels = {
 options_path = 'Settings/HUD Panels/Economy Panel'
 
 local function UpdateExtraPanelHide(wantHide, windHide)
-	for key, data in pairs(extraPanels) do
-		if data.window then
-			data.window.SetTempHide(wantHide, windHide)
+	for key, panel in pairs(extraPanels) do
+		if panel.window then
+			panel.window.SetTempHide(wantHide, windHide)
 		end
 	end
 end
@@ -360,8 +360,10 @@ local function option_recreateWindow()
 	if options.ecoPanelHideSpec.value then
 		local spectating = select(1, Spring.GetSpectatingState())
 		if spectating then
-			UpdateExtraPanelHide(true, options.windPanelHideSpec.value)
-			return false
+			local windHide = options.windPanelHideSpec.value
+
+			UpdateExtraPanelHide(true, windHide)
+			return not windHide
 		end
 	end
 	
@@ -1455,6 +1457,9 @@ local function GetExtraPanel(name, extraData)
 	end
 	
 	function externalFunctions.SetTempHide(shouldHide, windHide)
+		if not holderPanel then
+			return
+		end
 		if shouldHide then
 			if name ~= 'wind' or windHide then
 				holderPanel:SetVisibility(false)
