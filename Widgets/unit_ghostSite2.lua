@@ -9,7 +9,7 @@ function widget:GetInfo()
 		date      = "Oct 2022",
 		license   = "GNU GPL v2",
 		layer     = 0,
-		enabled   = true
+		enabled   = false
 	}
 end
 local Echo = Spring.Echo
