@@ -99,7 +99,7 @@ local taskTime = 0
 local taskDelay = 1
 local vsx, vsy = Spring.GetViewGeometry()
 
-options_path = 'Hel-k/'..widget:GetInfo().name
+options_path = 'Hel-K/'..widget:GetInfo().name
 options_order = {'always_up','placing_frame', 'note', 'mode', 'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance'}
 options = {}
 
