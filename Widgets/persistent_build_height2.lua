@@ -2117,7 +2117,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 		-- use cons[1] as reference for position for every cons
 		conRef = cons[1]
 		-- includeConPos = false
-		MultiInsert(lot,conTable,true,includeConPos,conRef) 
+		MultiInsert(lot, conTable, true, includeConPos, conRef) 
 
 
 	end
@@ -3000,7 +3000,7 @@ function TreatLot(lot,PID, useBuildHeight, exceptPlatform)
 			s = lot[i]
 		end
 	end
-	ApplyHeight(lot,useBuildHeight, exceptPlatform)
+	ApplyHeight(lot, useBuildHeight, exceptPlatform)
 	if SPECIFIED_MEMORY then
 		if heightsToForgetAfterPlacing[PID] then
 			if select(4, spGetModKeyState()) then
