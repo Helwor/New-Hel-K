@@ -17,7 +17,9 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-
+if not _G then 
+	_G = getfenv(loadstring(''))
+end
 local json = VFS.Include("LuaRules/Utilities/json.lua",nil, VFS.ZIP)
 
 local Echo = Spring.Echo
