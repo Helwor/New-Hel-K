@@ -22,3 +22,4 @@
 *.prev
 *.backup
 *.CURRENT
+*.old.lua
