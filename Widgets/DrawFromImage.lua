@@ -291,7 +291,7 @@ local add = function(_, x, z)
 	r = r + 1
 	clockCoords[r] = {z,x}
 end
-f.SpiralSquare(1, 1, add)
+SpiralSquare(1, 1, add)
 for i, r in ipairs(clockCoords) do
 	rotateClock[ r[1] ][ r[2] ] = clockCoords[i + 1] or clockCoords[1]
 end
@@ -312,7 +312,7 @@ local add = function(_, x, z)
 	r = r + 1
 	antiClockCoords[r] = {z,x}
 end
-f.SpiralSquare(1, 1, add, nil, true)
+SpiralSquare(1, 1, add, nil, true)
 for i, r in ipairs(antiClockCoords) do
 	rotateAntiClock[ r[1] ][ r[2] ] = antiClockCoords[i + 1] or antiClockCoords[1]
 end
@@ -322,7 +322,7 @@ local function verif(_, x, z)
 	local coords = rotateClock[z][x]
 	Echo(x, z .. ' =>> ' .. coords[2], coords[1])
 end
-f.SpiralSquare(1, 1, verif)
+SpiralSquare(1, 1, verif)
 --]]
 
 -- local deg = math.deg(math.atan2(x,z))
