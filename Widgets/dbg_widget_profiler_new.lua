@@ -143,6 +143,19 @@ local function ArrayRemove(t, g)
 	end
 end
 
+local function RemoveWindows()
+	if recapbox then
+		recapbox.win:Dispose()
+		recapbox = nil
+		for name, box in pairs(boxes) do
+			box.win:Dispose()
+			boxes[name] = nil
+		end
+	end
+end
+
+
+
 -- TextBox
 
 local function newbox(name,height,caption, shutdown)
@@ -205,14 +218,15 @@ local function newbox(name,height,caption, shutdown)
 		caption = "X",
 		OnClick = {
 			function(self)
-				widgetHandler:ToggleWidget(widget:GetInfo().name)
+				RemoveWindows()
+				-- widgetHandler:ToggleWidget(widget:GetInfo().name)
 			end
 		},
 		parent = win,
 	}
 
 	local button = Chili.Button:New{
-		x=-100,
+		x = -100,
 		width = 75,
 		y=2, height = 20,
 		caption="Stop",
@@ -481,16 +495,6 @@ StopHook = function()
 	end
 	Spring.Echo("unhooked InsertWidget")
 	hooked = false
-end
-local function RemoveWindows()
-	if recapbox then
-		recapbox.win:Dispose()
-		recapbox = nil
-		for name, box in pairs(boxes) do
-			box.win:Dispose()
-			boxes[name] = nil
-		end
-	end
 end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
