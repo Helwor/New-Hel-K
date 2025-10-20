@@ -1398,11 +1398,15 @@ function widget:UnitLeftLos(id, teamID)
 		return
 	elseif not IGNORE_INVALID then --
 		if not spValidUnitID(id) and warns < MAX_WARNS then
+			local unit = Units[id]
+			if unit and unit.name:find('drone') then
+				return
+			end
 			warns = warns + 1
-			if Units[id] then
-				-- FIXME wtf
-				Spring.PlaySoundFile(tickSound, 0.95, 'ui')
-				Echo('unit', id, Units[id].name,  'left LoS but is invalid AND Was registered !')
+			if unit then
+				-- FIXME wtf -- seems to happen with drone (at least) systematically now, 
+					Spring.PlaySoundFile(tickSound, 0.95, 'ui')
+					Echo('unit', id, Units[id].name,  'left LoS but is invalid AND Was registered !')
 			else
 				Spring.PlaySoundFile(tickSound, 0.95, 'ui')
 				Echo('unit', id, 'left LoS but is invalid AND WASNT registered !')
