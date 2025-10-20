@@ -23,3 +23,4 @@
 *.backup
 *.CURRENT
 *.old.lua
+*.ori
