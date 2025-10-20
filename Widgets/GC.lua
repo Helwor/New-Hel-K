@@ -129,12 +129,12 @@ end
 local spGetConfigInt = Spring.GetConfigInt
 local spSetConfigInt = Spring.SetConfigInt
 function widget:Initialize()
-    Echo("Spring.GetConfigInt('MinDrawFPS') is ", Spring.GetConfigInt('MinDrawFPS'))
-    Echo("Spring.GetConfigFloat('MinSimDrawBalance') is ", Spring.GetConfigFloat('MinSimDrawBalance'))
-    Spring.SetConfigInt('MinSimDrawBalance', 0.25)
-    Spring.SetConfigFloat('MinSimDrawBalance', 0.25)
-    -- Spring.SendCommands('mindrawfps 15')
-    Spring.SetConfigInt('MinDrawFPS', 13)
+    -- Echo("Spring.GetConfigInt('MinDrawFPS') is ", Spring.GetConfigInt('MinDrawFPS'))
+    -- Echo("Spring.GetConfigFloat('MinSimDrawBalance') is ", Spring.GetConfigFloat('MinSimDrawBalance'))
+    -- Spring.SetConfigInt('MinSimDrawBalance', 0.25)
+    -- Spring.SetConfigFloat('MinSimDrawBalance', 0.25)
+    -- -- Spring.SendCommands('mindrawfps 15')
+    -- Spring.SetConfigInt('MinDrawFPS', 13)
 	widget:ViewResize(Spring.GetWindowGeometry())
 
 	if WG.MyZones then
