@@ -10,7 +10,7 @@ function widget:GetInfo()
     date      = "Jan, 2024",
     license   = "GPLv2",
     layer     = 3,
-    enabled   = true  --  loaded by default?
+    enabled   = false  --  loaded by default?
   }
 end
 
