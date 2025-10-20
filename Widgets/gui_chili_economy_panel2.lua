@@ -887,7 +887,12 @@ function widget:GameFrame(n)
 			return
 		end
 	end
-	
+	if not window then
+		if extraPanels.wind then
+			UpdateWindPanel()
+		end
+		return
+	end
 	if n > 5 and not initialReserveSet then
 		UpdateReserveBars(true, false, options.defaultMetalReserve.value, true)
 		UpdateReserveBars(false, true, options.defaultEnergyReserve.value, true)
@@ -1474,7 +1479,6 @@ local function GetExtraPanel(name, extraData)
 	end
 
 	function externalFunctions.UpdateCompact(wantCompact)
-		Echo('update compact', name, compact, wantCompact)
 		if compact ~= wantCompact then
 				compact = wantCompact
 				title:SetCaption(compact and '' or extraData.title)
@@ -2038,6 +2042,6 @@ function DestroyWindow()
 		return x,y,w,h
 	end
 end
-
+f.DebugWidget(widget)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
