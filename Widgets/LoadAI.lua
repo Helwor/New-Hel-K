@@ -142,9 +142,16 @@ local spGetUnitRadius               = Spring.GetUnitRadius
 local strargs = function(...)
     return table.concat({...},', ')
 end
+if not table.size then
+    table.size = function(t)
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return t
+end
 
-
-local CONST_TRANSPORT_STOPDISTANCE = 130 -- how close by has transport be to stop the unit
+local CONST_TRANSPORT_STOPDISTANCE = 130 -- how close by has transport to be for the unit to be ordered to stop
 local EMPTY_TABLE = {}
 
 local CMD_OPT_ALT = CMD.OPT_ALT
@@ -364,7 +371,7 @@ local function AdjustForBlockedGround(location,defID)
     -- end
     -- if not gblock then
         local ax, ay, az = spClosestBuildPos(0,defID, x, 0, z, 200 ,0 ,0)
-        if ax and ax~=x or az~=z then
+        if ax and ax ~= x or az ~= z then
             return ax, ay, az
             -- Echo('=>',x,y,z)
         end
