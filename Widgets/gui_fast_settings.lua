@@ -1,5 +1,3 @@
-local versionNumber = "0.5"
-
 function widget:GetInfo()
     return {
         name      = "FOV",
@@ -35,7 +33,7 @@ local spForceTesselationUpdate = Spring.ForceTesselationUpdate
 local COFCName = 'Combo Overhead/Free Camera (experimental)'
 local Cam = WG.Cam
 local COFC
-local recover
+
 
 options = {}
 local options = options -- avoid little freeze  when accessing global options?
@@ -45,9 +43,9 @@ local function SafeTrace(x,y)
     if not pos then
         return
     end
-    if type=='sky' then
-        for i=1,3 do
-            table.remove(pos,1)
+    if type == 'sky' then
+        for i = 1,3 do
+            table.remove(pos, 1)
         end
     end
     return pos
@@ -206,96 +204,16 @@ local function UpdateOption(key,value,path) -- much faster than reopening the pa
         found:SetValue(opt.value)
     end
 end
-local cnt= 0
-local last_cs = spGetCameraState()
--- function widget:Update(dt)
---     cnt = cnt + dt
 
---     if cnt>=0.5 then
---         local cs = spGetCameraState()
---         if cs.mode==1 and cs.height ~= last_cs.height or cs.mode==4 and cs.py~=last_cs.py then
---             spSendCommands('GroundDetail ' .. Spring.GetConfigInt('GroundDetail')+1)
---             spSendCommands('GroundDetail ' .. Spring.GetConfigInt('GroundDetail'))
---         end
---         last_cs = cs
---         cnt=0
---     end
---     -- local dist,relDist = GetDistTarget()
---     -- Echo('DIST:', dist,relDist,('%.1f'):format(dist/relDist*100)..'%','ratio12K:'..('%.2f'):format(dist/12000 * 100)..'%')
--- end
 
 local cnt = 0
 local spGetCameraVectors = Spring.GetCameraVectors
 local spGetCameraFOV = Spring.GetCameraFOV
 local spGetTimer = Spring.GetTimer
 local spDiffTimers = Spring.DiffTimers
-local lastDist = 0
 
 
--- old workaround to update the tesselation
-    -- function widget:Update(dt)
-    --     if WG.EzSelecting or not WG.panning and widgetHandler.mouseOwner then
-    --         return
-    --     end
-    --     if not recover then
-    --         local cs = Cam.state
-    --         -- if cs.mode==1 and cs.height ~= last_cs.height or cs.mode==4 and cs.py~=last_cs.py then
 
-    --         if math.abs(Cam.dist - lastDist)>lastDist*0.05 then
-    --             lastDist = Cam.dist
-    --             -- -- Echo("cs.py-last_cs.py is ", cs.py-last_cs.py)
-    --             -- -- Echo('WHEEL SET DETAIL',options.map_detail.value+1)
-    --             -- local detail = AdaptDetail(options.map_detail.value-1, Cam.fov)
-    --             -- -- Echo('set detail ',detail)
-    --             local time = spGetTimer()
-    --             -- spSendCommands('GroundDetail ' .. detail)
-    --             -- time = spDiffTimers(spGetTimer(), time)
-    --             Spring.ForceTesselationUpdate(true, true)
-    --             if time > 0.15 then
-    --                 Echo('tesselation update took more than 0.15 sec',  ('%.2f'):format(time))
-    --                 -- Echo('set detail -1 took more than 0.15 sec',  ('%.2f'):format(time))
-    --             end
-    --             -- recover = true
-    --             -- cnt = WG.panning and -0.2 or 0
-    --         end
-    --         last_cs = cs
-    --     end
-    --     if recover then
-    --         -- if cnt>0.05 then
-    --         if cnt>0.20 then
-    --             local detail = AdaptDetail(options.map_detail.value, Cam.fov)
-    --             -- Echo('UPDATE RECOVER DETAIL',detail,'(' .. options.map_detail.value .. ') fov:' .. Cam.fov)
-    --             local time = spGetTimer()
-    --             spSendCommands('GroundDetail ' .. detail)
-    --             time = spDiffTimers(spGetTimer(), time)
-    --             if time > 0.15 then
-    --                 Echo('set detail 0 took more than 0.15 sec', ('%.2f'):format(time))
-    --             end
-
-    --             cnt = 0
-    --             recover = false
-    --         end
-    --         cnt = cnt + dt
-    --     end
-    -- end
---
-
-function widget:Update(dt)
-    if WG.EzSelecting or not WG.panning and widgetHandler.mouseOwner then
-        return
-    end
-    if not recover then
-        if math.abs(Cam.dist - lastDist)>lastDist*0.05 then
-            lastDist = Cam.dist
-            -- local time = spGetTimer()
-            spForceTesselationUpdate(true, true)
-            -- time = spDiffTimers(spGetTimer(), time)
-            -- if time > 0.15 then
-            --     Echo('tesselation update took more than 0.15 sec',  ('%.2f'):format(time))
-            -- end
-        end
-    end
-end
 
 
 local baseDistIcon = 130
@@ -437,7 +355,6 @@ options.map_detail = {
             -- Echo('TOOLTIP SET GROUND DETAIL',thisvalue)
             spSendCommands('GroundDetail ' ..thisvalue)
             -- spSetConfigInt('GroundDetail ', relvalue)
-            recover = false 
             return math.round(self.value)
         end,
         OnChange = function(self)
@@ -457,7 +374,6 @@ options.map_detail = {
             -- Echo('SET GROUND DETAIL',thisvalue,'('.. self.value .. ')', spGetCameraState().fov)
             spSendCommands('GroundDetail ' .. thisvalue)
             spSetConfigInt('GroundDetail ', thisvalue)
-            recover = false
         end,
         noHotkey = true,
         hidden = true, -- collapsable
