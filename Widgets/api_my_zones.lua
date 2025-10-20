@@ -1,6 +1,6 @@
 function widget:GetInfo()
     return {
-        name      = 'MyZones',
+        name      = 'Screen Zones API',
         desc      = 'Callin for screen interactions',
         author    = 'Helwor',
         date      = 'Winter, 2021',
