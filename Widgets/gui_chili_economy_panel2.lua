@@ -363,7 +363,11 @@ local function option_recreateWindow()
 			local windHide = options.windPanelHideSpec.value
 
 			UpdateExtraPanelHide(true, windHide)
-			return not windHide
+
+			-- if not windHide and extraPanels.wind then
+			-- 	UpdateWindPanel()
+			-- end
+			return true
 		end
 	end
 	
@@ -1470,6 +1474,7 @@ local function GetExtraPanel(name, extraData)
 	end
 
 	function externalFunctions.UpdateCompact(wantCompact)
+		Echo('update compact', name, compact, wantCompact)
 		if compact ~= wantCompact then
 				compact = wantCompact
 				title:SetCaption(compact and '' or extraData.title)
