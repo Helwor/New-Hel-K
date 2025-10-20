@@ -115,7 +115,6 @@ local PushOut							= f.PushOut
 local getconTable						= f.getconTable
 local GetDist 							= f.GetDist
 local GetPosOrder 						= f.GetPosOrder
-local GetInsertPosOrder 				= f.GetInsertPosOrder
 
 local GetTeamUnits						= f.GetTeamUnits
 
@@ -1132,8 +1131,8 @@ do
 	SendCommand =  function(PID, mods)
 		--local cons = sp.GetSelectedUnits()
 		if not g.preGame and cons.n == 0 then	return end
-		local nspecs=#specs
-		if nspecs==0 then return end
+		local nspecs = #specs
+		if nspecs == 0 then return end
 
 		local alt, ctrl, meta, shift = alt, ctrl, meta, shift
 		if mods then
@@ -1144,34 +1143,34 @@ do
 		-- if global build command is active, check if it wants to handle the orders before giving units any commands.
 
 		-- Didnt touch GlobalBuildCommand...won't probably work like that(Helwor)
-		if nspecs==0 then
+		if nspecs == 0 then
 			return
 		end
 		-- putting every placements in one go, adding mexes if needed
 		local facing = p.facing
 		local total, n = {}, 0
-		for i=1,nspecs do
+		for i = 1,nspecs do
 			local spec = specs[i]
 			spec.pid = PID
-			n=n+1; total[n]=spec
+			n = n + 1; total[n] = spec
 			local nspec = n
 			if mexes[i] then
-				local inmexes=mexes[i]
-				for i=1,#inmexes do -- it can happen we have to put several mexes after one single building placement, (when placing pylon mostly)
+				local inmexes = mexes[i]
+				for i = 1, #inmexes do -- it can happen we have to put several mexes after one single building placement, (when placing pylon mostly)
 					local inmex = inmexes[i]
-					inmex.mex=true
-					n=n+1
-					total[n]=inmex
+					inmex.mex = true
+					n = n + 1
+					total[n] = inmex
 				end
 				-- reorder mexes and the e Build to get closest of each others first
-				ReorderClosest(total,nspec,n,i==1 and cons[1]--[[,i>1 and specs[i-1]--]])
+				ReorderClosest(total, nspec, n, i == 1 and cons[1]--[[,i>1 and specs[i-1]--]])
 			end
 		end
 		if mexes[nspecs+1] then -- in case we don't have one more specs but one more group of mexes?
 			-- Echo('we have last mexes without spec')
 			local inmexes = mexes[nspecs+1]
 			local nspec = n
-			for i=1, #inmexes do
+			for i = 1, #inmexes do
 				inmexes[i].mex = true
 				n = n + 1; total[n] = inmexes[i]
 			end
@@ -5684,7 +5683,9 @@ do
 
 		-------------------------
 		glColor(0.7,0.7,0.7,1)
-		glText(format(status), 0,vsy-110, 25)
+		if status ~= 'none' then
+			glText(format(status), 0,vsy-110, 25)
+		end
 		if drawEnabled then
 			glText(format("Drawing"), 0,vsy-68, 25)
 
