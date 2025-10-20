@@ -2,8 +2,8 @@
 
 function widget:GetInfo()
     return {
-        name      = "Draw Utils",
-        desc      = "Draw Utils",
+        name      = "Draw Debug Tool",
+        desc      = "API for visual debugging, not optimized for performance but for convenience",
         author    = "Helwor",
         date      = "dec 2022",
         license   = "GNU GPL, v2",
@@ -16,9 +16,9 @@ end
 
 local Echo = Spring.Echo
 local debugging = false -- need UtilsFunc.lua
-local showMeExamples = false -- select a unit and push Ctrl + Alt + E to see all examples, push again Ctrl + Alt + E while it blinks to see the updated order
+local showMeExamples = true -- select a unit and push Ctrl + Alt + E to see all examples, push again Ctrl + Alt + E while it blinks to see the updated order
 
-local f = debugging and VFS.Include('LuaUI\\Widgets\\UtilsFunc.lua')
+local f = debugging and VFS.Include('LuaUI\\Widgets\\Include\\UtilsFunc.lua')
 
 local Units
 local ignoreDefID = {
@@ -83,8 +83,6 @@ local UnitDefs = UnitDefs
 local remove = table.remove
 local round = math.round
 
-local myTeamID = Spring.GetMyTeamID()
-
 local Units
 
 local colors = {
@@ -121,15 +119,7 @@ local colors = {
 }
 
 
----------- updating teamID
-local MyNewTeamID = function()
-    myTeamID = spGetMyTeamID()
-end
-widget.TeamChanged = MyNewTeamID
-widget.PlayerChanged = MyNewTeamID
-widget.Playeradded = MyNewTeamID
-widget.PlayerRemoved = MyNewTeamID
-widget.TeamDied = MyNewTeamID
+
 ----------
 local DrawExamples
 do
@@ -188,7 +178,7 @@ do
                 -- Echo(os.clock(),'create text on unit')
                 -- if there's a timeout, the order will be deleted at timeout
                 -- if it is attached to a unit and the unit is not anymore valid, the order will be deleted aswell
-                UpdateOrder('textOnUnit', {str = "!", type = 'font', pos = {id}, offy = 5, timeout = os.clock() +5, blinking = 0.7,color = 'white'})
+                UpdateOrder('textOnUnit', {str = "!", type = 'font', pos = {id}, offy = 15, timeout = os.clock() +5, blinking = 0.7,color = 'white'})
             end
             ----- a rectangle attached to unit position
             local order = ordersInLocal.rectOnUnit
@@ -216,14 +206,14 @@ do
             UpdateOrder('simpleText', {str = 'user terminating the order', timeout = os.clock() + 1.5, color = 'cyan'})
         else
             UpdateOrder('simpleText', {
-                    str = 'this will vanish in 7 seconds'
+                    str = 'this will vanish in 7 seconds\nPress again before to change visual'
                     ,type = 'font'
                     ,font = 'LuaUI/Fonts/FreeSansBold_14'
                     ,pos = {'15%','10%'}
                     ,offx = 300
                     ,offy = 300
                     ,timeout = os.clock()+7
-                    ,color = 'yellow'
+                    ,color = {1,1,0,1}
                 }
             )
         end
@@ -247,8 +237,10 @@ local function NumOrPercent(n,xOrY)
     end
     if type(n) == 'string' and n:match('%%') then
         n = tonumber(n:sub(1,-2)) / 100
+    else
+        n = tonumber(n)
     end
-    n = tonumber(n)
+    
     if n<1 and n>0 then
         n = (xOrY == 'x' and vsx or vsy) * n
     end
@@ -274,7 +266,6 @@ do
             glBeginEnd(GL_LINE_STRIP, RectVertices, x,y,sx,sy)
 
         glPopMatrix()
-
     end
 end
 
@@ -290,23 +281,21 @@ local TreatDrawScreenOrder = function(order)
     if blinkTime and time%(blinkTime*2)>blinkTime then
         return
     end
-    local mx,my,sx,sy = unpack(order.pos)
-    if not mx then
+    local p1,p2,p3,p4 = unpack(order.pos)
+    if not p1 then
         return false
     end
     local unitPos
     if order.world then
-        mx,my = spWorldToScreenCoords(mx,my,sx)
+        p1,p2 = spWorldToScreenCoords(p1,p2,p3)
     else
-        unitPos = not my or sx and not sy
+        unitPos = not p2 or p3 and not p4
         if unitPos then
-            sx,sy = my,sx
-            local id = mx
+            p3,p4 = p2,p3
+            local id = p1
             if spValidUnitID(id) then
                 if spIsUnitVisible(id) or spIsUnitIcon(id) then
-                    mx,my = spWorldToScreenCoords(spGetUnitViewPosition(id))
-                    mx = mx + (order.offx or 0)
-                    my = my + (order.offy or 0)
+                    p1,p2 = spWorldToScreenCoords(spGetUnitViewPosition(id))
                 else
                     return
                 end
@@ -315,10 +304,10 @@ local TreatDrawScreenOrder = function(order)
             end
         end
     end
-    mx, sx = NumOrPercent(mx,'x'), NumOrPercent(sx,'x')
-    my, sy = NumOrPercent(my,'y'), NumOrPercent(sy,'y')
-    mx = mx + (order.offx or 0)
-    my = my + (order.offy or 0)
+    p1, p3 = NumOrPercent(p1,'x'), NumOrPercent(p3,'x')
+    p2, p4 = NumOrPercent(p2,'y'), NumOrPercent(p4,'y')
+    p1 = p1 + (order.offx or 0)
+    p2 = p2 + (order.offy or 0)
 
     local colorName = order.color
     if colorName then
@@ -328,19 +317,21 @@ local TreatDrawScreenOrder = function(order)
             glColor(colors[colorName])
         end
     end
-    if order.type == 'font' then
+    if order.type == 'font' and order.str  then
         if not unitPos and not order.world then
-            my = vsy - my
+            p2 = vsy - p2
         end
         UseFont(order.font or monobold)
-        TextDrawCentered(order.str or '?', mx, my)
+        for i, line in ipairs(order.str:explode('\n')) do
+            TextDrawCentered(line or '?', p1, p2 - (i-1) * 13 )
+        end
     elseif order.type == 'rect' then
         if unitPos then
-            mx = mx - sx/2
-            my = vsy - my 
-            my = my - sy/2
+            p1 = p1 - p3/2
+            p2 = vsy - p2 
+            p2 = p2 - p4/2
         end
-        DrawRectangleOnScreen(mx,my,sx,sy)
+        DrawRectangleOnScreen(p1,p2,p3,p4)
     end
 
 end
@@ -363,10 +354,10 @@ function widget:DrawScreen()
     end
     for w,orders in pairs(drawToScreen) do
         local off = 0
-        for i=1,#orders do
+        for i = 1,#orders do
             local order = orders[i + off]
-            if not orders[order] or TreatDrawScreenOrder(order)==false then
-                table.remove(orders,i + off)
+            if not orders[order] or TreatDrawScreenOrder(order) == false then
+                table.remove(orders, i + off)
                 off = off - 1
                 orders[order] = nil
             end
