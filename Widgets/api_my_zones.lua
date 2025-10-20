@@ -1,13 +1,14 @@
 function widget:GetInfo()
     return {
         name      = 'MyZones',
-        desc      = 'callin for screen interactions',
+        desc      = 'Callin for screen interactions',
         author    = 'Helwor',
         date      = 'Winter, 2021',
         license   = 'GNU GPL, v2 or later',
         layer     = -1000001, -- after custom formation 2 to register upvalues of it, then Lowering in Initialize
         enabled   = true,
         handler   = true,
+        api       = true,
     }
 end
 WG.MyZones = WG.MyZones or {}
@@ -23,7 +24,7 @@ function widget:MousePress(mx,my,button)
                 local callback = zones.callback
                 if callback then
                     if callback(zone,mx,my,button) then 
-                        return true
+                        return button
                     end
                 end
             end
