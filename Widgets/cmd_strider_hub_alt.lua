@@ -11,7 +11,6 @@ function widget:GetInfo()
 		layer = 5,
 		enabled = true,
 		handler = true,
-		api = true,
 	}
 end
 local Echo = Spring.Echo
