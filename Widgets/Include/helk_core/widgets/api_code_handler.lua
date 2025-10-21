@@ -5,7 +5,7 @@
 function widget:GetInfo()
         return {
         name      = 'API Code Handler',
-        desc      = "",
+        desc      = "Manage and exploit file codes",
         author    = "Helwor",
         date      = "Jan 2024",
         license   = "GNU GPL, v2 or later",
