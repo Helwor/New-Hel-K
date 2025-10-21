@@ -518,7 +518,7 @@ local function CheckWidget(widget, reverse)
 			enabled = not enabled
 		end
 		if not reverse and not enabled then
-			wcheck.tooltip = 'DISABLED'
+			wcheck.tooltip = '[DISABLED]\n' .. wcheck.tooltip
 		end
 		if dev_mode then
 			wcheck.tooltip = wcheck.tooltip .. "\n---------------\n<" .. ki.filename .. ">"
