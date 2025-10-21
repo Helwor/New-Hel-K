@@ -2,7 +2,6 @@
 -- License GPL v2 or v3
 -- Lots of useful functions
 -- this file is meant to be loaded as soon as possible and only once
--- if 
 -- If you modify those funcs during game, use /renewfuncs to update the global object containing them
 -- now registering only what we need from widget env before we change environment, aswell will quicken access
 
@@ -1246,6 +1245,10 @@ function sq_rad(r)
 end
 function hyp(a,b) -- can be used to get the radius of circle inscribing a square inscribing the original circle: hyp(r,r)
 	return (a^2+b^2)^0.5
+end
+
+function side(hyp) -- from hypothenus to side (assuming a square ofc)
+	return (hyp^2 / 2)^0.5
 end
 
 function to_ar(ar,r,n)
@@ -10649,8 +10652,20 @@ function table:compareK(t2) -- compare only the keys
 
 	return t1count == t2count
 end
+function PlaceClosestFirst(arr, ref)
+	local refx, refz = ref[1], ref[3]
+	local bestDist, bestI
+	for i, p in ipairs(arr) do
+		local dist = sqrt((refx - p[1])^2 + (refz - p[2])^2)
+		if not bestDist or dist < bestDist then
+			bestDist = dist
+			bestI = i
+		end
+	end
+	arr[1],  arr[bestI] = arr[bestI], arr[1]
+end
 
-MultiInsert = function(lot, conTable, keepExisting, includeConPos, conRef)
+function MultiInsert(lot, conTable, keepExisting, includeConPos, conRef)
 	-- to find correct insert position, we can't rely on current command queue because we gonna insert multiple placement, thus command queue will change in the future, not yet, so we simulate this change
 	--function will return a table that give insert position for each coords received
 	--cons[ID].insPos{num,num,num,...} parallel to the coord table we receive
@@ -10660,8 +10675,8 @@ MultiInsert = function(lot, conTable, keepExisting, includeConPos, conRef)
 
 	-- defining table of cons
 							--[id]
-								--.current commands = table
-								--.commands {[posCommand] = coords}
+							--.current commands = table
+							--.commands {[posCommand] = coords}
 	-- keepExisting = false
 	local sameCommands,baseCommands,firstID
 	local cons = conTable.cons
@@ -10678,7 +10693,8 @@ MultiInsert = function(lot, conTable, keepExisting, includeConPos, conRef)
 	local PID = select(2,sp.GetActiveCommand())
 	local facing = sp.GetBuildFacing()
 	local insert = table.insert
-	for id,con in pairs(cons) do
+
+	for id, con in pairs(cons) do
 
 		-- if id~=firstID and sameCommands then
 		--  con.insPoses = cons[firstID].insPoses
@@ -10687,17 +10703,23 @@ MultiInsert = function(lot, conTable, keepExisting, includeConPos, conRef)
 			local commands = con.commands
 			local insPoses = con.insPoses
 			local lastx,lastz,lastins
+			if includeConPos then
+				-- Echo('place closest first for ', id, conRef)
+				-- PlaceClosestFirst(lot, {sp.GetUnitPosition(conRef or id)})
+			end
 			for i=1,#lot do
-				local coords=lot[i]
-				local newx,newz = coords[1], (coords[3] or coords[2])
+				local coords = lot[i]
+				local newx, newz = coords[1], (coords[3] or coords[2])
 				local ins
 				local mex = coords.mex
 				local t = {newx,newz, cmd = mex and mexDefID or PID, facing = mex and 0 or facing}
 				-- Echo('add in multiinsert',newx,newz, coords.mex and mexDefID or PID,coords.mex and 0 or facing)
-				if lastx and lastx==newx and lastz==newz then 
+				if lastx and lastx == newx and lastz == newz then 
 					ins = lastins
+					-- Echo('lastins', lastins)
 				else
-					ins = GetInsertPosOrder(id, newx, newz, commands, includeConPos, conRef)
+					ins = GetInsertPosOrder(id, newx, newz, commands, includeConPos, conRef or id)
+					-- Echo('get ins pos => ', ins)
 				end
 				insPoses[i] = ins
 				insert(commands, ins+1, t)
@@ -10749,11 +10771,11 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 
 	local j = 0
 	-- register the commands that have position in a separate table indicating their position in the queue
-	for i=1, n do 
+	for i = 1, n do 
 		local thislot = lot[i]
 		if thislot[1] then
-			j=j+1
-			pos[j],pos.n = { thislot[1],thislot[2], orderPos=i }, j
+			j = j + 1
+			pos[j], pos.n = {thislot[1], thislot[2], orderPos = i}, j
 		end
 	end
 
@@ -10764,7 +10786,7 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 	local I=0
 	local start = 1
 	if includeCon then
-		pos[0]={unitPosX,unitPosZ,orderPos=0}
+		pos[0] = {unitPosX, unitPosZ, orderPos = 0}
 		start = 0
 	end
 	local bestDist=huge
@@ -10788,7 +10810,7 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 			-- Echo(i,this[1],next and next[1] or 0,this[2])
 			
 			local newDist = this_new + new_next - this_next
-			-- Echo('i',i,'=', this_new, new_next, this_next,'dist', newDist)
+			-- Echo('i', i,'=', this_new, new_next, this_next, 'dist', newDist)
 			if newDist <= bestDist then 
 				bestDist = newDist
 				I = this.orderPos
@@ -10796,11 +10818,11 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 		end
 	end
 	-- Echo('best dist is ',bestDist)
-	return I,bestDist
+	return I, bestDist
 
 end
 
-GetInsertPosOrder2 = function (unitID, X, Z, lot) -- bader
+GetInsertPosOrder2 = function (unitID, X, Z, lot) -- worse
 --Echo("---- Ins process ----")
 --  Echo("------------- Lot Ins -------------")
 
@@ -11616,7 +11638,7 @@ end
 function renewfuncs() -- reload from source and update
 	Echo('renewing utilFuncs...')
 	local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
-	WG.utilFuncs = VFS.Include("LuaUI\\Widgets\\Include\\UtilFuncs.lua", copy(getfenv(widget.GetInfo)) )
+	WG.utilFuncs = VFS.Include("LuaUI\\Widgets\\Include\\helk_core\\lib_funcs.lua", copy(getfenv(widget.GetInfo)) )
 end
 widgetHandler.actionHandler:RemoveAction(widget, 'renewfuncs')
 widgetHandler.actionHandler:AddAction(widget, 'renewfuncs', renewfuncs, nil, 't')
@@ -11641,7 +11663,7 @@ AddFuncTypeMethods()
 _G.vararg = vararg
 --
 WG.utilFuncs = localEnv
-Echo('utilFuncs accessible via WG.utilFuncs, loaded in ' .. sp.DiffTimers(sp.GetTimer(), _timer))
+Echo('[Hel-K]: successfully implemented WG.utilFuncs (f), loaded in ' .. sp.DiffTimers(sp.GetTimer(), _timer))
 return localEnv
 	---------------------------------------
  -- call it only once from a widget in the same way as the 'renewfuncs' function then access it though WG.utilFuncs

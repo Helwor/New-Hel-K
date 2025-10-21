@@ -3,7 +3,7 @@ local totalLoadTime = 0
 local totalInitTime = 0
 function widget:GetInfo()
 	return {
-		name      = "OnWidgetState",
+		name      = "API On Widget State",
 		desc      = "Home made CallIn to get triggered when a widget change state (load, init, activated, deactivated...)"
 					.. "\nAlso retain specific VFS mode to load",
 		author    = "Helwor",
@@ -17,7 +17,8 @@ function widget:GetInfo()
 	}
 end
 -- NOTE: unless rewriting cawidgets.lua there is no way to get this widget to be loaded first (it use VFS.DirList result as order and virtual files come first, then local widgets)
-	-- to make that widget gettling loaded first among local widget, you need to put a dash or double A (caps) at first in the file name
+	-- to make that widget getting loaded first among local widget, you need to put a dash or double A (caps) at first in the file name
+	-- Now fixed, using first original widget api_apm_stats to hijack the list of files to be loaded
 local Echo = Spring.Echo
 local f = WG.utilFuncs
 
@@ -40,16 +41,18 @@ local oriEcho
 local whDebug = true
 -- Echo("VFS.DirList is ", VFS.DirList,LUAUI_DIRNAME .. 'Config/ZK_order.lua')
 
-local f = WG.utilFuncs
-
 -- this trick to get the real widgetHandler at load time instead of init time
 local function GetRealHandler()
-	local i, n = 0, true
-	while n do
-		i=i+1
-		n,v=debug.getupvalue(widgetHandler.RemoveCallIn, i)
-		if n=='self' and type(v)=='table' and v.LoadWidget then
-			return v
+	if widgetHandler.LoadWidget then
+		return widgetHandler
+	else
+		local i, n = 0, true
+		while n do
+			i=i+1
+			n,v=debug.getupvalue(widgetHandler.RemoveCallIn, i)
+			if n=='self' and type(v)=='table' and v.LoadWidget then
+				return v
+			end
 		end
 	end
 end
@@ -118,12 +121,13 @@ end
 
 
 
-
-widgetHandler = GetRealHandler()
-if not widgetHandler then
+local wh = GetRealHandler()
+if not wh then
 	Echo(sig .. 'ERROR ! ' .. "Couldnt retrieve the real widgetHandler !")
 	return false
 end
+
+widgetHandler = wh
 knownWidgets = widgetHandler.knownWidgets
 widgetHandler.crashedWidgets = crashedWidgets
 local specificMode = {}
@@ -197,14 +201,7 @@ end
 -----------------------------------
 
 local function InstallElements(w)
-	local f = WG.utilFuncs
-	if not f then
-		if not WG.utilFuncs then -- can be renewed through '/renewfuncs'
-			local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
-			VFS.Include("LuaUI\\Widgets\\Include\\UtilFuncs.lua", copy(getfenv()) )
-		end
-		f = WG.utilFuncs
-	end
+	Echo('install element F', f)
 	w.f = f
 	w.realWidgetHandler = widgetHandler
 	w.WIDGET_DIRNAME = f.WIDGET_DIRNAME
@@ -925,4 +922,6 @@ function widget:Shutdown()
 end
 totalLoadTime = totalLoadTime + spDiffTimers(spGetTimer(), startLoad)
 Echo(widget:GetInfo().name .. ' STARTS')
+
+
 
