@@ -203,6 +203,7 @@ end
 --------------------------------------------------------------------------------
 -- Hack to load -OnWidgetState.lua  and AddSleepWake just after this widget
 do
+	VFS.Include("LuaUI\\Widgets\\Include\\add_on_handler_register_global_multi.lua")
 	local function GetRealHandler()
 	    local i, n = 0, true
 	    while n do

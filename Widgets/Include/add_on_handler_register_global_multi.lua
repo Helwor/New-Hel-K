@@ -1,19 +1,12 @@
-function widget:GetInfo()
-    return {
-        name      = "RegisterGlobalMulti",
-        desc      = "Allow CallIn registered in handler globals to call back more than one widget",
-        author    = "Helwor",
-        date      = "Oct 2023",
-        license   = "GNU GPL, v2",
-        layer     = -10e38, 
-        handler   = true,
-        enabled   = true,
-        api       = true,
-        alwaysStart = true,
-    }
-end
+-- "Register Global Multi widgetHandler Add On"
+-- "Allow CallIn registered in handler globals to call back more than one widget",
+-- author    = "Helwor",
+-- date      = "Oct 2023",
+-- license   = "GNU GPL, v2",
+
 local Echo = Spring.Echo
 local sig = '['..widget:GetInfo().name..']: '
+local debugging = false
 
 local function GetRealHandler()
     local i, n = 0, true
@@ -39,8 +32,9 @@ if not _G then
     Echo(sig .. "couldn't get _G.")
     return false
 end
-
-VFS.Include("LuaUI/callins.lua", nil, VFS.Game) -- getting CallInsMap
+if debugging then
+    VFS.Include("LuaUI/callins.lua", nil, VFS.Game) -- getting CallInsMap
+end
 
 -------------
 _G.multiOwners = {}
@@ -49,7 +43,9 @@ _G.multiFunc = {}
 local function Distribute(name,...)
     local funcs = _G.multiFunc[name]
     for i, owner in ipairs(_G.multiOwners[name]) do
-        -- Echo("calling ", name, owner and owner.GetInfo and owner.GetInfo().name, funcs[owner])
+        if debugging then
+            Echo("calling ", name, owner and owner.GetInfo and owner.GetInfo().name, funcs[owner])
+        end
         if funcs[owner](...) then
             return true
         end
@@ -70,10 +66,12 @@ function widgetHandler:RegisterGlobal(owner, name, value, override)
     if not (name and owner) then
         return false
     end
-    -- if CallInsMap[name] then
-    --     Echo(sig .. 'widget ' .. OwnerName(owner) .. ' Trying to register a Call-In ' .. tostring(name))
-    --     return false
-    -- end
+    if debugging then
+        if CallInsMap[name] then
+            Echo(sig .. 'widget ' .. OwnerName(owner) .. ' Trying to register a Call-In ' .. tostring(name))
+            return false
+        end
+    end
     if type(value) ~= 'function' then
         if _G[name] or self.globals[name] then
             return false
@@ -102,7 +100,9 @@ function widgetHandler:RegisterGlobal(owner, name, value, override)
             _G.multiFunc[name][cur_owner] = cur_func
         end
         table.insert(_G.multiOwners[name], owner)
-        -- Echo(sig .. 'inserting in ', name,owner and owner.GetInfo and owner.GetInfo().name,'total',#_G.multiOwners[name])
+        if debugging then
+            Echo(sig .. 'inserting in ', name,owner and owner.GetInfo and owner.GetInfo().name,'total',#_G.multiOwners[name])
+        end
         _G.multiFunc[name][owner] = value
         return true
     end
