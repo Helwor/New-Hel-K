@@ -3,7 +3,7 @@
 
 function widget:GetInfo()
     return {
-        name      = 'MyClicks',
+        name      = 'API Click Handler',
         desc      = 'callin for click/release of mouse',
         author    = 'Helwor',
         date      = 'Winter, 2021',

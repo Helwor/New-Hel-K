@@ -13,7 +13,7 @@
 
 function widget:GetInfo()
   return {
-	name      = "Clamped Mouse Move",
+	name      = "API Clamp Mouse To World",
 	desc      = "Tool to Clamp the mouse click inside the world map",
 	author    = "Helwor",
 	date      = "8 Sept 2022",

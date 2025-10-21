@@ -4,7 +4,7 @@
 
 function widget:GetInfo()
         return {
-        name      = 'CodeHandler',
+        name      = 'API Code Handler',
         desc      = "",
         author    = "Helwor",
         date      = "Jan 2024",
@@ -12,7 +12,7 @@ function widget:GetInfo()
         layer     = 1,
         enabled   = true,  --  loaded by default?
         handler   = true,
-        -- api       = true,
+        api       = true,
 }
 end
 
