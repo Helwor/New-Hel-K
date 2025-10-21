@@ -73,7 +73,7 @@ if not USE_OLD_CHILI then
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-Spring.Echo("Not USE_OLD_CHILI")
+Spring.Echo("Not USE_OLD_CHILI [HEL-K]")
 
 useOld = false
 local Chili
@@ -738,7 +738,7 @@ else -- Old Chili
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 useOld = true
-Spring.Echo("USE_OLD_CHILI")
+Spring.Echo("USE_OLD_CHILI [HEL-K]")
 
 local Chili
 local screen0

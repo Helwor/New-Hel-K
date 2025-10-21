@@ -21,16 +21,6 @@ local Echo = Spring.Echo
 local EMPTY_TABLE = {}
 local requirements = {
 	exists = {
-		-- improve widget handling
-		[WIDGET_DIRNAME ..'-OnWidgetState.lua'] = EMPTY_TABLE,
-		[WIDGET_DIRNAME ..'-AddSleepWake.lua'] = EMPTY_TABLE,
-		-- tracking game units and maintain their database
-		[WIDGET_DIRNAME ..'-HasViewChanged.lua'] = EMPTY_TABLE,
-		[WIDGET_DIRNAME ..'UnitsIDCard.lua'] = EMPTY_TABLE,
-		[WIDGET_DIRNAME ..'api_unit_handler.lua'] = EMPTY_TABLE,
-		[WIDGET_DIRNAME ..'-VisibleUnits.lua'] = EMPTY_TABLE,
-		-- track specific units order for widgets
-		[WIDGET_DIRNAME ..'command_tracker.lua'] = EMPTY_TABLE,
 		-- enhance option system
 		[WIDGET_DIRNAME ..'gui_epicmenu.lua'] = {VFS.RAW},
 		-- much faster clusterization
@@ -38,9 +28,11 @@ local requirements = {
 		[WIDGET_DIRNAME ..'Include/weap_ranges.lua'] = {VFS.RAW},
 	},
 	value = {
-		['WG.UnitsIDCard and WG.UnitsIDCard.active'] = {'Requires UnitsIDCard.lua'},
-		['WG.Visibles and WG.Cam'] = {'Requires -HasViewChanged.lua and -VisibleUnits.lua'},
-				['WG.commandTrackerActive'] = {'Requires Command Tracker widget to be active'},
+		-- tracking game units and maintain their database
+		['WG.UnitsIDCard and WG.UnitsIDCard.active'] = {'Requires api_unit_data.lua and running'},
+		['WG.Visibles and WG.Cam'] = {'Requires api_view_changed.lua and api_visible_units.lua'},
+		-- track specific units order for widgets
+		['WG.commandTrackerActive'] = {'Requires API Command Tracker widget to be active'},
 	}
 }
 VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/weap_ranges.lua')
@@ -3176,7 +3168,6 @@ function widget:PlayerChanged(playerID)
 	local myNewTeamID = Spring.GetMyTeamID()
 
 	if myTeamID ~= myNewTeamID or wasSpec then
-
 		for id, b in pairs(builders) do
 			widget:UnitDestroyed(id, nil, myTeamID)
 		end
@@ -3203,7 +3194,7 @@ function WidgetRemoveNotify(w,name,preloading)
 	if preloading then
 		return
 	end
-	if name == 'Command Tracker' then
+	if name == 'API Command Tracker' then
 		widgetHandler:Sleep(widget)
 	end
 end
@@ -3212,7 +3203,7 @@ function WidgetInitNotify(w,name,preloading)
 		return
 	end
 
-	if name == 'Command Tracker' then
+	if name == 'API Command Tracker' then
 		Units = WG.UnitsIDCard.units
 		trackedUnits = WG.TrackedUnits
 		CommandTracker = w
@@ -3297,7 +3288,7 @@ function widget:Initialize()
 	
 
 	trackedUnits = WG.TrackedUnits
-	CommandTracker = widgetHandler:FindWidget('Command Tracker')
+	CommandTracker = widgetHandler:FindWidget('API Command Tracker')
 
 	GiveOrderToUnit = function(id,cmd,params,opt)
 		local b = builders[id]

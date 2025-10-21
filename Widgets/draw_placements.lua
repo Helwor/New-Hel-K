@@ -18,24 +18,18 @@ end
 local requirements = {
     exists = {
     	-- handle terraform build and much more
-    	[WIDGET_DIRNAME ..'persistent_build_heigth2.lua'] = EMPTY_TABLE,
-        -- improve widget handling
-        [WIDGET_DIRNAME ..'-OnWidgetState.lua'] = EMPTY_TABLE,
-        [WIDGET_DIRNAME ..'-AddSleepWake.lua'] = EMPTY_TABLE,
-        -- tracking game units and maintain their database
-        [WIDGET_DIRNAME ..'-HasViewChanged.lua'] = EMPTY_TABLE,
-        [WIDGET_DIRNAME ..'UnitsIDCard.lua'] = EMPTY_TABLE,
-        [WIDGET_DIRNAME ..'api_unit_handler.lua'] = EMPTY_TABLE,
-        [WIDGET_DIRNAME ..'-VisibleUnits.lua'] = EMPTY_TABLE,
-        -- track specific units order for widgets
-        [WIDGET_DIRNAME ..'command_tracker.lua'] = EMPTY_TABLE,
+    	[WIDGET_DIRNAME ..'persistent_build_heigth2.lua'] = {VFS.RAW},
         -- enhance option system
         [WIDGET_DIRNAME ..'gui_epicmenu.lua'] = {VFS.RAW},
     },
-    value = {
-        ['WG.UnitsIDCard'] = {'Requires UnitsIDCard.lua'},
-        ['WG.Visibles and WG.Cam'] = {'Requires -HasViewChanged.lua and -VisibleUnits.lua'},
-    }
+	value = {
+		-- tracking game units and maintain their database
+		['WG.UnitsIDCard and WG.UnitsIDCard.active'] = {'Requires api_unit_data.lua and running'},
+		-- track view and visible units
+		['WG.Visibles and WG.Cam'] = {'Requires api_view_changed.lua and api_visible_units.lua'},
+		-- track specific units order for widgets
+		['WG.commandTrackerActive'] = {'Requires API Command Tracker widget to be active'},
+	}
 }
 
 

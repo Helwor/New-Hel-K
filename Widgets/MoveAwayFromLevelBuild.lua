@@ -14,7 +14,7 @@ end
 
 local requirements = {
     value = {
-        ['WG.commandTrackerActive'] = {'Requires Command Tracker widget to be active'},
+        ['WG.commandTrackerActive'] = {'Requires api_command_tracker.lua and running'},
     }
 }
 
@@ -207,10 +207,6 @@ function widget:Initialize()
     if Spring.GetSpectatingState() or Spring.IsReplay() then
         errmsg = widget:GetInfo().name..' disabled for spectators'
     end
-    CommandTracker = widgetHandler:FindWidget('Command Tracker')
-    if not CommandTracker then
-        errmsg = 'Command Tracker is required for ' .. widget:GetInfo().name
-    end
     if errmsg then
         Echo(errmsg)
         widget.status = errmsg
@@ -226,6 +222,7 @@ function widget:Initialize()
     MyNewTeamID(Spring.GetMyTeamID())
 
     trackedUnits = WG.TrackedUnits
+    CommandTracker = widgetHandler:FindWidget('API Command Tracker')
 
     CommandTracker.callbacksExec[widget:GetInfo().name] = NotifyExecute
     CommandTracker.callbacksIdle[widget:GetInfo().name] = NotifyIdle

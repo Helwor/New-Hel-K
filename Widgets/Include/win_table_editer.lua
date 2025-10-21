@@ -8,7 +8,7 @@ if TESTME then
 			date      = "Dec 2023",
 			license   = "GNU GPL, v2 or later",
 			layer     = 1, -- after Chili
-			enabled   = true,  --  loaded by default?
+			enabled   = false,  --  loaded by default?
 			-- api       = true,
 			handler   = true,
 		}

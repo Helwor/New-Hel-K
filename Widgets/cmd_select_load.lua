@@ -117,7 +117,7 @@ options.letautowait = {
     type = 'bool',
     value = letAutoWait,
     OnChange = function(self)
-        if self.value and widgetHandler:FindWidget('Load AI') then
+        if self.value and widgetHandler:FindWidget('API Load AI') then
             letAutoWait = true
         else
             letAutoWait = false

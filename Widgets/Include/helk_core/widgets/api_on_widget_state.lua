@@ -201,7 +201,6 @@ end
 -----------------------------------
 
 local function InstallElements(w)
-	Echo('install element F', f)
 	w.f = f
 	w.realWidgetHandler = widgetHandler
 	w.WIDGET_DIRNAME = f.WIDGET_DIRNAME

@@ -12,6 +12,12 @@ function widget:GetInfo()
   }
 end
 
+local requirements = {
+    value = {
+        ['WG.selectionAPI'] = {'Requires api_selection_handler.lua and running'},
+    }
+}
+
 local spGiveOrder = Spring.GiveOrder 
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGetSelectedUnits = Spring.GetSelectedUnits
@@ -154,6 +160,9 @@ end
 -- end
 
 function widget:Initialize()
+    if not widget:Requires(requirements) then
+        return
+    end
     mySelection = WG.mySelection
     widget:CommandsChanged()
 end

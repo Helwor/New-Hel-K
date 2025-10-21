@@ -1,7 +1,7 @@
 function widget:GetInfo()
     return {
         name      = 'Lag Helper',
-        desc      = 'try to reduce lag,replace moving keys',
+        desc      = 'try to reduce lag, replace moving keys',
         author    = 'Helwor',
         version   = 'v1',
         date      = 'mid 2021',
@@ -378,7 +378,11 @@ local function MeasureLatency(serverFrame)
     behind = serverFrame-userFrame
     caughtUp = (userFrame-lastUserFrame)-(serverFrame-lastServerFrame)
     local time = osclock()
-    caughtUpPerSec = (caughtUp/30) / (time-lastTime)
+    if time - lastTime == 0 then
+        caughtUpPerSec = caughtUp
+    else
+        caughtUpPerSec = (caughtUp/30) / (time-lastTime)
+    end
     if behind>300 then
         if not catchingUpStart then
             catchingUpStart = {time=time,userFrame=userFrame,serverFrame=serverFrame}

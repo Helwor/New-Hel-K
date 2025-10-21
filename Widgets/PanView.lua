@@ -12,10 +12,10 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-local reqs = {
-	widget = {
-		HasViewChanged = {'Requires -HasViewChanged.lua'},
-	},
+local requirements = {
+	value = {
+		['WG.Cam'] = {'Requires api_view_changed.lua and running'},
+	}
 }
 local Echo = Spring.Echo
 local f = f
@@ -2323,7 +2323,7 @@ function widget:Initialize()
 	--     Echo(sig .. status)
 	--     return
 	-- end
-	if not widget:Requires(reqs) then
+	if not widget:Requires(requirements) then
 		widgetHandler:RemoveWidget(widget)
 		return
 	end

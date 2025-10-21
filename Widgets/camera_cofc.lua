@@ -14,7 +14,7 @@ function widget:GetInfo()
   }
 end
 local Echo = Spring.Echo
-Echo('HEL VERSION IS LOADED')
+
 include("keysym.lua")
 -- include("Widgets/COFCtools/Interpolate.lua")
 VFS.Include(LUAUI_DIRNAME .. "Widgets\\COFCtools\\Interpolate.lua")

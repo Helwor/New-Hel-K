@@ -128,8 +128,8 @@ local spu = {
 
 VFS.Include('LuaUI/keysym.lua')
 local KEYSYMS = KEYSYMS
-VFS.Include('LuaUI\\Widgets\\Keycodes.lua')
-local KEYCODES = KEYCODES
+
+local KEYCODES = WG.KEYCODES
 local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
 
 
