@@ -343,34 +343,6 @@ end
 
 ---------------------------------- Helwor --------------------------------------
 --------------------------------------------------------------------------------
-VFS.Include('LuaUI\\Widgets\\Include\\glAddons.lua')
-
-if not WG.utilFuncs then -- can be renewed through '/renewfuncs'
-    local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
-    VFS.Include("LuaUI\\Widgets\\Include\\UtilFuncs.lua", copy(getfenv()) )
-end
-
----------------------
-
-
---[[ -- PR accepted
-	local InstallCompleteVisionCallIn--, UninstallCompleteVisionCallIn
-
-	if VFS.FileExists('LuaUI/Widgets/Include/fix_complete_vision_callin.lua', VFS.RAW_FIRST) then
-		InstallCompleteVisionCallIn, UninstallCompleteVisionCallIn = VFS.Include('LuaUI/Widgets/Include/fix_complete_vision_callin.lua', nil, VFS.RAW_FIRST)
-	end
-	if InstallCompleteVisionCallIn then
-		InstallCompleteVisionCallIn()
-	else
-		Echo(
-			widget:GetInfo().name
-			.. ' the fix for complete vision callins has not been found it will not be possible to track unit vision properly when spectating all teams'
-			.. '\nGet fix_complete_vision_callin.lua and put it in LuaUI/Widgets/Include/'
-		)
-	end
-]]
------------------------------
-
 
 local guiHidden = false
 local OriIsGUIHidden = Spring.IsGUIHidden
