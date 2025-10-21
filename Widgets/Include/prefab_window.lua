@@ -1,18 +1,12 @@
-
-
-function widget:GetInfo()
-    return {
-        name      = "WINDOW",
-        desc      = "Handler for some premade windows",
-        author    = "Helwor",
-        date      = "April 2023",
-        license   = "GNU GPL, v2",
-        layer     = 1050, -- before Smart Builders
-        enabled   = true,  --  loaded by default?
-        handler   = true,
-        api       = true, -- api are loaded before all normal widgets, but initialized together with them
-    }
+-- name      = API window prefab
+-- desc      = "Handler for some premade windows"
+-- author    = "Helwor",
+-- date      = "April 2023",
+-- license   = "GNU GPL, v2",
+if WG.WINDOW then
+    return
 end
+
 local Echo                          = Spring.Echo
 
 -- local f = WG.utilFuncs
@@ -152,7 +146,6 @@ function WINDOW:Create(children, minize)
         children = {
             self.scrollPanel,
             
-            
             self.checkControl,    
             self.extraButton,        
             self.searchButton,
@@ -253,13 +246,4 @@ function WINDOW.Tree:New(tree)
 end
 
 WG.WINDOW = WINDOW
-function widget:Initialize()
-end
-
-function widget:ShutDown()
-    for k,v in pairs(WINDOW.instances) do
-        v:Delete(true)
-    end
-    WG.WINDOW = nil
-end
 

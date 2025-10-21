@@ -1,11 +1,11 @@
 -- requires WINDOW.lua
 -- requires UtilsFunc.lua
 -- requires chili_addon.lua
-local ver = 0.1
+
 function widget:GetInfo()
     return {
         name      = "HookFuncs",
-        desc      = "Hook function recursively" .. ver,
+        desc      = "Widget functions benchmark",
         author    = "Helwor",
         date      = "April 2023",
         license   = "GNU GPL, v2",
@@ -14,8 +14,9 @@ function widget:GetInfo()
         handler   = true,
     }
 end
+VFS.Include("LuaUI\\Widgets\\Include\\prefab_window.lua")
 local Echo = Spring.Echo
-Echo('--------------------------------')
+
 
 local spGetTimer = Spring.GetTimer
 local spDiffTimers = Spring.DiffTimers

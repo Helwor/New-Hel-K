@@ -2,7 +2,7 @@
 function widget:GetInfo()
 		return {
 		name      = 'HookFuncs2',
-		desc      = "",
+		desc      = "Deep Widget functions benchmark",
 		author    = "Helwor",
 		date      = "Jan 2024",
 		license   = "GNU GPL, v2 or later",
@@ -12,6 +12,9 @@ function widget:GetInfo()
 		-- api       = true,
 }
 end
+
+VFS.Include("LuaUI\\Widgets\\Include\\prefab_window.lua")
+
 -- April 2025
 	-- removed "Remove" feature with simple right click that was buggy and useless, using CutBranch instead
 

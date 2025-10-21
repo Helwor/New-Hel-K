@@ -16,6 +16,7 @@ end
 local lastDist = 0
 local spGetTimer = Spring.GetTimer
 local spDiffTimers = Spring.DiffTimers
+local spForceTesselationUpdate = Spring.ForceTesselationUpdate
 local abs = math.abs
 local Cam
 
