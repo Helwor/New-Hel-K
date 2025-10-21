@@ -205,14 +205,18 @@ end
 do
 	VFS.Include("LuaUI\\Widgets\\Include\\add_on_handler_register_global_multi.lua")
 	local function GetRealHandler()
-	    local i, n = 0, true
-	    while n do
-	        i=i+1
-	        n,v=debug.getupvalue(widgetHandler.RemoveCallIn, i)
-	        if n=='self' and type(v)=='table' and v.LoadWidget then
-	            return v
-	        end
-	    end
+		if widgetHandler.LoadWidget then
+			return widgetHandler
+		else
+		    local i, n = 0, true
+		    while n do
+		        i=i+1
+		        n,v=debug.getupvalue(widgetHandler.RemoveCallIn, i)
+		        if n=='self' and type(v)=='table' and v.LoadWidget then
+		            return v
+		        end
+		    end
+		end
 	end
 	local realHandler = GetRealHandler()
 	if realHandler then
