@@ -1,7 +1,7 @@
 
 function widget:GetInfo()
   return {
-	name      = "Selection API",
+	name      = "API Selection Handler",
 	desc      = "set of tools to get info about selection",
 	author    = "Helwor",
 	date      = "Sept 2023",
@@ -15,9 +15,7 @@ function widget:GetInfo()
 end
 local Echo = Spring.Echo
 
-if not f then -- compat with old Hel-K
-	f = VFS.Include("LuaUI\\Widgets\\UtilsFunc.lua")
-end
+
 include("LuaRules/Configs/customcmds.h.lua")
 -- speedups
 local spGetModKeyState          = Spring.GetModKeyState

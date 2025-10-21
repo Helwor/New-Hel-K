@@ -2,7 +2,7 @@
 
 function widget:GetInfo()
 	return {
-		name      = "UnitsIDCard",
+		name      = "API Unit Data",
 		desc      = "produce extended ID card of units",
 		author    = "Helwor",
 		date      = "August 2020",
@@ -862,10 +862,10 @@ function widget:Initialize()
 	-- 	widgetHandler:RemoveWidget(self)
 	-- 	return
 	-- end
-	Echo('UnitsIDCard Loading...')
+	Echo(widget:GetInfo().name .. ' Loading...')
 	Cam = WG.Cam
 	if not Cam then
-		widget.status = widget:GetInfo().name .. ' requires HasViewChanged'
+		widget.status = widget:GetInfo().name .. ' requires api_view_changed'
 		Echo(widget.status)
 		widgetHandler:RemoveWidget(widget)
 		return

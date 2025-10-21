@@ -1,6 +1,6 @@
 function widget:GetInfo()
 	return {
-		name      = "HasViewChanged",
+		name      = "API View Changed",
 		desc      = "Tell if view may have changed to lessen Draw work and gives VisiblesUnits",
 		author    = "Helwor",
 		date      = "May 2023",

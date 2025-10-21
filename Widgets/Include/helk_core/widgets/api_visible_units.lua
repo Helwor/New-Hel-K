@@ -1,6 +1,6 @@
 function widget:GetInfo()
 	return {
-		name      = "VisibleUnits",
+		name      = "API Visible Units",
 		desc      = "Register the visible/iconized unit",
 		author    = "Helwor",
 		date      = "May 2023",

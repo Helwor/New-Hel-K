@@ -1,6 +1,6 @@
 function widget:GetInfo()
 	return {
-		name      = "Unit Handler",
+		name      = "API Unit Handler",
 		desc      = "Manage Centralized Unit Database",
 		author    = "Helwor",
 		date      = "May 2023",
@@ -11,7 +11,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
--- requires HasVienChanged
+-- requires HasViewChanged
 
 --IMPORTANT NOTE: 
 -- !! Update come before PreUnit, unit visible can be detected in update, BUT ICONIZED STATE IS DETECTED FIRST AT PRE UNIT
@@ -1700,13 +1700,13 @@ end
 function widget:Initialize()
 	-- Units = Cam.Units
 	if not WG.Cam then
-		widget.status = widget:GetInfo().name .. ' requires -HasViewChanged.'
+		widget.status = widget:GetInfo().name .. ' requires API View Changed.'
 		Echo(widget.status)
 		widgetHandler:RemoveWidget(widget)
 		return
 	end
 	if not WG.UnitsIDCard then
-		widget.status = widget:GetInfo().name .. ' requires UnitsIDCard.'
+		widget.status = widget:GetInfo().name .. ' requires API Unit Data.'
 		Echo(widget.status)
 		widgetHandler:RemoveWidget(widget)
 	end		
@@ -1905,10 +1905,6 @@ end
 
 ----------- Some Drawing
 
-
-if not (gl.Utilities and gl.Utilities.DrawScreenDisc) then
-    VFS.Include('LuaUI\\Widgets\\Include\\glAddons.lua')
-end
 
 local debugDot = false
 local gluDrawScreenDisc = gl.Utilities.DrawScreenDisc
