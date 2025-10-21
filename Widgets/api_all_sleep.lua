@@ -1,7 +1,7 @@
 
 function widget:GetInfo()
 	return {
-		name      = "AllSleep",
+		name      = "API AllSleep",
 		desc      = "Put all widgets to sleep on widget init, wake all on widgets shutdown",
 		author    = "Helwor",
 		date      = "May 2023",
