@@ -2,7 +2,7 @@
 
 function widget:GetInfo()
     return {
-        name      = "Time Out",
+        name      = "Time Out API",
         desc      = "A simple handler to execute func on delay and/or for a defined time",
         author    = "Helwor",
         date      = "April 2023",
