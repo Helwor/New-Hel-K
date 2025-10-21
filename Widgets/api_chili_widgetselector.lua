@@ -502,7 +502,7 @@ local function CheckWidget(widget, reverse)
 				or base_color
 			) or isCrashed and crashed[base_color]
 			or greyer[base_color]
-
+		wcheck.tooltip = ''
 		if widget then
 			local extra = ''
 			if widget.status and type(widget.status) == 'string' then
@@ -513,7 +513,6 @@ local function CheckWidget(widget, reverse)
 			end
 			wcheck.tooltip = (widget.whInfo.desc or '') .. extra
 		end
-		wcheck.font:SetColor(color)
 		if reverse then -- reverse it when it is from a click of the user (OnChange function) because the check is reversed again after that function call
 			enabled = not enabled
 		end
@@ -523,6 +522,7 @@ local function CheckWidget(widget, reverse)
 		if dev_mode then
 			wcheck.tooltip = wcheck.tooltip .. "\n---------------\n<" .. ki.filename .. ">"
 		end
+		wcheck.font:SetColor(color)
 		-- update the check
 		wcheck.checked = enabled
 		wcheck.value = enabled
