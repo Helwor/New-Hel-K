@@ -14,24 +14,16 @@ function widget:GetInfo()
 end
 -- April 2025 fix dots appearing above UI (DrawScreenEffects instead of DrawScreen)
 local Echo = Spring.Echo
--- compat with old hel-k
-if not f then
-	WIDGET_DIRNAME = LUAUI_DIRNAME .. 'Widgets/'
-	f = VFS.Include("LuaUI\\Widgets\\UtilsFunc.lua")
-	COLORS = f.COLORS
-end
---
 
 local requirements = {
 	exists = {
-		[WIDGET_DIRNAME ..'Include/glAddons.lua'] = {nil},
-		[WIDGET_DIRNAME ..'-AddSleepWake.lua'] = {nil, nil, true},
-		[WIDGET_DIRNAME ..'-SelectionAPI.lua'] = {nil},
+		[WIDGET_DIRNAME .. 'api_preselection.lua'] = {VFS.RAW},
 	},
 	value = {
-		['WG.UnitsIDCard'] = {'Requires UnitsIDCard.lua'},
-		['WG.Visibles and WG.Cam'] = {'Requires -HasViewChanged.lua and -VisibleUnits.lua'},
-		['WG.MouseState'] = {'Requires -MyClicks2.lua'},
+		['WG.selectionAPI'] = {'Requires api_selection_handler.lua and running'},
+		['WG.UnitsIDCard'] = {'Requires api_unit_data.lua and running'},
+		['WG.Visibles and WG.Cam'] = {'Requires api_view_changed.lua and api_visible_units.lua and running'},
+		['WG.MouseState'] = {'Requires api_click_handler.lua and running'},
 		['WG.ClampScreenPosToWorld'] = {'Works better using ClampedMouseMove.lua', true},
 	}
 }
@@ -164,14 +156,14 @@ options_path = 'Hel-K/' .. widget:GetInfo().name
 
 ------------- DEBUG CONFIG
 local Debug = { -- default values
-	active=true -- no debug, no hotkey active without this
-	,global=false -- global is for no key : 'Debug(str)'
+	active = true, -- no debug, no hotkey active without this
+	global = false, -- global is for no key : 'Debug(str)'
 
-	,UC = false
-	,EZ= false
-	,Mouse=false
-	,CF2=false
-	,debugVar = false
+	UC = false,
+	EZ= false,
+	Mouse = false,
+	CF2 = false,
+	debugVar = false,
 }
 -- Debug.hotkeys = {
 --     active =            {'ctrl','alt','E'} -- this hotkey active the rest
@@ -2767,9 +2759,7 @@ do
 
 	local spWorldToScreenCoords = Spring.WorldToScreenCoords
 
-	if not (gl.Utilities and gl.Utilities.DrawScreenDisc) then
-		VFS.Include('LuaUI\\Widgets\\Include\\glAddons.lua')
-	end
+
 	local gluDrawScreenDisc                 = gl.Utilities.DrawScreenDisc
 	local gluDrawScreenCircle               = gl.Utilities.DrawScreenCircle
 	local gluDrawDisc                       = gl.Utilities.DrawDisc
@@ -2920,17 +2910,17 @@ clear = function(t)
 	end
 end
 -- Memorize Debug config over games
-function widget:SetConfigData(data)
-	if data.Debug then
-		Debug.saved = data.Debug
-	end
-end
+-- function widget:SetConfigData(data)
+-- 	if data.Debug then
+-- 		Debug.saved = data.Debug
+-- 	end
+-- end
 
-function widget:GetConfigData()
-	if Debug.GetSetting then
-		return {Debug=Debug.GetSetting()}
-	end
-end
+-- function widget:GetConfigData()
+-- 	if Debug.GetSetting then
+-- 		return {Debug=Debug.GetSetting()}
+-- 	end
+-- end
 
 function widget:GameOver()
 	-- wh:RemoveWidget(widget)
@@ -2946,24 +2936,13 @@ function widget:PlayerChanged(playerID)
 	-- end
 end
 
-
-
-function widget:SetConfigData(data)
-
-end
-function widget:GetConfigData()
-
-end
-
-
-
 function widget:Initialize()
 	screen0 = WG.Chili.Screen0
 	-- if Spring.GetSpectatingState() then
 	--     widgetHandler:RemoveWidget(self)
 	--     return
 	-- end
-	if widget.Requires and not widget:Requires(requirements) then
+	if not widget:Requires(requirements) then
 		return
 	end
 	if WG.ClampScreenPosToWorld then
@@ -2993,7 +2972,7 @@ function widget:Initialize()
 
 
 	widget:CommandsChanged()
-	Debug = f.CreateDebug(Debug,widget, options_path)
+	Debug = f.CreateDebug(Debug, widget, options_path)
 	if options and options.debugVar then
 		options.debugVar.action = 'eztargetvars'
 	end
@@ -3052,7 +3031,7 @@ function WidgetInitNotify(w, name, preloading)
 	if preloading then
 		return
 	end
-	if name == 'UnitsIDCard' then
+	if name == 'API Unit Data' then
 		Units = WG.UnitsIDCard.units or WG.UnitsIDCard -- (compat WG.UnitsIDCard.units doesn't exist in old Hel-K)
 		widgetHandler:Wake(widget)
 	end
