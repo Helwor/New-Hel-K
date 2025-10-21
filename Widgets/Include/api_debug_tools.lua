@@ -1,25 +1,17 @@
-
-function widget:GetInfo()
-	return {
-		name      	= "API Debug Tools",
-		desc      	= "gonna move progressively in the WG area",
-		author    	= "Helwor",
-		date      	= "Nov, 2023",
-		license   	= "GNU GPL, v2 or v3",
-		layer     	= -math.huge,
-		enabled   	= true,
-		AlwaysStart = true,
-		api		  	= true,
-	}
+-- API Debug Tools
+-- WIP moving all the debug tools into this
+-- author    	= "Helwor",
+-- date      	= "Nov, 2023",
+-- license   	= "GNU GPL, v2 or v3",
+if WG.DrawOnUnits then
+	return
 end
 local Echo = Spring.Echo
 local f = WG.utilFuncs
+
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
-
-
-
 
 local glText 				= gl.Text
 local spWorldToScreenCoords = Spring.WorldToScreenCoords
@@ -88,4 +80,3 @@ end
 WG.DrawOnUnits = DrawOnUnits
 
 
-f.DebugWidget(widget)
