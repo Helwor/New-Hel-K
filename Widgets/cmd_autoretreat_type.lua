@@ -7,7 +7,6 @@ function widget:GetInfo()
 		license   = "GNU GPL, v2 or later",
 		layer     = 2, -- after Unit Start State
 		enabled   = true,  --  loaded by default?
-		api       = true,
 		handler   = true,
 	}
 end
