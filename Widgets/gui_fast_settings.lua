@@ -237,7 +237,27 @@ end
 
 
 options_path = ''
-options_order = { --[['testnumber',--]]'lbl_collapse','mapshading','feature_dist','fovpow','fov','wire_map','map_drawer','adapt_detail','switch_wire','map_detail','shadows','dist_icon','gccontrol','maxzoomout' ,'maxzoomout_alt' }
+options_order = { 
+    --'testnumber',
+    'lbl_collapse',
+    'mapshading',
+    'feature_dist',
+    'fovpow',
+    'fov',
+    'wire_map',
+    'map_drawer',
+    'adapt_detail',
+    'switch_wire',
+    'map_detail',
+    'shadows',
+    'dist_icon',
+    'gccontrol',
+    'maxzoomout' ,
+    'maxzoomout_alt',
+    'min_draw_fps',
+    'min_sim_draw_balance',
+
+}
 -- options.testnumber = {
 --     type = 'number',
 --     value = 3,
@@ -254,7 +274,7 @@ options.lbl_collapse = {
     OnChange = function(self)
         -- self.value = not self.value
         local hidden = self.value
-        for _,v in pairs({'mapshading','fov','dist_icon','feature_dist','map_detail','shadows','maxzoomout' ,'maxzoomout_alt'}) do
+        for _,v in pairs({'mapshading','fov','dist_icon','feature_dist','map_detail','shadows','maxzoomout' ,'maxzoomout_alt', 'min_draw_fps', 'min_sim_draw_balance'}) do
             options[v].hidden = hidden
         end
         -- self.value = not self.value
@@ -499,6 +519,40 @@ options.maxzoomout_alt = {
         linkOption = {'Settings/Camera/COFC Controls', COFCName .. 'maxzoomout_alt'},
         hidden = true, -- collapsable
     }
+options.min_draw_fps = {
+
+        name = 'Min FPS during Catch Up',
+        desc = 'This option will apply next time Spring is loaded',
+        type = "number",
+        value = 5,
+        min = 2,
+        max = 50,
+        step = 1,
+        simpleMode = true,
+        everyMode = true,
+        OnChange = function(self)
+            Spring.SendCommands('mindrawfps ' .. self.value)
+            Spring.SetConfigInt('MinDrawFPS', self.value)
+        end,
+        hidden = true,
+}
+options.min_sim_draw_balance = {
+
+        name = 'Min Sim/Draw Balance',
+        desc = 'This option will apply next time Spring is loaded',
+        type = "number",
+        value = 0.25,
+        min = 0.1,
+        max = 0.9,
+        step = 0.05,
+        simpleMode = true,
+        everyMode = true,
+        OnChange = function(self)
+            Spring.SetConfigInt('MinSimDrawBalance', self.value)
+            Spring.SetConfigFloat('MinSimDrawBalance', self.value)
+        end,
+        hidden = true,
+}
 --- Always hidden options
 options.fovpow = { -- hidden option, dont touch or retain the best value before
         name = 'FOV Power',
@@ -514,11 +568,14 @@ options.fovpow = { -- hidden option, dont touch or retain the best value before
             if options.adapt_detail.value then
                 options.map_detail:OnChange()
             end
-            -- return self.value
         end,
         hidden = true,
         -- tooltip_format = '%.2f'
     }
+
+
+
+
 options.wire_map = {
         name = 'Wire Map',
         desc = 'Enable Wire Map to appreciate the level of detail of Map Meshes.',
@@ -583,6 +640,13 @@ options.gccontrol = {
         hidden = true, -- don't seems to change anything
     }
 ---------
+    -- Echo("Spring.GetConfigInt('MinDrawFPS') is ", Spring.GetConfigInt('MinDrawFPS'))
+    -- Echo("Spring.GetConfigFloat('MinSimDrawBalance') is ", Spring.GetConfigFloat('MinSimDrawBalance'))
+    -- Spring.SetConfigInt('MinSimDrawBalance', 0.25)
+    -- Spring.SetConfigFloat('MinSimDrawBalance', 0.25)
+    -- -- Spring.SendCommands('mindrawfps 15')
+    -- Spring.SetConfigInt('MinDrawFPS', 13)
+
 
 local origCOFCFovOnChange
 
