@@ -2,7 +2,7 @@
 
 function widget:GetInfo()
     return {
-        name      = "Command Tracker",
+        name      = "API Command Tracker",
         desc      = "register current order of tracked units",
         author    = "Helwor",
         date      = "October 2022",
@@ -15,10 +15,7 @@ function widget:GetInfo()
 end
 -- TODO: Implement a disabling option, link unit by widget asking
 local Echo                          = Spring.Echo
-if not f then -- compat with the old Hel-K
-    f = VFS.Include('LuaUI\\Widgets\\UtilsFunc.lua')
-    COLORS = f.COLORS
-end
+
 local ploppableDefs = {}
 for unitDefID, unitDef in pairs(UnitDefs) do
     local cp = unitDef.customParams

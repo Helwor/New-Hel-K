@@ -1,7 +1,7 @@
 function widget:GetInfo()
 
   return {
-    name      = "Log Handler",
+    name      = "API Log Handler",
     desc      = "write logs for widgets",
     author    = "Helwor",
     date      = "Jan 2022",

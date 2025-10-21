@@ -1,3 +1,4 @@
+-- Original:
 -- $Id: modfonts.lua 3171 2008-11-06 09:06:29Z det $
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -15,10 +16,12 @@
 
 
 -- ":n:" sets it to nearest texture filtering
-
+--------------------------------------------------------------------------------
+-- Helwor: Reuse the code to have a custom font at hand and study
+--------------------------------------------------------------------------------
 function widget:GetInfo()
     return {
-        name      = "MyFont",
+        name      = "API My Font",
         desc      = "Customized fontHandler",
         author    = "Dave Rodgers",
         date      = "2007",

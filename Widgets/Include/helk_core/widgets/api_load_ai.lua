@@ -3,7 +3,7 @@
 
 function widget:GetInfo()
   return {
-    name      = "Load AI",
+    name      = "API Load AI",
     desc      = "when issuing a manual load command, order unit(s) to be loaded, to wait",
     author    = "Helwor",
     date      = "Sept 2023",
@@ -25,7 +25,7 @@ local debugging = false
 --------
 
 options_path = 'Hel-K/' .. widget:GetInfo().name
-options_order = {'dropclose','adjust','debugging'}
+options_order = {'dropclose', 'adjust', 'debugging'}
 options = {}
 
 options.adjust = {
@@ -144,11 +144,12 @@ local strargs = function(...)
 end
 if not table.size then
     table.size = function(t)
-    local count = 0
-    for _ in pairs(t) do
-        count = count + 1
+        local count = 0
+        for _ in pairs(t) do
+            count = count + 1
+        end
+        return t
     end
-    return t
 end
 
 local CONST_TRANSPORT_STOPDISTANCE = 130 -- how close by has transport to be for the unit to be ordered to stop
