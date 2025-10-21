@@ -1,7 +1,7 @@
 
 function widget:GetInfo()
 	return {
-		name      	= "Debug Tools",
+		name      	= "API Debug Tools",
 		desc      	= "gonna move progressively in the WG area",
 		author    	= "Helwor",
 		date      	= "Nov, 2023",
