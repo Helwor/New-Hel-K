@@ -9,7 +9,7 @@ function widget:GetInfo() return {
 } end
 local requirements = {
 	exists = {
-		[WIDGET_DIRNAME .. '-HasViewChanged.lua'] = {VFS.RAW},
+		[WIDGET_DIRNAME .. '\\Include\\helk_core.lua'] = {VFS.RAW},
 	}
 }
 local Cam
@@ -20,7 +20,6 @@ function widget:CommandNotify(cmdID, params, options)
 	if not options.ctrl or (cmdID ~= CMD.RECLAIM) or (#params ~= 4) then
 		return
 	end
-	Spring.Echo(Cam.relDist)
 	if Cam.relDist > 2500 then
 		return
 	end

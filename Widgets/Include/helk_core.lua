@@ -16,6 +16,7 @@
 		'api_my_zones.lua',
 		'api_load_ai.lua',
 		'addon_chili.lua',
+		'api_draw_utils',
 	}
 
 	local importantWidgets = {
@@ -47,7 +48,7 @@
 	VFS.Include(HELK_CORE_DIR .. "addon_handler_register_global_multi.lua")
 	VFS.Include(HELK_CORE_DIR .. "addon_handler_cmd_insertwidget.lua")
 	VFS.Include(HELK_CORE_DIR .. "addon_handler_sleep_wake.lua")
-	Echo('OK?')
+
 	VFS.Include(HELK_CORE_DIR .. "keycodes.lua")
 
 	local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end

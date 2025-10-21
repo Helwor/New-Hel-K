@@ -1,7 +1,7 @@
 function widget:GetInfo()
     return {
-        name      = "FOV",
-        desc      = "add Fov option for basic camera",
+        name      = "Fast Settings",
+        desc      = "Add handy graphic settings in Option Menu",
         author    = "Helwor",
         date      = "Jan 2023",
         license   = "GNU GPL, v2 or later",
@@ -11,9 +11,11 @@ function widget:GetInfo()
     }
 end
 local requirements = {
+    value = {
+        ['WG.Cam'] = {'Requires api_view_changed.lua and running'},
+    },
     exists = {
         [WIDGET_DIRNAME .. 'gui_epicmenu.lua'] = {VFS.RAW, nil, true},
-        [WIDGET_DIRNAME .. '-HasViewChanged.lua'] = {VFS.RAW},
         [WIDGET_DIRNAME .. 'camera_cofc.lua'] = {VFS.RAW},
     }
 }

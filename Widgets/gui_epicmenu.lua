@@ -1,5 +1,5 @@
 -- can use chili_addon.lua
--- recommended to use with -OnWidgetState.lua
+
 
 --[[ Helwor addings: 
 Implementations:

@@ -2,7 +2,7 @@
 
 function widget:GetInfo()
     return {
-        name      = "Draw Debug Tool",
+        name      = "API Draw Debug Tool",
         desc      = "API for visual debugging, not optimized for performance but for convenience",
         author    = "Helwor",
         date      = "dec 2022",

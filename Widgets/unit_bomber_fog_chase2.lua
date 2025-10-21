@@ -10,7 +10,7 @@ function widget:GetInfo()
 		enabled   = false  --  loaded by default
 	}
 end
-VFS.Include("LuaUI\\Widgets\\Include\\debug_tools.lua")
+VFS.Include("LuaUI\\Widgets\\Include\\api_debug_tools.lua")
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
