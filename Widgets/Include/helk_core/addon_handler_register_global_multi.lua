@@ -9,9 +9,6 @@ local sig = '['..widget:GetInfo().name..']: '
 local debugging = false
 
 local function GetRealHandler()
-	for k,v in pairs(widgetHandler) do
-		Echo("-----",k,v)
-	end
 	if widgetHandler.LoadWidget then
 		return widgetHandler
 	else

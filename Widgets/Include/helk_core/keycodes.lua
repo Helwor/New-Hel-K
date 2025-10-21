@@ -1,6 +1,9 @@
 -- key codes to KEYSYMS -- Helwor
+if WG.KEYCODES then
+	return WG.KEYCODES
+end
 
-KEYCODES={
+WG.KEYCODES = {
 	[0] = "UNKNOWN",
 	[8] = "BACKSPACE",
 	[9] = "TAB",
@@ -235,3 +238,5 @@ KEYCODES={
 	[322] = "UNDO",
 	[323] = "LAST"
 }
+
+Spring.Echo('[Hel-K]: WG.KEYCODES loaded.')
