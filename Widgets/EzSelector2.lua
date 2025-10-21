@@ -22,7 +22,7 @@ local abs, max = math.abs, math.max
 include('keysym.h.lua')
 include('keysym.lua')
 VFS.Include('LuaRules/Configs/customcmds.h.lua')
-VFS.Include('LuaUI/Widgets/Include/glAddons.lua')
+
 -- !!! Add CMD_FIND_PAD , CMD_EXCLUDE PAD , CMD_AUTO_CALL TRANSPORT
 include("LuaRules/Configs/customcmds.h.lua")
 local resX, resY = Spring.GetScreenGeometry()
@@ -36,7 +36,7 @@ local EMPTY_TABLE = {}
 local DEFAULT_DRAW_POS = {resX/2, resY/2} -- default of draw screen  in non cylinder mode selection info
 local DEFAULT_CYLINDER_DRAW_POS = {(resX/2), 180}
 local selectionChanged
-VFS.Include('LuaUI\\Widgets\\Keycodes.lua')
+local KEYCODES = WG.KEYCODES
 --include("Widgets/COFCtools/TraceScreenRay.lua")
 
 local f = WG.utilFuncs
@@ -126,8 +126,16 @@ local CMD_MOVE = CMD.MOVE
 
 local UnitDefs = UnitDefs
 
-
-
+local debugAtUnit = {}
+local function DebugAtUnit(id, text, time, add)
+	local dbgUnit = debugAtUnit[id]
+	if add and dbgUnit then
+		dbgUnit.text = dbgUnit.text .. '\n' .. text
+		dbgUnit.time = time
+	else
+		debugAtUnit[id] = {text = text, time = time}
+	end
+end
 
 
 local IM -- Integral Menu
@@ -497,13 +505,7 @@ function ctrlGroups:GetToBeSelected()
 end
 
 
-
-
-
-
 local last = {callcount = 0, chained = {}, chainCount = 0, time = osclock()}
-
-
 
 
 -- for k, v in pairs(customCmds) do
@@ -609,38 +611,38 @@ local hotkeysCombos = {
 
 
 
-		--- DEBUG SHORTCUTS -- work in progress
-			{
-				name = 'Debug Check Requirements',
-				option_name = 'debugcheckreq',
-				keys = {'LCTRL', 'LALT', 'R', '?AIR'}, -- 
-				color = {0.9, 0.9, 0.3, 1},
-				fading = 0.8,
-			},
-			--
-			{
-				name = 'Debug Current Combo',
-				option_name = 'debugcurrentcombo',
-				keys = {'LCTRL', 'LALT', 'O', '?AIR'}, -- 
-				color = {0.9, 0.9, 1.0, 1},
-				fading = 0.8,
-			},
-			--
-			{
-				name = 'Debug Show Names',
-				option_name = 'debugshownames',
-				keys = {'LCTRL', 'LALT', 'N', '?AIR'}, -- 
-				color = {0.4, 0.9, 1.0, 1},
-				fading = 0.8,
-			},
-			--
-			{
-				name = 'Debug Previous',
-				option_name = 'debugprevious',
-				keys = {'LCTRL', 'LALT', 'P', '?AIR'}, -- 
-				color = {0.9, 0.5, 1.0, 1},
-				fading = 0.8,
-			},
+		--- DEBUG SHORTCUTS -- not used anymore
+			-- {
+			-- 	name = 'Debug Check Requirements',
+			-- 	option_name = 'checkReq',
+			-- 	keys = {'LCTRL', 'LALT', 'R', '?AIR'}, -- 
+			-- 	color = {0.9, 0.9, 0.3, 1},
+			-- 	fading = 0.8,
+			-- },
+			-- --
+			-- {
+			-- 	name = 'Debug Current Combo',
+			-- 	option_name = 'currentCombo',
+			-- 	keys = {'LCTRL', 'LALT', 'O', '?AIR'}, -- 
+			-- 	color = {0.9, 0.9, 1.0, 1},
+			-- 	fading = 0.8,
+			-- },
+			-- --
+			-- {
+			-- 	name = 'Debug Show Names',
+			-- 	option_name = 'showNames',
+			-- 	keys = {'LCTRL', 'LALT', 'N', '?AIR'}, -- 
+			-- 	color = {0.4, 0.9, 1.0, 1},
+			-- 	fading = 0.8,
+			-- },
+			-- --
+			-- {
+			-- 	name = 'Debug Previous',
+			-- 	option_name = 'previous',
+			-- 	keys = {'LCTRL', 'LALT', 'P', '?AIR'}, -- 
+			-- 	color = {0.9, 0.5, 1.0, 1},
+			-- 	fading = 0.8,
+			-- },
 			--
 
 		--------------------
@@ -881,14 +883,12 @@ local hotkeysCombos = {
 				call_on_fail = 'Cons (Idle)',
 				try_on_success = 'Cons (Idle)',
 				try_takeover_conditions = function(call, acquired) --
-					-- Echo("acquired[1], call.time_length is ", acquired[1], call.time_length)
 					if call.time_length < 0.3 then
 						local curId, tryId = acquired[1], g.acquired[1]
 						if not (tryId and curId and spValidUnitID(tryId) and spValidUnitID(curId)) then
 							return false
 						end
 						if last.sel and identical(currentSel, g.acquired) then
-							-- Echo('last sel is the same')
 							return false
 						end
 						local tux, tuy, tuz = spGetUnitPosition(tryId)
@@ -898,10 +898,7 @@ local hotkeysCombos = {
 						local tryUdist = ((tux-mx)^2 + (tuz-mz)^2) ^0.5
 						local curUdist = ((cux-mx)^2 + (cuz-mz)^2) ^0.5
 						if tryUdist < curUdist * 0.66 then
-							-- Echo('try is closer', osclock())
 							return true
-						else
-							-- Echo('try is farther', osclock())
 						end
 					end
 				end,
@@ -981,7 +978,6 @@ local hotkeysCombos = {
 					-- HOW GROUPS WORKS: units closest of cursor are multichecked against the differents defs in group,
 					-- whichever def is the first matching become the filter that will be used on the rest of the units
 
-					-- no building order, no order repairing unfinished build
 					-- {'isComm'},
 					-- {name = 'striderfunnelweb'},
 
@@ -995,7 +991,7 @@ local hotkeysCombos = {
 							['?'] = {
 								'isIdle',
 								{'!manual', '!waitManual'},
-								{['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar', ['!hasOrder'] = 'building'}
+								{['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
 							},
 						},
 						-- {},
@@ -1015,7 +1011,7 @@ local hotkeysCombos = {
 							},
 							{
 								['?'] = {
-									['!order'] = CMD_RAW_MOVE, order = 'moveFar', hasOrder = 'building'
+									['!order'] = CMD_RAW_MOVE,	order = 'moveFar'
 								}
 							}
 						},
@@ -3877,9 +3873,25 @@ g.Selections = {n = 0}
 local lastTime = round(osclock()*10)
 local fullSel
 
-g.debuggingKeyDetections = false
-local debugPrevious 
-local debugRadius = false
+
+
+
+
+
+local Debug = { -- default values
+	active = true, -- no debug, no hotkey active without this
+	global = false, -- global is for no key : 'Debug(str)'
+
+	keyDetect = false,
+	previous = false,
+	radius = false,
+	checkReq = false,
+	showNames = false,
+	currentCombo = false,
+	activeCommand = false,
+}
+
+
 options_path = 'Hel-K/' .. widget:GetInfo().name
 
 options_order = {
@@ -3887,7 +3899,7 @@ options_order = {
 	'no_select_on_partial',
 	'use_screen_circle',
  	-- debugging
- 	'debugging_keys_detection', 'test', 'debugcheckreq', 'debugcurrentcombo', 'debugshownames', 'debugprevious', 'debugradius',
+ 	'test',
 }
 options = {}
 options.no_select_on_partial = {
@@ -3910,17 +3922,7 @@ options.use_screen_circle = {
 		useScreenCircle = self.value
 	end,
 }
-options.debugging_keys_detection = {
-	name = "debug key detection",
-	type = "bool",
-	OnChange = function(self)
-		g.debuggingKeyDetections = self.value
-	end,
-	value = g.debuggingKeyDetections,
-	desc = "debug key detection...",
-	dev = true,
-	category = 'debug',
-}
+
 options.test = {
 	name = "test",
 	OnChange = function(self) FullTableToStringCode(hotkeysCombos[3], {clip = true, breaks = 1, sort = sort}) end,
@@ -3932,58 +3934,6 @@ options.test = {
 
 	--OnClick = {function(self) Echo(self.desc) end }
 }
-options.debugcheckreq = {
-	name = "Debug Check Requirements",
-	OnChange = function(self) end,
-	type = "bool",
-	value = false,
-	dev = true,
-	category = 'debug',
-
-	--OnClick = {function(self) Echo(self.desc) end }
-}
-options.debugcurrentcombo = {
-	name = "Debug Current COMBO",
-	OnChange = function(self) end,
-	type = "bool",
-	value = false,
-	dev = true,
-	category = 'debug',
-
-	--OnClick = {function(self) Echo(self.desc) end }
-}
-options.debugshownames = {
-	name = "Show Names",
-	desc = "Show Names of the main unit pool in console",
-	OnChange = function(self) end,
-	type = "bool",
-	value = false,
-	dev = true,
-	category = 'debug',
-
-	--OnClick = {function(self) Echo(self.desc) end }
-}
-options.debugprevious = {
-	name = "Debug Previous System",
-	OnChange = function(self) debugPrevious = self.value end,
-	type = "bool",
-	value = false,
-	dev = true,
-	category = 'debug',
-	--OnClick = {function(self) Echo(self.desc) end }
-}
-
-options.debugradius = {
-	name = "Debug Radius",
-	OnChange = function(self) debugRadius = self.value end,
-	type = "bool",
-	value = false,
-	dev = true,
-	category = 'debug',
-	--OnClick = {function(self) Echo(self.desc) end }
-}
-
-
 
 
 
@@ -4187,14 +4137,15 @@ local function UpdatePrev(prev)
  	if not prev then return end
 
  	------ erase part
+	local dbgPrev = Debug.previous()
  	if prev.needErase then 
  		if prev.byType and type(prev.needErase)~= 'boolean' then
- 			if debugPrevious then Echo('prev: need erase of type '..prev.needErase) end
+ 			if dbgPrev then Echo('prev: need erase of type '..prev.needErase) end
  			-- erase only the desired type
  			local t = prev.byType[prev.needErase]
  			if t then 
  				if t.n == prev.n then
- 					if debugPrevious then
+ 					if dbgPrev then
  						Echo('prev: only this type in prev, remove all prev')
  					end
 			 		for i = 1, prev.n do prev[i] = nil end
@@ -4212,7 +4163,7 @@ local function UpdatePrev(prev)
 	 						table.remove(prev, i)
 						end
 	 				end
-	 				if debugPrevious then 
+	 				if dbgPrev then 
 	 					Echo('remove '..t.n, 'on '..prev.n)
 	 				end
 	 				prev.n = prev.n + off
@@ -4231,7 +4182,7 @@ local function UpdatePrev(prev)
  				prev.byType[prev.needErase] = nil
  			end
  		else -- normal all erase
- 			if debugPrevious then Echo('prev: need erase of all') end
+ 			if dbgPrev then Echo('prev: need erase of all') end
 
 	 		for i = 1, prev.n do prev[i] = nil end
 			prev.byID = {}
@@ -4248,7 +4199,7 @@ local function UpdatePrev(prev)
 
  		prev.forgetTypes = false
  		prev.time = osclock()
- 		if debugPrevious then Echo('prev: type switching: all types have been forgotten') end
+ 		if dbgPrev then Echo('prev: type switching: all types have been forgotten') end
  	end
 
 	--------
@@ -4258,7 +4209,7 @@ local function UpdatePrev(prev)
 		prev.typeMax = prev.typeMax + 1
 		prev.typeIndex[prev.typeMax] = call.choice
 		prev.types[call.choice] = prev.typeMax
-		if debugPrevious then
+		if dbgPrev then
 			local Type = call.choice
 			if call.byType == 'defID' and tonumber(Type) then
 				Type = Type .. ' (' .. UnitDefs[Type].name .. ')'
@@ -4268,7 +4219,7 @@ local function UpdatePrev(prev)
 	end
 
 	-- if not (call.want or call.prefer) then  -- we don't need to rmb units in particular if no further filtering has been made
-	-- 	if debugPrevious then
+	-- 	if dbgPrev then
 	-- 		Echo('prev: ----------- end of call ' .. call.name .. ', not registering individual units')
 	-- 	end
 	-- 	return
@@ -4279,7 +4230,7 @@ local function UpdatePrev(prev)
 		thisType = prev.byType[call.choice]
 		if not thisType then
 			prev.byType[call.choice] = {n = 0, byID = {}}
-			if debugPrevious then Echo('prev: new folder for units of type '..call.choice..' has been created') end
+			if dbgPrev then Echo('prev: new folder for units of type '..call.choice..' has been created') end
 			thisType = prev.byType[call.choice]
 		end
 	end
@@ -4300,7 +4251,7 @@ local function UpdatePrev(prev)
 			end
 		end
 	end
-	if debugPrevious then
+	if dbgPrev then
 		if cnt>0 then
 			Echo('prev: '..cnt..' units have been added to prev'..(thisType and "'s "..call.choice..' folder' or ''))
 		end
@@ -4313,7 +4264,8 @@ local function MergeSelToPrev(prev, sel) -- this is not used and might be broken
 	local byID = prev.byID
 	local Type = call.byType
 	local byType
-	if debugPrevious then
+	local dbgPrev = Debug.previous()
+	if dbgPrev then
 		Echo('prev: merging from current sel...')
 	end
 
@@ -4331,7 +4283,7 @@ local function MergeSelToPrev(prev, sel) -- this is not used and might be broken
 				local k = Units[id][Type]
 				local t = byType[Type] 
 				if not t then 
-					if debugPrevious then
+					if dbgPrev then
 						Echo('prev: merged a new type '..k)
 					end
 
@@ -4345,7 +4297,7 @@ local function MergeSelToPrev(prev, sel) -- this is not used and might be broken
 					prev.typeMax = prev.typeMax + 1
 					prev.typeIndex[prev.typeMax] = k
 					prev.types[k] = prev.typeMax
-					if debugPrevious then
+					if dbgPrev then
 						Echo('type ' .. k .. ' added to types at index ' .. prev.typeMax)
 					end
 				end
@@ -4354,7 +4306,7 @@ local function MergeSelToPrev(prev, sel) -- this is not used and might be broken
 			already = already + 1
 		end
 	end
-	if debugPrevious then
+	if dbgPrev then
 		Echo('prev: merged ' .. count .. ' units to prev' .. (already and ' there was already ' .. already .. ' unit(s) from that selection in prev.' or ''))
 	end
 end
@@ -4590,6 +4542,9 @@ local function RealizeCall(call, selecting, acquired, lastSel, success)
 		-- else
 		local _, _, _, namecom = spGetActiveCommand()
 		if namecom and namecom == 'Fight' then
+			if Debug.activeCommand() then
+				Echo('Set Active Command to 0 due to current command being Fight upon selecting from ' .. tostring(call.name))
+			end
 			spSetActiveCommand(0)
 		end
 			SelectUnits(final, shift)
@@ -4632,7 +4587,7 @@ local function RealizeCall(call, selecting, acquired, lastSel, success)
 		elseif type(call.set_active_command) == 'string' then
 				success = spSetActiveCommand(call.set_active_command)
 
-		elseif call.set_active_command<= 0 then
+		elseif call.set_active_command <= 0 then
 			success = spSetActiveCommand(call.set_active_command)
 		else
 			local comID
@@ -4644,6 +4599,9 @@ local function RealizeCall(call, selecting, acquired, lastSel, success)
 				end
 			end
 			if comID then
+				if debug.activeCommand() then
+					Echo('Set Active Command to' .. tostring(comID) .. ' due to call.set_active_command from ' .. tostring(call.name))
+				end
 				success = spSetActiveCommand(comID)
 			end
 		end
@@ -4809,6 +4767,9 @@ local function FinishCall(selecting)
 
 
 	if success and call.remove_active_command then
+		if Debug.activeCommand() then
+			Echo('Set Active Command to -1 due to call.remove_active_command from ' .. tostring(call.name))
+		end
 		spSetActiveCommand(-1)
 	end
 
@@ -5615,15 +5576,22 @@ do ---- **INITIALIZATION** ------
 		if not (WG.UnitsIDCard and WG.UnitsIDCard.active) then
 			if not WG.Cam then
 				widgetHandler:RemoveWidget(self)
-				Echo(self:GetInfo().name .. ' will not run, WG.Cam or WG.UnitsIDCard is required')
+				Echo(self:GetInfo().name .. ' will not run, api_view_changed.lua or api_unit_data.lua is required and running')
 				return
 			end
 		end
-		if not WG.selectionMap then
-			Echo(widget:GetInfo().name .. ' requires Selection API')
+		if not WG.selectionAPI then
+			Echo(widget:GetInfo().name .. ' requires Include\\helk_core\\widgets\\api_selection_handler.lua')
 			widgetHandler:RemoveWidget(self)
 			return
 		end
+		if not WG.KEYCODES then
+			Echo(widget:GetInfo().name .. ' requires Include\\helk_core\\keycodes.lua')
+			widgetHandler:RemoveWidget(self)
+			return
+		end
+
+		Debug = f.CreateDebug(Debug, widget, options_path)
 
 		local SelHierarchy = widgetHandler:FindWidget("Selection Hierarchy")
 		if SelHierarchy then
@@ -5633,6 +5601,8 @@ do ---- **INITIALIZATION** ------
 	    if SM then
 	    	g.SM_Enabled = SM.options.enable
 	    end
+
+
 
 	    IM = widgetHandler:FindWidget('Chili Integral Menu')
 	    Units = WG.UnitsIDCard and WG.UnitsIDCard.active and WG.UnitsIDCard.units or WG.Cam.Units
@@ -5907,6 +5877,9 @@ do
 				-- 	Echo('EzSel: the button ' .. buttonName ..  'has been eaten by a widget, fixing it', 'from?', from, 'locked?', locked, 'owner: ', owner )
 				-- end
 			-- end
+			if Debug.activeCommand() then
+				Echo('trigger AfterMousePress action')
+			end
 			widget:MousePress(mx, my, button)
 		end
 		-- 	currentCombo.keys[buttonName] = l(currentCombo.keys)+1
@@ -5947,7 +5920,7 @@ do
 	function widget:KeyPress(key, mods, isRepeat, keyset)
 		-- Echo('home KP')
 		-- Echo(key, 'isRepeat', isRepeat, 'longPress', longPress.key, 'raw keys', table.size(currentCombo.raw), osclock())
-
+		local dbgKeyDetect = Debug.keyDetect()
 		if isRepeat then 
 			if not currentCombo.raw[key] then
 				Echo('EZ SELECTOR: KEY IS REPEATED BUT DIDNT GET REGISTERED', KEYCODES[key] or key)
@@ -6128,7 +6101,7 @@ do
 				if not click and not newcall.force then
 					if  HotkeyIsBound(keyset) then
 						g.hkCombo = false
-						if g.debuggingKeyDetections then Echo('KeyPress doesnt block, found a regular hotkey bound to the combination: '..g.hotkeyAlreadyBound) end
+						if dbgKeyDetect then Echo('KeyPress doesnt block, found a regular hotkey bound to the combination: '..g.hotkeyAlreadyBound) end
 						return isCtrlGroup
 					elseif IM and IM:KeyPress(key, mods, isRepeat) then -- trigger the Integral Menu to check for an action and ignore the call  and block the key if the action occured
 						g.hkCombo = false
@@ -6140,6 +6113,9 @@ do
 
 				if namecom and namecom ~= 'Fight' and not (newcall.option_name) then
 					if newcall.force then
+						if Debug.activeCommand() then
+							Echo('Set Active Command to 0 due to newcall.force from ' .. tostring(newcall.name))
+						end
 						spSetActiveCommand(0)
 					else
 						g.hkCombo = false
@@ -6189,7 +6165,7 @@ do
 			end
 
 		end
-		if g.debuggingKeyDetections then
+		if dbgKeyDetect then
 			if longPress.active then Echo('key '..(KEYCODES[key] or key)..' is getting repeated') end
 			if call and call.locked then Echo('KP BLOCK normal behaviour (locked Call)')
 			elseif g.hkCombo then Echo('KP BLOCK normal behaviour (combo detected: '..g.hkCombo.name..')') end
@@ -6248,10 +6224,10 @@ do
 		end
 
 
-		if g.debuggingKeyDetections then Echo('MousePress detect '..clickName..', SEND TO KP for update and verify blocking') end
+		if dbgKeyDetect then Echo('MousePress detect '..clickName..', SEND TO KP for update and verify blocking') end
  		-- sending to keypress as a regular key to get treated and check its return (keypress will in turn trigger an Update round)
 		local hasCombo = widget:KeyPress(clickName)
-		if g.debuggingKeyDetections then
+		if dbgKeyDetect then
 			if isBlocked then Echo('MousePress find '..clickName..' should be blocked')
 			else Echo('MousePress find out '..clickName..' is NOT blocked in KP')
 			end
@@ -6259,7 +6235,7 @@ do
 		-- after we scanned once in update, if we don't find anything to select and keep_on_fail == true 
 		-- we don't block the mouse, keep_on_fail is to keep the previous selection if nothing found 
 		-- also it is to let the mouse do its normal action (ie:if we want to right click move but that trigger a more complex call)
---[[		if hasCombo and g.hkCombo.keep_on_fail and sel.n == 0 then			if g.debuggingKeyDetections then Echo('keep_on_fail: '..clickName..' triggered a more complex call but found nothing, we keep the previous selection and mouse is not blocked')	end
+--[[		if hasCombo and g.hkCombo.keep_on_fail and sel.n == 0 then			if dbgKeyDetect then Echo('keep_on_fail: '..clickName..' triggered a more complex call but found nothing, we keep the previous selection and mouse is not blocked')	end
 		  return false
 		end--]]
 		end		
@@ -6369,7 +6345,7 @@ function widget:MouseRelease(mx, my, button)
 	-- MouseRelease used normally and also arbitrarily by CheckClick function to complete click detection
 	if widgetHandler.mouseOwner == widget then
 
-	 	if g.debuggingKeyDetections then Echo('MR: 2 buttons were pressed, forcing disownership') end
+	 	Debug.keyDetect('MR: 2 buttons were pressed, forcing disownership')
 		widgetHandler.mouseOwner = nil
 	end
 	-- updating click status
@@ -6385,7 +6361,7 @@ end
 
 
 function widget:UnitDestroyed(id, defID, teamID)
-	if teamID~= myTeamID then return end
+	if teamID ~= myTeamID then return end
 	if selectionResized and selectionResized[id] then
 		selectionResized[id] = nil
 	end
@@ -6512,7 +6488,7 @@ do
 		end
 	end
 	 -- checking conditions defined in 'defs' table of the macro
-	CheckRequirements = function(reqTable, id, Or, Inv, cnt)
+	CheckRequirements = function(reqTable, id, Or, Inv, cnt, fromTable)
 		if not spValidUnitID(id) or spGetUnitIsDead(id) then
 			local tickSound = LUAUI_DIRNAME .. 'Sounds/buildbar_rem.wav'
 			Spring.PlaySoundFile(tickSound, 0.95, 'ui')
@@ -6520,42 +6496,46 @@ do
 			table.remove(newsel, i)
 			return false
 		end
-		if not reqTable then return true end
+		if not reqTable then 
+			return true
+		end
 		if not next(reqTable) then -- empty table == pass
 			return true
 		end
 
-		if not Units[id] then return false end
+		if not Units[id] then 
+			return false
+		end
 
 		local checkType
-		local debugCheck = options.debugcheckreq.value
-		local cnt = cnt and cnt+1 or 0
+		local debugCheck = Debug.checkReq()
+		cnt = (cnt or 0) + 1
 		
-		if cnt == 0 then
+		local checktype
+		if cnt == 1 and not fromTable then
 			proptable = Units[id] -- <= the proptable by default
 			propTables['d'], propTables['p'] = proptable.ud, spGetUnitRulesParams(id) -- <- setting a quick access for other proptables
-		end
-		local checktype
-		if debugCheck and cnt == 0 then
-			local checkNormal, checkPreFilter, checkPrefer, checkWantIf, checkSwitch, checkMustHave , checkGroups, checkTemp
-			if call.defs and call.swDefs and call.defs == reqTable then checkPreFilter = true
-			elseif call.defs and call.defs == reqTable then checkNormal = true end
-			if call.prefer then for i, def in ipairs(call.prefer) do if def == reqTable then checkPrefer = i break end end end
-			if call.switch then for i, def in ipairs(call.switch) do if def == reqTable then checkSwitch = i break end end end
-			-- if call.must_have == reqTable then checkMustHave = true end
-			if call.groups then for i, def in ipairs(call.groups) do if def == reqTable then checkGroups = i break end end end
-			-- if call.tempdefs == reqTable then checkTemp = true end
-			checktype = checkPreFilter 										and 'PREFILTER CHECK'
-					  or checkWantIf										and 'WANT IF CHECK FOR ' .. checkWantIf .. ': '
-					  or call.must_have == reqTable							and 'MUST HAVE CHECK: '
-					  or checkPrefer                                        and 'PREFERENCES #'..checkPrefer..' CHECK: '
-					  or checkSwitch                                        and 'SWITCH #'..checkSwitch..' CHECK: '
-				  	  or checkGroups										and 'GROUP #'..checkGroups..' CHECK: '
-				  	  or call.proximity and (reqTable == call.proximity.defs) and 'PROXIMITY CHECK: '
-				  	  or call.tempdefs == reqTable							and 'TEMP CHECK '
-					  or checkNormal										and 'NORMAL CHECK: '
-					  or 													    'UNKNOWN CHECK: '
-			Echo('<'..checktype..Units[id].name:upper()..'('..id..')>')
+			if debugCheck then
+				local checkNormal, checkPreFilter, checkPrefer, checkWantIf, checkSwitch, checkMustHave , checkGroups, checkTemp
+				if call.defs and call.swDefs and call.defs == reqTable then checkPreFilter = true
+				elseif call.defs and call.defs == reqTable then checkNormal = true end
+				if call.prefer then for i, def in ipairs(call.prefer) do if def == reqTable then checkPrefer = i break end end end
+				if call.switch then for i, def in ipairs(call.switch) do if def == reqTable then checkSwitch = i break end end end
+				-- if call.must_have == reqTable then checkMustHave = true end
+				if call.groups then for i, def in ipairs(call.groups) do if def == reqTable then checkGroups = i break end end end
+				-- if call.tempdefs == reqTable then checkTemp = true end
+				checktype = checkPreFilter 										and 'PREFILTER CHECK'
+						  or checkWantIf										and 'WANT IF CHECK FOR ' .. checkWantIf .. ': '
+						  or call.must_have == reqTable							and 'MUST HAVE CHECK: '
+						  or checkPrefer                                        and 'PREFERENCES #'..checkPrefer..' CHECK: '
+						  or checkSwitch                                        and 'SWITCH #'..checkSwitch..' CHECK: '
+					  	  or checkGroups										and 'GROUP #'..checkGroups..' CHECK: '
+					  	  or call.proximity and (reqTable == call.proximity.defs) and 'PROXIMITY CHECK: '
+					  	  or call.tempdefs == reqTable							and 'TEMP CHECK '
+						  or checkNormal										and 'NORMAL CHECK: '
+						  or 													    'UNKNOWN CHECK: '
+				Echo('{{{{ '..checktype..Units[id].name:upper()..'('..id..') }}}}')
+			end
 		end
 		-- local tell = checktype and checktype:match('GROUP %#2')
 		-- if tell then
@@ -6565,9 +6545,12 @@ do
 		
 		local pass
 
-		if debugCheck and cnt>0 then Echo("TABLE#"..cnt..(Or and ' (OR) ' or '')..(Inv and ' (NOT).' or ''))  end
+		if debugCheck and fromTable then
+			Echo("TABLE '"..(fromTable or ''):sub(1,-2).."'"..(Or and ' (OR) ' or '')..(Inv and ' (NOT).' or ''))
+		end
 		-- this browse through a table of definitions, if that table contains a subtable that has no key string or only '!' and/or '?' as key string, then it is subdefs and recursion will be applied
 		for reqProp, reqVal in pairs(reqTable) do
+			local key = reqProp
 			local subOr, subInv, standAlone = false, false, false
 			pass = nil
 			--- DISAMBIGUATE CONDITION, VALUE TO CHECK, SUBTABLE RECURSION AND OPERATORS
@@ -6610,10 +6593,12 @@ do
 			-- disambiguation finished: reqProp = condition or a subtable to recurse in, reqVal = value(s) to check or irrelevant, operators and proptable are set
 			---------------------------------------------------------------
 			-- CASE SUBSET OF REQUIREMENTS => RECURSION
-			if type(reqProp)== 'table' then
+			if type(reqProp) == 'table' then
 				-- subOr = subOr or type(reqProp[1])== 'table' -- no need to specify the key ['?'] in a case of subtable containing subtables, this is implicit
-				if debugCheck then Echo('...recursion...') end
-				pass = CheckRequirements(reqProp, id, subOr, subInv, cnt) -- subtable passed?
+				-- if debugCheck then
+				-- 	Echo('dive in table \'' .. key .. '\'...')
+				-- end
+				pass = CheckRequirements(reqProp, id, subOr, subInv, 0, (fromTable or '') .. key .. '.') -- subtable passed?
 
 			-- CASE: CONDITION IS STANDALONE // requirements that have not been given any value, therefore must resolve to boolean
 			elseif standAlone then
@@ -6636,7 +6621,7 @@ do
 				end
 				if subInv then pass = not pass end
 				if debugCheck then
-					Echo('Stand Alone '..(Or and ' (OR) ' or '')..': '..(subInv and 'subNOT ' or '')..tostring(reqProp)..' => '..(pass and ' passed' or ' failed'))
+					Echo(' ' .. (Or and '(OR) ' or '')..' '..(subInv and 'subNOT ' or '')..tostring(reqProp)..' => '..(pass and ' passed' or ' failed'))
 				end
 
 			--CASE: CONDITION IS A PROPERTY WITH MATCHING VALUE(s)
@@ -6682,6 +6667,7 @@ do
 								if unit and unit.isGtBuilt then
 									val = 'building'
 									queue.building = val
+									-- DebugAtUnit(id, 'building', 5, true)
 								end
 							end
 						elseif reqVal == 'moveFar' then
@@ -6693,6 +6679,7 @@ do
 									if ((x-destX)^2 + (z-destZ)^2)^0.5 > 900 then
 										val = 'moveFar' 
 										queue.moveFar = val
+										-- DebugAtUnit(id, 'moveFar ', 5, true)
 									end
 								end
 							end
@@ -6735,6 +6722,7 @@ do
 							local unit = params[1] and Units[params[1]]
 							if unit and unit.isGtBuilt then
 								val = 'building'
+								-- DebugAtUnit(id, 'building2', 5, true)
 							end
 						end
 					elseif reqVal == 'moveFar' then
@@ -6745,6 +6733,7 @@ do
 								local x, _, z = spGetUnitPosition(id)
 								if ((x-destX)^2 + (z-destZ)^2)^0.5 > 900 then
 									val = 'moveFar' 
+									-- DebugAtUnit(id, 'moveFar2 ', 5, true)
 								end
 							end
 						else
@@ -6760,11 +6749,11 @@ do
 				end
 				
 				-- SUBCASE: ONE PROP VS MULTIPLE VALUES, value is a table eg [!prop] = {v1, v2}, [?prop] = {v1, v2}, ['reload'] = {weapnum1, weapNum2}...
-				if type(reqVal)== 'table' and reqProp~= 'hasOrder' then 
+				if type(reqVal)== 'table' and reqProp ~= 'hasOrder' then 
 					if reqVal._opti then -- for table of names and the like, we previously transformed indexed table into paired table
 						pass = not not reqVal[val]
 						if subInv then pass = not pass end
-						if debugCheck then Echo((subInv and 'subNOT ' or '')..'( (opti) '..tostring(reqProp)..':'..tostring(val)..' )'..' => '..(pass and 'PASSED' or 'FAILED')) end
+						if debugCheck then Echo(' ' .. (subInv and 'subNOT ' or '')..'( (opti) '..tostring(reqProp)..':'..tostring(val)..' )'..' => '..(pass and 'PASSED' or 'FAILED')) end
 					else
 						for _, subReqVal in ipairs(reqVal) do
 							if subReqVal == 'nil' then
@@ -6777,7 +6766,7 @@ do
 								pass = val == subReqVal
 							end
 							if subInv then pass = not pass end
-							if debugCheck then Echo((subInv and 'subNOT ' or '')..'('..tostring(reqProp)..'== '..tostring(subReqVal)..')'..(subOr and ' (subOR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
+							if debugCheck then Echo(' ' .. (subInv and 'subNOT ' or '')..'('..tostring(reqProp)..'== '..tostring(subReqVal)..')'..(subOr and ' (subOR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
 							if subOr == pass then break end -- either not passed and not OR or passed and OR, we don't need to go further
 						end
 					end
@@ -6787,15 +6776,17 @@ do
 				else
 					pass = val == reqVal or reqVal == true and val
 					if subInv then pass = not pass end
-					if debugCheck then Echo((subInv and 'subNOT ' or '')..'('..tostring(reqProp)..'== '..tostring(reqVal)..')'..(Or and ' (OR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
+					if debugCheck then Echo(' ' .. (subInv and 'subNOT ' or '')..'('..tostring(reqProp)..'== '..tostring(reqVal)..')'..(Or and ' (OR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
 				end
 			end
 			-- applying the eventual operators if we're in a recursion (subtable of defs)
 			if Or == pass then break end
 		end
 		if debugCheck then
-			if cnt>0 then Echo("END OF TABLE#"..cnt..(Or and ' (OR) ' or '')..(Inv and ' (NOT).' or ''), 'passed?', pass)
-			else          Echo('>'..checktype..Units[id].name:upper()..'('..id..') '..(pass and '' or 'NOT ')..'PASSED<')
+			if not fromTable then
+				Echo('END OF CHECK >>> ***'..checktype..Units[id].name:upper()..'('..id..') '..(pass and '' or 'NOT ')..'PASSED ****<')
+			else
+				Echo("END OF TABLE "..(fromTable or ''):sub(1,-2)..(Or and ' (OR) ' or '')..(Inv and ' (NOT)' or ''), 'passed?', pass)
 			end
 		end
 		return pass
@@ -6860,7 +6851,7 @@ do
 	local ProcessAND = ProcessAND
 
 	FindUnits = function(defs, ret, altUnits, comment, multiCheck)
-		local debugMe = options.debugcheckreq.value
+		local debugMe = Debug.checkReq()
 		if debugMe then
 			Echo('*********** START CHECKING '.. call.name .. ' ' .. (comment or ' ') .. (multiCheck and 'multiCheck' or ' ') .. '*************')
 		end
@@ -6877,7 +6868,7 @@ do
 		end
 		local new
 		local numDefs
-		local debugName = options.debugshownames.value
+		local debugName = Debug.showNames()
 		---
 		local processedANDs
 		if multiCheck then
@@ -6957,6 +6948,7 @@ do
 		return validated, new, defs, numDefs
 	end
 	GetPrefered = function(pool, prev)
+		local dbgPrev = Debug.previous()
 
 		local currentBest = g.hasPrefered
 		local prefered = g.prefered
@@ -6990,7 +6982,7 @@ do
 						if not pref then
 							folder[i] = {n = 0, byID = {}, byType = Type and {}}
 							pref = folder[i]
-							if debugPrevious then
+							if dbgPrev then
 								Echo('prev: create prefered'..(isDefault and ' default' or '')..' folder for value '..i .. ' by the unit ' .. (Units[id] and Units[id].name or 'noname') .. ' #' .. id )
 							end
 						end
@@ -7034,14 +7026,14 @@ do
 
 										if thisOrder and (not bestOrder or bestOrder>thisOrder) then
 											bestOrder = thisOrder
-											if debugPrevious then
+											if dbgPrev then
 												Echo('set a new bestOrder: ' .. bestOrder .. ', by the type: ' .. thisType .. (Type == 'defID' and  ' (' .. UnitDefs[thisType].name .. ')' or ''))
 											end
 										end
 									end
 
 								end
-								if debugPrevious then
+								if dbgPrev then
 									Echo('prev: '..thisType..' by the unit ' .. (Units[id] and Units[id].name or 'noname') .. ' #' .. id .. ' has been set to '..i..' as prefered type'..(isDefault and ' (default)' or ''))
 								end
 							end
@@ -7057,7 +7049,7 @@ do
 			end
 		end
 		if currentBest~= g.hasPrefered or bestOrder ~= g.bestOrder then 
-			if debugPrevious and currentBest then
+			if dbgPrev and currentBest then
 				Echo('prev: preference # '..currentBest.. ' has been met')
 				-- if call.groups and call.groups.selected then
 				-- 	Echo("call.groups.selected is ", call.groups.selected)
@@ -7081,7 +7073,7 @@ do
 							-- Echo('a best Order has been found', bestOrder)
 						end
 						call.good, call.choice = false, false
-						if debugPrevious then Echo("prev: type choice has been resetted by GetPrefered") end
+						if dbgPrev then Echo("prev: type choice has been resetted by GetPrefered") end
 					end
 				end
 			end
@@ -7117,7 +7109,7 @@ do
 		end
 		local new = false
 		local newdefs, newdefsNum -- for multicheck, giving the first matching defs, newdefs is not fully implemented, the last multicheck will override the others in here -- will fix if it's ever getting needed
-		local debugMe = options.debugcheckreq.value
+		local debugMe = Debug.checkReq()
 		comment = comment or ''
 		if defs then
 			if defs['AND'] then
@@ -7240,6 +7232,7 @@ do
 
 
 	PickType = function(Type, givenPool, prev) -- switching between different defID or class or family
+		local dbgPrev = Debug.previous()
 
 		local choice = call.choice
 
@@ -7285,7 +7278,7 @@ do
 										bestFound = true
 									end
 								end
-								if debugPrevious then
+								if dbgPrev then
 									Echo('prev: avoiding previous types and found a best prefered #' .. hasPrefered .. (bestFound and ' (no better pick) ' or '')  ..  ': ' .. k .. (thisOrder and ', order : '.. thisOrder or '') .. (bestOrder and  ', best order is ' .. bestOrder or ' there is no best order') )
 								end
 								if bestFound then
@@ -7309,7 +7302,7 @@ do
 						if thisOrder == 1 then
 							bestFound = true
 						end
-						if debugPrevious then
+						if dbgPrev then
 							Echo('prev: avoiding previous types and found type: ' .. k .. (bestFound and ' (no better pick) ' or '')  ..  (thisOrder and ', order : '.. thisOrder or '') .. (bestOrder and  ', best order is ' .. bestOrder or ' there is no best order') )
 						end
 						if bestFound then
@@ -7339,7 +7332,7 @@ do
 									bestFound = true
 								end
 							end
-							if debugPrevious then
+							if dbgPrev then
 								Echo('prev: no new type to pick, picking a best prefered type #' .. hasPrefered .. (bestFound and ' (no better pick) ' or '')  ..  ': ' .. k .. (thisOrder and ', order : '.. thisOrder or '') .. (bestOrder and  ', best order is ' .. bestOrder or '') )
 							end
 						end
@@ -7355,7 +7348,7 @@ do
 				for i, type in ipairs(prev.typeIndex) do
 					if givenPool.byType[type] then
 						choice = type
-						if debugPrevious then
+						if dbgPrev then
 							Echo("prev: picked the first type registered and valid : " .. choice )
 						end
 						break
@@ -7363,14 +7356,14 @@ do
 				end
 				if not choice then
 					choice = Units[ givenPool[1] ][Type] or 'unknown'
-					if debugPrevious then
+					if dbgPrev then
 						Echo("prev: picked the first type registered and valid : " .. choice )
 					end
 				end
 
 			end
 			-- choice = good or Units[ prev[1] ][Type]
-			if debugPrevious and not good then
+			if dbgPrev and not good then
 				Echo("prev: picked the first unit's type : " .. choice .. " in the pool ")
 			end
 			prev.forgetTypes = not good
@@ -7385,7 +7378,7 @@ do
 					for typeName, o in pairs(typeOrder) do
 						if o == bestOrder then
 							choice = typeName
-							if debugPrevious then
+							if dbgPrev then
 								Echo('prev: picking type of the best order : '.. choice .. ', order: ' .. o)
 							end
 							break
@@ -7415,7 +7408,7 @@ do
 		call.choice = choice
 		prev.type_choice = choice
 		call.good = good
-		if debugPrevious then
+		if dbgPrev then
 			Echo('prev: '..choice..' has been chosen', good and ' good ' or 'default ' ..'choice')
 		end
 		g.bestOrder = bestOrder
@@ -7565,6 +7558,8 @@ do
 
 	local function UpdateCall()
 		if call  then
+			local dbgPrev = Debug.previous()
+
 			call.runs = call.runs + 1
 			if call.option_name then return end -- no need to do anything, this is just an option switch
 
@@ -7644,7 +7639,7 @@ do
 					return true
 				end
 			end
-			myUnits.n =#myUnits
+			myUnits.n = #myUnits
 			if noStructure then
 				local Units = Units
 				local remove = table.remove
@@ -7975,13 +7970,13 @@ do
 								local index = prefFolder.types[call.choice]
 								local preferedUnits = index and prefFolder[index] and prefFolder[index].byType[call.choice]
 								if preferedUnits then
-									if debugPrevious then
+									if dbgPrev then
 										local n = preferedUnits.n
 										Echo('prev: in '..(isInPrev and 'default ' or '')..'type '..call.choice..' there '..(n == 1 and 'is ' or 'are ')..n..' prefered unit'..(n>1 and 's ' or '')..' of value '..index)
 									end
 									pool = preferedUnits
 								else
-									if debugPrevious then
+									if dbgPrev then
 										Echo('prev: no prefered units found in type '..call.choice)
 									end
 								end
@@ -8015,24 +8010,24 @@ do
 							
 						else
 							prev.needErase = false
-							if debugPrevious then Echo('prev: no need erasing') end
+							if dbgPrev then Echo('prev: no need erasing') end
 						end
 
 						if prev.needErase then
-							if debugPrevious then
+							if dbgPrev then
 								Echo('prev: remaining units to pick are insufficient', 'found '..n, 'want '..want, 'acquired '..g.acquired.n)
 								Echo('prev: need erasing:'..(prev.needErase == true and 'all' or prev.needErase))
 							end
 
 
-								if debugPrevious then Echo('prev: picking in prev...') end
+								if dbgPrev then Echo('prev: picking in prev...') end
 								if Acquire(prev, want, false, pool) then
 									return call
 								end
 							-- end
 						end
 					else
-						if debugPrevious then
+						if dbgPrev then
 							Echo('prev: selected only non prev units', 'found '..n, 'want '..want, 'acquired '..g.acquired.n)
 						end
 					end
@@ -8218,14 +8213,13 @@ do
 		---------- NEW CALL
 		-------------------
 		if g.gotNewCall  then -- trigger of a new call (validated combo)
+			local dbgKeyDetect = Debug.keyDetect()
+
 			if (not call or call.locked) and g.hkCombo then-- lockedCall is to ignore less complex combination triggered by release, also used to stop updating the current call
-				if call then -- never happened
-					Echo('there are 2 calls together', call.name, g.hkCombo.name)
-				end
 				call = g.hkCombo
 				WG.EzSelecting = true
 			end 
-			if g.debuggingKeyDetections then
+			if dbgkeyDetect then
 				if (not call or call.locked) and HKCombos:Find(currentCombo.keys) then Echo('Update: call \''..HKCombos:Find(currentCombo.keys).name..'\' is locked. ') end
 				if g.hotkeyAlreadyBound and HKCombos:Find(currentCombo.keys) then Echo('Update: call \''..HKCombos:Find(currentCombo.keys).name..'\' is cancelled, Hotkey is already bound to '..g.hotkeyAlreadyBound) end
 			end
@@ -8276,7 +8270,7 @@ do
 				end
 
 
-				if g.debuggingKeyDetections then
+				if dbgKeyDetect then
 					Echo('Update: call \' '..call.name..' \' approved.')
 				end
 				--getting fresh	
@@ -8305,7 +8299,9 @@ do
 					end
 					return true
 				end
-
+				if Debug.checkReq() then
+					Echo('============= CHECKING REQUIREMENTS FOR ' .. call.name .. ' =============')
+				end
 				-- f.Page(Spring, 'trans')
 				if call.same_transported_state then
 					-- set definitions to pick only transported or only non transported
@@ -8533,9 +8529,10 @@ do
 				--
 				prev = call.previous
 				if prev then
+					local dbgPrev = Debug.previous()
 					-- reset previous after given time
-					if osclock()>prev.time+call.previous_time or call.reset_previous_on_reset_switch and call.switch.current_defs == 1 then
-						if debugPrevious then
+					if osclock() > prev.time + call.previous_time or call.reset_previous_on_reset_switch and call.switch.current_defs == 1 then
+						if dbgPrev then
 							Echo('--')
 							if call.reset_previous_on_reset_switch and call.switch.current_defs == 1 then
 								sh.sw = 1
@@ -8560,7 +8557,7 @@ do
 					prev.time = osclock()
 					-- merge tables  of current and future sel in case of shift, required to avoid selecting the same instead of new one when limited number is wanted
 					if call.shift then MergeSelToPrev(prev, currentSel) end
-					if debugPrevious then
+					if dbgPrev then
 						local numInPrev = 0
 						local detailPrev = ''
 						local strTypes = ''
@@ -8614,7 +8611,14 @@ do
 		
 	end
 end
-function widget:Update()
+
+function widget:Update(dt)
+	for id, params in pairs(debugAtUnit) do
+		params.time = params.time - dt
+		if params.time < 0 then
+			debugAtUnit[id] = nil
+		end
+	end
 	---- reset selection filtering and selection mod keys original setting
 	Process()
 	if not call then
@@ -8648,8 +8652,18 @@ end
 		local ret = call and true
 		local click = not KEYCODES[key] and key
 		local symbol = click or KEYCODES[key]
-		currentCombo.raw[key] = nil
+		local cckeys = currentCombo.keys
+		cckeys[key] = nil
+		local tmpToggle = locks.tmpToggleByKey[symbol]
+		if tmpToggle then 
+			local tog_name = tmpToggle.name
 
+			if locks.tmpPushed[tog_name] then
+				locks.tmpPushed[tog_name] = false
+
+				cckeys[tog_name] = cckeys[tog_name] == nil and 0 or nil
+			end
+		end
 
 		if ctrlGroups.selecting then
 			local toBeSelected = ctrlGroups:GetToBeSelected()
@@ -8673,7 +8687,6 @@ end
 				ret = true
 			end
 		end
-		local cckeys = currentCombo.keys
 		-- if not currentCombo.keys[symbol] then
 		-- 	return
 		-- end
@@ -8681,16 +8694,7 @@ end
 		if not possibleKeys[symbol] then
 			return ret
 		end 
-		local tmpToggle = locks.tmpToggleByKey[symbol]
-		if tmpToggle then 
-			local tog_name = tmpToggle.name
 
-			if locks.tmpPushed[tog_name] then
-				locks.tmpPushed[tog_name] = false
-
-				cckeys[tog_name] = cckeys[tog_name] == nil and 0 or nil
-			end
-		end
 		cckeys[(click and 'double'..click or 'doubleTap')] = nil
 		cckeys[(click and 'fastDouble'..click or 'fastDoubleTap')] = nil
 		cckeys['spam'] = nil
@@ -9237,6 +9241,17 @@ end
 		local gluDrawScreenCircle = gl.Utilities.DrawScreenCircle
 
 		function widget:DrawScreen()
+			local dbgRadius = Debug.radius()
+
+			if next(debugAtUnit) then
+				for id, params in pairs(debugAtUnit) do
+					local x, y, z = spGetUnitPosition(id)
+					if x then
+						x, y = Spring.WorldToScreenCoords(x, y, z)
+						glText(params.text, x, y, 12, 'no')
+					end
+				end
+			end
 			-- drawing selection info and call name
 			if ctrlGroups.selecting then
 				local toBeSelected = ctrlGroups.toBeSelected
@@ -9249,7 +9264,7 @@ end
 				glText('CtrlGroup ' .. ctrlGroups.selecting .. suffix, DEFAULT_CYLINDER_DRAW_POS[1], DEFAULT_CYLINDER_DRAW_POS[2]-50, 25, 'c')
 				glColor(1, 1, 1, 1)
 			end
-			if debugRadius and call and call.radius then
+			if dbgRadius and call and call.radius then
 				glColor(1, 1, 1, 1)
 				local txt = format('base radius: %.1f\nheight: %d / %d = %.2f\nradius: %.1f, ratio: %.2f\nscreen radius: %.1f',
 					 call.radius, Cam.relDist, BASE_CAMERA_HEIGHT, Cam.relDist/BASE_CAMERA_HEIGHT, g.radius, g.radius/call.radius, g.screenradius)
@@ -9296,7 +9311,7 @@ end
 		  --   	--glText(format('Enemy Loss:'..sh.Eloss..(sh.CurEl~= 0 and ' '..sh.CurEl or '')), 60, 180, 15)
 		  --   end
 			-- Showing Combo in bottom left if wanted
-			if options.debugcurrentcombo.value then
+			if Debug.currentCombo() then
 
 				combo_display = ''
 				local box = {}
@@ -9427,7 +9442,8 @@ function widget:GetConfigData()
 			data_locks[name] = true
 		end
 	end
-	return {memRadius = memRadius, locks = data_locks}
+	local ret = {memRadius = memRadius, locks = data_locks}
+	return ret
 end
 function widget:GameStart()
 	g.gameStarted = true
