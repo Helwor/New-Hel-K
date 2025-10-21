@@ -25,3 +25,8 @@
 *.CURRENT
 *.old.lua
 *.ori
+LagHandler.lua
+B_test.lua
+/Widgets/chili/Controls/*.bkup
+gui_player_centroid_marker.lua
+carry_heavy.jpg
