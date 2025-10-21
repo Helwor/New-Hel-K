@@ -191,7 +191,7 @@ local function SetAcomHistory()
             ,'\n'..FormatTime(spGetGameSeconds())
             ,n or 'nil'
             ,shift and 'shift is held' or 'no shift'
-            ,'DP status ' .. tostring(DP and DP.status)
+            ,'DP status ' .. tostring(DP and DP.dstatus)
             ,'current command : ' .. tostring(spGetActiveCommand())
             ,debug.traceback()
             }, '\n')

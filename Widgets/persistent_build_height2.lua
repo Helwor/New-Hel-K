@@ -3273,7 +3273,7 @@ function widget:Update(dt)
 		-- Echo('set PID',PID,os.clock())
 		myPlatforms.oriPH = false
 		placementHeight= not g.noterra and buildHeight[PID] or 0
-		local engaged = widgets.drawing_placement and widgets.drawing_placement.status == 'engaged'
+		local engaged = widgets.drawing_placement and widgets.drawing_placement.dstatus == 'engaged'
 		if not engaged then
 			g.NEW_PID = true
 		end

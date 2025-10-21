@@ -892,7 +892,7 @@ WG.drawEnabled = false
 
 -- local rmbAct=false
 
-status ='none'
+dstatus ='none'
 local waitReleaseShift=false
 
 
@@ -1171,7 +1171,7 @@ do
 			ReorderClosest(total,nspec,n,cons[1])
 		end
 		local opts = f.MakeOptions(nil, true, mods)
-		if status == 'paint_farm' then
+		if dstatus == 'paint_farm' then
 			local spread = FARM_SPREAD[PID]
 			local toReorder = (not spread and 4) or (spread - spread%2 + 1)^2
 			ReorderClosest(total, 1, nspecs > toReorder and toReorder or nspecs, cons[1])
@@ -1491,7 +1491,7 @@ local function GetPlacements() -- for now, only placements from current cons are
 	if not (  g.preGame and  WG.preGameBuildQueue and WG.preGameBuildQueue[1]	or cons[1] and sp.ValidUnitID(cons[1])  ) then
 		return EMPTY_TABLE
 	end
-	-- local lookForEbuild = PID and E_RADIUS[PID] and status ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
+	-- local lookForEbuild = PID and E_RADIUS[PID] and dstatus ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
 	local lookForEbuild = special and not opt.checkOnlyMex
 
 	local time = Spring.GetTimer()
@@ -1645,7 +1645,7 @@ do
 			specs.n = last_good_spec_n
 
 			NormalizeRail()
-			if status == 'paint_farm' then
+			if dstatus == 'paint_farm' then
 				rail.processed=0
 				specs:clear()
 				Paint('reset') 
@@ -1749,8 +1749,8 @@ Echo("command is ", command)
 end--]]
 
 --[[local function CheckWarping() -- not used anymore
-	-- if PID and status == 'engaged' and shift or warpBack=="hold" then
-	if PID and status == 'engaged' and shift then
+	-- if PID and dstatus == 'engaged' and shift or warpBack=="hold" then
+	if PID and dstatus == 'engaged' and shift then
 
 
 		local vsx, vsy = widgetHandler:GetViewSizes()
@@ -3928,7 +3928,7 @@ local function Init()
 			end
 		end
 	end
-	if not hasOverlap and status~='paint_farm' then
+	if not hasOverlap and dstatus~='paint_farm' then
 		specs[1]={x,z,r=1}
 		specs.n=1
 
@@ -3957,7 +3957,7 @@ local function Init()
 		PoseSpecialOnRail()
 	else
 		NormalizeRail()
-		if status == 'paint_farm' then 
+		if dstatus == 'paint_farm' then 
 			rail.processed=0
 			Paint()
 		else
@@ -3998,7 +3998,7 @@ function widget:CommandNotify(cmd, params, options)
 	-- 		local cmd
 	-- 		rmbAct, cmd = sp.GetActiveCommand()
 	-- 		-- if not cmd or cmd
-	-- 		status = 'held'
+	-- 		dstatus = 'held'
 	-- 	else 
 	-- 		Spring.GiveOrderToUnitArray(getcons(),CMD.STOP, EMPTY_TABLE,EMPTY_TABLE)
 	-- 	end
@@ -4206,7 +4206,7 @@ WG.PlacementModule = PlacementModule
 local function FinishDrawing(fixedMex, mods)
 	alt, ctrl, meta, shift = sp.GetModKeyState()
 
-	if status == 'paint_farm' then
+	if dstatus == 'paint_farm' then
 		if specs[1] then
 			SendCommand(PID, mods)
 		end
@@ -4214,15 +4214,15 @@ local function FinishDrawing(fixedMex, mods)
 		Drawing = false
 		WG.drawingPlacement = false
 		p:RecoverPID()
-		status = 'engaged'
+		dstatus = 'engaged'
 		return
-	elseif status == 'engaged' then
+	elseif dstatus == 'engaged' then
 		-- finish correctly, ordering
 		-- Echo("#specs is ", #specs, os.clock())
 		if shift then
 			p:RecoverPID()
 		else
-			status ='none'
+			dstatus ='none'
 		end
 		-- if Debug and WG.PBHisListening then Echo('DP release and catch PBH') end
 		if specs[1] then
@@ -4253,7 +4253,7 @@ local function FinishDrawing(fixedMex, mods)
 		WG.drawingPlacement = false
 		-- Echo("prev.pos[1],pos[1] is ", prev.pos[1],pointX)
 		-- if specs[1] then EraseOverlap(specs[1][1],specs[1][3]) end
-		-- if (PID~=mexDefID) then status = 'none' end
+		-- if (PID~=mexDefID) then dstatus = 'none' end
 		return
 	end
 end
@@ -4266,7 +4266,7 @@ local UpdateRail = function()
 			NormalizeRail()
 			if special then
 				PoseSpecialOnRail()
-			elseif status == 'paint_farm' then
+			elseif dstatus == 'paint_farm' then
 				Paint()
 			else
 				PoseOnRail()
@@ -4276,7 +4276,7 @@ local UpdateRail = function()
 end
 
 function widget:Update()
-	if status == 'erasing' then
+	if dstatus == 'erasing' then
 		-- EraseOverlap()
 		sp.SetMouseCursor(CURSOR_ERASE_NAME)
 		return
@@ -4295,19 +4295,19 @@ function widget:IsAbove(x, y)	-- previously Update
 	_,_,leftClick,_,rightClick = sp.GetMouseState()
 	alt, ctrl, meta, shift = sp.GetModKeyState()
 
-	if status == 'verif_!R_or_place' then
-		status = 'engaged'
+	if dstatus == 'verif_!R_or_place' then
+		dstatus = 'engaged'
 		FinishDrawing(PID == mexDefID and GetCloseMex, MODS)
 		MODS = false
 	end
 
 	-- old
-	-- if status == 'engaged' and not (leftClick or rightClick) then
+	-- if dstatus == 'engaged' and not (leftClick or rightClick) then
 	-- 	reset(true)
 	-- end
 	--
 	-- new -- fix the repeatition
-	if status == 'engaged' and (not leftClick and wasLeftClick or not rightClick and wasRightClick) then
+	if dstatus == 'engaged' and (not leftClick and wasLeftClick or not rightClick and wasRightClick) then
 		reset(true)
 	end
 	--
@@ -4327,7 +4327,7 @@ function widget:IsAbove(x, y)	-- previously Update
 	PID = p.PID
 	drawEnabled = PID and not noDraw[PID]
 	WG.drawEnabled = drawEnabled
-	special = drawEnabled and E_SPEC[PID] and status ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
+	special = drawEnabled and E_SPEC[PID] and dstatus ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
 	if g.preGame then
 		if Spring.GetGameFrame() > 0 and not WG.InitialQueue then
 			g.preGame = false
@@ -4335,8 +4335,8 @@ function widget:IsAbove(x, y)	-- previously Update
 		end
 	end
 
-	if PID and status == 'none' then
-		status = 'ready'
+	if PID and dstatus == 'none' then
+		dstatus = 'ready'
 	end
 
 	if VERIF_SHIFT then
@@ -4366,39 +4366,39 @@ function widget:IsAbove(x, y)	-- previously Update
 		end
 	end
 
-	-- if status:match'held' then
-	-- 	if status:match'!R' and not rightClick then Echo('CHECK')  status = 'rollback' end -- meanwhile Drawing, rightClick press cancelled the Drawing, PID is recovered after rightClick is released
+	-- if dstatus:match'held' then
+	-- 	if dstatus:match'!R' and not rightClick then Echo('CHECK')  dstatus = 'rollback' end -- meanwhile Drawing, rightClick press cancelled the Drawing, PID is recovered after rightClick is released
 	-- end
-	-- if status == 'rollback' and not leftClick then
+	-- if dstatus == 'rollback' and not leftClick then
 	-- end
 	--if  and not leftClick and not shift then reset()  end
-	if status == 'held_!R' and not rightClick then
-		status = 'rollbackL'
+	if dstatus == 'held_!R' and not rightClick then
+		dstatus = 'rollbackL'
 	end
-	if status == 'rollbackL' then -- waiting to roll back the PID 
+	if dstatus == 'rollbackL' then -- waiting to roll back the PID 
 		if not leftClick then
 			-- Echo("2 widgetHandler.mouseOwner is ", widgetHandler.mouseOwner)
 			p:RecoverPID()
-			status = 'engaged'
+			dstatus = 'engaged'
 			reset()
 			return widget:IsAbove(dt)
 		end
 		return
 	end
-	if status == 'rollbackR' then -- waiting to roll back the PID 
+	if dstatus == 'rollbackR' then -- waiting to roll back the PID 
 		if not rightClick then
 			-- Echo("2 widgetHandler.mouseOwner is ", widgetHandler.mouseOwner)
 			p:RecoverPID()
-			status = 'engaged'
+			dstatus = 'engaged'
 			reset()
 			return widget:IsAbove(dt)
 		end
 		return
 	end
 
-	if status == 'engaged' then
+	if dstatus == 'engaged' then
 		if rightClick  then
-			status = 'held_!R'
+			dstatus = 'held_!R'
 			local aCom = select(2, sp.GetActiveCommand())
 			if -(aCom or 0) == p.PID then
 				sp.SetActiveCommand(0)
@@ -4409,23 +4409,23 @@ function widget:IsAbove(x, y)	-- previously Update
 		end
 	end
 
-	if not PID and status~='erasing' then
-		if status == 'ready' or status == 'engaged' then
-			status = 'none'
+	if not PID and dstatus~='erasing' then
+		if dstatus == 'ready' or dstatus == 'engaged' then
+			dstatus = 'none'
 		else
 			return
 		end
 	end
-	if status == 'engaged' and not (shift or leftClick) then
+	if dstatus == 'engaged' and not (shift or leftClick) then
 		if not Drawing and PID==mexDefID then
-				status = 'none'
+				dstatus = 'none'
 		--if PID==mexDefID and not shift then sp.SetActiveCommand(-1) end
 		elseif not (ctrl or specs[1]) then
-			status = 'none'
+			dstatus = 'none'
 		end
 	end
 
-	if status == 'none' then
+	if dstatus == 'none' then
 		local aCom = select(2,sp.GetActiveCommand())
 		if -(aCom or 0) == p.PID then
 			if not widgetHandler.mouseOwner then
@@ -4455,13 +4455,13 @@ function widget:IsAbove(x, y)	-- previously Update
 
 
 
-	if status == 'erasing' then
+	if dstatus == 'erasing' then
 		-- EraseOverlap()
 		-- sp.SetMouseCursor(CURSOR_ERASE_NAME)
 		return
 	end
 
-	-- if Drawing and rightClick and status~='paint_farm' then status = 'held_!R' sp.SetActiveCommand(0) reset() end -- reset but will recover PID on rightClick release
+	-- if Drawing and rightClick and dstatus~='paint_farm' then dstatus = 'held_!R' sp.SetActiveCommand(0) reset() end -- reset but will recover PID on rightClick release
 
 
 --[[	warpBack = warpBack  or drawEnabled and not shift and "ready" -- getting back to position if shift got released then rehold
@@ -4514,7 +4514,7 @@ end
 	------------------------------
 	if not Drawing then return end
 	------------------------------
-	if status == 'paint_farm' then return end
+	if dstatus == 'paint_farm' then return end
 	----------------------
 	-- if leftClick then  sp.SetActiveCommand(-1) end
 	local spacing = sp.GetBuildSpacing()
@@ -4551,11 +4551,11 @@ function widget:KeyRelease(key, mods)
 		tempCtrl = sp.GetBuildSpacing()
 		Spring.SetBuildSpacing(0)
 	end
-	if (status == 'engaged' or status == 'erasing')
+	if (dstatus == 'engaged' or dstatus == 'erasing')
 		and not (shift or ctrl)
 		and (shiftRelease or ctrlRelease)
 		and not specs[1] then
-		status = 'none'
+		dstatus = 'none'
 
 		-- if tempCtrl and (not ctrl or complete) then
 		-- 	Spring.SetBuildSpacing(tempCtrl)
@@ -4571,12 +4571,12 @@ function widget:KeyRelease(key, mods)
 		return
 	end
 
-	if specs[1] and shift and alt and not special and status ~= 'paint_farm' then PoseOnRail() end --  also key 308=LALT
+	if specs[1] and shift and alt and not special and dstatus ~= 'paint_farm' then PoseOnRail() end --  also key 308=LALT
 end
 function widget:MouseWheel(up,value) -- verify behaviour of keypress on spacing change
 	if ctrl then
 		if PID --[[and p.sizeX==p.sizeZ--]] then
-			local isPainting = status == 'paint_farm'
+			local isPainting = dstatus == 'paint_farm'
 			local modifyPainting = shift
 			if modifyPainting then
 				if not (PID == mexDefID and GetCloseMex) then
@@ -4702,7 +4702,7 @@ function widget:KeyPress(key, mods,isRepeat)
 		drawEnabled = false
 		if leftClick then 
 			sp.SetActiveCommand(-1)
-			status = 'held'
+			dstatus = 'held'
 		end
 	end
 
@@ -4729,10 +4729,10 @@ function widget:MousePress(mx, my, button)
 	end
 	if button == 2 then return end
 	--
-	if status == 'verif_!R_or_place' then
+	if dstatus == 'verif_!R_or_place' then
 		if button == 3 then 
 			reset(true)
-			status = 'rollbackR'
+			dstatus = 'rollbackR'
 			return true
 		elseif button == 1 then
 			-- in case of big lag, the Update didnt occur, we provoke it
@@ -4740,7 +4740,7 @@ function widget:MousePress(mx, my, button)
 		end
 		MODS = false
 	end
-	if status == 'ready' then
+	if dstatus == 'ready' then
 		if PID == mexDefID and button == 1 and not shift and opt.mexToAreaMex then
 			if not WG.Chili.Screen0:IsAbove(mx, my) then
 				reset(true)
@@ -4751,21 +4751,21 @@ function widget:MousePress(mx, my, button)
 			return
 		end
 
-	elseif status == 'rollbackL' and button == 3
-	or status == 'rollbackR' and button == 1 then
+	elseif dstatus == 'rollbackL' and button == 3
+	or dstatus == 'rollbackR' and button == 1 then
 		return true -- block the mouse until the rollback occur
 
-	elseif (status =='paint_farm' or status == 'erasing') then
+	elseif (dstatus =='paint_farm' or dstatus == 'erasing') then
 		if button==1 then
-			status ='held_!L'
+			dstatus ='held_!L'
 			sp.SetActiveCommand(0)
 			WG.force_show_queue_grid = true
 			reset() 
 			return true
 		end
-	elseif status == 'engaged' then
+	elseif dstatus == 'engaged' then
 		if button == 3 and Drawing then
-			status = 'held_!R'
+			dstatus = 'held_!R'
 			local aCom = select(2,sp.GetActiveCommand())
 			if -(aCom or 0) == p.PID then
 				sp.SetActiveCommand(0)
@@ -4790,20 +4790,20 @@ function widget:MousePress(mx, my, button)
 		-- use the normal engine building system when ctrl and shift are pressed
 			local surroundCancelled = Cam.relDist > 2500 and (WG.PreSelection_GetUnitUnderCursor() or EraseOverlap(nil, nil, true))
 			if not surroundCancelled and (PID ~= mexDefID or not GetCloseMex) then
-				status = 'engaged'
+				dstatus = 'engaged'
 				return
 			end
 		elseif not shift then
-			-- status = 'wait1'
-			status = 'engaged'
+			-- dstatus = 'wait1'
+			dstatus = 'engaged'
 			VERIF_SHIFT = opt.late_shift and {mx,my, page = 0, timer=Spring.GetTimer()}
 			return
 		end
 	end
-	-- if button==1 and meta and not (shift or ctrl) and PID then status = 'engaged' return end
+	-- if button==1 and meta and not (shift or ctrl) and PID then dstatus = 'engaged' return end
 	local x,y,z
 	if shift and PID then
-		if status == "ready" and PBH then
+		if dstatus == "ready" and PBH then
 			PBH.Process(mx,my) -- if user moved the cursor fast, PBH didnt scan for moved placement (etc...) at the current position
 		end
 		if button == 3 and not Drawing then
@@ -4812,7 +4812,7 @@ function widget:MousePress(mx, my, button)
 					if PID == mexDefID and GetCloseMex then
 						-- skip
 					else
-						status = "paint_farm"
+						dstatus = "paint_farm"
 						if WG.DrawTerra and WG.DrawTerra.working then
 							WG.DrawTerra.finish = true
 						end
@@ -4821,8 +4821,8 @@ function widget:MousePress(mx, my, button)
 						Points={}
 					end
 				end
-			elseif status == 'ready' or status == 'engaged' and opt.enableEraser then
-				status = 'erasing'
+			elseif dstatus == 'ready' or dstatus == 'engaged' and opt.enableEraser then
+				dstatus = 'erasing'
 				sp.SetActiveCommand(0)
 				WG.force_show_queue_grid = true
 				EraseOverlap()
@@ -4842,7 +4842,7 @@ function widget:MousePress(mx, my, button)
 			z = myPlatforms.z
 		end
 		if button == 3 and not Drawing then
-			if status == "paint_farm" then
+			if dstatus == "paint_farm" then
 				special = false
 				Drawing = true
 				WG.drawingPlacement=specs
@@ -4854,7 +4854,7 @@ function widget:MousePress(mx, my, button)
 				prev.mx = mx
 				prev.my = my
 				return true, widget:IsAbove(--[[Spring.GetLastUpdateSeconds()--]])
-			elseif status == 'erasing' then
+			elseif dstatus == 'erasing' then
 				EraseOverlap(x,z)
 				-- Spring.SetMouseCursor(CURSOR_ERASE_NAME)
 			end
@@ -4878,7 +4878,7 @@ function widget:MousePress(mx, my, button)
 		--places,blockIndexes=DefineBlocks()
 			Drawing = true
 			WG.drawingPlacement = specs
-			status = 'engaged'
+			dstatus = 'engaged'
 			placed = GetPlacements()
 			--x,y,z=sp.ClosestBuildPos(0,PID, x, y, z, 1000,0,p.facing)
 	--[[		if GetCameraHeight(sp.GetCameraState())<5500 and EraseOverlap(x,z) then -- allow erasing only if not zoommed out too far
@@ -4969,36 +4969,36 @@ function widget:MouseRelease(mx,my,button)
 		switchSM()
 	end
 	local _,_,lb,_,rb = sp.GetMouseState()
-	if status == 'held_!R' then
+	if dstatus == 'held_!R' then
 		if button == 3 then 
-			status = 'rollbackL'
+			dstatus = 'rollbackL'
 			-- Echo("widgetHandler.mouseOwner is ", widgetHandler.mouseOwner)
 		elseif button == 1 then
 			if shift then
-				status = 'engaged'
+				dstatus = 'engaged'
 				p:RecoverPID()
 			else
-				status = 'none'
+				dstatus = 'none'
 				reset(true)
 			end
 		end
 		widgetHandler.mouseOwner = nil -- disown the mouse after a leftClick + rightClick then release rightClick
-	elseif status == 'held_!L' then
+	elseif dstatus == 'held_!L' then
 		if button == 1 then 
-			status = 'rollbackR'
+			dstatus = 'rollbackR'
 			-- Echo("widgetHandler.mouseOwner is ", widgetHandler.mouseOwner)
 		elseif button == 3 then
-			status = 'none'
+			dstatus = 'none'
 			reset(true)
 		end
 		widgetHandler.mouseOwner = nil -- disown the mouse after a leftClick + rightClick then release rightClick
 		return true
-	elseif status == 'erasing' and button == 3 then
+	elseif dstatus == 'erasing' and button == 3 then
 		if shift then
-			status = 'engaged'
+			dstatus = 'engaged'
 			p:RecoverPID()
 		else
-			status = 'none'
+			dstatus = 'none'
 			reset(true)
 		end
 		return true
@@ -5008,7 +5008,7 @@ function widget:MouseRelease(mx,my,button)
 		if prev.pos and prev.mx ~= mx and prev.my ~= my then
 			dist_drawn = dist_drawn + ((prev.mx - mx)^2 + (prev.my - my)^2) ^ 0.5
 		end
-		if status ~= 'paint_farm' and not (fixedMetalSpot or PID == geos.defID) and (prev.dist_drawn<=8 or os.clock()-prev.press_time<0.08) then
+		if dstatus ~= 'paint_farm' and not (fixedMetalSpot or PID == geos.defID) and (prev.dist_drawn<=8 or os.clock()-prev.press_time<0.08) then
 			while specs[2] do
 				table.remove(specs)
 			end
@@ -5019,7 +5019,7 @@ function widget:MouseRelease(mx,my,button)
 				UpdateRail()
 			end
 		end
-		status = 'verif_!R_or_place' -- due to lag it can happen the user simulatneously right click and release left click to cancel the build, release left click would then comes first wrongly
+		dstatus = 'verif_!R_or_place' -- due to lag it can happen the user simulatneously right click and release left click to cancel the build, release left click would then comes first wrongly
 		MODS = {alt, ctrl, meta, shift}
 		-- FinishDrawing(fixedMetalSpot)
 	end
@@ -5121,7 +5121,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 			end
 		end
 		prev.firstmx = false
-		if status == 'erasing' then
+		if dstatus == 'erasing' then
 			local x,y,z = UniTraceScreenRay(x, y, not p.floater, p.sizeX, p.sizeZ)
 			EraseOverlap(x,z)
 			return
@@ -5348,7 +5348,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 	-- in order to erase the rail when cursor going backward
 	-- note: rail.processed can differ from railLen if we used recursion and not using updateRailMM
 	local processed
-	if status ~='paint_farm' and rail.processed == railLen and (not locked or clock() - locked > 0.3) then
+	if dstatus ~='paint_farm' and rail.processed == railLen and (not locked or clock() - locked > 0.3) then
 		local x,y,z = unpack(rail[railLen])
 		local factor = Cam.relDist
 		local llasP = specs[specsLen-1]
@@ -5677,8 +5677,8 @@ do
 
 		-------------------------
 		glColor(0.7,0.7,0.7,1)
-		if status ~= 'none' then
-			glText(format(status), 0,vsy-110, 25)
+		if dstatus ~= 'none' then
+			glText(format(dstatus), 0,vsy-110, 25)
 		end
 		if drawEnabled then
 			glText(format("Drawing"), 0,vsy-68, 25)
@@ -5991,7 +5991,7 @@ do
 			end
 		end
 		-- DRAW ERASER
-		if status == 'erasing' 
+		if dstatus == 'erasing' 
 			or SHOW_ERASER_RADIUS
 			or PID and opt.enableEraser
 		then
@@ -6001,7 +6001,7 @@ do
 			if not PID then
 				p = p:Measure(p.lastPID or UnitDefNames['energysolar'].id, 0)
 			end
-			if status ~= 'erasing' then
+			if dstatus ~= 'erasing' then
 				CalcEraserRadius(p)
 			end
 			if SHOW_ERASER_RADIUS then
@@ -6012,7 +6012,7 @@ do
 				x, _, z = UniTraceScreenRay(vsx/2, vsy/2, not p.floater, p.sizeX, p.sizeZ)
 			else
 				x, z = pos[1], pos[3]
-				stipple = status ~= 'erasing'
+				stipple = dstatus ~= 'erasing'
 			end
 			local rad = g.erase_round
 			local factor = g.erase_factor
@@ -6084,7 +6084,7 @@ do
 					end
 					for i = -spread, spread, 2 do
 						local sx,sz = sx,sz
-						if i == 0 and status ~= 'paint_farm' then -- for the middle square to be visible despite the build drawn
+						if i == 0 and dstatus ~= 'paint_farm' then -- for the middle square to be visible despite the build drawn
 							sx,sz = sx+3, sz+3
 						end
 						DrawRect(x + i*(sx + scale*8), z + i*(sz + scale*8), sx, sz)
@@ -6294,14 +6294,10 @@ function widget:Initialize()
 	local sig = '[' ..widget:GetInfo().name .. ']:'
 	local status
 	if not Cam then
-		status = 'Requires -HasViewChanged.lua'
+		status = 'Requires api_view_changed.lua in Include\\helk_core\\widgets\\ folder.'
 		widgetHandler:RemoveWidget(widget)
 	elseif not gl.Utilities.DrawGroundDisc then
-		if VFS.FileExists('LuaUI\\Widgets\\Include\\glAddons.lua') then
-			VFS.Include('LuaUI\\Widgets\\Include\\glAddons.lua')
-		else
-			status = 'Requires glAddons.lua in Include folder.'
-		end
+		status = 'Requires addon_gl.lua in Include\\helk_core\\ folder.'
 	end
 	if status then
 		widget.status = status
