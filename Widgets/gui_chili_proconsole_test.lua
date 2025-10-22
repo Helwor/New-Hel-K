@@ -1211,7 +1211,7 @@ local function AddMessage(msg, target, remake)
 						width = 30,
 						height = 20,
 						classname = "overlay_button_tiny",
-						--backgroundColor = {1,1,1,options.pointButtonOpacity.value},
+						-- backgroundColor = {1,1,1,options.pointButtonOpacity.value},
 						padding = tTwoes,
 						children = {
 							Image:New {
@@ -1634,6 +1634,8 @@ local function IsValid(msg)
 		then
 			return false
 		end
+	elseif msg.msgtype == 'point' and not msg.argument then
+		return false
 	end
 	return true
 end
