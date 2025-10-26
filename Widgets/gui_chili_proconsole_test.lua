@@ -1073,21 +1073,20 @@ local function formatMessage(msg)
 	msg.source2 = msg.playername or ''
 end
 
-local function MessageIsChatInfo(msg)
-	local arg = msg.argument
+local function MessageIsChatInfo(arg)
 	return arg:find('Speed set to') or
-	arg:find('following') or
-	arg:find('Connection attempted') or
-	arg:find('exited') or
-	arg:find('is no more') or
-	arg:find('paused the game') or
-	arg:find('^Sync error for') or
-	arg:find('^Cheating is') or
-	arg:find('GodModeAction') or
-	arg:find('GlobalLosActionExecutor') or
-	arg:find('Everything%-for%-free') or
-	arg:find('resigned') or
-	(arg:find('left the game') and arg:find('Player'))
+		arg:find('following') or
+		arg:find('Connection attempted') or
+		arg:find('exited') or
+		arg:find('is no more') or
+		arg:find('paused the game') or
+		arg:find('^Sync error for') or
+		arg:find('^Cheating is') or
+		arg:find('GodModeAction') or
+		arg:find('GlobalLosActionExecutor') or
+		arg:find('Everything%-for%-free') or
+		arg:find('resigned') or
+		(arg:find('left the game') and arg:find('Player'))
 	--string.find(msg.argument,'Team') --endgame comedic message. Engine message, loaded from gamedata/messages.lua (hopefully 'Team' with capital 'T' is not used anywhere else)
 end
 
@@ -1097,7 +1096,7 @@ local function hideMessage(msgtype)
 		or hideAlly and msgtype == "player_to_allies"
 		or hidePoint and msgtype == "point"
 		or hideLabel and msgtype == "label"
-		or hideLog and msgtype == 'other' and not MessageIsChatInfo(msg)
+		or hideLog and msgtype == 'other' and not MessageIsChatInfo(msg.argument)
 end
 
 
@@ -1159,10 +1158,7 @@ local function AddMessage(msg, target, remake)
 		end
 		return
 	end
-	-- COUNT = (COUNT or 0) + 1
-	-- local prevTxt = stack.children[#stack.children]
-	-- prevTxt = (prevTxt and prevTxt.text or ""):sub(1,5)
-	-- local maxReached = stack.children[MAX_LINES] and '--' or ''
+
 	local textbox = TextBox:New{
 		width = '100%',
 		align = "left",
@@ -1193,7 +1189,7 @@ local function AddMessage(msg, target, remake)
 				padding = tOnes
 			end
 			textbox:SetPos( 35, 3, stack.width - 40 )
-			-- textbox:Update()
+			textbox:Update()
 			local tbheight = textbox.height -- not perfect
 			tbheight = math.max( tbheight, 15 ) --hack
 			--Echo('tbheight', tbheight)
@@ -1212,7 +1208,7 @@ local function AddMessage(msg, target, remake)
 						height = 20,
 						classname = "overlay_button_tiny",
 						-- backgroundColor = {1,1,1,options.pointButtonOpacity.value},
-						padding = tTwoes,
+						padding = tTwos,
 						children = {
 							Image:New {
 								x=7;y=2;
@@ -1619,18 +1615,19 @@ end
 --------------------------------------------------------------------------------
 local function isChat(msg)
 	return msg.msgtype ~= 'other' 
-		or MessageIsChatInfo(msg)
+		or MessageIsChatInfo(msg.argument)
 		or msg.argument:find('^%[self%]:')
 end
 
 -- new callin! will remain in widget
 local function IsValid(msg)
 	if msg.msgtype == 'other' then
-		if options.error_opengl_source.value and (msg.argument):find('Error: OpenGL: source')
-			or options.filter_luaHandleCheckStack.value and (msg.argument):find("Warning: [LuaHandle::CheckStack] LuaRules stack-top", 0, true)
-			or (msg.argument):find('added point')
-			or (msg.argument):find("LuaMenuServerMessage")
-			or (msg.argument):find("GroundDetail set to")
+		local arg = msg.argument
+		if arg:find('Error: OpenGL: source') and options.error_opengl_source.value
+			or arg:find("Warning: [LuaHandle::CheckStack] LuaRules stack-top", 0, true) and options.filter_luaHandleCheckStack.value
+			or arg:find('added point')
+			or arg:find("LuaMenuServerMessage")
+			or arg:find("GroundDetail set to")
 		then
 			return false
 		end
