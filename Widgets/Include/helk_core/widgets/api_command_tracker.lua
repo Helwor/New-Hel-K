@@ -795,7 +795,7 @@ function widget:UnitCommandNotify(id,cmd,params)
 end
 
 function widget:CommandNotify(cmd,params,opt)
-    Echo('CN',cmd,unpack(params))
+    -- Echo('CN',cmd,unpack(params))
     -- if cmd<0 then
     --     Echo("cmd is ", cmd)
     --     Echo(" is ", spGetGroundHeight(params[1],params[3]), params[2])
