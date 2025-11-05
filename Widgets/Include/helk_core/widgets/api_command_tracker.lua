@@ -81,6 +81,7 @@ local spGetUnitIsDead               = Spring.GetUnitIsDead
 local spGetUnitCurrentCommand       = Spring.GetUnitCurrentCommand
 local spGetUnitCommands             = Spring.GetUnitCommands
 local spGetFactoryCommands          = Spring.GetFactoryCommands
+local spFindUnitCmdDesc             = Spring.FindUnitCmdDesc
 
 local spGetSelectedUnits            = Spring.GetSelectedUnits
 local spGetGroundHeight             = Spring.GetGroundHeight
@@ -419,6 +420,7 @@ local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinis
     return true
 end
 local function SetTrackedUnit(id, justFinished, forDebug)
+
     if forDebug and trackedUnits[id] then
         return true
     end
@@ -432,6 +434,7 @@ local function SetTrackedUnit(id, justFinished, forDebug)
     unit.forDebug = forDebug
     unit.isIdle = false
     unit.tracked = true
+    hasTrackedUnit = true
     -- unit.manual = unit.manual or false
     -- unit.expectedCmd = unit.expectedCmd
     -- unit.actualCmd = unit.actualCmd
@@ -776,7 +779,7 @@ end
 function widget:UnitCommandNotify(id,cmd,params)
     if hasTrackedUnit then
         local unit = trackedUnits[id]
-        if unit then
+        if unit and spFindUnitCmdDesc(id, cmd==1 and params[2] or cmd) then
             if unit.isGtBuilt then
                 unit.manual = true
             else
@@ -792,7 +795,7 @@ function widget:UnitCommandNotify(id,cmd,params)
 end
 
 function widget:CommandNotify(cmd,params,opt)
-    -- Echo('CN',cmd,unpack(params))
+    Echo('CN',cmd,unpack(params))
     -- if cmd<0 then
     --     Echo("cmd is ", cmd)
     --     Echo(" is ", spGetGroundHeight(params[1],params[3]), params[2])
@@ -812,10 +815,9 @@ function widget:CommandNotify(cmd,params,opt)
         for id in pairs(selByID) do
             -- commandIssued = cmd
             local unit = trackedUnits[id]
-            if unit then
+            if unit and spFindUnitCmdDesc(id, cmd==1 and params[2] or cmd) then
                 if unit.isGtBuilt then
                     unit.manual = true
-                    -- Echo('manual')
                 else
                     unit.waitCmd = cmd==1 and params[2] or cmd
                     unit.waitParams = cmd==1 and params[4] and {select(4,unpack(params))} or params 
@@ -1082,10 +1084,12 @@ function widget:UnitCommand(id, defID, teamID, cmd, params, opts, playerID,  tag
     end
     -- Echo("cmd,place is ", cmd,place)
     if not fromLua and isBuildingCommand[cmd] then
+        if not spFindUnitCmdDesc(id, cmd) then
+            return
+        end
         -- if --[[place==1 and --]]unit.expectedCmd == CMD_LEVEL then
         --     unit.expectedCmd = cmd
         -- end
-
         if place == 0 and not unit.building then
             unit.building = true
         end
