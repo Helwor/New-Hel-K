@@ -701,3 +701,271 @@ function widget:Shutdown()
 end
 
 
+
+------------------
+-- Hungarian methods
+-- copied from Custom Formation 2 and modified a bit
+    -------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------
+    -- (the following code is written by gunblob)
+    --   this code finds the optimal solution (slow, but effective!)
+    --   it uses the hungarian algorithm from http://www.public.iastate.edu/~ddoty/HungarianAlgorithm.html
+    --   if this violates gpl license please let gunblob and me know
+    -------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------
+do
+    local doPrime, stepPrimeZeroes, stepFiveStar
+    local t
+    local osclock = os.clock
+    local huge = math.huge
+    local function FindHungarian(array, n)
+        
+        t = osclock()
+        -- Vars
+        local colcover = {}
+        local rowcover = {}
+        local starscol = {}
+        local primescol = {}
+        
+        -- Initialization
+        for i = 1, n do
+            rowcover[i] = false
+            colcover[i] = false
+            starscol[i] = false
+            primescol[i] = false
+        end
+        
+        -- Subtract minimum from rows
+        for i = 1, n do
+            
+            local aRow = array[i]
+            local minVal = aRow[1]
+            for j = 2, n do
+                if aRow[j] < minVal then
+                    minVal = aRow[j]
+                end
+            end
+            
+            for j = 1, n do
+                aRow[j] = aRow[j] - minVal
+            end
+        end
+        
+        -- Subtract minimum from columns
+        for j = 1, n do
+            
+            local minVal = array[1][j]
+            for i = 2, n do
+                if array[i][j] < minVal then
+                    minVal = array[i][j]
+                end
+            end
+            
+            for i = 1, n do
+                array[i][j] = array[i][j] - minVal
+            end
+        end
+        
+        -- Star zeroes
+        for i = 1, n do
+            local aRow = array[i]
+            for j = 1, n do
+                if (aRow[j] == 0) and not colcover[j] then
+                    colcover[j] = true
+                    starscol[i] = j
+                    break
+                end
+            end
+        end
+        
+        -- Start solving system
+        while true do
+            
+            -- Are we done ?
+            local done = true
+            for i = 1, n do
+                if not colcover[i] then
+                    done = false
+                    break
+                end
+            end
+            
+            if done then
+                return starscol
+            end
+            
+            -- Not done
+            local r, c = stepPrimeZeroes(array, colcover, rowcover, n, starscol, primescol)
+            stepFiveStar(colcover, rowcover, r, c, n, starscol, primescol)
+        end
+    end
+    doPrime = function(array, colcover, rowcover, n, starscol, r, c, rmax, primescol)
+        
+        primescol[r] = c
+        
+        local starCol = starscol[r]
+        if starCol then
+            
+            rowcover[r] = true
+            colcover[starCol] = false
+            
+            for i = 1, rmax do
+                if not rowcover[i] and (array[i][starCol] == 0) then
+                    local rr, cc = doPrime(array, colcover, rowcover, n, starscol, i, starCol, rmax, primescol)
+                    if rr then
+                        return rr, cc
+                    end
+                end
+            end
+            
+            return
+        else
+            return r, c
+        end
+    end
+    stepPrimeZeroes = function(array, colcover, rowcover, n, starscol, primescol)
+        
+        -- Infinite loop
+        while true do
+            
+            -- Find uncovered zeros and prime them
+            for i = 1, n do
+                if not rowcover[i] then
+                    local aRow = array[i]
+                    for j = 1, n do
+                        if (aRow[j] == 0) and not colcover[j] then
+                            local i, j = doPrime(array, colcover, rowcover, n, starscol, i, j, i-1, primescol)
+                            if i then
+                                return i, j
+                            end
+                            break -- this row is covered
+                        end
+                    end
+                end
+            end
+            
+            -- Find minimum uncovered
+            local minVal = huge
+            for i = 1, n do
+                if not rowcover[i] then
+                    local aRow = array[i]
+                    for j = 1, n do
+                        if (aRow[j] < minVal) and not colcover[j] then
+                            minVal = aRow[j]
+                        end
+                    end
+                end
+            end
+            
+            -- There is the potential for minVal to be 0, very very rarely though. (Checking for it costs more than the +/- 0's)
+            
+            -- Covered rows = +
+            -- Uncovered cols = -
+            for i = 1, n do
+                local aRow = array[i]
+                if rowcover[i] then
+                    for j = 1, n do
+                        if colcover[j] then
+                            aRow[j] = aRow[j] + minVal
+                        end
+                    end
+                else
+                    for j = 1, n do
+                        if not colcover[j] then
+                            aRow[j] = aRow[j] - minVal
+                        end
+                    end
+                end
+            end
+        end
+    end
+    stepFiveStar = function(colcover, rowcover, row, col, n, starscol, primescol)
+        
+        -- Star the initial prime
+        primescol[row] = false
+        starscol[row] = col
+        local ignoreRow = row -- Ignore the star on this row when looking for next
+        
+        repeat
+            if osclock()-t>0.8 then
+                break
+            end
+            local noFind = true
+
+            for i = 1, n do
+                
+                if (starscol[i] == col) and (i ~= ignoreRow) then
+                    
+                    noFind = false
+                    
+                    -- Unstar the star
+                    -- Turn the prime on the same row into a star (And ignore this row (aka star) when searching for next star)
+                    
+                    local pcol = primescol[i]
+                    primescol[i] = false
+                    starscol[i] = pcol
+                    ignoreRow = i
+                    col = pcol
+                    
+                    break
+                end
+            end
+        until noFind
+        
+        for i = 1, n do
+            rowcover[i] = false
+            colcover[i] = false
+            primescol[i] = false
+        end
+        
+        for i = 1, n do
+            local scol = starscol[i]
+            if scol then
+                colcover[scol] = true
+            end
+        end
+    end
+    UseHungarian = function(t1, t2, poses)
+        -- collect distances, allow for asymmetric tables
+		local dummy = 1000000000000
+        local dist_table = {}
+        local len1, len2 = #t1, #t2
+    	local maxLen = len1 >= len2 and len1 or len2
+        for i=1,maxLen do
+
+            local unitID = t1[i]
+            local x, z
+            if unitID then
+            	local pos = poses[unitID]
+            	if not pos then
+            		pos = {spGetUnitPosition(unitID)}
+            		poses[unitID] = pos
+            	end
+            	x, z = pos[1], pos[3]
+            end
+            local dist_col = {}
+            dist_table[i] = dist_col
+            for j=1,maxLen do 
+                local dist
+                if not x then
+                	dist = dummy
+                else
+		            local unitID = t2[j]
+		            if not unitID then
+		            	dist = dummy
+		            else
+			            local pos = poses[unitID]
+			            if not pos then
+			            	pos = {spGetUnitPosition(unitID)}
+			            	poses[unitID] = pos
+			            end
+	                	dist = math.round((x-pos[1])^2 + (z-pos[3])^2)
+	                end
+	            end
+                dist_col[j] = dist
+            end
+        end
+        --
+        return FindHungarian(dist_table,maxLen)
+    end
+end
