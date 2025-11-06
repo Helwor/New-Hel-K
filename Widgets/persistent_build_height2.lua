@@ -478,6 +478,7 @@ local g = {
 	BRIEF_SNAP = false,
 }
 
+local OFF_WATER = g.lava and 4 or 0.1
 
 
 
@@ -850,11 +851,11 @@ function groundModule:UpdateRefHeights(p)
 	-- defining max height that will tell us if a building should be leveled
 	local minGround = min(self.origHeight, self.height)
 	if p.floatOnWater or not p.canSub then
-		minGround = max(0.1,minGround)
+		minGround = max(OFF_WATER, minGround)
 	end
 	local maxGround = max(self.origHeight, self.height)
 	if p.floatOnWater or not p.canSub then
-		maxGround = max(0.1,maxGround)
+		maxGround = max(OFF_WATER, maxGround)
 	end
 
 
@@ -871,13 +872,13 @@ function groundModule:GetSnapOrder(target)
 	local rHeight, rOrigHeight, rTarget = round(self.height), round(self.origHeight), round(target)
 
 	if rTarget == 0 then
-		rTarget = 0.1
+		rTarget = OFF_WATER
 	end
-	local water = mol(rTarget,0,tol) and not (p.floatOnWater or not p.canSub) and rTarget or 0.1
+	local water = mol(rTarget,0,tol) and not (p.floatOnWater or not p.canSub) and rTarget or OFF_WATER
 	-- if rTarget == 0 then
-	--     rTarget = 0.1
+	--     rTarget = OFF_WATER
 	-- end
-	-- local water = 0.1
+	-- local water = OFF_WATER
 	if rHeight <= tol and (p.floatOnWater or not p.canSub) then
 		rHeight = water
 	end
@@ -887,7 +888,7 @@ function groundModule:GetSnapOrder(target)
 	-- Echo("rHeight,rOrigHeight,rTarget is ", rHeight,rOrigHeight,rTarget,mol(rHeight,rOrigHeight,7),mol(rHeight,rOrigHeight,7) and rOrigHeight or rHeight,mol(rHeight,rOrigHeight,7) and rHeight or rOrigHeight)
 
 	local uniqueVals = {
-		[mol(rHeight,rOrigHeight,tol) and rHeight or rOrigHeight]='origHeight', -- rOrigHeight will exist only if it differ from height by at least 7 elmos
+		[mol(rHeight,rOrigHeight,tol) and rHeight or rOrigHeight]='origHeight', -- rOrigHeight will exist only if it differ from height by at least 7 (tol) elmos
 		[rHeight]='height', 
 		[water]='water',
 		[rTarget]='target'
@@ -895,6 +896,7 @@ function groundModule:GetSnapOrder(target)
 	if specialAboveWaterDefID[p.PID] then
 		uniqueVals[4] = 'specAboveWater'
 	end
+
 	-- if true then
 	--     uniqueVals[5] = 'arbitrary'
 	-- end
@@ -933,18 +935,18 @@ function groundModule:UpdateSnap(level, apply, change, _p) -- used to update the
 	Debug.elevChange('update snap ', apply and 'apply' or 'not apply', change and 'change' or 'not change')
 	local p = _p or p
 	-- if round(level) < 0 and (p.floatOnWater or not p.canSub) then
-	--     Debug.elevChange("level is below water, for this floating build, returning min'ed height mod from water level", 0.1 + math.max(placementHeight, 0))
-	--     -- return 0.1 + math.max(placementHeight, 0)
+	--     Debug.elevChange("level is below water, for this floating build, returning min'ed height mod from water level", OFF_WATER + math.max(placementHeight, 0))
+	--     -- return OFF_WATER + math.max(placementHeight, 0)
 	--     Echo("placementHeight is ", placementHeight)
-	--     return 0.1 + placementHeight
+	--     return OFF_WATER + placementHeight
 	--     -- Debug.elevChange('level is below water, for this floating build, returning water level')
-	--     -- return 0.1
+	--     -- return OFF_WATER
 	-- end
-	-- if level < 0.1 and (p.floatOnWater or not p.canSub) then
-	--     level = 0.1
+	-- if level < OFF_WATER and (p.floatOnWater or not p.canSub) then
+	--     level = OFF_WATER
 	-- end
 	-- if self.height < 0 and level < 0 and (p.floatOnWater or not p.canSub) then
-	--     level = - self.height + 0.1
+	--     level = - self.height + OFF_WATER
 	-- end
 
 	-- if level < 0 and (p.floatOnWater or not p.canSub) then
@@ -958,7 +960,7 @@ function groundModule:UpdateSnap(level, apply, change, _p) -- used to update the
 		if specialAboveWaterDefID[p.PID] and level > 0 and level < 7 then
 			ret = level
 		elseif minAtWater and mol(level, 0, 7) then
-			ret = mol(level, self.height, 7) and max(0.1, self.height) or 0.1
+			ret = mol(level, self.height, 7) and max(OFF_WATER, self.height) or OFF_WATER
 		elseif mol(level, self.height, 7) then
 			ret = self.height
 		end
@@ -1132,12 +1134,12 @@ function groundModule:AdjustPH(X,Z,p)
 
 	---- set the pointY
 
-	local waterline = p.floatOnWater and 0 or 0.1
+	-- local waterline = p.floatOnWater and 0 or OFF_WATER
 	-- local snap          = min(abs(height),INCREMENT_SIZE*0.5)
 	local snap          = INCREMENT_SIZE*0.5
 	--if abs(origHeight-height)<snap then Echo('==') origHeight=height  else Echo('~=',abs(origHeight-height)) end
 
-	water               = round(height)<=0
+	-- water               = round(height)<=0
 	local modHeight     = origHeight~=height and height-origHeight -- diff more or less by 10 which is the max before having to terraform
 	local elevated      = modHeight and height>origHeight
 	local subelevated   = modHeight and height<origHeight
@@ -1535,7 +1537,7 @@ do
 
 		---- set the pointY
 
-		local waterline = p.floatOnWater and 0 or 0.1
+		-- local waterline = p.floatOnWater and not g.lava and 0 or OFF_WATER
 		-- local snap          = min(abs(height),INCREMENT_SIZE*0.5)
 		local snap          = INCREMENT_SIZE*0.5
 		--if abs(origHeight-height)<snap then Echo('==') origHeight=height  else Echo('~=',abs(origHeight-height)) end
@@ -1552,10 +1554,10 @@ do
 		-- dismiss the PH modification in some case, apply it compared to originalHeight in other cases
 		-- level               = PH +
 		--                         (
-		--                             water and (canSub and height or PH<0.1 and -PH or 0.1 )
+		--                             water and (canSub and height or PH<OFF_WATER and -PH or OFF_WATER )
 		--                          -- onOwnPlatform is if the PH correspond to the origHeight + terraformed height, meaning we already built a platform there at the same height
 		--                          -- or onOwnPlatform and origHeight
-		--                          or height<=0.1 and not canSub and 0.1
+		--                          or height<=OFF_WATER and not canSub and OFF_WATER
 		--                          -- if elevated ground PH will apply to origHeight, on dug ground it will apply to origHeight if the PH is roughly equal
 		--                          -- or (elevated or modHeight and mol(modHeight,PH,5)) and origHeight
 		--                          or min(height,origHeight or height)
@@ -1586,35 +1588,37 @@ do
 		--         level = origHeight + PH
 		--     end
 		-- end
-		-- if level < 0.1 and (p.floatOnWater or not p.canSub) then
-		--     level = 0.1
+		-- if level < OFF_WATER and (p.floatOnWater or not p.canSub) then
+		--     level = OFF_WATER
 		-- end
+		local oldlvl = level
 		level = groundModule:UpdateSnap(level,false,false,p)
+
 		if level == 0 then
-			level = 0.1
+			level = OFF_WATER
 		end
 		if Debug.elevChange() then
 			Echo("PH, height is ", PH, height,spGetGroundHeight(X,Z),'=>',PH + height)
 		end
 		-- Echo("level is ", level)
 		--Echo("modHeight,PH is ", modHeight,PH)
-		local snapGround    = level<height+snap+0.1 and level>height-snap+0.1
+		local snapGround    = level<height+snap+OFF_WATER and level>height-snap+OFF_WATER
 
 		groundModule.snapFloat           = not snapGround 
 											and (level~=4 or not specialAboveWaterDefID[p.PID] )
-											and (level < snap+0.1 and level > -snap+0.1 or not canSub and level <= 0.1)
+											and (level < snap+OFF_WATER and level > -snap+OFF_WATER or not canSub and level <= OFF_WATER)
 
 
 		-- local digToWater    = not water and (snapFloat or level<0 and height>1)
 
 		-- local snapSub       = canSub and level+10>origHeight and level-10<origHeight
 
-		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or elevated and level<origHeight+snap+0.1 and level>origHeight-snap+0.1)
-		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or --[[elevated and--]] level<origHeight+snap+0.1 and level>origHeight-snap+0.1)
+		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or elevated and level<origHeight+snap+OFF_WATER and level>origHeight-snap+OFF_WATER)
+		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or --[[elevated and--]] level<origHeight+snap+OFF_WATER and level>origHeight-snap+OFF_WATER)
 
 		-- pointY = groundModule.snap
-		--          or   ( (not canSub and level<=0.1) or snapFloat )
-		--                 and    0.1 
+		--          or   ( (not canSub and level<=OFF_WATER) or snapFloat )
+		--                 and    OFF_WATER 
 		--          or snapGround
 		--                 and height
 		--          or (snapSub or snapOriGround) 
@@ -1626,8 +1630,8 @@ do
 		
 		-- Echo("PH,pointY is ",PH, pointY,snapOriGround)
 		if g.lava then
-			if pointY < 0.1 and PID ~= shipFactoryDefID then
-				pointY = 0.1
+			if pointY < OFF_WATER and PID ~= shipFactoryDefID then
+				pointY = OFF_WATER
 			end
 		else
 			if pid==winDefID and pointY==0.1 then
@@ -1645,15 +1649,15 @@ do
 				 .. ' + '
 				 ..  (
 						groundModule.snap
-						or water and (canSub and height or PH<0.1 and -PH or 0.1 )
-						or height<=0.1 and not canSub and 0.1
+						or water and (canSub and height or PH<OFF_WATER and -PH or OFF_WATER )
+						or height<=OFF_WATER and not canSub and OFF_WATER
 						or min(height,origHeight)
 					  )
 				 ..')'
 			)
 		end
 		groundModule.snap = false
-		drawWater = --[[(pointY == 0.1) or--]] (level< 80)
+		drawWater = --[[(pointY == OFF_WATER) or--]] (level< 80)
 
 		---- Find out if the build pass
 
@@ -1690,19 +1694,19 @@ do
 
 		if not mustTerraform and not blockingStruct then 
 			-- mustTerraform = not mol(pointY,groundModule.maxGround,7)
-			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or not mol(pointY, (p.floatOnWater or not p.canSub) and max(height,0) or height, 7)
+			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or g.lava and pointY == OFF_WATER or not mol(pointY, (p.floatOnWater or not p.canSub) and max(height,0) or height, 7)
 			-- if round(PH)~=0 then
-			--     mustTerraform = canSub and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==0.1 or snapGround or snapOriGround)
+			--     mustTerraform = canSub and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==OFF_WATER or snapGround or snapOriGround)
 			-- end
 			-- if mustTerraform and PH<0 and water and p.floatOnWater and not digForWater then mustTerraform = false end
 		end
-		if mustTerraform and PID == shipFactoryDefID and pointY == 0.1 and not g.lava then
+		if mustTerraform and PID == shipFactoryDefID and pointY == OFF_WATER and not g.lava then
 			pointY = -20
 		end
 
-		--if snapOriGround  and (isMex or not mustTerraform) or pointY==0.1 and not digToWater and floater or (snapSub and not mustTerraform) then -- fixed water canFloat and digging
+		--if snapOriGround  and (isMex or not mustTerraform) or pointY==OFF_WATER and not digToWater and floater or (snapSub and not mustTerraform) then -- fixed water canFloat and digging
 	-- fixed water canFloat and 
-		if pid==geoDefID then
+		if pid == geoDefID then
 			local gx,gy,spot = CheckGeos(X,Z)
 			if not spot then 
 				sloppedTerrain, mustTerraform = false, false
@@ -2077,14 +2081,18 @@ local function DistributeOrders(lot, PID, meta, shift)
 			con.queueSize = 0
 		end
 	elseif not conTable.inserted_time or time - conTable.inserted_time > SEND_DELAY then
+		-- Echo(FormatTime(os.clock()))
 		conTable.inserted_time = false
 		conTable.waitOrder = false
 		for id,con in pairs(conTable.cons) do
 			local queue = spGetCommandQueue(id,-1) or EMPTY_TABLE
 			local commands = {}
 			local numOrder = 1
-			for i,order in ipairs(queue) do
-				if order.id == 0 then
+			-- for i, order in ipairs(queue) do
+			-- 	Echo('QUEUE: ' .. i, 'cmd ' .. order.id, 'p: ', unpack(order.params))
+			-- end
+			for i, order in ipairs(queue) do
+				if order.id == 0 then -- -- TODO: UPDATE  seems outdated, the stop order is not stored anymore in the command queue during game pause
 					numOrder = 2
 				end
 
@@ -2093,9 +2101,11 @@ local function DistributeOrders(lot, PID, meta, shift)
 				--     Echo(order.id,'unpack(order.params)', unpack(order.params))
 				-- end
 				-- if includeConPos == true and i == numOrder and order.id == CMD_REPAIR and not order.params[5] then
-				if includeConPos == true and i == numOrder and order.id < 0 and not order.params[5] then
+				if includeConPos == true and i == numOrder and order.id < 0 and not order.params[5] then -- TODO: UPDATE THIS WITH BUILD RADIUS CHECK
+					-- Echo(('cancel includeCon params'):upper())
+					-- (!this behaviour is outdated)
 					-- the con is currently building, we don't include the con position in the insertion calculation, to avoid inserting before the current build
-					-- it appears there are params params 4 as PID in the command when the build is not yet started, params 5 is facing
+					-- it appears there are param 4 as PID in the command when the build is not yet started, params 5 is facing
 					-- when the build has been started, the PID disappear and the facing remains so we can assume the build has started with 4 params
 					includeConPos = false
 				end
@@ -2118,11 +2128,16 @@ local function DistributeOrders(lot, PID, meta, shift)
 		conRef = cons[1]
 		-- includeConPos = false
 		MultiInsert(lot, conTable, true, includeConPos, conRef) 
-
-
 	end
-	local tryCI = shift and meta
-
+	-- Echo('RESULT')
+	-- for id, con in pairs(conTable.cons) do
+	-- 	for i, order in ipairs(con.commands) do
+	-- 		local ins = con.insPoses[i]
+	-- 		Echo(i,"insert at", ins, "p", order[1], order[2])
+	-- 	end
+	-- end
+	local tryCI = shift and meta and (not cons[2] or Spring.GetConfigInt('tryCI') == 1) 
+	-- Echo('tryCI', tryCI, Spring.GetConfigInt('tryCI'))
 
 	local ownFacing = p.facing
 	local before = meta and not shift
@@ -2136,36 +2151,37 @@ local function DistributeOrders(lot, PID, meta, shift)
 	local opts = f.MakeOptions()
 	INSERT_TABLE[3] = opts.coded
 	local GBC = WG.GlobalBuildCommand
-	for i=1, #lot do
+	for i = 1, #lot do
+		local elem = lot[i]
 		local facing
-		pointX,pointY,pointZ,facing = unpack(lot[i])
+		pointX, pointY, pointZ, facing = unpack(elem)
 		facing = facing or ownFacing
 		local cmdID
-		XYZP_TABLE[1],XYZP_TABLE[2],XYZP_TABLE[3] = pointX, pointY, pointZ
-		INSERT_TABLE[4],INSERT_TABLE[5],INSERT_TABLE[6] = pointX, pointY, pointZ
+		XYZP_TABLE[1], XYZP_TABLE[2], XYZP_TABLE[3] = pointX, pointY, pointZ
+		INSERT_TABLE[4], INSERT_TABLE[5], INSERT_TABLE[6] = pointX, pointY, pointZ
 		-- INSERT_TABLE[3] = (shift and CMD_OPT_SHIFT or 0) + (alt and CMD_OPT_ALT or 0)
 		-- case Level order
 		if GBC and GBC.CommandNotifyRaiseAndBuild(cons, -PID, pointX, pointY, pointZ, facing, s) then
 			--skip
 		else
-			if lot[i].terra then
-				commandTag = CreateTerra(lot[i])
-				hasTerra=false
+			if elem.terra then
+				commandTag = CreateTerra(elem)
+				hasTerra = false
 				cmdID = CMD_LEVEL
-				lot[i].commandTag = commandTag
+				elem.commandTag = commandTag
 				XYZP_TABLE[4] = commandTag
 				
-				INSERT_TABLE[2],INSERT_TABLE[7] = cmdID, commandTag
+				INSERT_TABLE[2], INSERT_TABLE[7] = cmdID, commandTag
 				
 				--Echo("commandTag",commandTag)
 				-- I never tested the global build command and never been implemented to my widget yet
 			elseif commandTag then
-				commandTag,hasTerra = false,true
+				commandTag, hasTerra = false, true
 			end
 			if not commandTag then
-				cmdID = lot[i].mex and -mexDefID or lot[i].pid and -lot[i].pid or -PID
+				cmdID = elem.mex and -mexDefID or elem.pid and -elem.pid or -PID
 				XYZP_TABLE[4] = facing
-				INSERT_TABLE[2],INSERT_TABLE[7] = cmdID,facing
+				INSERT_TABLE[2], INSERT_TABLE[7] = cmdID, facing
 			end
 			local firstcon = true
 			local spGetUnitPosition = Spring.GetUnitPosition
@@ -2173,10 +2189,10 @@ local function DistributeOrders(lot, PID, meta, shift)
 				if con.canBuild then
 					local inreach = true or not con.isImmobile or g.modArena
 					if not inreach then
-						local cx,cy,cz = spGetUnitPosition(id)
+						local cx, cy, cz = spGetUnitPosition(id)
 						if cx then -- in case of cheat
-							local dist = ((pointX-cx)^2+(pointZ-cz)^2)^0.5
-							if dist<con.buildDistance then -- TODO: need to add the radius of PID since some game update
+							local dist = ((pointX - cx)^2 + (pointZ-cz)^2)^0.5
+							if dist < con.buildDistance then -- TODO: need to add the radius of PID since some game update
 								inreach = true
 							end
 						end
@@ -2185,34 +2201,38 @@ local function DistributeOrders(lot, PID, meta, shift)
 						local queue = con.commands
 
 
-						if order_count==MAX_SEND then order_count=0 end
-						if order_count==0 then
-							nDelayed=nDelayed+1
-							delayedOrders[nDelayed]={}
-							batch=delayedOrders[nDelayed]
+						if order_count == MAX_SEND then
+							order_count = 0
 						end
-						order_count=order_count+1
-						if not batch[id] then batch[id]={} end
+						if order_count == 0 then
+							nDelayed = nDelayed + 1
+							batch = {}
+							delayedOrders[nDelayed] = batch
+						end
+						order_count = order_count + 1
+						if not batch[id] then batch[id] = {} end
 
 						-- table.insert(conArray,id)
 						local noAct
 						-- if noAct==nil then
 							local cmds = queue
 							local cmds_n = cmds and #cmds or 0 -- NOTE: when cheats are active and player is controllig unit's AI, we don't have the unit's queue
-							noAct = direct or cmds_n==0 or cmds_n==1 and (cmds[1].id==0 or cmds[1].id==5)
+							noAct = direct or cmds_n == 0 or cmds_n == 1 and (cmds[1].id == 0 or cmds[1].id == 5)
 							-- noAct=con.noAct
 						-- end
-						--Echo("con.insPoses[i] is ", con.insPoses[i])
 						local order
 						local posCommand
-						if noAct and (i==1 or g.modArena) then -- XYZP_TABLE : 4th param is commandTag for leveling or facing for building
+						if noAct and (i == 1 or g.modArena) then -- XYZP_TABLE : 4th param is commandTag for leveling or facing for building
 							-- order = {cmdID,{unpack(XYZP_TABLE)},--[[CMD_OPT_INTERNAL +--]] (shift and CMD_OPT_SHIFT or 0) + (alt and CMD_OPT_ALT or 0)}
-							order = {cmdID,{unpack(XYZP_TABLE)},--[[CMD_OPT_INTERNAL +--]] opts.coded}
+							order = {cmdID, {unpack(XYZP_TABLE)}, --[[CMD_OPT_INTERNAL +--]] opts.coded}
 							posCommand = -1
 						else
-							posCommand = before and i-1 or (after or noAct) and -1 or (con.insPoses[i] or 0) + (hasTerra and 1 or 0)
+							posCommand = before and i - 1
+								or (after or noAct) and -1
+								or (con.insPoses[i] or 0) + (hasTerra and 1 or 0)
 							-- Echo("insert " .. INSERT_TABLE[2] .. ' at ' .. posCommand)
 							-- note: the engine refuse a build order on unfit terrain, hopefully INSERT order circumvent this problem
+							-- Echo('=>> id ', id, 'x', pointX, 'z', pointZ,  'con.insPoses[i]', con.insPoses[i], 'posCommand', posCommand)
 							INSERT_TABLE[1]  = posCommand
 
 							--Echo("hasTerra is ", hasTerra,con.insPoses[i])
@@ -2221,7 +2241,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 							-- if thisround then table.insert(thisround,{id,CMD_INSERT,{unpack(INSERT_TABLE)},CMD_OPT_ALT+CMD_OPT_INTERNAL}) end
 							-- table.insert(orderArray,{CMD_INSERT,{unpack(INSERT_TABLE)},CMD_OPT_ALT+CMD_OPT_INTERNAL})
 							-- table.insert(batch[id],{CMD_INSERT,{unpack(INSERT_TABLE)},CMD_OPT_ALT+(--[[shift and CMD_OPT_SHIFT or--]] 0)+CMD_OPT_INTERNAL})
-							order = {CMD_INSERT,{unpack(INSERT_TABLE)},CMD_OPT_ALT+(--[[shift and CMD_OPT_SHIFT or--]] 0)--[[+CMD_OPT_INTERNAL--]]}
+							order = {CMD_INSERT, {unpack(INSERT_TABLE)}, CMD_OPT_ALT + (--[[shift and CMD_OPT_SHIFT or--]] 0)--[[+CMD_OPT_INTERNAL--]]}
 							-- NOTE: CMD_OPT_SHIFT will bug the order if insertion is at 0, order will appear but will not be done
 						end
 						local cancelled
@@ -2235,45 +2255,42 @@ local function DistributeOrders(lot, PID, meta, shift)
 									 WG.sounds_gaveOrderToUnit(id, true)
 								end
 								if widgets.fix_autoguard and shift then
-									widgets.fix_autoguard:CommandNotify(cmdID,{pointX, pointY, pointZ},{shift = true})
+									widgets.fix_autoguard:CommandNotify(cmdID, {pointX, pointY, pointZ}, {shift = true})
 								end
-								if widgets.guard_remove and (posCommand==-1 or posCommand >= con.queueSize) and shift then
-									widgets.guard_remove:CommandNotify(cmdID,{pointX, pointY, pointZ},{shift = true})
-									
+								if widgets.guard_remove and (posCommand == -1 or posCommand >= con.queueSize) and shift then
+									widgets.guard_remove:CommandNotify(cmdID, {pointX, pointY, pointZ}, {shift = true})
 								end
 							end
 
-							if hasTerra and round(placementHeight)~=0 then
+							if hasTerra and round(placementHeight) ~= 0 then
 								Debug.platform('register a platform for ' .. p.sizeX .. ' at ' .. pointX, pointZ)
 								-- Echo('here 1')
-								myPlatforms:New(p.sizeX,pointX,pointZ,PID)
+								myPlatforms:New(p.sizeX, pointX, pointZ, PID)
 							end
 							conTable.inserted_time = time
 							if conTable.inserted_time then
 
 								-- cancelled = widgetHandler:CommandNotify(order[1],order[2],{coded=order[3]})
 								-- Echo("'firstcon', id,cancelled is ", 'firstcon', id,cancelled)
-								conTable.waitOrder = {order[1],order[2]}
-								firstcon=false
+								conTable.waitOrder = {order[1], order[2]}
+								firstcon = false
 							end
 						end
 						if not conTable.multiInsert then -- completing the virtual queue ourselves if MultiInsert wasn't called
 							if posCommand == -1 then
 								posCommand = con.queueSize
 							end
-							local coords = {pointX,pointZ, cmd = cmdID, facing = facing}
-							table.insert(con.commands,posCommand+1,coords)
+							local coords = {pointX, pointZ, cmd = cmdID, facing = facing}
+							table.insert(con.commands, posCommand + 1, coords)
 							con.queueSize = con.queueSize + 1
-
-
 						end
 						if not inreach and posCommand == 0 then
 							-- we guess there will be another order given to move the con, we duplicate to simulate it
-							table.insert(con.commands,1,con.commands[1])
+							table.insert(con.commands, 1, con.commands[1])
 							con.queueSize = con.queueSize + 1
 						end
 						if not cancelled then
-							table.insert(batch[id],order)
+							table.insert(batch[id], order)
 						end
 						if not commandTag then
 							if widgets.building_starter then
@@ -2286,13 +2303,13 @@ local function DistributeOrders(lot, PID, meta, shift)
 							-- end
 						end
 					else
-						conTable[id]=nil
+						conTable[id] = nil
 					end
 				end
 			end
 		end
 	end
-	if shift and meta and tryCI then
+	if tryCI then
 		------ Trying new CommandInsert
 		local lot = WG.commandLot
 		local cmd, p4
@@ -2309,7 +2326,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 			end
 			-- Echo(i,'sent',cmd,'params',order[1],order[2],order[3], p4)
 			if cmd then
-				WG.CommandInsert(cmd, {order[1],order[2],order[3], p4}, opts)
+				WG.CommandInsert(cmd, {order[1], order[2], order[3], p4}, opts)
 			end
 		end
 		for k,v in pairs(lot) do
@@ -2324,12 +2341,12 @@ local function DistributeOrders(lot, PID, meta, shift)
 
 	if delayedOrders[1] then
 		local batch = table.remove(delayedOrders,1)
-		local ID_TABLE={}
+		local ID_TABLE = {}
 		-- local sum = 0
 		for id,orders in pairs(batch) do
 			-- sum=sum+#orders
-			ID_TABLE[1]=id
-			for i,order in ipairs(orders) do
+			ID_TABLE[1] = id
+			for i, order in ipairs(orders) do
 				-- Echo('order given',order[1],unpack(order[2]))
 				-- if shift and meta and i==1 then
 				--     if order[6] then
@@ -2339,7 +2356,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 				--     --     WG.CommandInsert(order[1],{select(4,order)},f.Decode(order[3]))
 				--     end
 				-- else
-					spGiveOrderToUnit(id,unpack(order))
+					spGiveOrderToUnit(id, unpack(order))
 				-- end
 			end
 			-- Spring.GiveOrderArrayToUnitArray(ID_TABLE,orders) -- seems it is now choppy compared to simple give order
@@ -2357,20 +2374,18 @@ end
 local function ProcessPreGameQueue(preGameQueue,tasker)
 	local needTerra,commandTag
 	for i=1,#preGameQueue do
-		PID,pointX,pointY,pointZ,facing,needTerra = unpack(preGameQueue[i])
+		PID, pointX, pointY, pointZ, facing, needTerra = unpack(preGameQueue[i])
 		-- Echo("PID,pointX,pointY,pointZ,facing,needTerra is ", PID,pointX,pointY,pointZ,facing,needTerra)
 		if needTerra then
-			if p.PID~=PID or p.facing~=facing then
-				p=IdentifyPlacement(PID,facing)
+			if p.PID ~= PID or p.facing ~= facing then
+				p = IdentifyPlacement(PID,facing)
 			end
 
-			commandTag=CreateTerra()
+			commandTag = CreateTerra()
 			-- spGiveOrderToUnit(tasker,CMD_INSERT,{-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag},CMD_OPT_ALT)
-			spGiveOrderToUnit(tasker,CMD_INSERT,{-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag},CMD_OPT_ALT + CMD_OPT_SHIFT)
-
+			spGiveOrderToUnit(tasker, CMD_INSERT, {-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 		end
-
-		spGiveOrderToUnit(tasker,CMD_INSERT,{-1,-PID,CMD_OPT_SHIFT, pointX, pointY, pointZ, facing},CMD_OPT_ALT + CMD_OPT_SHIFT)
+		spGiveOrderToUnit(tasker, CMD_INSERT, {-1,-PID,CMD_OPT_SHIFT, pointX, pointY, pointZ, facing}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 	end
 
 end
@@ -2937,7 +2952,7 @@ end
 --         DT.new=true
 --         DT.finish=false
 --           DT[1],  DT[2], DT[3], DT[4],  DT[5],                DT[6],             DT[7],  DT[8],    DT[9],   DT[10]
---         = pointX,pointY,pointZ,p.sizeX,p.sizeZ, (p.floatOnWater and pointY<=0.1), PID, p.facing, needTerra,drawWater
+--         = pointX,pointY,pointZ,p.sizeX,p.sizeZ, (p.floatOnWater and pointY<=OFF_WATER), PID, p.facing, needTerra,drawWater
 
 --         return true
 --     end
@@ -4057,7 +4072,7 @@ function widget:Initialize()
 		widgetHandler:RemoveWidget(self)
 		return
 	end
-	WATER_LEVEL = Spring.GetWaterPlaneLevel()
+	-- REAL_WATER_LEVEL = Spring.GetWaterPlaneLevel() -- TODO: implement some day
 
 	-- TODO use Spring.GetGameRulesParam("mapgen_enabled") to know if we need to register the original map heights to save some mem
 	if Spring.GetSpectatingState() then

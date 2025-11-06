@@ -10666,6 +10666,7 @@ function PlaceClosestFirst(arr, ref)
 end
 
 function MultiInsert(lot, conTable, keepExisting, includeConPos, conRef)
+	-- Echo('Run multi Insert, #lot', #lot, "includeConPos", includeConPos, 'conRef', conRef)
 	-- to find correct insert position, we can't rely on current command queue because we gonna insert multiple placement, thus command queue will change in the future, not yet, so we simulate this change
 	--function will return a table that give insert position for each coords received
 	--cons[ID].insPos{num,num,num,...} parallel to the coord table we receive
@@ -10678,7 +10679,7 @@ function MultiInsert(lot, conTable, keepExisting, includeConPos, conRef)
 							--.current commands = table
 							--.commands {[posCommand] = coords}
 	-- keepExisting = false
-	local sameCommands,baseCommands,firstID
+	local sameCommands, baseCommands, firstID
 	local cons = conTable.cons
 
 	for id,con in pairs(cons) do
@@ -10702,24 +10703,24 @@ function MultiInsert(lot, conTable, keepExisting, includeConPos, conRef)
 		-- else
 			local commands = con.commands
 			local insPoses = con.insPoses
-			local lastx,lastz,lastins
-			if includeConPos then
-				-- Echo('place closest first for ', id, conRef)
-				-- PlaceClosestFirst(lot, {sp.GetUnitPosition(conRef or id)})
-			end
+			local lastx, lastz, lastins
+			-- if includeConPos then
+			-- 	Echo('place closest first for ', id, conRef)
+			-- 	PlaceClosestFirst(lot, {sp.GetUnitPosition(conRef or id)})
+			-- end
 			for i=1,#lot do
 				local coords = lot[i]
 				local newx, newz = coords[1], (coords[3] or coords[2])
 				local ins
 				local mex = coords.mex
-				local t = {newx,newz, cmd = mex and mexDefID or PID, facing = mex and 0 or facing}
+				local t = {newx, newz, cmd = mex and mexDefID or PID, facing = mex and 0 or facing}
 				-- Echo('add in multiinsert',newx,newz, coords.mex and mexDefID or PID,coords.mex and 0 or facing)
 				if lastx and lastx == newx and lastz == newz then 
 					ins = lastins
 					-- Echo('lastins', lastins)
 				else
 					ins = GetInsertPosOrder(id, newx, newz, commands, includeConPos, conRef or id)
-					-- Echo('get ins pos => ', ins)
+					-- Echo('ins pos => ', ins)
 				end
 				insPoses[i] = ins
 				insert(commands, ins+1, t)
@@ -10739,7 +10740,9 @@ function MultiInsert(lot, conTable, keepExisting, includeConPos, conRef)
 	return conTable
 end
 
-GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified to fit searching in custom table
+GetInsertPosOrder = function (unitID, X, Z, lot, includeCon, conRef) -- modified to fit searching in custom table
+	-- Echo("*GetInsertPosOrder for " ..unitID.. "* X, Z", X, Z, "conRef is ", conRef, "includeCon", includeCon)
+
 	if includeCon == nil then
 		includeCon = true
 	end
@@ -10753,8 +10756,8 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 	local n
 	if not lot then
 		lot, n  = {}, 0
-		for i,order in ipairs(sp.GetCommandQueue(id,-1)) do
-			local posx,_,posz = GetCommandPos(order)
+		for i, order in ipairs(sp.GetCommandQueue(id,-1)) do
+			local posx, _, posz = GetCommandPos(order)
 			-- Echo("posx,posz is ", posx,posz)
 			n = n + 1 
 			lot[n] = not posx and EMPTY_TABLE or {posx,posz}
@@ -10763,11 +10766,11 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 		n = #lot
 	end
 
-	if n==0  then
+	if n == 0  then
 		return 0, minDist
 	end
 	local sqrt = sqrt
-	local pos = {n=0}
+	local pos = {n = 0}
 
 	local j = 0
 	-- register the commands that have position in a separate table indicating their position in the queue
@@ -10788,8 +10791,9 @@ GetInsertPosOrder = function (unitID, X, Z, lot, includeCon,conRef) -- modified 
 	if includeCon then
 		pos[0] = {unitPosX, unitPosZ, orderPos = 0}
 		start = 0
+		-- Echo('unit #'.. (conRef or unitID) ..' pos ref:',unitPosX, unitPosZ)
 	end
-	local bestDist=huge
+	local bestDist = huge
 	-- getting insert point that add the least distance
 	--  NOTE sqrt is mandatory 
 	local new_next -- we don't need to recalculate 'this_new' as it is the previous 'new_next'
@@ -10845,26 +10849,25 @@ GetInsertPosOrder2 = function (unitID, X, Z, lot) -- worse
 
 		for i=1, #cQueue do --skippping first of the queue if player stopped while game is paused
 			if lot then
-				local x= lot[i][1]
+				local x = lot[i][1]
 				local z = lot[i][3] and lot[i][3] or lot[i][2]
 				pos[i] = { x, z, orderPos=i }
 
 				--Echo("lot i",i, " = ", lot[i][1], lot[i][2])
 			elseif cQueue[i].params[3] then -- only adding order that has coords
 				pos[j] = { cQueue[i].params[1], cQueue[i].params[3], orderPos=i }
-				j = j+1
-			elseif #cQueue[i].params>=1 then
+				j = j + 1
+			elseif #cQueue[i].params >= 1 then
 				local x, y, z = GetUnitOrFeaturePosition(cQueue[i].params[1])
 				if x then 
-				pos[j] = { x, z, orderPos=i }
-				j = j+1
+					pos[j] = { x, z, orderPos=i }
+					j = j + 1
 				end
 			end
 		end
 
 
 	for i=1, #pos do -- getting closest order
-
 		local distance  = GetDist(new,  pos[i])
 		if distance <= minDist then     
 			minDist = distance
@@ -10874,10 +10877,10 @@ GetInsertPosOrder2 = function (unitID, X, Z, lot) -- worse
 	--I is closest point
 --Echo(" ---- closest ----", I)
 
-	if  I==0 then --if I didnt change, order is closest of player, we can return 0
+	if  I == 0 then --if I didnt change, order is closest of player, we can return 0
 		--Echo("Insert Pos=> 0")
 		return 0, minDist
-	elseif I==1 then 
+	elseif I == 1 then 
 		if GetDist(pos[I],  unitPos) --if dist
 			>
 		   GetDist(new,  unitPos) then
@@ -10890,19 +10893,19 @@ GetInsertPosOrder2 = function (unitID, X, Z, lot) -- worse
 		end
 	else
 		--making sure (for terra) we get the earliest of order that has same coords before checking
-		while I>1 and GetDist(pos[I],  pos[I-1]) == 0 do
-			I = I-1
+		while I > 1 and GetDist(pos[I],  pos[I-1]) == 0 do
+			I = I - 1
 		end
-		local prevDist = I>1 and GetDist(pos[I-1],  pos[I])
+		local prevDist = I > 1 and GetDist(pos[I-1],  pos[I])
 		--checking wether we have to place order before the closest
 		--if current order pos is farther from previous order pos than new command pos,
-		if I>1 and prevDist > GetDist(new,  pos[I-1]) then
+		if I > 1 and prevDist > GetDist(new,  pos[I-1]) then
 			--Echo("Insert Pos=> ",pos[I-1].orderPos)
 			return pos[I-1].orderPos,minDist -- insertion must be before the closest
 
 		else -- else we reach the latest of the closest and put the order after
-			while pos[I+1]~=nil and GetDist(pos[I],  pos[I+1]) == 0 do
-				I = I+1
+			while pos[I+1] ~= nil and GetDist(pos[I],  pos[I+1]) == 0 do
+				I = I + 1
 			end
 			--Echo("Insert Pos=> ",pos[I].orderPos)         
 			return pos[I].orderPos,minDist
