@@ -577,9 +577,19 @@ local function GetFormationRanks(mUnits, cmdID)
 	if not movementCmds[cmdID] then
 		return {merge({}, mUnits)}
 	end
-
+	if totalScreenTravel > 40 then
+		local singleInEachType = true
+		for defID, u in pairs(mUnits) do
+			if u[2] then
+				singleInEachType = false
+				break
+			end
+		end
+		if singleInEachType then
+			return {merge({}, mUnits)}
+		end
+	end
 	local ranks = {}
-	-- local singleInEachType = true
 	for defID, u in pairs(mUnits) do
 		-- if singleInEachType and u[2] then
 		-- 	singleInEachType = false
@@ -594,9 +604,6 @@ local function GetFormationRanks(mUnits, cmdID)
 			rank[#rank + 1] = id
 		end
 	end
-	-- if singleInEachType then
-	-- 	return {merge({}, mUnits)}
-	-- end
 	return ranks
 end
 -- local function GetFormationRanks(mUnits, cmdID)
