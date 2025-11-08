@@ -284,6 +284,10 @@ local scrollY = 0
 local terraPrev_path = 'Hel-K/' .. widget:GetInfo().name
 
 
+local function CalcCost(layers)
+end
+
+
 ---------- DYNAMIC OPTION PANEL SYSTEM
 
 -- create a starting string with the desired color, convert decimal color to string color
@@ -987,6 +991,7 @@ do
 	--]]
 
 	CreateSloppedRectangles = function(bx, bz, bw, bh, num, float, by, needTerra)--create tables of hollow rectangles with cardinal points, clockwise(NW, NE, SE, SW, last before NW) from center to exterior, begining at  NorthWest corner, point separated by incrementation
+		local sideX, sideZ = bw*2, bh*2
 		-- checkTimes.whole('resume')
 		-- checkTimes[1]('resume')
 		local cost = 0
@@ -1075,7 +1080,7 @@ do
 				if float and gy <= 0.1 and by == 0.1 then gy = 0.1 end
 				local needTerra = needTerra
 				if needTerra then needTerra = abs(by-gy) > 0 end
-				if needTerra then innercost = innercost+abs(by-gy) end
+				if needTerra then innercost = innercost + abs(by-gy) end
 				local slope, elev
 				if needTerra then 
 					elev = by > gy and -1 or by < gy and 1 or 0
@@ -1680,7 +1685,12 @@ do
 		layers.endSlope, layers.gridEndslope  = endSlope, gridEndslope
 		layers.lastslope = lastslope
 		layers.endSlopeStart = endSlopeStart
-		cost = ((innercost + cost*incmult^2)/133.3)
+		-- cost = ((innercost + cost*incmult^2)/133.3) -- old approximation
+		if needTerra then
+			cost = (innercost + cost) * 0.0064 + ( (sideX/8 - 1)*2 + (sideZ/8 -1)*2 ) * 0.75 + 4.2 + 6 -- inner volume * 0.0064 + edges * 0.75 + 4 corners * 1.05 + base cost 6;  see https://store.steampowered.com/news/app/334920/view/507337659552629023
+		else
+			cost = 0
+		end
 		layers.cost = round(cost)
 		layers.footPrint = footPrint
 		layers.maxElevSlope = maxElevSlope
