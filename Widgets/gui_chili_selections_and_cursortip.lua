@@ -244,7 +244,7 @@ end
 local manualFireTimeDefs = {}
 local manualFireWeaponNum = {}
 local specialReloadDefs = {}
-local jumpReloadDefs = {}
+local jumpChargeDefs = {}
 local ammoRequiringDefs = {}
 for unitDefID = 1, #UnitDefs do
 	local ud = UnitDefs[unitDefID]
@@ -262,7 +262,7 @@ for unitDefID = 1, #UnitDefs do
 		specialReloadDefs[unitDefID] = tonumber(ud.customParams.specialreloadtime)
 	end
 	if ud.customParams.canjump then
-		jumpReloadDefs[unitDefID] = -1 --Signifies that reload time is not stored
+		jumpChargeDefs[unitDefID] = tonumber(ud.customParams.jump_charges) or 1
 	end
 	if ud.customParams.reammoseconds then
 		ammoRequiringDefs[unitDefID] = true
@@ -416,7 +416,7 @@ options = {
 		},
 		path = selPath,
 	},
-	showgroupinfo = {name='Show Group Info', type='bool', value=true,
+	showgroupinfo = {name='Show group info', type='bool', value=true,
 		path = selPath,
 		OnChange = function(self)
 			if selectionWindow then
@@ -686,7 +686,7 @@ end
 local function GetRulesParamReloadStatus(unitID, rulesParam, reloadTime)
 	local specialReloadState = spGetUnitRulesParam(unitID, rulesParam)
 	if specialReloadState then
-		if reloadTime > 0 then
+		if reloadTime and reloadTime > 0 then
 			--local currentFrame, _ = Spring.GetGameFrame()
 			--local remainingTime = (specialReloadState - currentFrame)
 			--local reloadFraction = 1 - remainingTime/reloadTime
@@ -850,7 +850,7 @@ local function GetManualFireReload(unitID, unitDefID)
 	return false
 end
 
-local function GetJumpReload(unitID, unitDefID)
+local function GetJumpCharges(unitID, unitDefID)
 	if not (unitDefID and showJumpReload) then
 		return false
 	end
@@ -858,8 +858,8 @@ local function GetJumpReload(unitID, unitDefID)
 	if not unitDefID then
 		return false
 	end
-	if jumpReloadDefs[unitDefID] then
-		return jumpReloadDefs[unitDefID]
+	if jumpChargeDefs[unitDefID] then
+		return jumpChargeDefs[unitDefID]
 	end
 	return false
 end
@@ -1247,7 +1247,7 @@ local function GetBarWithImage(parentControl, name, initY, imageFile, color, col
 			end
 		end
 		bar:SetCaption(newCaption)
-		local prop = (maxValue > 0 and currentValue/maxValue) or 0
+		prop = (maxValue > 0 and currentValue/maxValue) or 0
 		if colorFunc then
 			color = colorFunc(prop)
 			bar.color = color
@@ -1430,7 +1430,8 @@ local function GetCostInfoPanel(parentControl, yPos)
 	return Update
 end
 
-local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum, rulesParam, reloadTime, onLeft)
+local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum, rulesParam, reloadTime, charges, onLeft)
+	charges = charges or 1
 	if not reloadBar then
 		reloadBar = Chili.Progressbar:New {
 			x = (onLeft and 5) or "82%",
@@ -1454,7 +1455,22 @@ local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum,
 	elseif rulesParam then
 		reloadFraction = GetRulesParamReloadStatus(unitID, rulesParam, reloadTime)
 	end
-	
+	if reloadFraction then
+		if charges == 1 then
+			reloadBar._relativeBounds.top = 5
+			reloadBar:UpdateClientArea()
+			reloadBar:Invalidate()
+		elseif reloadFraction < charges then
+			if math.floor(reloadFraction) == 0 then
+				reloadBar._relativeBounds.top = 5
+			else
+				reloadBar._relativeBounds.top = string.format("%i%%", 100 * math.floor(reloadFraction) / charges)
+			end
+			reloadFraction = 1 - (charges - reloadFraction) / math.ceil(charges - reloadFraction)
+			reloadBar:UpdateClientArea()
+			reloadBar:Invalidate()
+		end
+	end
 	if reloadFraction and reloadFraction < 1 then
 		reloadBar:SetValue(reloadFraction)
 		reloadBar:SetVisibility(true)
@@ -1542,8 +1558,9 @@ local function GetUnitGroupIconButton(parentControl)
 				reloadBar:SetVisibility(false)
 			end
 			local jumpReloadTime = GetJumpReload(unitID, unitDefID)
-			if jumpReloadTime then
-				jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, jumpReloadTime, true)
+			local jumpCharges = GetJumpCharges(unitID, unitDefID)
+			if jumpCharges then
+				jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, jumpCharges, true)
 			elseif jumpBar then
 				jumpBar:SetVisibility(false)
 			end
@@ -2121,9 +2138,9 @@ local function GetSingleUnitInfoPanel(parentControl, isTooltipVersion)
 		elseif reloadBar then
 			reloadBar:SetVisibility(false)
 		end
-		local jumpReloadTime = GetJumpReload(unitID, unitDefID)
-		if jumpReloadTime then
-			jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, jumpReloadTime, true)
+		local jumpCharges = GetJumpCharges(unitID, unitDefID)
+		if jumpCharges then
+			jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, jumpCharges, true)
 		elseif jumpBar then
 			jumpBar:SetVisibility(false)
 		end
@@ -2781,11 +2798,8 @@ end
 
 local function UpdateTooltip(dt, requiredOnly)
 	local mx, my, _, _, _, outsideSpring = spScaledGetMouseState()
-	-- local worldMx, worldMy = spGetMouseState()
-
-	-- local visible = (not outsideSpring) and UpdateTooltipContent(worldMx, worldMy, dt, requiredOnly)
-
-	local visible = (not outsideSpring) and UpdateTooltipContent(mx, my, dt, requiredOnly)
+	local worldMx, worldMy = spGetMouseState()
+	local visible = (not outsideSpring) and UpdateTooltipContent(worldMx, worldMy, dt, requiredOnly)
 	-- count = count + 1
 	tooltipWindow.SetVisible(visible)
 	if visible then
@@ -3040,9 +3054,8 @@ function widget:KeyRelease(key, modifier, isRepeat)
 	end
 end
 
-
-function widget:CommandsChanged()
-	local selectionDefIDs = spGetSelectedUnitsSorted()
+function widget:CommandsChanged() -- like SelectionChanged, but only called once after all the filtering is done and the selection is finalized
+	local selectionDefIDs = spGetSelectedUnitsSorted() -- able to tell the defID of units selected in the fog (e.g. via godmode or specfullview 2)
 	local defIDs = {}
 	local newSelection = {defIDs = defIDs}
 	local n = 0
