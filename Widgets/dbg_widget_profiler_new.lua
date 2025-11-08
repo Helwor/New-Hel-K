@@ -18,6 +18,8 @@ end
 	-- WATCHDOG MODE implemented
 	-- options implemented
 local WATCHDOG_MODE = false
+local watchdog_threshold = 0.1
+local watchdog_threshold_framework = 0.3
 local tick = 2
 local averageTime = 4
 local upd_round = 0
@@ -88,6 +90,30 @@ options = {
 			averageTime = self.value
 		end
 	},
+	watchdog_threshold = {
+		name = 'Watch Dog Threshold',
+		desc = 'Minimal time spent that trigger a warning in second.',
+		type = 'number',
+		value = watchdog_threshold,
+		min = 0.01, max = 0.3, step = 0.01,
+		update_on_the_fly = true,
+		OnChange = function(self)
+			watchdog_threshold = self.value
+		end,
+
+	},
+	watchdog_threshold_framework = {
+		name = 'Watch Dog Threshold Framework',
+		desc = 'Minimal time spent that trigger a warning for Chili Framework.',
+		type = 'number',
+		value = watchdog_threshold_framework,
+		min = 0.01, max = 0.5, step = 0.01,
+		update_on_the_fly = true,
+		OnChange = function(self)
+			watchdog_threshold_framework = self.value
+		end,
+
+	}
 }
 
 --------------------------------------------------------------------------------
@@ -769,8 +795,8 @@ local function UpdateStats()
 			userList[#userList+1] = item
 			userTime = userTime + item.tLoad
 			if WATCHDOG_MODE then
-				if item.tTime > 0.1 then
-					if not wname:find('Chili Framework') or item.tTime > 0.25 then
+				if item.tTime > watchdog_threshold then
+					if not wname:find('Chili Framework') or item.tTime > watchdog_threshold_framework then
 						local obj = WATCHDOG[wname]
 						if not obj then
 							WATCHDOG_IDX = WATCHDOG_IDX + 1
