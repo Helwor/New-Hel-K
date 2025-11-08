@@ -1,5 +1,5 @@
 	local WIDGET_DIR = "LuaUI\\Widgets\\"
-	local HELK_CORE_DIR = WIDGET_DIR .. "\\Include\\helk_core\\"
+	local HELK_CORE_DIR = WIDGET_DIR .. "Include\\helk_core\\"
 	local apiOrder = {
 		'api_on_widget_state.lua',
 		'api_view_changed.lua',
@@ -16,7 +16,7 @@
 		'api_my_zones.lua',
 		'api_load_ai.lua',
 		'addon_chili.lua',
-		'api_draw_utils',
+		'api_draw_utils.lua',
 	}
 
 	local importantWidgets = {
