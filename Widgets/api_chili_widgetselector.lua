@@ -447,7 +447,7 @@ local FileExists = VFS.FileExists
 local help_tooltip = table.concat({ -- chili bug: broke line by tooltip getting colorized, need to put \008 at those exact spots or order a white color after colorization of words
 
 	'Color Status and Actions:',
-	'-' .. colorize('Categories', yellow) .. ' collapsable with ' .. colorize('LClick', red) .. ' (+ ' .. colorize('Ctrl', red) .. ' to collapse all)',
+	'-' .. colorize('Categories', yellow) .. ' collapsable with ' .. colorize('LClick + Ctrl', red) .. ' to collapse all)',
 	'-' .. colorize('Uniquely local widget', user_col),
 	'-' .. colorize('Local version loaded', user_alt_col),
 	'-' .. colorize('Game version loaded', game_alt_col),
@@ -613,13 +613,12 @@ local function WidgetClickMod(self, wdata)
 			if w then
 				if w.isSleeping then
 					widgetHandler:Wake(w)
-					CheckWidget(wdata.name)
 				else
 					widgetHandler:Sleep(w)
-					CheckWidget(wdata.name)
 				end
+				CheckWidget(wdata.name)
 			else
-				Echo('The widget',wdata.name,'is not active and cannot sleep/wake it ')
+				Echo('The widget',wdata.name,'is not active, cannot sleep/wake it ')
 			end
 		end
 		return true
@@ -652,6 +651,7 @@ local function WidgetClickMod(self, wdata)
 			-- Echo('wdata.fromZip, wantedMode is ', wdata.fromZip, wantedMode)
 			w = oriLoadWidget(self, filename, wantedMode)
 			if not w then
+				wdata.fromZip = not wdata.fromZip -- 
 				Echo('Failed to load ' .. wdata.name .. ' version ' .. (wantedMode == VFS.ZIP_ONLY and 'ZIP' or 'RAW'))
 				local fileExist = VFS.FileExists(filename, wantedMode)
 				local text
