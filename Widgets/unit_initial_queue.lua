@@ -577,7 +577,7 @@ end
 
 function widget:DrawScreen()
 	glPushMatrix()
-	glTranslate(scrW*0.35, scrH*0.25, 0) -- roughly centered
+	glTranslate(scrW*0.10, scrH*0.25, 0) -- roughly centered
 	local num = #buildQueue
 	if num > 0 then
 		glText(queueTimeFormat:format(mCost, FormatTime(buildTime)), 0, -20, fontSize, 'cdo')
