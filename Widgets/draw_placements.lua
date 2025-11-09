@@ -4068,6 +4068,7 @@ do
 		local sizeX, sizeZ = footX * 8, footZ * 8 
 		local oddX,oddZ = (footX%2)*8, (footZ%2)*8
 		local canSub = CheckCanSub(ud.name)
+
 		t.footX				= footX
 		t.footZ				= footZ
 		t.oddX				= oddX
@@ -4077,6 +4078,7 @@ do
 		t.terraSizeX		= sizeX-0.1
 		t.terraSizeZ		= sizeZ-0.1
 		t.offfacing			= false
+		t.canSub			= canSub
 		t.floater			= ud.floatOnWater or not canSub
 		t.needTerraOnWater	= not canSub and not ud.name:match('hover')
 		t.floatOnWater		= ud.floatOnWater

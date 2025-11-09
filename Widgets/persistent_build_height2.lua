@@ -3,8 +3,8 @@
 function widget:GetInfo()
 	return {
 		name      = "Persistent Build Height 2",
-		desc      = "Persistent UI for setting Skydust height.",
-		author    = "Google Frog, total rewrite Helwor",
+		desc      = "Advanced Teraform Build UI, work in tandem with draw_placement.lua",
+		author    = "Helwor",
 		version   = "v1",
 		date      = "7th June, 2016",
 		license   = "GNU GPL, v2 or later",
@@ -874,15 +874,15 @@ function groundModule:GetSnapOrder(target)
 	if rTarget == 0 then
 		rTarget = OFF_WATER
 	end
-	local water = mol(rTarget,0,tol) and not (p.floatOnWater or not p.canSub) and rTarget or OFF_WATER
+	local water = mol(rTarget,0,tol) and not (p.floater) and rTarget or OFF_WATER
 	-- if rTarget == 0 then
 	--     rTarget = OFF_WATER
 	-- end
 	-- local water = OFF_WATER
-	if rHeight <= tol and (p.floatOnWater or not p.canSub) then
+	if rHeight <= tol and (p.floater) then
 		rHeight = water
 	end
-	if rOrigHeight<=tol and (p.floatOnWater or not p.canSub) then
+	if rOrigHeight<=tol and (p.floater) then
 		rOrigHeight = water
 	end
 	-- Echo("rHeight,rOrigHeight,rTarget is ", rHeight,rOrigHeight,rTarget,mol(rHeight,rOrigHeight,7),mol(rHeight,rOrigHeight,7) and rOrigHeight or rHeight,mol(rHeight,rOrigHeight,7) and rHeight or rOrigHeight)
@@ -954,7 +954,7 @@ function groundModule:UpdateSnap(level, apply, change, _p) -- used to update the
 	--     placementHeight = - self.height
 	--     return 0
 	-- end
-	local minAtWater = (p.floatOnWater or not p.canSub)
+	local minAtWater = p.floater
 	if not change then
 		local ret
 		if specialAboveWaterDefID[p.PID] and level > 0 and level < 7 then
@@ -1003,10 +1003,10 @@ end
 function groundModule:DefineMaxOffset(up, value) -- Define if it should lock the elevation for a few time and return the corrected offset that will modify placementHeight
 	local debug = Debug.elevChange()
 	if debug then
-		Echo('----- Define Offset -----')
+		Echo('----- Define Offset -----', up, value)
 	end
 
-	local minAtWater = (p.floatOnWater or not p.canSub)
+	local minAtWater = p.floater
 	local placementHeight, pointY = placementHeight, pointY
 	local offset = (INCREMENT_SIZE)*value 
 	if self.offsetPH then
@@ -1090,11 +1090,11 @@ function groundModule:DefineMaxOffset(up, value) -- Define if it should lock the
 		end
 		placementHeight = placementHeight + placementHeightOffset
 	else
-		local oldPH = placementHeight
+		local oldPH, oldOffset = placementHeight, offset
 		placementHeight = (round(placementHeight/INCREMENT_SIZE) * INCREMENT_SIZE) + offset
 		offset = placementHeight - oldPH
 		if debug then
-			Echo('PLACEMENT HEIGHT ROUNDED:', oldPH .. ' => ' .. (round(oldPH/INCREMENT_SIZE) * INCREMENT_SIZE)  .. ' + ' .. offset .. ' = ' .. placementHeight )
+			Echo('PLACEMENT HEIGHT ROUNDED: '.. oldPH ..' => '..(round(oldPH/INCREMENT_SIZE) * INCREMENT_SIZE), 'OFFSET: '.. oldOffset..' => '..offset..', NEW PH: '..placementHeight )
 		end
 	end
 
@@ -1184,7 +1184,7 @@ function groundModule:AdjustPH(X,Z,p)
 				newPH = math.min(PH - modHeight, 0)
 				debug('enter '.. (PH == 0 and 'digShallow' or 'limitDig'), 'PH '..PH..' => '..newPH,'modHeight',modHeight)
 			end
-		-- elseif PH == 0 and myPlatforms.x and self.height < 0 and (p.floatOnWater or not p.canSub) then
+		-- elseif PH == 0 and myPlatforms.x and self.height < 0 and (p.floater) then
 		--     Echo('OK')
 		end
 	elseif self.altDig then
@@ -1573,7 +1573,7 @@ do
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + (modHeight and groundModule.minGround or height)
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + (elevated and height or origHeight)
 		level = PH + height
-		if (p.floatOnWater or not p.canSub) and height < 0 then
+		if (p.floater) and height < 0 then
 			level = level - height
 		end
 		-- level = PH + (p.floatOnWater and not p.canSub and 0 or height)
@@ -1694,7 +1694,7 @@ do
 
 		if not mustTerraform and not blockingStruct then 
 			-- mustTerraform = not mol(pointY,groundModule.maxGround,7)
-			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or g.lava and pointY == OFF_WATER or not mol(pointY, (p.floatOnWater or not p.canSub) and max(height,0) or height, 7)
+			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or g.lava and pointY == OFF_WATER or not mol(pointY, (p.floater) and max(height,0) or height, 7)
 			-- if round(PH)~=0 then
 			--     mustTerraform = canSub and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==OFF_WATER or snapGround or snapOriGround)
 			-- end
@@ -1896,7 +1896,7 @@ function widget:MouseWheel(up, value)
 		g.timeOutNoTerra = os.clock() + 3
 		return true
 	end
-	if groundModule.snapFloat and not p.canSub and value<0 then
+	if groundModule.snapFloat and p.floater and value<0 then
 		return true
 	end
     if snapTime and spDiffTimers(spGetTimer(),snapTime)<0.25 - (g.BRIEF_SNAP and 0.15 or 0) then
@@ -2092,7 +2092,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 			-- 	Echo('QUEUE: ' .. i, 'cmd ' .. order.id, 'p: ', unpack(order.params))
 			-- end
 			for i, order in ipairs(queue) do
-				if order.id == 0 then -- -- TODO: UPDATE  seems outdated, the stop order is not stored anymore in the command queue during game pause
+				if order.id == 0 then -- 
 					numOrder = 2
 				end
 
@@ -2101,14 +2101,14 @@ local function DistributeOrders(lot, PID, meta, shift)
 				--     Echo(order.id,'unpack(order.params)', unpack(order.params))
 				-- end
 				-- if includeConPos == true and i == numOrder and order.id == CMD_REPAIR and not order.params[5] then
-				if includeConPos == true and i == numOrder and order.id < 0 and not order.params[5] then -- TODO: UPDATE THIS WITH BUILD RADIUS CHECK
-					-- Echo(('cancel includeCon params'):upper())
-					-- (!this behaviour is outdated)
-					-- the con is currently building, we don't include the con position in the insertion calculation, to avoid inserting before the current build
-					-- it appears there are param 4 as PID in the command when the build is not yet started, params 5 is facing
-					-- when the build has been started, the PID disappear and the facing remains so we can assume the build has started with 4 params
-					includeConPos = false
-				end
+				-- if includeConPos == true and i == numOrder and order.id < 0 and not order.params[5] then -- TODO: UPDATE THIS WITH BUILD RADIUS CHECK
+				-- 	-- Echo(('cancel includeCon params'):upper())
+				-- 	-- (!this behaviour is outdated)
+				-- 	-- the con is currently building, we don't include the con position in the insertion calculation, to avoid inserting before the current build
+				-- 	-- it appears there are param 4 as PID in the command when the build is not yet started, params 5 is facing
+				-- 	-- when the build has been started, the PID disappear and the facing remains so we can assume the build has started with 4 params
+				-- 	includeConPos = false
+				-- end
 				local posx,_,posz = GetCommandPos(order)
 				commands[i] = not posx and EMPTY_TABLE or {posx,posz, cmd = order.id, facing = order.id<0 and order[4] or 0}
 				-- Echo('add',i,posx,posz,  order.id, order.id<0 and order.params[4])

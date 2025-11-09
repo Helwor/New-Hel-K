@@ -2259,7 +2259,9 @@ canSub ={
 	,shieldshield=true
 	,factoryamph=true
 	,energyfusion=true
+	,energypylon=true
 	,staticstorage=true
+	,factoryamph=true
 }   
 CheckCanSub = function (name)
 	return canSub[name]
