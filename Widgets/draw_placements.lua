@@ -4575,6 +4575,24 @@ function widget:KeyRelease(key, mods)
 
 	if specs[1] and shift and alt and not special and dstatus ~= 'paint_farm' then PoseOnRail() end --  also key 308=LALT
 end
+
+local function ChangeSpacing(value)
+	if Drawing then
+		local spacing = sp.GetBuildSpacing()
+		if E_SPEC[PID] and spacing >= 6 and value > 0 then
+			special = true
+			spacing = 7
+		else
+			spacing = spacing + value
+		end
+		Spring.SetBuildSpacing(spacing)
+		WG.buildSpacing[PID] = spacing
+		return true
+	end
+	return false
+end
+
+
 function widget:MouseWheel(up,value) -- verify behaviour of keypress on spacing change
 	if ctrl then
 		if PID --[[and p.sizeX==p.sizeZ--]] then
@@ -4605,16 +4623,10 @@ function widget:MouseWheel(up,value) -- verify behaviour of keypress on spacing 
 				return true
 			end
 		end
-	end
-	if shift and Drawing and PID then
+	elseif shift and Drawing and PID then
 		--if PBS then Echo("CHK") return PBS.MouseWheel(_,up,value) end
 		--local block=drawEnabled and not up--[[checking if not buildspacing mousewheel--]]
-		if up then
-			widget:KeyPress(spacingIncrease, EMPTY_TABLE)
-		else
-			widget:KeyPress(spacingDecrease, EMPTY_TABLE)
-		end
-		return true
+		return ChangeSpacing(value)
 	end
 end
 
@@ -4651,8 +4663,7 @@ end
 
 
 
-
-function widget:KeyPress(key, mods,isRepeat)
+function widget:KeyPress(key, mods,isRepeat, value)
 	local wasCtrl = ctrl
 	alt, ctrl, meta, shift = mods.alt, mods.ctrl, mods.meta, mods.shift
 	-- Echo("special, ctrl, opt.ctrlCloseEBuild is ", special, ctrl, opt.ctrlCloseEBuild)
@@ -4666,15 +4677,10 @@ function widget:KeyPress(key, mods,isRepeat)
 		Spring.SetBuildSpacing(0)
 	end
 
-
 	local inc, dec = key == spacingIncrease, key == spacingDecrease
 	if (inc or dec) then
-		if Drawing and E_SPEC[PID] then
-			special = sp.GetBuildSpacing() >= 7 and inc
-			if special then
-				Spring.SetBuildSpacing(7)
-				return true
-			end
+		if ChangeSpacing(inc and 1 or -1) then
+			return true
 		end
 		-- if Drawing then
 		-- 	return true

@@ -45,7 +45,8 @@ local glText        = gl.Text
 ---- Shared variables
 local cmdID, lastCmdID
 local buildStarted
-local buildSpacing = {}
+WG.buildSpacing = WG.buildSpacing or {}
+local buildSpacing = WG.buildSpacing
 local identified = false
 local placement
 local placementCache = {}
