@@ -51,7 +51,7 @@ void main() {
 		vec3 raypos = pointWorldPos.xyz + (smallstep) * i;
 		float heightatsample = heightAtWorldPos(raypos.xz);
 		obscured = max(obscured, heightatsample - raypos.y);
-		if (obscured >= 2.0)
+		if (obscured >= 1.0)
 			break;
 	}
 

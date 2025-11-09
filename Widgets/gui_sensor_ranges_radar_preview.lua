@@ -11,6 +11,7 @@ function widget:GetInfo()
 end
 local spGetActiveCommand = Spring.GetActiveCommand
 local spGetGroundHeight = Spring.GetGroundHeight
+local spGetSelectedUnits = Spring.GetSelectedUnits
 local SHADERRESOLUTION = 32 -- THIS SHOULD MATCH RADARMIPLEVEL!
 local WANT_ON_SELECTED = false
 options_path = 'Hel-K/' .. widget:GetInfo().name
@@ -105,9 +106,11 @@ function widget:Initialize()
 	end
 
 	initgl4()
+	widget:CommandsChanged()
 end
 
-function widget:SelectionChanged(sel)
+function widget:CommandsChanged()
+	local sel = spGetSelectedUnits()
 	selectedRadarUnitID = false
 	if #sel == 1 and Spring.GetUnitDefID(sel[1]) and radarStructureRange[Spring.GetUnitDefID(sel[1])] then
 		selectedRadarUnitID = sel[1]
@@ -156,7 +159,6 @@ local function GetRadarDrawPos(unitID, unitDefID)
 			if WG.placementHeight then
 				y = y + WG.placementHeight
 			end
-
 			return x, y, z
 		end
 	end
