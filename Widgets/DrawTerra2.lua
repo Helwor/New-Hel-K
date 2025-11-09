@@ -1686,11 +1686,13 @@ do
 		layers.lastslope = lastslope
 		layers.endSlopeStart = endSlopeStart
 		-- cost = ((innercost + cost*incmult^2)/133.3) -- old approximation
+		-- Echo("endSlope.ln is ", endSlope.ln)
 		if needTerra then
-			cost = (innercost + cost) * 0.0064 + ( (sideX/8 - 1)*2 + (sideZ/8 -1)*2 ) * 0.75 + 4.2 + 6 -- inner volume * 0.0064 + edges * 0.75 + 4 corners * 1.05 + base cost 6;  see https://store.steampowered.com/news/app/334920/view/507337659552629023
+			cost =  (incmult^1.75) * ((innercost + cost)  * 0.0064 + ( (sideX/8 - 1)*2 + (sideZ/8 -1)*2 ) * 0.75) + 4.2 + 6 -- inner volume * 0.0064 + edges * 0.75 + 4 corners * 1.05 + base cost 6;  see https://store.steampowered.com/news/app/334920/view/507337659552629023
 		else
 			cost = 0
 		end
+
 		layers.cost = round(cost)
 		layers.footPrint = footPrint
 		layers.maxElevSlope = maxElevSlope
