@@ -82,7 +82,6 @@ end
 local toConfirm = {}
 local known = {}
 function widget:UnitCmdDone(builderID, defID, team, cmd, params, opts, tag)
-    -- Echo('cmd done', cmd, "spGetUnitCurrentCommand(builderID) is ", spGetUnitCurrentCommand(builderID), os.clock())
     if team ~= myTeamID then
         return
     end
@@ -105,7 +104,7 @@ function widget:UnitCmdDone(builderID, defID, team, cmd, params, opts, tag)
 
     if id then
         local bp = select(5,spGetUnitHealth(id))
-        if true or bp < 1 and bp >= 0.85 then
+        if bp < 1 and bp >= 0.85 then
             local queue = spGetCommandQueue(builderID, 3)
             local isInsert
             for i, order in ipairs(queue) do
