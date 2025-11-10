@@ -22,6 +22,7 @@ if not _G then
 end
 local json = VFS.Include("LuaRules/Utilities/json.lua",nil, VFS.ZIP)
 
+----- Localizations
 local Echo = Spring.Echo
 
 local spGetGroundHeight 	= Spring.GetGroundHeight
@@ -31,6 +32,36 @@ local spGetMouseState 		= Spring.GetMouseState
 local spGetModKeyState 		= Spring.GetModKeyState
 local spGetSelectedUnits 	= Spring.GetSelectedUnits
 local spMarkerAddLine 		= Spring.MarkerAddLine
+
+local glPushMatrix			= gl.PushMatrix
+local glTranslate			= gl.Translate
+local glScale				= gl.Scale
+local glCallList			= gl.CallList
+local glPopMatrix			= gl.PopMatrix
+local glDeleteList			= gl.DeleteList
+local glTexture				= gl.Texture
+local glTextureInfo			= gl.TextureInfo
+local glTexRect				= gl.TexRect
+local glDeleteTexture		= gl.DeleteTexture
+
+local huge					= math.huge
+
+local FileExists			= VFS.FileExists
+-----
+
+function widget:Shutdown()
+	for _, obj in ipairs(holder) do
+		if obj.list then
+			glDeleteList(obj.list)
+		end
+	end
+	for _, list in pairs(pendingLists) do
+		glDeleteList(list)
+	end
+	glDeleteList(frame)
+end
+
+
 
 local glVertex = gl.Vertex
 local glReadPixels = gl.ReadPixels
@@ -68,7 +99,7 @@ local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail si
 local drawing
 local currentMarkerLine, markerLines = 0, 0
 local markerTime = 0
-local markerDelay = 0.04
+local markerDelay = 0.04 -- the minimal time period between drawing, else it would e ignored
 local toDraw = {}
 local pendingLists = {}
 
@@ -97,12 +128,14 @@ local Init, UpdateScreenRatio
 local curScrollPosY = false
 local updateTime = 0
 local updateDelay = 3
+local maxPerUpdate = 10
+local current= 1
 local taskTime = 0
 local taskDelay = 1
 local vsx, vsy = Spring.GetViewGeometry()
 
 options_path = 'Hel-K/'..widget:GetInfo().name
-options_order = {'always_up','placing_frame', 'note', 'mode', 'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance'}
+options_order = {'always_up','placing_frame', 'updateDelay', 'maxPerUpdate', 'note', 'mode', 'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance'}
 options = {}
 
 
@@ -136,11 +169,34 @@ options.placing_frame = {
 	end,
 
 }
+options.updateDelay = {
+	name = 'Update Time',
+	desc = 'Live update period',
+	type = 'number',
+	min = 1, max = 10, step = 1,
+	value = updateDelay,
+	OnChange = function(self)
+		updateDelay = self.value
+	end,
+
+}
+
+options.maxPerUpdate = {
+	name = 'Max per Udpate',
+	desc = 'Helpful for potato comp with many images to update',
+	type = 'number',
+	min = 1, max = 60, step = 1,
+	value = maxPerUpdate,
+	OnChange = function(self)
+		maxPerUpdate = self.value
+	end,
+
+}
 
 options.note = {
 	name = 'NOTE:',
 	type = 'text',
-	value = 'Options below are globals.\nEach marker object can be customized separately by Right Click.\n',
+	value = 'Options below are globals.\nEach marker object can be customized separately through Right Click.\n',
 }
 
 options.mode = {
@@ -161,10 +217,10 @@ options.mode = {
 
 options.pix_detect = {
 	name = 'Pixel Detection',
+	desc = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
 	type = 'number',
 	min = 0.01,	max = 0.99,	step = 0.01,
 	value = pix_detect,
-	desc = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
 	OnChange = function(self)
 		pix_detect = self.value
 		initialized = false
@@ -173,10 +229,10 @@ options.pix_detect = {
 
 options.analyse_size = {
 	name = 'Analyse Size',
+	desc = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
 	type = 'number',
 	min = 50, max = 800, step = 10,
 	value = analyse_size,
-	desc = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
 	OnChange = function(self)
 		analyse_size = self.value
 		initialized = false
@@ -185,10 +241,10 @@ options.analyse_size = {
 
 options.onscreen_size = {
 	name = 'Onscreen Size',
+	desc = 'Final size on screen',
 	type = 'number',
 	min = 50, max = 600, step = 10,
 	value = onscreen_size,
-	desc = 'Final size on screen',
 	OnChange = function(self)
 		showFrame = false
 		if self.value ~= onscreen_size then
@@ -201,9 +257,12 @@ options.onscreen_size = {
 		end
 	end,
 
-	tooltipFunction = function(self)
+	tooltipFunction = function(self, ...)
 		if initialized then
-			showFrame = self.value
+			local control = WG.Chili and WG.Chili.Screen0.hoveredControl
+			if control and control.name == self.name then
+				showFrame = self.value
+			end
 		end
 		return self.value
 	end,
@@ -211,23 +270,22 @@ options.onscreen_size = {
 
 options.angle_tolerance = {
 	name = 'Simplify Angle Tolerance',
+	desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
 	type = 'number',
 	min = 0.000, max = 0.1, step = 0.005,
 	value = angle_tolerance,
-	desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
 	OnChange = function(self)
 		angle_tolerance = self.value
 		initialized = false
 	end,
 }
 
-
 local function ReturnSelf(self)
 	return self
 end
 
 local SortByLength = function(a, b)
-	return #a > #b
+	return a[#b + 1] -- probably faster than #a > #b
 end
 --- making Rotator clockwise usage: rotateClock[x][z] = rotatedCoords
 local function SpiralSquare(layers, step, callback, offset, reverse, ortho)
@@ -286,17 +344,6 @@ local rotateClock = setmetatable(
 		end
 	}
 )
-local clockCoords, r = {}, 0
-local add = function(_, x, z)
-	r = r + 1
-	clockCoords[r] = {z,x}
-end
-SpiralSquare(1, 1, add)
-for i, r in ipairs(clockCoords) do
-	rotateClock[ r[1] ][ r[2] ] = clockCoords[i + 1] or clockCoords[1]
-end
-setmetatable(rotateClock, nil)
-
 local rotateAntiClock = setmetatable(
 	{},
 	{
@@ -307,25 +354,38 @@ local rotateAntiClock = setmetatable(
 		end
 	}
 )
-local antiClockCoords, r = {}, 0
-local add = function(_, x, z)
-	r = r + 1
-	antiClockCoords[r] = {z,x}
-end
-SpiralSquare(1, 1, add, nil, true)
-for i, r in ipairs(antiClockCoords) do
-	rotateAntiClock[ r[1] ][ r[2] ] = antiClockCoords[i + 1] or antiClockCoords[1]
-end
--- setmetatable(rotateAntiClock, nil)
---[[ verif
-local function verif(_, x, z)
-	local coords = rotateClock[z][x]
-	Echo(x, z .. ' =>> ' .. coords[2], coords[1])
-end
-SpiralSquare(1, 1, verif)
---]]
+do
+	local clockCoords, r = {}, 0
+	local add = function(_, x, z)
+		r = r + 1
+		clockCoords[r] = {z,x}
+	end
+	SpiralSquare(1, 1, add)
+	for i, r in ipairs(clockCoords) do
+		rotateClock[ r[1] ][ r[2] ] = clockCoords[i + 1] or clockCoords[1]
+	end
+	setmetatable(rotateClock, nil)
 
--- local deg = math.deg(math.atan2(x,z))
+	local antiClockCoords, r = {}, 0
+	local add = function(_, x, z)
+		r = r + 1
+		antiClockCoords[r] = {z,x}
+	end
+	SpiralSquare(1, 1, add, nil, true)
+	for i, r in ipairs(antiClockCoords) do
+		rotateAntiClock[ r[1] ][ r[2] ] = antiClockCoords[i + 1] or antiClockCoords[1]
+	end
+	setmetatable(rotateAntiClock, nil)
+	--[[ verif
+	local function verif(_, x, z)
+		local coords = rotateClock[z][x]
+		Echo(x, z .. ' =>> ' .. coords[2], coords[1])
+	end
+	SpiralSquare(1, 1, verif)
+	--]]
+
+	-- local deg = math.deg(math.atan2(x,z))
+end
 
 
 
@@ -974,25 +1034,25 @@ local function MakeCustomizationPanel()
 					else
 						ratio = image_size / (obj.midy*2)
 					end
-					gl.PushMatrix()
+					glPushMatrix()
 					gl.Color(1,1,1,0.5)
-					-- gl.Translate(x, y*ratio, 0)
-					-- gl.Scale(width / obj.midx, -height / obj.midy, 1)
-					gl.Translate(colx , 0, 0)
-					gl.Scale(ratio, -ratio, 1)
-					gl.Translate(obj.midx , -y, 0)
+					-- glTranslate(x, y*ratio, 0)
+					-- glScale(width / obj.midx, -height / obj.midy, 1)
+					glTranslate(colx , 0, 0)
+					glScale(ratio, -ratio, 1)
+					glTranslate(obj.midx , -y, 0)
 
-					gl.CallList(obj.list)
-					gl.PopMatrix()
+					glCallList(obj.list)
+					glPopMatrix()
 				end
 				-- local ratio = self.width / ((obj.midx+1) * 2)
-				-- gl.PushMatrix()
+				-- glPushMatrix()
 				-- gl.Color(1,1,1,0.5)
-				-- gl.Scale(ratio * reduce, ratio * reduce, 1)
-				-- gl.Translate((obj.midx+1) / reduce, (obj.midy+1), 0)
-				-- gl.Scale(1,-1,1)
-				-- gl.CallList(obj.list)
-				-- gl.PopMatrix()
+				-- glScale(ratio * reduce, ratio * reduce, 1)
+				-- glTranslate((obj.midx+1) / reduce, (obj.midy+1), 0)
+				-- glScale(1,-1,1)
+				-- glCallList(obj.list)
+				-- glPopMatrix()
 			end,
 
 	    }
@@ -1230,7 +1290,7 @@ end
 function MarkerMaker:AcquireContours(raster)
 	local mode = self.useDefault and mode or self.mode
 	local pix_detect = self.useDefault and pix_detect or self.pix_detect
-	local left, top, right, bottom = math.huge, -math.huge, -math.huge, math.huge
+	local left, top, right, bottom = huge, -huge, -huge, huge
 	local contours, c = {}, 0
 	local inShape = false
 	local spaghetti_mode = mode == "spaghetti"
@@ -1286,12 +1346,12 @@ function MarkerMaker:GetRaster()
 			end
 		}
 	)
-	gl.Texture(0, file)
-	local info = gl.TextureInfo(file)
+	glTexture(0, file)
+	local info = glTextureInfo(file)
 	if not info or info.xsize == -1 then
 		Echo("CAN'T LOAD FILE " .. file)
-		gl.Texture(0, false)
-		gl.DeleteTexture(file)
+		glTexture(0, false)
+		glDeleteTexture(file)
 		return
 	end
 	-- f.Page(info)
@@ -1306,7 +1366,7 @@ function MarkerMaker:GetRaster()
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
 
-	gl.TexRect(0, 0, sizeX, sizeY)
+	glTexRect(0, 0, sizeX, sizeY)
 	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
 	-- so we ask line by line...
 
@@ -1315,8 +1375,8 @@ function MarkerMaker:GetRaster()
 		t[y+1] = gl.ReadPixels(0, y, sizeX, 1)
 	end
 
-	gl.Texture(0, false)
-	gl.DeleteTexture(file)
+	glTexture(0, false)
+	glDeleteTexture(file)
 	return t
 end
 
@@ -1531,8 +1591,8 @@ function MarkerMaker:ContourToLineObj(contours)
 	local analyse_size = self.useDefault and analyse_size or self.analyse_size
 	table.sort(contours, SortByLength)
 	local lines, l = {}, 0
-	local bottom, top = math.huge, -math.huge
-	local left, right = math.huge, -math.huge
+	local bottom, top = huge, -huge
+	local left, right = huge, -huge
 	for i, contour in ipairs(contours) do
 		for i, coord in ipairs(contour) do 
 			local x, y = coord[1], coord[2]
@@ -1587,12 +1647,12 @@ end
 ------ simple and complete process to create lines for plain mode
 function MarkerMaker:ImageToLineObj()
 	local file = self.file
-	gl.Texture(0, file)
-	local info = gl.TextureInfo(file)
+	glTexture(0, file)
+	local info = glTextureInfo(file)
 	if not info or info.xsize == -1 then
 		Echo("CAN'T LOAD FILE " .. file)
-		gl.Texture(0, false)
-		gl.DeleteTexture(file)
+		glTexture(0, false)
+		glDeleteTexture(file)
 		return
 	end
 	local analyse_size, onscreen_size, pix_detect = analyse_size, onscreen_size, pix_detect
@@ -1612,12 +1672,12 @@ function MarkerMaker:ImageToLineObj()
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
 
-	gl.TexRect(0, 0, sizeX, sizeY)
+	glTexRect(0, 0, sizeX, sizeY)
 	local temp_screen_ratio = onscreen_size / analyse_size -- FIXME the real screen_ratio will be defined by getting the top, left, right, bottom later :(
 	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
 	-- so we ask line by line...
 	local lines, l = {}, 0
-	local left, right = math.huge, -math.huge
+	local left, right = huge, -huge
 	local modf = math.modf
 	local skip = modf(1/temp_screen_ratio) -- reduce the number of line
 	if skip == 1 then
@@ -1667,8 +1727,8 @@ function MarkerMaker:ImageToLineObj()
 			end
 		end
 	end
-	gl.Texture(0, false)
-	gl.DeleteTexture(file)
+	glTexture(0, false)
+	glDeleteTexture(file)
 	if l == 0 then
 		Echo('!No lines created from', file)
 		self.midx = 25 self.midy = 25
@@ -1782,13 +1842,13 @@ function MarkerMaker:AddControl(index)
 					-- Echo('self.width', self.width, obj.midx * 2, obj.midx * 2 / self.width)
 					-- Echo("self.clientArea[4] is ", unpack(self.clientArea))
 					local ratio = self.width / ((obj.midx+1) * 2)
-					gl.PushMatrix()
+					glPushMatrix()
 					gl.Color(1,1,1,0.5)
-					gl.Scale(ratio * reduce, ratio * reduce, 1)
-					gl.Translate((obj.midx+1) / reduce, (obj.midy+1), 0)
-					gl.Scale(1,-1,1)
-					gl.CallList(obj.list)
-					gl.PopMatrix()
+					glScale(ratio * reduce, ratio * reduce, 1)
+					glTranslate((obj.midx+1) / reduce, (obj.midy+1), 0)
+					glScale(1,-1,1)
+					glCallList(obj.list)
+					glPopMatrix()
 				end,
 			}
 		}
@@ -1918,8 +1978,6 @@ function MarkerMaker:SetupCoords(l, screen_ratio)
 
 	for i, line in ipairs(lines) do
 		local x1, y1, x2, y2 = line[1] * (dirx or 1), line[2] * (diry or 1), line[3] * (dirx or 1), line[4] * (diry or 1)
-		-- local x1, y1, x2, y2 = line[1] + mx, line[2] + my, line[3] + mx, line[4] + my
-		-- onlyCoords, useMinimap, includeSky, ignoreWater
 		local _, c1 = spTraceScreenRay(x1 * screen_ratio + mx, y1 * screen_ratio + my, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
 		local _, c2 = spTraceScreenRay(x2 * screen_ratio + mx, y2 * screen_ratio + my, true, false, false, false)
 		if c1 and c2 then
@@ -2062,15 +2120,20 @@ function MarkerMaker:UpdateFile(file, alphaIndex)
 	return toAdd
 end
 
-
 function MarkerMaker:UpdateFiles()
-	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}')
+	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}', VFS.RAW)
 	local count = 0
+	if not files[current] then
+		current = 1
+	end
 	for i, file in ipairs(files) do
 		count = count + 1
 		files[file] = true
-		self:UpdateFile(file, i)
+		if count >= current and count <= current + maxPerUpdate - 1 then
+			self:UpdateFile(file, i)
+		end
 	end
+	current = current + maxPerUpdate
 	if holder[count + 1] then -- some file got deleted
 		for file, obj in pairs(holder) do
 			if type(file) ~= 'number' then
@@ -2130,7 +2193,7 @@ function MarkerMaker:Remove(fastUpdate)
 	scroll:UpdateLayout()
 	updateCategories = 0
 	if self.list then
-		gl.DeleteList(self.list)
+		glDeleteList(self.list)
 	end
 end
 
@@ -2225,7 +2288,7 @@ function widget:Update(dt)
 			markerTime = 0
 			currentMarkerLine = currentMarkerLine + 1
 			if pendingLists[currentMarkerLine] then
-				gl.DeleteList(pendingLists[currentMarkerLine])
+				glDeleteList(pendingLists[currentMarkerLine])
 				pendingLists[currentMarkerLine] = nil
 			end
 			local line = toDraw[currentMarkerLine]
@@ -2278,7 +2341,7 @@ local frame = gl.CreateList(
 )
 function widget:DrawWorld()
 	for _, list in pairs(pendingLists) do
-		gl.CallList(list)
+		glCallList(list)
 	end
 end
 function widget:DrawScreen()
@@ -2298,13 +2361,11 @@ function widget:DrawScreen()
 			if tasks[file] ~= t then
 				t = table.remove(tasks, 1)
 			else
-				if tasks[file] == t then
-					if VFS.FileExists(file) then
-						-- Echo('tasking', file, 'index:', index, 'cp', customParams)
-						MarkerMaker:New(file, index, customParams)
-					end
-					tasks[file] = nil
+				if FileExists(file, VFS.RAW) then
+					-- Echo('tasking', file, 'index:', index, 'cp', customParams)
+					MarkerMaker:New(file, index, customParams)
 				end
+				tasks[file] = nil
 				break
 			end
 		end
@@ -2313,49 +2374,49 @@ function widget:DrawScreen()
 
 	if selected then
 		local mx, my  = spGetMouseState()
-		gl.PushMatrix()
+		glPushMatrix()
 		if selected.pressed then
-			gl.Translate(selected.mx, selected.my, 0)
+			glTranslate(selected.mx, selected.my, 0)
 		else
-			gl.Translate(mx, my, 0)
+			glTranslate(mx, my, 0)
 		end
-		gl.Scale(selected.onMapDirX * selected.screen_ratio, selected.onMapDirY * selected.screen_ratio, 1)
-		gl.CallList(selected.list)
+		glScale(selected.onMapDirX * selected.screen_ratio, selected.onMapDirY * selected.screen_ratio, 1)
+		glCallList(selected.list)
 		if placing_frame then
-			gl.Scale(selected.midx, selected.midy, 1)
-			gl.CallList(frame)
+			glScale(selected.midx, selected.midy, 1)
+			glCallList(frame)
 		end
-		gl.PopMatrix()
+		glPopMatrix()
 	end
 	if customize and showMultFrame then
-		gl.PushMatrix()
-		gl.Translate(vsx/2, vsy/2, 0)
-		gl.Scale(showMultFrame * customize.midx * customize.screen_ratio, showMultFrame * customize.midy * customize.screen_ratio, 1)
-		gl.CallList(frame)
-		gl.PopMatrix()
+		glPushMatrix()
+		glTranslate(vsx/2, vsy/2, 0)
+		glScale(showMultFrame * customize.midx * customize.screen_ratio, showMultFrame * customize.midy * customize.screen_ratio, 1)
+		glCallList(frame)
+		glPopMatrix()
 	end
 	if showFrame then
-		gl.PushMatrix()
-		gl.Translate(vsx/2, vsy/2, 0)
+		glPushMatrix()
+		glTranslate(vsx/2, vsy/2, 0)
 		local side = hyp_to_side(showFrame)
-		gl.Scale(side/2, side/2, 1)
-		gl.CallList(frame)
-		gl.PopMatrix()
+		glScale(side/2, side/2, 1)
+		glCallList(frame)
+		glPopMatrix()
 	end
-	-- gl.Texture(0, imageFile)
-	-- local info = gl.TextureInfo(imageFile)
-	-- gl.TexRect(0, 0, info.xsize, info.ysize)
-	-- gl.Texture(0, false)
+	-- glTexture(0, imageFile)
+	-- local info = glTextureInfo(imageFile)
+	-- glTexRect(0, 0, info.xsize, info.ysize)
+	-- glTexture(0, false)
 
 
 	-- if holder[1] then
 	-- 	local lines = holder[1]
-	-- 	gl.PushMatrix()
-	-- 	-- gl.Translate(vsx - lines.midx-1, lines.midy, 0)
-	-- 	gl.Translate(500, 500, 0)
+	-- 	glPushMatrix()
+	-- 	-- glTranslate(vsx - lines.midx-1, lines.midy, 0)
+	-- 	glTranslate(500, 500, 0)
 	-- 	gl.LineStipple(false)
-	-- 	gl.CallList(lines.list)
-	-- 	gl.PopMatrix()
+	-- 	glCallList(lines.list)
+	-- 	glPopMatrix()
 	-- end
 	
 end
@@ -2363,13 +2424,13 @@ end
 function widget:Shutdown()
 	for _, obj in ipairs(holder) do
 		if obj.list then
-			gl.DeleteList(obj.list)
+			glDeleteList(obj.list)
 		end
 	end
 	for _, list in pairs(pendingLists) do
-		gl.DeleteList(list)
+		glDeleteList(list)
 	end
-	gl.DeleteList(frame)
+	glDeleteList(frame)
 end
 if f then
 	f.DebugWidget(widget)
