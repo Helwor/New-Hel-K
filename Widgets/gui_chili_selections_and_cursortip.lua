@@ -1557,7 +1557,6 @@ local function GetUnitGroupIconButton(parentControl)
 			elseif reloadBar then
 				reloadBar:SetVisibility(false)
 			end
-			local jumpReloadTime = GetJumpReload(unitID, unitDefID)
 			local jumpCharges = GetJumpCharges(unitID, unitDefID)
 			if jumpCharges then
 				jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, jumpCharges, true)
