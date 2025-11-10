@@ -195,6 +195,7 @@ local function newbox(name,height,caption, shutdown)
 		caption = caption or name,
 		OnDispose = {
 			function(self)
+
 			end
 		},
 		itemPadding = {0,0,0,0},
@@ -244,6 +245,9 @@ local function newbox(name,height,caption, shutdown)
 		caption = "X",
 		OnClick = {
 			function(self)
+				if hooked then
+					StopHook()
+				end
 				RemoveWindows()
 				-- widgetHandler:ToggleWidget(widget:GetInfo().name)
 			end
@@ -302,7 +306,21 @@ local function newbox(name,height,caption, shutdown)
 			max = option.max or 100,
 			step = option.step or 1,
 			useValueTooltip = not option.tooltipFunction,
-			tooltipFunction = option.tooltipFunction,
+			tooltipFunction = function(self, ...) -- TODO: imperfect work around because we add something to the tooltip, if we add tooltipFunction while there is none in the original option the default behaviour of gui_epicmenu for formatting will not be respected
+				local ret = option.name .. ': '
+				if option.tooltipFunction then
+					ret = ret .. option.tooltipFunction(option, ...)
+				elseif option.tooltip_format then
+					ret = ret .. (option.tooltip_format):format(self.value)
+				else
+					local sdec, dec = tostring(option.step):find('%.[0]*%d')
+					if dec then
+						dec = dec - sdec
+					end
+					ret = ret .. (dec and '%.'..dec..'f' or '%s'):format(self.value)
+				end
+				return  ret
+			end,
 			tooltip_format = option.tooltip_format,
 			-- OnDispose = {
 			-- 	function(self)
@@ -795,21 +813,25 @@ local function UpdateStats()
 			userList[#userList+1] = item
 			userTime = userTime + item.tLoad
 			if WATCHDOG_MODE then
-				if item.tTime > watchdog_threshold then
-					if not wname:find('Chili Framework') or item.tTime > watchdog_threshold_framework then
-						local obj = WATCHDOG[wname]
-						if not obj then
-							WATCHDOG_IDX = WATCHDOG_IDX + 1
-							WATCHDOG[wname] = {
-								txt = item.fullname .. '- time: ' .. item.tTime,
-								time = now,
-								index = WATCHDOG_IDX,
-							}
-							Echo('Warn widget time: ' .. item.fullname .. '- time: ' .. item.tTime)
-						else
-							obj.time = now
-							obj.txt = item.fullname .. '- time: ' .. ('%.3f'):format(item.tTime)
-						end
+				local trigger = false
+				if wname:find('Chili Framework') then
+					trigger = item.tTime > watchdog_threshold_framework
+				else
+					trigger = item.tTime > watchdog_threshold
+				end
+				if trigger then
+					local obj = WATCHDOG[wname]
+					if not obj then
+						WATCHDOG_IDX = WATCHDOG_IDX + 1
+						WATCHDOG[wname] = {
+							txt = item.fullname .. '- time: ' .. item.tTime,
+							time = now,
+							index = WATCHDOG_IDX,
+						}
+						Echo('Warn widget time: ' .. item.fullname .. '- time: ' .. item.tTime)
+					else
+						obj.time = now
+						obj.txt = item.fullname .. '- time: ' .. ('%.3f'):format(item.tTime)
 					end
 				end
 			end
@@ -898,37 +920,49 @@ local img = {
 	disabled2 = 'LuaUI/Images/epicmenu/quit.png',
 	watch = 'LuaUI/Images/dynamic_comm_menu/eye.png',
 	watch2 = 'sidepics/teamspec.png',
+	options = 'LuaUI/Images/commands/repair.png',
 }
-buttonImage = {
-	img.enabled,
-	img.watch,
-	img.disabled
-}
-buttonTooltip = {
-	'Show Most consuming widgets in windows',
-	'Alert spend too much time',
-	'Disable',
-}
-buttonClick = {
-	function() 
-		options.watchDog.value = false; options.watchDog:OnChange()
-		if not options.enable.value then
-			options.enable.value = true; options.enable:OnChange()
-		end
-		panel:Hide()
-	end,
-	function() 
-		options.watchDog.value = true; options.watchDog:OnChange()
-		if not options.enable.value then
-			options.enable.value = true; options.enable:OnChange()
-		end
-		panel:Hide()
-	end,
-	function()
-		options.enable.value = false; options.enable:OnChange()
-		panel:Hide()
-	end,
-	
+buttons = {
+	{
+		image = img.enabled,
+		tooltip = 'Show most consuming widgets in windows',
+		func = 	function() 
+			options.watchDog.value = false; options.watchDog:OnChange()
+			if not options.enable.value then
+				options.enable.value = true; options.enable:OnChange()
+			end
+			panel:Hide()
+		end,
+	},
+	{
+		image = img.watch,
+		tooltip = 'Alert on screen when a widget spend too much time',
+		func = function() 
+			options.watchDog.value = true; options.watchDog:OnChange()
+			if not options.enable.value then
+				options.enable.value = true; options.enable:OnChange()
+			end
+			panel:Hide()
+		end,
+	},
+	{
+		image = img.disabled,
+		tooltip = 'Disable',
+		func = function()
+			options.enable.value = false; options.enable:OnChange()
+			panel:Hide()
+		end,
+	},
+	{
+		image = img.options,
+		tooltip = 'Display Options',
+		func = function()
+			if WG.crude and WG.crude.OpenPath then
+				WG.crude.OpenPath(options_path)
+			end
+			panel:Hide()
+		end,
+	},
 }
 function widget:Shutdown()
 	StopHook()
@@ -971,25 +1005,25 @@ function widget:Initialize()
 				parent = WG.Chili.Screen0,
 				x = bx - 7,
 				y = by + 30,
-				height = buttonSize*3 + 10,
+				height = buttonSize * #buttons + 10,
 				width = 40,
 				padding = {5,0,0,0},
 			})
-			for i = 1, 3 do
+			for i, button in ipairs(buttons) do
 				panel:AddChild(
 					WG.Chili.Button:New({
 						width = buttonSize,
 						height = buttonSize,
 						-- x = 5,
 						y = 5 + (i-1) * buttonSize,
-						tooltip = buttonTooltip[i],
+						tooltip = button.tooltip,
 						classname = "button_tiny",
 						noFont = true,
 						margin = {0,0,0,0},
 						padding = {2,2,2,2},
 						children = {
 							WG.Chili.Image:New({
-								file = buttonImage[i],
+								file = button.image,
 								x = 0,
 								y = 0,
 								right = 0,
@@ -998,7 +1032,7 @@ function widget:Initialize()
 						},
 						
 						OnClick = {
-							buttonClick[i]
+							button.func
 						},
 
 					})
