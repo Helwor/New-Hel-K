@@ -1,13 +1,14 @@
+-- NOTE: pad eclusion cmd is done via an aircraft unit which is not ideal, ideally, pad exclusion (since it is global for every aircraft) should be dealt through a command that doesnt need any aircraft existing
 function widget:GetInfo()
 	return {
 		name      = "Auto Exclude Ally Pads",
-		desc      = "From hmp idea",
+		desc      = "Self explanatory",
 		author    = "Helwor",
 		date      = "August 2024",
 		license   = "GNU GPL, v2 or later",
 		-- layer     = 2, -- after Unit Start State
 		layer     = 0,
-		enabled   = true,  --  loaded by default?
+		enabled   = false,  --  loaded by default?
 		-- api       = true,
 		handler   = true,
 	}
@@ -18,7 +19,9 @@ local isSpec  = false
 
 local function Sleep(bool)
     if widgetHandler.Sleep then
-        return widgetHandler[bool and 'Sleep' or 'Wake'](widgetHandler,widget, {PlayerChanged = true})
+    	if widget.isSleeping ~= bool then
+        	return widgetHandler[bool and 'Sleep' or 'Wake'](widgetHandler,widget, {PlayerChanged = true})
+        end
     else
         for k,v in pairs(widget) do
             if type(k)=='string' and type(v)=='function' then
@@ -31,138 +34,95 @@ local function Sleep(bool)
 end
 
 
-options_path = 'Hel-K/' .. widget.GetInfo().name
-options = {}
 
+local CMD_EXCLUDE_PAD = VFS.Include("LuaRules/Configs/customcmds.lua").EXCLUDE_PAD
 
-local initialized = false
-options.active = {
-	name = 'active',
-	type = 'bool',
-	desc = 'guess...',
-	value = EXCLUDE,
-	OnChange = function(self)
-		if initialized then
-			Sleep(not self.value or isSpec)
-			if self.value then
-				Echo('send player changed from OnChange()')
-				widget:PlayerChanged(myPlayerID)
-			end
-		end
-	end,
-}
+-- speed up
+local tobool = Spring.Utilities.tobool
+local spGetUnitRulesParam = Spring.GetUnitRulesParam
+local spGetUnitHealth = Spring.GetUnitHealth
+local spGiveOrderToUnit = Spring.GiveOrderToUnit
+local spGetTeamUnitsByDefs = Spring.GetTeamUnitsByDefs
+local spGetUnitTeam = Spring.GetUnitTeam
+local spValidUnitID = Spring.ValidUnitID
+--
 
-local CMD_EXCLUDE_PAD
-do
-	local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
-	CMD_EXCLUDE_PAD = customCmds.EXCLUDE_PAD
-end
-
-
-local EXCLUDE = false -- default
 local myPlayerID
 local myTeam
 local myAllyeamID
+local myAircraftID
 
-local tobool = Spring.Utilities.tobool
-local spGetUnitRulesParam = Spring.GetUnitRulesParam
-local GiveOrderTo = Spring.GiveOrderToUnit
-local spGetTeamUnitsByDefs = Spring.GetTeamUnitsByDefs
 local excludeString
 
-local pad = {
-	[UnitDefNames["factoryplane"].id] = true,
-	[UnitDefNames["staticrearm"].id] = true,
-	[UnitDefNames["shipcarrier"].id] = true,
-}
+local pad = {}
 local padIndex = {}
-for defID in pairs(pad) do
-	table.insert(padIndex, defID)
-end
 local landable = {}
 local landableIndex = {}
-for i = 1, #UnitDefs do
-	local unitDef = UnitDefs[i]
-	local movetype = Spring.Utilities.getMovetype(unitDef)
-	if (movetype == 1 or movetype == 0) and (not tobool(unitDef.customParams.cantuseairpads)) then
-		landable[i] = true
-		table.insert(landableIndex, i)
+do
+	local spugetMovetype = Spring.Utilities.getMovetype
+	for defID, def in pairs(UnitDefs) do
+		if def.customParams.pad_count then
+			pad[defID] = true
+			table.insert(padIndex, defID)
+		end
+		if not tobool(def.customParams.cantuseairpads) then
+			local movetype = spugetMovetype(def)
+			if (movetype == 1 or movetype == 0) then
+				landable[defID] = true
+				table.insert(landableIndex, defID)
+			end
+		end
 	end
 end
-local alliance = setmetatable({}, {__index = function(self,k) local t = {} rawset(self, k, t) return t end})
-local allyTeam = {}
-for i,teamID in pairs(Spring.GetTeamList()) do
-	local allyTeamID = Spring.GetTeamAllyTeamID(teamID)
-	table.insert(alliance[allyTeamID], teamID)
-	allyTeam[teamID] = allyTeamID
 
+local alliance
+local allyTeam
+function UpdateAllyTeams()
+	alliance = setmetatable({}, {__index = function(self,k) local t = {} rawset(self, k, t) return t end})
+	allyTeam = {}
+	for i,teamID in pairs(Spring.GetTeamList()) do
+		local allyTeamID = Spring.GetTeamAllyTeamID(teamID)
+		table.insert(alliance[allyTeamID], teamID)
+		allyTeam[teamID] = allyTeamID
+	end
 end
--- for allyTeam, teams in pairs(alliance) do
--- 	for _, teamID in ipairs(teams) do
--- 		Echo('in ally team', allyTeam, 'there is teamID', teamID)
--- 	end
--- end
+
+
+local function KeyUnpack(t, k)
+	k = next(t, k)
+	return (k and k..', '..KeyUnpack(t, k) or '')
+end
 
 local function IsExcluded(padID)
 	return tobool(spGetUnitRulesParam(padID, excludeString))
 end
-local function GetmyPad()
-	return spGetTeamUnitsByDefs(myTeam, padIndex)[1]
-end
-local GetMyAircraft, GetMyPad
-do
-	local lastOne
-	local lastTime = os.clock()
-	local spGetUnitTeam = Spring.GetUnitTeam
-	local lastTeam
-	function GetMyAircraft()
-		local now = os.clock()
-		if lastOne and now - lastTime < 0.5 and lastTeam == myTeam then
-			return lastOne
-		else
-			lastOne = spGetTeamUnitsByDefs(myTeam, landableIndex)[1]
-			if lastOne then
-				lastTime = now
-				lastTeam = myTeam
-			end
-			return lastOne
-		end
-	end
-	local lastOne
-	local lastTime = os.clock()
-	local lastTeam
-	function GetMyPad()
-		local now = os.clock()
-		if lastOne and now - lastTime < 0.5 and lastTeam == myTeam then
-			return lastOne
-		else
-			lastOne = spGetTeamUnitsByDefs(myTeam, padIndex)[1]
-			if lastOne then
-				lastTime = now
-				lastTeam = myTeam
-			end
-			return lastOne
-		end
-	end
+
+local function IsFinished(unitID)
+	return select(5, spGetUnitHealth(unitID)) >= 1
 end
 
+local myPads = {}
+local allyPads = {}
+local pending = {}
+local myAirCrafts = {}
+local myAircraftID = false
+local updateMyAircraft = false
 
-
-local toSwitch = {}
-local gotToSwitch = false
-
-local function Init() -- need to wait the first update round to have the saved option value
-	initialized = true
-	widgetHandler:RemoveWidgetCallIn('Update', widget)
-	widget.Update = nil
-	if not options.active.value then
-		Sleep(true)
+local function UpdatePad(padID, bool, teamID, from)
+	if myAircraftID then
+		if DEBUG then
+			Echo((from or '')..(IsExcluded(padID) and 'Une' or 'E')..'xcluding '..((teamID and teamID or spGetUnitTeam(padID)) == myTeam and 'Own' or 'Ally')..' Pad '..padID..'.')
+		end
+		spGiveOrderToUnit(myAircraftID, CMD_EXCLUDE_PAD, padID, 0)
+		pending[padID] = nil
 	else
-		-- Echo('send player changed from Init()')
-		widget:PlayerChanged(myPlayerID)
+		pending[padID] = bool
+		if DEBUG then
+			Echo((from or '')..'Put '..((teamID and teamID or spGetUnitTeam(padID)) == myTeam and 'Own' or 'Ally')..' Pad '..padID..' in pending list for '..(bool and 'E' or 'Une')..'xclusion.')
+		end
 	end
 end
-widget.Update = Init
+
 
 function widget:PlayerChanged(playerID) -- updating
 	if playerID ~= myPlayerID then
@@ -171,9 +131,7 @@ function widget:PlayerChanged(playerID) -- updating
 	local isNewSpec = Spring.GetSpectatingState()
 	if isSpec ~= isNewSpec then
 		isSpec = isNewSpec
-		if initialized and options.active.value then
-			Sleep(isSpec)
-		end
+		Sleep(isSpec)
 		if isSpec then
 			myTeam = false
 			return
@@ -181,120 +139,159 @@ function widget:PlayerChanged(playerID) -- updating
 	end
 
 	local newTeamID = Spring.GetMyTeamID()
-	if newTeamID ~= myTeam then
+	local newAllyTeam = Spring.GetMyAllyTeamID()
+	if newTeamID ~= myTeam or newAllyTeam ~= myAllyTeam then
 		myTeam = newTeamID
+		if newAllyTeam ~= myAllyTeam then
+			UpdateAllyTeams()
+			myAllyTeam = Spring.GetMyAllyTeamID()
+		end
 		excludeString = "padExcluded" .. myTeam
-		myAllyTeam = Spring.GetMyAllyTeamID()
-		gotToSwitch = false
-		toSwitch = {}
-		local myAircraftID = GetMyAircraft()
+		allyPads = {}
+		myPads = {}
+		myAircrafts = {}
+		for _, aircraftID in ipairs(spGetTeamUnitsByDefs(myTeam, landableIndex)) do
+			myAircrafts[aircraftID] = true
+		end
+		myAircraftID = next(myAircrafts)
 		for _, teamID in ipairs(alliance[myAllyTeam]) do
-			local shouldBeExcluded = teamID ~= myTeam
+			local isAllied = teamID ~= myTeam
 			for _, padID in ipairs(spGetTeamUnitsByDefs(teamID, padIndex)) do
-				-- Echo('team',teamID,"padID, IsExcluded(padID) is ", padID, IsExcluded(padID),'should be', shouldBeExcluded)
-				if IsExcluded(padID) ~= shouldBeExcluded  then
-					if myAircraftID then
-						GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, padID, 0)
-						if DEBUG then
-							Echo('Player changed, Excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
-						end
-					else
-						toSwitch[padID] = true
-						gotToSwitch = true
-						if DEBUG then
-							Echo('Player Changed, Wanting to excluding Pad '..padID..' of team '..teamID..' for my team '..myTeam..':'..tostring(shouldBeExcluded)..'.')
-						end
-					end
+				if isAllied then
+					allyPads[padID] = teamID
+				else
+					myPads[padID] = teamID
 				end
 			end
 		end
-	end
-end
+		for padID in pairs(myPads) do
+			if IsExcluded(padID) then
+				UpdatePad(padID, myTeam, false, 'PlayerChanged: ')
+			end
 
--- function widget:UnitDestroyed(unitID) -- table access every dead unit just for a few pad is not really worth it
---     toSwitch[unitID] = nil
--- end
-
-
-function widget:UnitGiven(unitID, defID, toTeam, fromTeam)
-	if fromTeam == myTeam then
-		-- it has already been dealt in UnitTaken
-		return
-	end
-	-- Echo(unitID, 'Given fromTeam', fromTeam, 'toTeam', toTeam, pad[defID] and ('current exclude :'..tostring(IsExcluded(unitID)) or 'not a pad'))
-	if pad[defID] then
-		toSwitch[unitID] = nil
-		if IsExcluded(unitID) then
-			local myAircraftID = GetMyAircraft()
-			if myAircraftID then
-				GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, unitID, 0)
+		end
+		for padID, teamID in pairs(allyPads) do
+			local isExcluded = IsExcluded(padID)
+			if next(myPads) then
+				if not isExcluded then
+					UpdatePad(padID, teamID, true, 'PlayerChanged: ')
+				end
 			else
-				toSwitch[unitID] = true
-				gotToSwitch = true
+				if isExcluded then
+					UpdatePad(padID, teamID, false, 'PlayerChanged: ')
+				end
 			end
-			if DEBUG then
-				Echo('Unexcluding my new Pad '..unitID..' from team '..fromTeam..' for my team '..myTeam..'.')
-			end
-		end
-	elseif landable[defID] then
-		if gotToSwitch then
-			widget:UnitCreated(unitID, defID, toTeam)
-		end
-	end
-end
-
-function widget:UnitTaken(unitID, defID, fromTeam, toTeam)
-	-- Echo(unitID, 'Taken fromTeam', fromTeam, 'toTeam', toTeam, 'isAllied', myAllyTeam == allyTeam[toTeam], pad[defID] and ('current exclude: '..tostring(IsExcluded(unitID)) or 'not a pad'))
-	if pad[defID] then
-		if myAllyTeam == allyTeam[toTeam] then
-			widget:UnitCreated(unitID, defID, toTeam)
 		end
 	end
 end
 
 function widget:UnitCreated(unitID, defID, teamID)
-	-- Echo('Created', unitID, pad[defID] and 'pad' or 'not a pad', teamID == myTeam and 'mine' or 'not mine')
-
-	if teamID == myTeam then
-		if gotToSwitch and landable[defID] then
-			local myPadID = GetMyPad()
-			for padID in pairs(toSwitch) do
-				toSwitch[padID] = nil
-				if myPadID then
-					if DEBUG then
-						Echo('Got a new Aircraft, switching exclusion of Pad '..padID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
-					end
-					GiveOrderTo(unitID, CMD_EXCLUDE_PAD, padID, 0)
-				else
-					if DEBUG then 
-						Echo('Got a new Aircraft, but not switching Pad '..padID..' because not having own pad.(current: '..tostring(IsExcluded(unitID))..')')
-					end
+	if landable[defID] then
+		myAircrafts[unitID] = true
+		if not myAircraftID or updateMyAircraftID then
+			myAircraftID = unitID
+			updateMyAircraftID = false
+			for padID, bool in pairs(pending) do
+				if IsExcluded(padID) ~= bool then
+					UpdatePad(padID, bool, nil, 'UnitCreated: ')
 				end
 			end
-			gotToSwitch = false
 		end
-	else
-		if pad[defID] and not GetMyPad() then
-			local myAircraftID =  GetMyAircraft()
-			if myAircraftID then
-				if DEBUG then
-					Echo('Excluding a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
-				end
-				GiveOrderTo(myAircraftID, CMD_EXCLUDE_PAD, unitID, 0)
-			else
-				if DEBUG then
-					Echo('Wanting to exclude a new ally Pad '..unitID..' of team '..teamID..' for my team '..myTeam..'.(current: '..tostring(IsExcluded(unitID))..')')
-				end
-				toSwitch[unitID] = true
-				gotToSwitch = true
+	elseif pad[defID] then
+		if myTeam ~= teamID then
+			if not IsExcluded(unitID) then
+				UpdatePad(unitID, true, teamID, 'UnitCreated: ')
 			end
 		end
 	end
 end
 
+function widget:UnitFinished(unitID, defID, teamID)
+	if pad[defID] then
+		if teamID == myTeam then
+			if not next(myPads) then
+				for padID in pairs(allyPads) do
+					UpdatePad(padID, true, nil, 'UnitFinished: ')
+				end
+			end
+			myPads[unitID] = true
+		else
+			if next(myPads) then
+				UpdatePad(unitID, true, teamID, 'UnitFinished: ')
+			end
+		end
+	elseif landable[defID] then
+		if teamID == myTeam then
+			if not myAircraftID then
+				widget:UnitCreated(unitID, defID, teamID)
+			else
+				myAircrafts[unitID] = true
+			end
+		end
+	end
+end
+
+function widget:UnitDestroyed(unitID, defID, teamID)
+	if pad[defID] then 
+		if myPads[unitID] then
+			myPads[unitID] = nil
+			if not next(myPads) then
+				for padID in pairs(allyPads) do
+					UpdatePad(padID, false, nil, 'UnitDestroyed: ')
+				end
+			end
+		else
+			allyPads[unitID] = nil
+		end
+		pending[unitID] = nil
+	elseif teamID == myTeam and landable[defID] then
+		myAircrafts[unitID] = nil
+		updateMyAircraftID = 5 -- asking a delayed update to avoid checking spam in case lots of air is destroyed at once
+	end
+end
+
+function widget:UnitTaken(unitID, defID, fromTeam, toTeam)
+	if landable[defID] or pad[defID] then
+		if myAllyTeam == allyTeam[fromTeam] then 
+			widget:UnitDestroyed(unitID, defID, fromTeam)
+		end
+		if myAllyTeam == allyTeam[toTeam] then 
+			if IsFinished(unitID) then
+				widget:UnitFinished(unitID, defID, toTeam)
+			else
+				widget:UnitCreated(unitID, defID, toTeam)
+			end
+		end
+	end
+end
+
+function widget:UnitGiven(unitID, defID, toTeam, fromTeam)
+	if myAllyTeam == allyTeam[fromTeam] then
+		-- it has already been dealt in UnitTaken
+		return
+	else
+		widget:UnitTaken(unitID, defID, fromTeam, toTeam)
+	end
+end
+
+function widget:UnitReverseBuilt(unitID, defID, teamID)
+	if myAllyTeam == allyTeam[teamID] and (pad[defID] or landable[defID]) then
+		widget:UnitDestroyed(unitID, defID, teamID)
+	end
+end
+
+function widget:Update()
+	if updateMyAircraftID then
+		updateMyAircraftID = updateMyAircraftID - 1
+		if updateMyAircraftID == 0 then
+			updateMyAircraftID = false
+			myAircraftID = next(myAircrafts)
+		end
+	end
+end
 
 function widget:Initialize()
 	myPlayerID = Spring.GetMyPlayerID()
-	myAllyTeam = Spring.GetMyAllyTeamID()
-	-- don't give the teamID to make a refresh in PlayerChanged
+	-- purposefully don't give the teamID and allyTeamdID to make a refresh in PlayerChanged
+	widget:PlayerChanged(myPlayerID)
 end
