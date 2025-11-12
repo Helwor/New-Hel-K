@@ -108,7 +108,7 @@ local OPT_MINI_HEIGHT = 115
 local OPT_MINI_EXTRA_HEIGHT = 80
 
 local UPDATE_RATE = 30
-local invSize = 60 -- default size
+local invSize = 40 -- default size
 local rX = 7/11 -- relative position in the UI
 local rY = 7/10  
 
