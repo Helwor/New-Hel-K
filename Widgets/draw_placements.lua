@@ -948,8 +948,6 @@ local pointY = false
 local pointZ = false
 
 
-Echo("----------------------------------------------------------------")
-
 local function getclosest(from,tbl)
 	local closest,changed,bestDist=1
 	local same={}
@@ -4060,6 +4058,7 @@ do
 		methods.ToValidPosition = ToValidPosition
 
 	end
+	local spuGetMoveType = Spring.Utilities.getMovetype
 	local function newcache(PID)
 		local t = {}
 		local ud = UnitDefs[PID]
@@ -4068,7 +4067,29 @@ do
 		local sizeX, sizeZ = footX * 8, footZ * 8 
 		local oddX,oddZ = (footX%2)*8, (footZ%2)*8
 		local canSub = CheckCanSub(ud.name)
-
+        --[[
+            Note:
+            -floatOnWater is only correct for buildings (at the notable exception of turretgauss) and flying units
+            -canMove and isBuilding are unreliable:
+               staticjammer, staticshield, staticradar, factories... have 'canMove'
+               staticcon, striderhub doesn't have... 'isBuilding'
+            -isGroundUnit is reliable
+            -spuGetMoveType is better as it discern also between flying (1) and building (false)
+            -ud.maxWaterDepth is only correct for telling us if a non floating building can be a valid build undersea
+            -ud.moveDef.depth is always correct about units except for hover
+            -ud.moveDef.depthMod is 100% reliable for telling if non flying unit can be built under sea, on float or only on shallow water:
+               no depthMod = flying or building,
+               0 = walking unit undersea,
+               0.1 = sub, ship or hover,
+               0.02 = walking unit only on shallow water
+        --]]
+        local isUnit = spuGetMoveType(ud) -- 1 == flying, 2 == on ground/water false = building
+        local depthMod = isUnit and ud.moveDef.depthMod
+        local floatOnWater = ud.floatOnWater
+        local gridAboveWater = floatOnWater or isUnit -- that's what the engine relate to, with a position based on trace screen ray that has floatOnWater only, which offset the grid for units
+        local underSea = depthMod == 0 or not (isUnit or floatOnWater or ud.maxWaterDepth == 0)
+        local reallyFloat = isUnit == 2 and depthMod == 0.1 or floatOnWater and ud.name ~= 'turretgauss'
+        local cantPlaceOnWater = not (underSea or reallyFloat)
 		t.footX				= footX
 		t.footZ				= footZ
 		t.oddX				= oddX
@@ -4081,7 +4102,11 @@ do
 		t.canSub			= canSub
 		t.floater			= ud.floatOnWater or not canSub
 		t.needTerraOnWater	= not canSub and not ud.name:match('hover')
-		t.floatOnWater		= ud.floatOnWater
+        t.underSea			= underSea
+        t.reallyFloat		= reallyFloat
+        t.cantPlaceOnWater	= cantPlaceOnWater
+        t.gridAboveWater	= gridAboveWater -- following the wrong engine grid 
+        t.floatOnWater		= floatOnWater
 		f.facing 			= 0
 		t.height			= ud.height
 		t.name				= ud.name
@@ -4104,7 +4129,7 @@ do
 		cache[PID] = setmetatable(t, mt_methods)
 		return t
 	end
-	function PlacementModule:Measure(PID,facing)
+	function PlacementModule:Measure(PID, facing)
 		local isSelf = false
 		if not PID then 
 			isSelf = true
@@ -4663,7 +4688,7 @@ end
 
 
 
-function widget:KeyPress(key, mods,isRepeat, value)
+function widget:KeyPress(key, mods,isRepeat)
 	local wasCtrl = ctrl
 	alt, ctrl, meta, shift = mods.alt, mods.ctrl, mods.meta, mods.shift
 	-- Echo("special, ctrl, opt.ctrlCloseEBuild is ", special, ctrl, opt.ctrlCloseEBuild)

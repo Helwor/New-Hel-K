@@ -370,16 +370,19 @@ options = {
 
 ------- DRAWING FUNCTIONS -------
 local function IdentifyPlacement(unitDefID, facing)
+    if WG.PlacementModule then
+        return WG.PlacementModule:Measure(unitDefID, facing)
+    end
     local offFacing = (facing == 1 or facing == 3)
     local placeTable = (offFacing and placementCacheOff) or placementCache
     if not placeTable[unitDefID] then
         local ud = UnitDefs[unitDefID]
-        local sx = ud.xsize*8
-        local sz = ud.zsize*8
+        local sizeX = ud.xsize*4
+        local sizeZ = ud.zsize*4
         if offFacing then
-            sx, sz = sz, sx
+            sizeX, sizeZ = sizeZ, sizeX
         end
-        local oddx, oddz = (sx/2)%16, (sz/2)%16
+        local oddX, oddZ = (sizeX)%16, (sizeZ)%16
         --[[
             Note:
             -floatOnWater is only correct for buildings (at the notable exception of turretgauss) and flying units
@@ -406,10 +409,10 @@ local function IdentifyPlacement(unitDefID, facing)
         local cantPlaceOnWater = not (underSea or reallyFloat)
 
         placeTable[unitDefID] = {
-            oddx = oddx,
-            oddz = oddz,
-            sx = sx,
-            sz = sz,
+            oddX = oddX,
+            oddZ = oddZ,
+            sizeX = sizeX,
+            sizeZ = sizeZ,
             underSea = underSea,
             reallyFloat = reallyFloat,
             cantPlaceOnWater = cantPlaceOnWater,
@@ -420,17 +423,17 @@ local function IdentifyPlacement(unitDefID, facing)
     return placeTable[unitDefID]
 end
 
-local function ToValidPlacement(x,z,oddx,oddz)
-    return  floor((x + 8 - oddx)/16)*16 + oddx,
-        floor((z + 8 - oddz)/16)*16 + oddz
+local function ToValidPlacement(x,z,oddX,oddZ)
+    return  floor((x + 8 - oddX)/16)*16 + oddX,
+        floor((z + 8 - oddZ)/16)*16 + oddZ
 end
 
-local function MakeRect(x, y, z, sx, sz, color)
+local function MakeRect(x, y, z, sizeX, sizeZ, color)
     return {
-            {x-sx, y, z-sz},
-            {x-sx, y, z+sz},
-            {x+sx, y, z+sz},
-            {x+sx, y, z-sz}
+            {x-sizeX, y, z-sizeZ},
+            {x-sizeX, y, z+sizeZ},
+            {x+sizeX, y, z+sizeZ},
+            {x+sizeX, y, z-sizeZ}
     }
 end
 
@@ -564,7 +567,7 @@ function widget:Update(dt)
         return
     end
 
-    local nx, nz = ToValidPlacement(pos[1], pos[3], placement.oddx, placement.oddz)
+    local nx, nz = ToValidPlacement(pos[1], pos[3], placement.oddX, placement.oddZ)
     if x == nx and z == nz and drawTime~=0 then-- only recalculate when needed
         return
     end
@@ -590,20 +593,20 @@ function widget:Update(dt)
 
     if drawRects then
         local count = 0
-        local sx, sz = placement.sx, placement.sz
+        local sizeX, sizeZ = placement.sizeX, placement.sizeZ
         local realspacing = spacing*16
         for offx = -1, 1 do
             for offz = -1, 1 do
                 if (not only2Rects or offz == 0) and (offx ~= 0 or offz ~= 0 or fix) then -- will add the center rect if we fix
                     count = count + 1
-                    local ix,iz = x + offx*(realspacing + sx), z + offz*(realspacing + sz)
+                    local ix,iz = x + offx*(realspacing + sizeX*2), z + offz*(realspacing + sizeZ*2)
                     local iy = not followGround and rY or spGetGroundHeight(ix,iz)
                     -- we follow the grid if it's correct or user don't want to fix it
                     if iy < 0 and not fix and placement.gridAboveWater then 
                         iy = 0
                     end
                     -- prepare corners directly here instead of recalculating them in DrawWorld, prepare different colors if the user want to
-                    spacedRects[count] = MakeRect(ix, iy, iz, sx/2, sz/2)
+                    spacedRects[count] = MakeRect(ix, iy, iz, sizeX, sizeZ)
                     spacedRects[count].color = colors[withBadColor and spTestBuildOrder(cmdID, ix, 0, iz, facing) or 2]
 
                 end
@@ -652,7 +655,7 @@ function widget:DrawWorld()
         glTranslate(x, y, z)
         glBillboard()
         glColor(1, 1, 1, 0.4)
-        glText(spacing, placement.sx/2, placement.sz/2, 30, 'h')
+        glText(spacing, placement.sizeX, placement.sizeZ, 30, 'h')
         glPopMatrix()
     end
     glColor(1, 1, 1, 1)

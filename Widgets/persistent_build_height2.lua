@@ -850,11 +850,11 @@ function groundModule:UpdateRefHeights(p)
 	-- defining reference height that will be used to apply placementHeight on
 	-- defining max height that will tell us if a building should be leveled
 	local minGround = min(self.origHeight, self.height)
-	if p.floatOnWater or not p.canSub then
+	if not p.underSea then
 		minGround = max(OFF_WATER, minGround)
 	end
 	local maxGround = max(self.origHeight, self.height)
-	if p.floatOnWater or not p.canSub then
+	if not p.underSea then
 		maxGround = max(OFF_WATER, maxGround)
 	end
 
@@ -934,7 +934,7 @@ end
 function groundModule:UpdateSnap(level, apply, change, _p) -- used to update the snap when moving cursor around or to apply a change when user want to modify height
 	Debug.elevChange('update snap ', apply and 'apply' or 'not apply', change and 'change' or 'not change')
 	local p = _p or p
-	-- if round(level) < 0 and (p.floatOnWater or not p.canSub) then
+	-- if round(level) < 0 and (not p.underSea) then
 	--     Debug.elevChange("level is below water, for this floating build, returning min'ed height mod from water level", OFF_WATER + math.max(placementHeight, 0))
 	--     -- return OFF_WATER + math.max(placementHeight, 0)
 	--     Echo("placementHeight is ", placementHeight)
@@ -942,14 +942,14 @@ function groundModule:UpdateSnap(level, apply, change, _p) -- used to update the
 	--     -- Debug.elevChange('level is below water, for this floating build, returning water level')
 	--     -- return OFF_WATER
 	-- end
-	-- if level < OFF_WATER and (p.floatOnWater or not p.canSub) then
+	-- if level < OFF_WATER and (not p.underSea) then
 	--     level = OFF_WATER
 	-- end
-	-- if self.height < 0 and level < 0 and (p.floatOnWater or not p.canSub) then
+	-- if self.height < 0 and level < 0 and (not p.underSea) then
 	--     level = - self.height + OFF_WATER
 	-- end
 
-	-- if level < 0 and (p.floatOnWater or not p.canSub) then
+	-- if level < 0 and (not p.underSea) then
 	--     Debug.elevChange("level is below water, for this floating build, returning water level")
 	--     placementHeight = - self.height
 	--     return 0
@@ -1477,7 +1477,7 @@ function myPlatforms:LookFor(sx,cx,cz,distance,sz,pid)
 	--     -- local X, Z = FindPlacementAround(cx,cz,placed,false,false,true, true)
 
 	--     local foundX, foundY,  foundZ = spClosestBuildPos(0,PID, cx, 0, cz, distance ,0 ,p.facing)
-	--     if foundX and foundX > -1 and (foundY > 0 or not p.floatOnWater or p.canSub)
+	--     if foundX and foundX > -1 and (foundY > 0 or not p.floatOnWater or p.underSea)
 	--     and abs(foundY -  (origHeightMap and origHeightMap[foundX][foundZ] or spGetGroundOrigHeight(foundX,foundZ))) > 7
 	--     then
 	--         myPlatforms:New(p.sizeX, foundX, foundZ, PID)
@@ -1554,10 +1554,10 @@ do
 		-- dismiss the PH modification in some case, apply it compared to originalHeight in other cases
 		-- level               = PH +
 		--                         (
-		--                             water and (canSub and height or PH<OFF_WATER and -PH or OFF_WATER )
+		--                             water and (p.underSea and height or PH<OFF_WATER and -PH or OFF_WATER )
 		--                          -- onOwnPlatform is if the PH correspond to the origHeight + terraformed height, meaning we already built a platform there at the same height
 		--                          -- or onOwnPlatform and origHeight
-		--                          or height<=OFF_WATER and not canSub and OFF_WATER
+		--                          or height<=OFF_WATER and not p.underSea and OFF_WATER
 		--                          -- if elevated ground PH will apply to origHeight, on dug ground it will apply to origHeight if the PH is roughly equal
 		--                          -- or (elevated or modHeight and mol(modHeight,PH,5)) and origHeight
 		--                          or min(height,origHeight or height)
@@ -1576,7 +1576,7 @@ do
 		if (p.floater) and height < 0 then
 			level = level - height
 		end
-		-- level = PH + (p.floatOnWater and not p.canSub and 0 or height)
+		-- level = PH + (p.floatOnWater and not p.underSea and 0 or height)
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + groundModule.minGround
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + refHeight
 		-- if elevated then
@@ -1588,7 +1588,7 @@ do
 		--         level = origHeight + PH
 		--     end
 		-- end
-		-- if level < OFF_WATER and (p.floatOnWater or not p.canSub) then
+		-- if level < OFF_WATER and (not p.underSea) then
 		--     level = OFF_WATER
 		-- end
 		local oldlvl = level
@@ -1606,18 +1606,18 @@ do
 
 		groundModule.snapFloat           = not snapGround 
 											and (level~=4 or not specialAboveWaterDefID[p.PID] )
-											and (level < snap+OFF_WATER and level > -snap+OFF_WATER or not canSub and level <= OFF_WATER)
+											and (level < snap+OFF_WATER and level > -snap+OFF_WATER or not p.underSea and level <= OFF_WATER)
 
 
 		-- local digToWater    = not water and (snapFloat or level<0 and height>1)
 
-		-- local snapSub       = canSub and level+10>origHeight and level-10<origHeight
+		-- local snapSub       = p.underSea and level+10>origHeight and level-10<origHeight
 
 		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or elevated and level<origHeight+snap+OFF_WATER and level>origHeight-snap+OFF_WATER)
 		-- local snapOriGround = not snapFloat and (not modHeight and snapGround or --[[elevated and--]] level<origHeight+snap+OFF_WATER and level>origHeight-snap+OFF_WATER)
 
 		-- pointY = groundModule.snap
-		--          or   ( (not canSub and level<=OFF_WATER) or snapFloat )
+		--          or   ( (not p.underSea and level<=OFF_WATER) or snapFloat )
 		--                 and    OFF_WATER 
 		--          or snapGround
 		--                 and height
@@ -1649,8 +1649,8 @@ do
 				 .. ' + '
 				 ..  (
 						groundModule.snap
-						or water and (canSub and height or PH<OFF_WATER and -PH or OFF_WATER )
-						or height<=OFF_WATER and not canSub and OFF_WATER
+						or water and (p.underSea and height or PH<OFF_WATER and -PH or OFF_WATER )
+						or height<=OFF_WATER and not p.underSea and OFF_WATER
 						or min(height,origHeight)
 					  )
 				 ..')'
@@ -1696,7 +1696,7 @@ do
 			-- mustTerraform = not mol(pointY,groundModule.maxGround,7)
 			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or g.lava and pointY == OFF_WATER or not mol(pointY, (p.floater) and max(height,0) or height, 7)
 			-- if round(PH)~=0 then
-			--     mustTerraform = canSub and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==OFF_WATER or snapGround or snapOriGround)
+			--     mustTerraform = p.underSea and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==OFF_WATER or snapGround or snapOriGround)
 			-- end
 			-- if mustTerraform and PH<0 and water and p.floatOnWater and not digForWater then mustTerraform = false end
 		end
@@ -1854,7 +1854,7 @@ function widget:KeyPress(key, mods, isRepeat)
 	if not g.toggleEnabled then return false end
 	local value = key == heightIncrease and 1 or key == heightDecrease and -1
 	if not value then return end
-	if groundModule.snapFloat and not p.canSub and value<0 then return true end
+	if groundModule.snapFloat and not p.underSea and value<0 then return true end
 	if g.noterra then
 		g.timeOutNoTerra = os.clock() + 3
 		return true
@@ -3583,7 +3583,7 @@ function widget:MousePress(mx, my, button)
 				-- on water when terrain is too steep undersea
 			 -- correcting the placement X and Z that engine should have done for units that float like Hover made by Athena
 			 -- or forcing the placement with  (CMD_INSERT?)
-			elseif (canBuild and not p.floatOnWater and not p.canSub and pointY<=0.1 
+			elseif (canBuild and not p.floatOnWater and not p.underSea and pointY<=0.1 
 					or not canBuild and mustTerraform and meta)
 			then
 				-- ignoreFirst=true
@@ -3916,7 +3916,7 @@ do
 				-- end
 			end
 
-			local bx,by,bz,bw,bh,float = pointX,pointY,pointZ,p.sizeX,p.sizeZ,water and not p.canSub --,not(snapFloat and water)
+			local bx,by,bz,bw,bh,float = pointX,pointY,pointZ,p.sizeX,p.sizeZ,water and not p.underSea --,not(snapFloat and water)
 			if movedPlacement[1]>-1 then
 				bx,bz=movedPlacement[1],movedPlacement[3]
 			end

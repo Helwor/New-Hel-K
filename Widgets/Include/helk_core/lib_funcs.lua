@@ -2262,6 +2262,7 @@ canSub ={
 	,energypylon=true
 	,staticstorage=true
 	,factoryamph=true
+	,energygeo=true
 }   
 CheckCanSub = function (name)
 	return canSub[name]
