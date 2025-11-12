@@ -83,7 +83,7 @@ function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdId, cmdParams, cmdOp
 	local x, z, ctrl
 	if cmdId == 1 then -- CMD_INSERT
 		cmdId = cmdParams[2]
-		if cmdId > 0 then
+		if not cmdId or cmdId > 0 then
 			return
 		else
 			x, z = cmdParams[4], cmdParams[6]
