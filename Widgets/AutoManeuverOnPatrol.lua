@@ -35,6 +35,7 @@ EXCEPTION_MOVE_DEFID = {
 	[UnitDefNames['vehsupport'].id] = true,
 	[UnitDefNames['amphsupport'].id] = true,
 	[UnitDefNames['jumpblackhole'].id] = true,
+	[UnitDefNames['cloakaa'].id] = true,
 }
 local canMoveDefID = {}
 for defID, def in pairs(UnitDefs) do
