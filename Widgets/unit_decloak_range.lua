@@ -35,6 +35,7 @@ local disabledColor_less		= { 0.9,0.5,0.3, drawAlpha/2}
 local cloakedColor_less			= { 0.4, 0.4, 0.9, drawAlpha/2} -- drawAlpha on purpose!
 
 local list = {}
+local DrawSphereInprint
 
 local decloakDist			= setmetatable({}, {__index = function(self, defID) rawset(self, defID, UnitDefs[defID].decloakDistance or false) end})
 local currentSelection		= false
@@ -134,154 +135,155 @@ end
 
 
 -- Implement sphere 
-if not gl.Utilities.DrawMergedSphereInprint then
 
-	local function SphereVertex(x, y, z, neg)
-	    if neg then
-	        gl.Normal(-x, -y, -z)
-	    else
-	        gl.Normal(x, y, z)
-	    end
-	    gl.Vertex(x, y, z)
-	end
-
-
-
-	local function Sphere(divs, arcs, neg)
-		local cos, sin = math.cos, math.sin
-		local PI = math.pi
-		local twoPI = PI * 2
-
-	    local divRads = PI / divs
-	    local minRad = sin(divRads)
-	    
-	    -- top
-	    gl.BeginEnd(GL.TRIANGLE_FAN, function()
-	        SphereVertex(0, 1, 0, neg)
-	        local bot = cos(divRads)
-	        local botRad = sin(divRads)
-	    
-	        for i = 0, arcs do
-	            local a = i * twoPI / arcs
-	            SphereVertex(sin(a) * botRad, bot, cos(a) * botRad, neg)
-	        end
-	    end)
-	    -- sides
-	    for d = 1, divs - 2 do -- 
-	        -- gl.BeginEnd(GL.QUAD_STRIP, function()
-	        gl.BeginEnd(GL.TRIANGLE_STRIP, function() -- much faster than GL.QUAD_STRIP
-	            local topRads = divRads * (d + 0)
-	            local botRads = divRads * (d + 1)
-	            local top = cos(topRads)
-	            local bot = cos(botRads)
-	            local topRad = sin(topRads)
-	            local botRad = sin(botRads)
-	        
-	            for i = 0, arcs do
-	                local a = i * twoPI / arcs
-	                SphereVertex(sin(a) * topRad, top, cos(a) * topRad, neg)
-	                SphereVertex(sin(a) * botRad, bot, cos(a) * botRad, neg)
-	            end
-	        end)
-	    end
-	    -- bottom 
-	    gl.BeginEnd(GL.TRIANGLE_FAN, function()
-	        SphereVertex(0, -1, 0, neg)
-	        for i = 0, arcs do
-	            local a = -i * twoPI / arcs
-	            SphereVertex(sin(a) * minRad, -cos(divRads), cos(a) * minRad, neg)
-	        end
-	    end)
-	end
-
-	list.sphere = gl.CreateList(Sphere, 16, 32, false)
-
-	list.mergeVolumes = gl.CreateList(
-		function() -- Draw only where it has not been drawn
-			gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
-			gl.DepthMask(false)
-			gl.StencilTest(true)
-			gl.DepthTest(true)
-			gl.StencilOp(GL.KEEP, GL.KEEP, GL.INCR)
-			gl.StencilMask(1)
-			gl.StencilFunc(GL.EQUAL, 0, 1)
+local function Init() -- mandatoy ! creating those drawing lists at loading may cause visual glitches !
+	-- if not gl.Utilities.DrawMergedSphereInprint then
+		local function SphereVertex(x, y, z, neg)
+			if neg then
+				gl.Normal(-x, -y, -z)
+			else
+				gl.Normal(x, y, z)
+			end
+			gl.Vertex(x, y, z)
 		end
-	)
 
-	list.mergeVolumesEnd = gl.CreateList(
-		function ()
-			gl.DepthTest(false)
-			gl.StencilTest(false)
-			gl.StencilMask(0xff)
-			gl.Clear(GL.STENCIL_BUFFER_BIT)
+
+
+		local function Sphere(divs, arcs, neg)
+			local cos, sin = math.cos, math.sin
+			local PI = math.pi
+			local twoPI = PI * 2
+
+			local divRads = PI / divs
+			local minRad = sin(divRads)
+			
+			-- top
+			gl.BeginEnd(GL.TRIANGLE_FAN, function()
+				SphereVertex(0, 1, 0, neg)
+				local bot = cos(divRads)
+				local botRad = sin(divRads)
+			
+				for i = 0, arcs do
+					local a = i * twoPI / arcs
+					SphereVertex(sin(a) * botRad, bot, cos(a) * botRad, neg)
+				end
+			end)
+			-- sides
+			for d = 1, divs - 2 do -- 
+				-- gl.BeginEnd(GL.QUAD_STRIP, function()
+				gl.BeginEnd(GL.TRIANGLE_STRIP, function() -- much faster than GL.QUAD_STRIP
+					local topRads = divRads * (d + 0)
+					local botRads = divRads * (d + 1)
+					local top = cos(topRads)
+					local bot = cos(botRads)
+					local topRad = sin(topRads)
+					local botRad = sin(botRads)
+				
+					for i = 0, arcs do
+						local a = i * twoPI / arcs
+						SphereVertex(sin(a) * topRad, top, cos(a) * topRad, neg)
+						SphereVertex(sin(a) * botRad, bot, cos(a) * botRad, neg)
+					end
+				end)
+			end
+			-- bottom 
+			gl.BeginEnd(GL.TRIANGLE_FAN, function()
+				SphereVertex(0, -1, 0, neg)
+				for i = 0, arcs do
+					local a = -i * twoPI / arcs
+					SphereVertex(sin(a) * minRad, -cos(divRads), cos(a) * minRad, neg)
+				end
+			end)
 		end
-	)
+
+		list.sphere = gl.CreateList(Sphere, 16, 32, false)
+
+		list.mergeVolumes = gl.CreateList(
+			function() -- Draw only where it has not been drawn
+				gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+				gl.DepthMask(false)
+				gl.StencilTest(true)
+				gl.DepthTest(true)
+				gl.StencilOp(GL.KEEP, GL.KEEP, GL.INCR)
+				gl.StencilMask(1)
+				gl.StencilFunc(GL.EQUAL, 0, 1)
+			end
+		)
+
+		list.mergeVolumesEnd = gl.CreateList(
+			function ()
+				gl.DepthTest(false)
+				gl.StencilTest(false)
+				gl.StencilMask(0xff)
+				gl.Clear(GL.STENCIL_BUFFER_BIT)
+			end
+		)
 
 
 
-	-- copied from glVolume (couldn't find a way to do it per batch)
-	-- merge the ground inprint of volume
-	list.stencilMergeInp = gl.CreateList(
-		function()
-			gl.DepthMask(false)
-			if (gl.DepthClamp) then gl.DepthClamp(true) end
-			gl.StencilTest(true)
+		-- copied from glVolume (couldn't find a way to do it per batch)
+		-- merge the ground inprint of volume
+		list.stencilMergeInp = gl.CreateList(
+			function()
+				gl.DepthMask(false)
+				if (gl.DepthClamp) then gl.DepthClamp(true) end
+				gl.StencilTest(true)
 
-			gl.Culling(false)
-			gl.DepthTest(true)
-			gl.ColorMask(false, false, false, false)
-			gl.StencilOp(GL.KEEP, GL.INVERT, GL.KEEP)
-			gl.StencilMask(1)
-			gl.StencilFunc(GL.ALWAYS, 0, 1)
+				gl.Culling(false)
+				gl.DepthTest(true)
+				gl.ColorMask(false, false, false, false)
+				gl.StencilOp(GL.KEEP, GL.INVERT, GL.KEEP)
+				gl.StencilMask(1)
+				gl.StencilFunc(GL.ALWAYS, 0, 1)
+			end
+		)
+		list.stencilMergeInpApply = gl.CreateList(
+			function()
+				gl.Culling(GL.FRONT)
+				gl.DepthTest(false)
+				gl.ColorMask(true, true, true, true)
+				gl.StencilOp(GL.KEEP, GL.INCR, GL.INCR)
+				gl.StencilMask(3)
+				gl.StencilFunc(GL.EQUAL, 1, 3)
+			end
+		)
+
+		list.stencilMergeInpEnd = gl.CreateList(
+			function()
+				if (gl.DepthClamp) then gl.DepthClamp(false) end
+				gl.StencilTest(false)
+				-- gl.DepthTest(true)
+				gl.Culling(false)
+			end
+		)
+
+		function gl.Utilities.DrawSimpleSphere(x, y, z, radius)
+		  gl.PushMatrix()
+		  gl.Translate(x, y, z)
+		  gl.Scale(radius, radius, radius)
+		  glCallList(list.sphere)
+		  gl.PopMatrix()
 		end
-	)
-	list.stencilMergeInpApply = gl.CreateList(
-		function()
-			gl.Culling(GL.FRONT)
-			gl.DepthTest(false)
-			gl.ColorMask(true, true, true, true)
-			gl.StencilOp(GL.KEEP, GL.INCR, GL.INCR)
-			gl.StencilMask(3)
-			gl.StencilFunc(GL.EQUAL, 1, 3)
+
+
+		local function MergeInprint(dlist)
+			glCallList(list.stencilMergeInp)
+			glCallList(dlist)
+			glCallList(list.stencilMergeInpApply)
+			glCallList(dlist)
+			glCallList(list.stencilMergeInpEnd)
 		end
-	)
 
-	list.stencilMergeInpEnd = gl.CreateList(
-		function()
-			if (gl.DepthClamp) then gl.DepthClamp(false) end
-			gl.StencilTest(false)
-			-- gl.DepthTest(true)
-			gl.Culling(false)
+		function gl.Utilities.DrawMergedSphereInprint(x, y, z, radius) -- Draw ground inprint of spheres
+		  gl.PushMatrix()
+		  gl.Translate(x, y, z)
+		  gl.Scale(radius, radius, radius)
+		  MergeInprint(list.sphere)
+		  gl.PopMatrix()
 		end
-	)
-
-	function gl.Utilities.DrawSimpleSphere(x, y, z, radius)
-	  gl.PushMatrix()
-	  gl.Translate(x, y, z)
-	  gl.Scale(radius, radius, radius)
-	  glCallList(list.sphere)
-	  gl.PopMatrix()
-	end
-
-
-	local function MergeInprint(dlist)
-		glCallList(list.stencilMergeInp)
-		glCallList(dlist)
-		glCallList(list.stencilMergeInpApply)
-		glCallList(dlist)
-		glCallList(list.stencilMergeInpEnd)
-	end
-
-	function gl.Utilities.DrawMergedSphereInprint(x, y, z, radius) -- Draw ground inprint of spheres
-	  gl.PushMatrix()
-	  gl.Translate(x, y, z)
-	  gl.Scale(radius, radius, radius)
-	  MergeInprint(list.sphere)
-	  gl.PopMatrix()
-	end
+	-- end
 end
 -----------
-local DrawSphereInprint = gl.Utilities.DrawMergedSphereInprint
 
 
 local function DrawDecloakRanges(pass, cloakeds, poses)
@@ -304,8 +306,11 @@ local function DrawDecloakRanges(pass, cloakeds, poses)
 		end
 
 	end
+	-- FIX GLITCH:
 	if DrawSphere then
-		gl.BlendFuncSeparate(GL.SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA, GL.ONE_MINUS_DST_ALPHA)
+		gl.BlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE)
+		-- CULPRIT WITH UNIT SHAPE:
+		-- gl.BlendFuncSeparate(GL.SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA, GL.ONE_MINUS_DST_ALPHA)
 		if merged then
 			glCallList(list.mergeVolumes)
 		else
@@ -334,6 +339,7 @@ local function DrawDecloakRanges(pass, cloakeds, poses)
 		else
 			gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 		end
+		gl.BlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 	else
 		gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 	end
@@ -397,6 +403,8 @@ function widget:Initialize()
 	myPlayerID = Spring.GetMyPlayerID()
 	widget:PlayerChanged(myPlayerID)
 	widget:CommandsChanged()
+	Init()
+	DrawSphereInprint = gl.Utilities.DrawMergedSphereInprint
 end
 
 -- function widget:Shutdown()
