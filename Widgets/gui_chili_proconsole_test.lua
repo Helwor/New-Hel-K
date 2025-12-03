@@ -2,16 +2,16 @@
 --------------------------------------------------------------------------------
 
 function widget:GetInfo()
-  return {
-    name      = "Chili Pro Console",
-    desc      = "v0.016 Chili Chat Pro Console.",
-    author    = "CarRepairer",
-    date      = "2014-04-20",
-    license   = "GNU GPL, v2 or later",
-    layer     = 50,
-    experimental = false,
-    enabled   = true,
-  }
+	return {
+		name      = "Chili Pro Console",
+		desc      = "v0.016 Chili Chat Pro Console.",
+		author    = "CarRepairer, improvement Helwor",
+		date      = "2014-04-20",
+		license   = "GNU GPL, v2 or later",
+		layer     = 50,
+		experimental = false,
+		enabled   = true,
+	}
 end
 -- Before
 	-- Many things...
@@ -182,7 +182,7 @@ local highlightPattern -- currently based on player name -- TODO add configurabl
 local firstEnter = true --used to activate ally-chat at game start. To run once
 local recentSoundTime = false -- Limit the rate at which sounds are played.
 local requestRemake = false
-local requestUpdate = false
+local requestUpdate = {needed = false}
 local lastMsgChat, lastMsgBackChat, lastMsgConsole
 
 ------------------------------------------------------------
@@ -228,7 +228,7 @@ options_order = {
 	
 	'hideSpec', 'hideAlly', 'hidePoint', 'hideLabel', 'hideLog',
 	'error_opengl_source',
-    'filter_luaHandleCheckStack',
+	'filter_luaHandleCheckStack',
 	--'pointButtonOpacity',
 	
 	'highlight_all_private', 'highlight_filter_allies', 'highlight_filter_enemies', 'highlight_filter_specs', 'highlight_filter_other',
@@ -891,23 +891,23 @@ end
 -- TODO : should these pattern/escape functions be moved to some shared file/library?
 
 local function nocase(s)
-  return string.gsub(s, "%a", function (c)
+	return string.gsub(s, "%a", function (c)
 		return string.format("[%s%s]", string.lower(c), string.upper(c))
-	  end
-  )
+		end
+	)
 end
 
 local function escapePatternMatchChars(s)
-  return string.gsub(s, "(%W)", "%%%1")
+	return string.gsub(s, "(%W)", "%%%1")
 end
 
 local function caseInsensitivePattern(s)
-  return nocase(escapePatternMatchChars(s))
+	return nocase(escapePatternMatchChars(s))
 end
 
 -- local widget only
 function getMessageRuleOptionName(msgtype, suboption)
-  return msgtype .. "_" .. suboption
+	return msgtype .. "_" .. suboption
 end
 
 for msgtype,rule in pairs(MESSAGE_RULES) do
@@ -933,12 +933,12 @@ for msgtype,rule in pairs(MESSAGE_RULES) do
 			end
 		end
 		options[option_name] = o
-    end
+		end
 end
 
 local function getOutputFormat(msgtype)
-  local rule = MESSAGE_RULES[msgtype]
-  if not rule then
+	local rule = MESSAGE_RULES[msgtype]
+	if not rule then
 		Spring.Echo("UNKNOWN MESSAGE TYPE: " .. (msgtype or "NiL"))
 		-- local _,msg = debug.getlocal(2, 1)
 		-- if msg and type(msg) == 'table' then
@@ -947,13 +947,13 @@ local function getOutputFormat(msgtype)
 		-- 	end
 		-- end
 		return
-  elseif rule.output then -- rule has multiple user-selectable output formats
-    local option_name = getMessageRuleOptionName(msgtype, "output_format")
-    local value = options[option_name].value
-    return rule.output[value].format
-  else -- rule has only 1 format defined
-	return rule.format
-  end
+	elseif rule.output then -- rule has multiple user-selectable output formats
+		local option_name = getMessageRuleOptionName(msgtype, "output_format")
+		local value = options[option_name].value
+		return rule.output[value].format
+	else -- rule has only 1 format defined
+		return rule.format
+	end
 end
 
 local function getSource(spec, allyTeamId)
@@ -984,7 +984,7 @@ local function escape_lua_pattern(s)
 		["\0"] = "%z";
 	}
 
-  
+	
 	return (s:gsub(".", matches))
 end
 
@@ -1110,7 +1110,7 @@ local function AddMessage(msg, target, remake)
 		Image = WG.Chili.Image
 		Panel = WG.Chili.Panel
 		TextBox = WG.Chili.TextBox
- 		Button = WG.Chili.Button
+		Button = WG.Chili.Button
 	end
 	local stack
 	local fade
@@ -1290,9 +1290,11 @@ local function AddMessage(msg, target, remake)
 		lastMsgBackChat = textbox
 	else
 		lastMsgConsole = textbox
+		-- requestUpdate[scrollpanel_console] = true
 	end
 	-- stack:UpdateClientArea()
-	requestUpdate = stack
+	requestUpdate[stack] = true
+	requestUpdate.needed = true
 end
 
 
@@ -1368,7 +1370,6 @@ function RemakeConsole()
 		-- AddMessage(msg, 'chat', true, true )
 		AddMessage(msg, 'backchat', true )
 	end
-
 	if window_console.parent then
 		local len = #consoleMessages
 		for i = math.max(1, len - MAX_LINES + 1), len do
@@ -1377,7 +1378,7 @@ function RemakeConsole()
 	end
 
 	if window_console then
-		window_console:Resize(window_console.width, window_console.height)
+		window_console:UpdateClientArea()
 	end
 
 end
@@ -1481,10 +1482,10 @@ local function MakeMessageWindow(name, enabled, ParentFunc)
 		-- 	return self.inherited.MouseDown(self,...)
 		-- end,
 		-- OnResize = {
-  --           function(self,clientWidth,clientHeight,a,b)
-  --           	Echo('resizing',clientWidth,clientHeight)
-  --           end
-  --       },
+		--		function(self,clientWidth,clientHeight,a,b)
+		--			Echo('resizing',clientWidth,clientHeight)
+		--		end
+		-- },
 		-- MouseUp = function(self,...)
 		-- 	Echo('up',...)
 		-- 	self.useRTT = true
@@ -1872,7 +1873,7 @@ local function Initialize()
 			-- 	Echo('POINT FIXED')
 			-- 	msg.argument = msg.text
 			-- end
-		  	widget:AddConsoleMessage(msg, true)
+			widget:AddConsoleMessage(msg, true)
 		end
 		-- Echo(wbuffered .. ' buffered messages')
 	else
@@ -1920,7 +1921,7 @@ local function Initialize()
 				msg.argument = msg.text
 			end
 			msg.argument = '[WH BUFFER '..i..'] ' ..msg.argument
-		  	widget:AddConsoleMessage(msg)
+			widget:AddConsoleMessage(msg)
 		end
 	else
 		Echo('widgetbuffer ', wbuffered,' is large enough, skipping older messages from WH')
@@ -1937,7 +1938,7 @@ local function Initialize()
 			-- 	msg.argument = msg.text
 			-- end
 			msg.argument = '[MY BUFFER'..i..'] ' ..msg.argument
-		  	widget:AddConsoleMessage(msg)
+			widget:AddConsoleMessage(msg)
 		end
 	end
 	Echo('end releasing messages')
@@ -1967,11 +1968,17 @@ function widget:Update(s)
 		requestRemake = false
 		RemakeConsole()
 	end
-	if requestUpdate then
-		local stack = requestUpdate
-		requestUpdate = false
-		stack:RequestUpdate()
-		-- stack:UpdateClientArea()
+	if requestUpdate.needed then
+		requestUpdate.needed = nil
+		for stack in pairs(requestUpdate) do
+			-- stack:RequestUpdate()
+			-- if stack == stack_console then
+			-- 	scrollpanel_console:UpdateClientArea()
+			-- else
+				stack:UpdateClientArea()
+			-- end
+			requestUpdate[stack] = nil
+		end
 	end
 	if recentSoundTime then
 		recentSoundTime = recentSoundTime - s
