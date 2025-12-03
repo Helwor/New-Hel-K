@@ -152,7 +152,6 @@ local function Sleep(bool)
 				if widgetHandler[k .. 'List'] 
 					-- and k ~= 'PlayerChanged' 
 				then
-					Echo((bool and 'Remove' or 'Update')..'WidgetCallIn',k)
 					widgetHandler[(bool and 'Remove' or 'Update')..'WidgetCallIn'](widgetHandler,k,widget)
 				end
 			end
