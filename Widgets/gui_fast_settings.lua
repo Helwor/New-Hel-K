@@ -254,8 +254,8 @@ options_order = {
 	'gccontrol',
 	'maxzoomout' ,
 	'maxzoomout_alt',
-	'min_draw_fps',
-	'min_sim_draw_balance',
+	-- 'min_draw_fps',
+	-- 'min_sim_draw_balance',
 
 }
 -- options.testnumber = {
@@ -274,8 +274,8 @@ options.lbl_collapse = {
 	OnChange = function(self)
 		-- self.value = not self.value
 		local hidden = self.value
-		for _,v in pairs({'mapshading','fov','dist_icon','feature_dist','map_detail','shadows','maxzoomout' ,'maxzoomout_alt', 'min_draw_fps', 'min_sim_draw_balance'}) do
-			options[v].hidden = hidden
+		for _, name in pairs({'mapshading','fov','dist_icon','feature_dist','map_detail','shadows','maxzoomout' ,'maxzoomout_alt', 'min_draw_fps', 'min_sim_draw_balance'}) do
+			options[name].hidden = hidden
 		end
 		-- self.value = not self.value
 		self.name = 'Fast Settings' .. (hidden and '...' or '')
