@@ -17,10 +17,28 @@ local Echo = Spring.Echo
 local striderHubDefID 	= UnitDefNames['striderhub'].id
 local athenaDefID 		= UnitDefNames['athena'].id
 
-local spGiveOrderToUnit = Spring.GiveOrderToUnit
-local spGetCommandQueue = Spring.GetCommandQueue
-local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
+local hubRange = UnitDefs[striderHubDefID].buildDistance
+
+local myTeamID
+local myPlayerID = Spring.GetMyPlayerID()
+
+local spGiveOrderToUnit			 = Spring.GiveOrderToUnit
+local spGetCommandQueue			 = Spring.GetCommandQueue
+local spGetSelectedUnitsSorted	 = Spring.GetSelectedUnitsSorted
+local spGetUnitPosition			 = Spring.GetUnitPosition
+local spGetUnitCurrentCommand	 = Spring.GetUnitCurrentCommand
+local spGetModKeyState			 = Spring.GetModKeyState
+local glVertex					 = gl.Vertex
+
+
 local CMD_REMOVE = CMD.REMOVE
+local CMD_RAW_MOVE = Spring.Utilities.CMD.RAW_MOVE
+local move_color
+do
+	local file = VFS.LoadFile('cmdcolors.txt')
+	local r, g, b, a = file:match('move'..'[ ]-([^ ]+)[ ]-([^ ]+)[ ]-([^ ]+)[ ]-([^ ]+).-\n')
+	move_color = {tonumber(r), tonumber(g), tonumber(b), tonumber(a)}
+end
 
 local selectionDefID
 
@@ -42,7 +60,6 @@ options.include_athena_alt = {
 
 function widget:TextCommand(txt)
 	if txt == 'stopproduction' then
-		local selectionDefID = selectionDefID or spGetSelectedUnitsSorted()
 		local athenas = selectionDefID[athenaDefID]
 		local striderHubs = selectionDefID[striderHubDefID]
 		if athenas then
@@ -100,11 +117,134 @@ function widget:UnitCmdDone(unitID,defID,teamID,cmd,params,opts)
 
 end
 
+local moveOrders = {}
+local buildOrders = {}
+local pendingCommand = {}
+local myHubs = {}
+local selectedHubs = {}
+
+
+local function GetClosestBuildPos(defID, px, py, pz)
+	return Spring.ClosestBuildPos(myTeamID, defID, px, 0, pz, hubRange, 0, 0)
+end
+local function UpdateSelectedHubs()
+	selectedHubs = {}
+	local units = selectionDefID[striderHubDefID]
+	if units then
+		for i, unitID in pairs(selectionDefID[striderHubDefID]) do
+			selectedHubs[unitID] = true
+		end
+	end
+end
+function widget:CommandsChanged()
+	selectionDefID = WG.selectionDefID or spGetSelectedUnitsSorted()
+	UpdateSelectedHubs()
+end
+
+function widget:Update()
+	newSequence = true
+end
+
+function widget:CommandNotify(cmdID, params, opts) -- need modified gui_chili_integral_menu.lua
+	if selectionDefID[striderHubDefID] then
+		local capture = false
+		for i, unitID in ipairs(selectionDefID[striderHubDefID]) do
+			if cmdID == CMD_RAW_MOVE then
+
+				if not (opts.shift and moveOrders[unitID]) then
+					moveOrders[unitID] = {params}
+				else
+					moveOrders[unitID][#moveOrders[unitID] + 1] = params
+				end
+				capture = true
+			elseif cmdID < 0 then
+				if newSequence then
+					local queue = spGetCommandQueue(unitID, -1)
+					local build = false
+					for i, order in ipairs(queue) do
+						if order.id < 0 then
+							build = true
+							break
+						end
+					end
+					if not build then
+						local x, y, z = GetClosestBuildPos(-cmdID, unpack(myHubs[unitID]))
+						if x == -1 then
+							Echo('['..widget:GetInfo().name..']: '.. UnitDefs[striderHubDefID].humanName .. ' #' .. unitID .. ' couldn\'t find a location to build ' .. UnitDefs[-cmdID].humanName .. '.')
+						else
+							spGiveOrderToUnit(unitID, cmdID, {x, y, z, 0}, opts)
+						end
+					end
+					newSequence = false
+				end
+				capture = true
+			end
+		end
+		return capture
+	end
+end
+local function drawLineStrip(start, points)
+	glVertex(start[1], start[2], start[3])
+	for i, point in ipairs(points) do
+		glVertex(point[1], point[2], point[3])
+	end
+end
+
+function widget:DrawWorld()
+	------ draw orders
+	if next(moveOrders) then
+		local shift = select(4, spGetModKeyState())
+		gl.PushAttrib(GL.LINE_BITS)
+		gl.LineStipple("springdefault")
+		gl.DepthTest(false)
+		gl.LineWidth(1)
+		gl.Color(move_color)
+		for unitID, points in pairs(moveOrders) do
+			if shift or selectedHubs[unitID] then
+				gl.BeginEnd(GL.LINE_STRIP, drawLineStrip, myHubs[unitID], points)
+			end
+		end
+		gl.Color(1, 1, 1, 1)
+		gl.LineStipple(false)
+		gl.PopAttrib()
+	end
+end
+
+function widget:UnitCreated(unitID, defID, teamID, builderID)
+	if defID == striderHubDefID then
+		myHubs[unitID] = {spGetUnitPosition(unitID)}
+	elseif myHubs[builderID] then
+		if moveOrders[builderID] then
+			local moves = moveOrders[builderID]
+			for i, move in ipairs(moveOrders[builderID]) do
+				spGiveOrderToUnit(unitID, CMD_RAW_MOVE, move, CMD.OPT_SHIFT + CMD.OPT_ALT)
+			end
+		end
+	end
+end
+
+function widget:UnitDestroyed(unitID, defID, teamID)
+	if defID == striderHubDefID then
+		moveOrders[unitID] = nil
+		myHubs[unitID] = nil
+	end
+end
+
+function widget:PlayerChanged(playerID)
+	if playerID == myPlayerID then
+		myTeamID = Spring.GetMyTeamID()
+	end
+end
 function widget:Initialize()
 	if Spring.GetSpectatingState() then
 		widgetHandler:RemoveWidget(self)
 		return
 	end
 	selectionDefID = WG.selectionDefID
-	-- myTeamID = spGetMyTeamID()
+
+	widget:PlayerChanged(myPlayerID)
+	for i, unitID in ipairs(Spring.GetTeamUnitsByDefs(myTeamID, {striderHubDefID})) do
+		myHubs[unitID] = {spGetUnitPosition(unitID)}
+	end
+	widget:CommandsChanged()
 end
