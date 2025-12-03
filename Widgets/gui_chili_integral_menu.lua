@@ -212,8 +212,8 @@ options = {
 		end,
 	},
 	keep_fac_in_pro = {
-		name = 'Keep Fac Build in Pro Mode',
-		desc=  'Keep Factory build and Queue in Pro Mode',
+		name = 'Keep Fac Build Options in Pro Mode',
+		desc=  'Keep Factory build and Queue in Pro Mode, because you\'re not that op.',
 		type = 'bool',
 		value = KEEP_FAC_BUILD,
 		OnChange = function(self)
@@ -909,10 +909,16 @@ local function GetCmdPosParameters(cmdID)
 	return 1, 100
 end
 
-local function GetDisplayConfig(cmdID)
+local function GetDisplayConfig(cmdID, command)
 	local displayConfig = commandDisplayConfig[cmdID]
+	if cmdID >= CMD_MORPH_STOP and cmdID < CMD_MORPH_STOP + 1000 then
+		displayConfig = commandDisplayConfig[CMD_MORPH_STOP]
+	end
 	if not displayConfig then
 		return
+	end
+	if displayConfig.DynamicDisplayFunc then
+		displayConfig = displayConfig.DynamicDisplayFunc(cmdID, command)
 	end
 	if displayConfig.useAltConfig then
 		return displayConfig.altConfig
@@ -1092,7 +1098,7 @@ end
 local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, queueBlock)
 	local left, right = mouse == 1, mouse == 3
 	local alt, ctrl, meta, shift = spGetModKeyState()
-	
+
 	if right and alt then
 		-- fully remove a given buildType in the queue
 		spGiveOrderToUnit(factoryUnitID, CMD.REMOVE, cmdID, CMD.OPT_ALT + CMD.OPT_CTRL)
@@ -1142,6 +1148,9 @@ local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, 
 	
 	local index = spGetCmdDescIndex(cmdID)
 	if index then
+		if fakeFactory and (ctrl or alt) and widgetHandler:CommandNotify(cmdID, {}, {alt = alt, ctrl = ctrl, meta = meta, shift = shift, right = right}) then
+			return true
+		end
 		spSetActiveCommand(index, mouse or 1, left, right, alt, ctrl, meta, shift)
 		if not instantCommands[cmdID] then
 			UpdateButtonSelection(cmdID)
@@ -1167,7 +1176,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 	local isDisabled = false
 	local isSelected = false
 	local isQueueButton = buttonLayout.queueButton
-	local isFacCommand
+	local hasUnitPanel
 	local hotkeyText
 	local keyToShowWhenVisible
 	local function DoClick(_, _, _, mouse)
@@ -1257,7 +1266,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 	local buildProgress
 	local textBoxes = {}
 	
-	local function SetImage(texture1, texture2)
+	local function SetImageTexture(texture1, texture2)
 		if not image then
 			image = Image:New {
 				name = name .. "_image",
@@ -1285,6 +1294,18 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		image.file = texture1
 		image.file2 = texture2
 		image:Invalidate()
+	end
+	
+	local function SetImageFromConfig(displayConfig, command, state)
+		if state and displayConfig then
+			SetImageTexture(displayConfig.texture[state])
+		elseif displayConfig then
+			SetImageTexture(displayConfig.texture or (command and command.texture), displayConfig.tex2)
+		elseif command then
+			SetImageTexture(command.texture)
+		else
+			spEcho("Error, missing command displayConfig and command")
+		end
 	end
 	
 	local function SetText(textPosition, text)
@@ -1319,6 +1340,9 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 			return
 		end
 		textBoxes[textPosition]:SetVisibility(newVisible)
+		if newVisible then
+			textBoxes[textPosition]:BringToFront()
+		end
 		
 		if (not newVisible) or (text == textBoxes[textPosition].caption) then
 			return
@@ -1339,7 +1363,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		isDisabled = newDisabled
 		
 		if not image then
-			SetImage("")
+			SetImageTexture("")
 		end
 		if isDisabled then
 			button.backgroundColor = BUTTON_DISABLE_COLOR
@@ -1368,7 +1392,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		end
 		
 		if not image then
-			SetImage("")
+			SetImageTexture("")
 		end
 		
 		buildProgress = Progressbar:New{
@@ -1464,7 +1488,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 				for _,textBox in pairs(textBoxes) do
 					textBox:SetCaption(NO_TEXT)
 				end
-				SetImage()
+				SetImageTexture()
 				
 				if not onMouseOverFun then
 					onMouseOverFun = function ()
@@ -1507,19 +1531,11 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 	function externalFunctionsAndData.GetCommandID()
 		return cmdID
 	end
-	
-	function externalFunctionsAndData.SetBuildQueueCount(count)
-		if not (count or queueCount) then
-			return
-		end
-		queueCount = count
-		SetText(textConfig.queue.name, count)
-	end
 	local function UpdateProMode()
 		-- Echo('updatePro button', firstUpdate)
 		if not firstUpdate then
 			if not isStateCommand then
-				if PRO_MODE and (not KEEP_FAC_BUILD or not (isFacCommand or isQueueButton)) then
+				if PRO_MODE and (not KEEP_FAC_BUILD or not (hasUnitPanel or isQueueButton)) then
 					-- button:Hide()
 					if button.x < 10000 then
 						button:SetPos(button.x + 10000)
@@ -1533,8 +1549,16 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 			end
 		end
 	end
+	
+	function externalFunctionsAndData.SetBuildQueueCount(count)
+		if not (count or queueCount) then
+			return
+		end
+		queueCount = count
+		SetText(textConfig.queue.name, count)
+	end
 	externalFunctionsAndData.UpdateProMode = UpdateProMode
-	function externalFunctionsAndData.SetCommand(command, overrideCmdID, notGlobal, facCommand, queueCommand)
+	function externalFunctionsAndData.SetCommand(command, overrideCmdID, notGlobal, unitPanel)
 		-- If overrideCmdID is negative then command can be nil.
 		local newCmdID = overrideCmdID or command.id
 
@@ -1546,27 +1570,25 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		end
 		
 		isStateCommand = command and (command.type == CMDTYPE.ICON_MODE and #command.params > 1)
-		isFacCommand = facCommand
+		hasUnitPanel = unitPanel
 
 		local state = isStateCommand and (((WG.GetOverriddenState and WG.GetOverriddenState(newCmdID)) or command.params[1]) + 1)
 
 		if cmdID == newCmdID then
 			if isStateCommand then
-				local displayConfig = GetDisplayConfig(cmdID)
+				local displayConfig = GetDisplayConfig(cmdID, command)
 				if displayConfig then
-					local texture = displayConfig.texture[state]
 					if displayConfig.stateTooltip then
 						button.tooltip = GetButtonTooltip(displayConfig, command, state)
 					end
-					SetImage(texture)
+					SetImageFromConfig(displayConfig, command, state)
 				end
 			elseif newCmdID and DYNAMIC_COMMANDS[newCmdID] then
 				-- Reset potentially stale special weapon iamge and tooltip.
 				-- Action is the same so hotkey does not require a reset.
-				local displayConfig = GetDisplayConfig(cmdID)
+				local displayConfig = GetDisplayConfig(cmdID, command)
 				button.tooltip = GetButtonTooltip(displayConfig, command, state)
-				local texture = (displayConfig and displayConfig.texture) or command.texture
-				SetImage(texture)
+				SetImageFromConfig(displayConfig, command)
 			end
 			if not notGlobal then
 				buttonsByCommand[cmdID] = externalFunctionsAndData
@@ -1606,7 +1628,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		end
 
 		
-		local displayConfig = GetDisplayConfig(cmdID)
+		local displayConfig = GetDisplayConfig(cmdID, command)
 		
 		if isBuild then
 			local ud = UnitDefs[-cmdID]
@@ -1616,7 +1638,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 				local tooltip = (buttonLayout.tooltipPrefix or "") .. ud.name
 				button.tooltip = tooltip
 			end
-			SetImage("#" .. -cmdID, (not buttonLayout.noUnitOutline) and WG.GetBuildIconFrame(UnitDefs[-cmdID]))
+			SetImageTexture("#" .. -cmdID, (not buttonLayout.noUnitOutline) and WG.GetBuildIconFrame(UnitDefs[-cmdID]))
 			if buttonLayout.showCost then
 				local cost = GetUnitCost(false, -cmdID)
 				if cost >= 100000000 then
@@ -1646,15 +1668,13 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		
 		if isStateCommand then
 			if displayConfig then
-				local texture = displayConfig.texture[state]
-				SetImage(texture)
+				SetImageFromConfig(displayConfig, command, state)
 			else
 				spEcho("Error, missing command config", cmdID)
 			end
 		else
 			if not isBuild then
-				local texture = (displayConfig and displayConfig.texture) or command.texture
-				SetImage(texture)
+				SetImageFromConfig(displayConfig, command)
 			end
 			-- Remove stockpile progress
 			if not (command and DRAW_NAME_COMMANDS[command.id] and command.name) then
@@ -2234,7 +2254,6 @@ local function ProcessCommand(command, factoryUnitID, factoryUnitDefID, fakeFact
 		button.SetCommand(command)
 		return
 	end
-	
 	for i = 1, #commandPanels do
 		local panel = commandPanels[i]
 		local found, position = panel.inclusionFunction(command.id, factoryUnitDefID, forceOrdersCommand, unitMobilePanelSize)
@@ -2250,7 +2269,7 @@ local function ProcessCommand(command, factoryUnitID, factoryUnitDefID, fakeFact
 			
 			local button = panel.buttons.GetButton(x, y, selectionIndex)
 			
-			button.SetCommand(command, nil, nil, factoryUnitDefID)
+			button.SetCommand(command, nil, nil, factoryUnitDefID or unitMobilePanelSize > 1 or fakeFactory)
 			if panel.factoryQueue then
 				button.SetQueueCommandParameter(factoryUnitID, nil, fakeFactory)
 			end
@@ -2342,6 +2361,11 @@ local function ProcessAllCommands(commands, customCommands)
 		local unitsFactoryTab = commandPanelMap.units_factory.tabButton
 		if not unitsFactoryTab.IsTabPresent() then
 			tabToSelect = "units_factory"
+		end
+	elseif unitMobilePanelSize > 1 then
+		local unitsMobileTab = commandPanelMap.units_mobile.tabButton
+		if not unitsMobileTab.IsTabPresent() then
+			tabToSelect = "units_mobile"
 		end
 	end
 	
