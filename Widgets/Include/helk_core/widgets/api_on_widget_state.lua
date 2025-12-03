@@ -201,6 +201,7 @@ end
 -----------------------------------
 
 local function InstallElements(w)
+	local f = WG.utilFuncs
 	w.f = f
 	w.realWidgetHandler = widgetHandler
 	w.WIDGET_DIRNAME = f.WIDGET_DIRNAME
@@ -486,7 +487,7 @@ local function Init(arg)
 	-- if not oriLoadWidget and widgetHandler.LoadWidget then
 	if not widget['ori' .. callin] and widgetHandler.LoadWidget then
 		local problem
-		for i,callin in ipairs(WHoriginalNames) do
+		for i, callin in ipairs(WHoriginalNames) do
 			-- some may have been modified by EPIC menu, we find and change the original
 			local original_callin = widgetHandler['Original' .. callin] and 'Original' .. callin or callin
 			if widgetHandler[original_callin] then
@@ -520,7 +521,7 @@ local function Init(arg)
 			local names = {}
 			local ownWname = widget:GetInfo().name
 			local len = #unsortedWidgets
-			for i=1, len do
+			for i = 1, len do
 				local name = unsortedWidgets[i].whInfo.name
 				names[i] = name
 				Echo(name .. ' has been loaded before.')
@@ -538,7 +539,7 @@ local function Init(arg)
 						if Notify then -- we notify those that wants it for the widgets loaded after them
 							local stop = false
 							Notify = WrapCallBack(Notify)
-							for j=i+1, len do
+							for j = i + 1, len do
 								local  w = unsortedWidgets[j]
 								if Notify(w, names[j], true) then
 									stop = true
@@ -559,7 +560,7 @@ local function Init(arg)
 
 end
 
-function whSleep(wh,w,exception)
+function whSleep(wh, w, exception)
 	local name = type(w) == 'string' and w
 	w = oriSleep(wh,w,exception)
 	if w then
@@ -572,15 +573,15 @@ function whSleep(wh,w,exception)
 	end
 	return w
 end
-function whWake(wh,w,exception)
+function whWake(wh, w, exception)
 	local name = type(w) == 'string' and w
-	w = oriWake(wh,w,exception)
+	w = oriWake(wh, w, exception)
 	if w then
 		if not name then 
 			name = w.whInfo.name
 		end
 		for _, cb in pairs(WidgetWakeNotify) do
-			cb(w,name,WHInitPhase)
+			cb(w, name, WHInitPhase)
 		end
 	end
 	return w
@@ -703,11 +704,11 @@ function whLoadWidget(wh,filename, _VFSMODE)
 		-- loaded[w] = filename
 		--- add callbacks of that widget if we find any
 		if w ~= widget then
-			RegisterCallbacks(w,name)
+			RegisterCallbacks(w, name)
 		end
 		---
 		for _, cb in pairs(WidgetLoadNotify) do
-			cb(w,name,WHInitPhase)
+			cb(w, name, WHInitPhase)
 		end
 	elseif thiswidget then
 
@@ -747,7 +748,7 @@ end
 function whFinalizeWidget(wh, widget, filename, basename)
 	newwidget = widget
 
-	return oriFinalizeWidget(wh,widget, filename, basename) 
+	return oriFinalizeWidget(wh, widget, filename, basename) 
 end
 --
 
