@@ -447,19 +447,26 @@ local FileExists = VFS.FileExists
 local help_tooltip = table.concat({ -- chili bug: broke line by tooltip getting colorized, need to put \008 at those exact spots or order a white color after colorization of words
 
 	'Color Status and Actions:',
-	'-' .. colorize('Categories', yellow) .. ' collapsable with ' .. colorize('LClick + Ctrl', red) .. ' to collapse all)',
+	'-' .. colorize('Categories', yellow) .. ' collapsable with '..colorize('LClick', red),
+	'-' ..'(' .. colorize('Ctrl+LClick', red) .. ' to collapse all)',
 	'-' .. colorize('Uniquely local widget', user_col),
 	'-' .. colorize('Local version loaded', user_alt_col),
 	'-' .. colorize('Game version loaded', game_alt_col),
 	'-' .. colorize('Uniquely game widget', game_col),
-	'-' .. 'Use '.. colorize('Ctrl + LClick', red) .. ' to switch version',
-	'-' .. colorize('Shift + LClick', red) .. ' put the widget to ' .. colorize('Sleep', darker[game_col]) .. ' and darker widget color',
+	'-' .. 'Use '.. colorize('Ctrl+LClick', red) .. ' to switch version',
+	'-' .. colorize('Shift+LClick', red) .. ' put the widget to ',
+	' '.. colorize('Sleep', darker[game_col]) .. ' and darken widget color',
 	'-' .. colorize('Inactive', greyer[game_col])  .. ' widget with greyed colors',
 	'-' .. colorize('Crashed', crashed[game_col]) .. ' widgets have redish colors',
-	'-' .. colorize('Shift + RClick', red) .. ' hook the widget to survey it with HookFuncs',
-	'-' .. colorize('Space + LClick', red) .. ' open the corresponding option panel',
-	'-' .. colorize('RClick', red) .. ' (dev mode required) hook the  widget to survey it with HookFuncs2, much deeper and complete but unstable',
-	'-' .. colorize('DEV MODE', red) .. ' Allow deep func survey enable interaction with sensible widgets (apis, always starting ...)',
+	'-' .. colorize('Shift+RClick', red) .. ' hook the widget to survey it with HookFuncs',
+	'-' .. colorize('Space+LClick', red) .. ' open the corresponding option panel',
+	'-' .. colorize('DEV MODE', red) .. ':\n',
+	'   '.. 'Enable interaction with sensible',
+	'   '.. 'widgets (apis, alwaysStarting ...)',
+	'   '.. 'Enable Reload ('..colorize('Ctrl+KeyPad_6', red)..')',
+	'   '.. colorize('RClick', red) .. ' hook widget to survey it',
+	'   '.. 'with HookFuncs2: much deeper',
+	'   '.. 'and complete but unstable',
 
 }, '\n')
 
@@ -600,8 +607,15 @@ local function WidgetClickMod(self, wdata)
 		-- self.checked = not self.checked
 		local w = widgetHandler:FindWidget(wdata.name)
 		if w then
-			if w.options and w.options_path and WG.crude.OpenPath then
-				WG.crude.OpenPath(w.options_path)
+			if w.options then
+				local main_path = w.options_path
+				if main_path then
+					if WG.crude.OpenWidgetOptions then
+						WG.crude.OpenWidgetOptions(w)
+					elseif WG.crude.OpenPath then
+						WG.crude.OpenPath(main_path)
+					end
+				end
 			end
 		end
 		return true
