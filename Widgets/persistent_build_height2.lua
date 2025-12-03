@@ -26,12 +26,11 @@ SPECIFIED_MEMORY = false --  we don't need it anymore, but this enable specific 
 
 
 
-local autoFixMex = true
 
 local buildHeight = {}
 
 
---include('keysym.h.lua')
+
 include("keysym.lua")
 VFS.Include(LUAUI_DIRNAME ..'/Widgets/Include/weap_ranges.lua')
 local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua", nil, VFS.GAME)
@@ -40,74 +39,71 @@ local _, ToKeysyms = include("Configs/integral_menu_special_keys.lua")
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
-local f = WG.utilFuncs
 
+-- local GetDef					= f.GetDef
+--local CheckReach				= f.CheckReach
+-- local CheckCanSub			= f.CheckCanSub
+local UniTraceScreenRay			= f.UniTraceScreenRay
+local SpiralSquare				= f.SpiralSquare
+local TestBuild					= f.TestBuild
+--local GetDirection			= f.GetDirection
+--local plusMin					= f.plusMin
+--local table					= f.table
+-- local l						= f.l
+-- local GetInsertPosOrder		= f.GetInsertPosOrder
+-- local GetPosOrder			= f.GetPosOrder
+-- local IsEqual				= f.IsEqual
+-- local GetTeamUnits			= f.GetTeamUnits
+-- local QueueChanged			= f.QueueChanged
+-- local Page					= f.Page
+local GetCameraHeight			= f.GetCameraHeight
+local getconTable				= f.getconTable
+-- local IdentifyPlacement		= f.IdentifyPlacement
+local getcons					= f.getcons
+local MultiInsert				= f.MultiInsert
+-- local Overlapping			= f.Overlapping
+local GetCommandPos				= f.GetCommandPos
+-- local deepcopy				= f.deepcopy
+-- local CheckTime				= f.CheckTime
+local MakeOptions				= f.MakeOptions
+local ClampMousToMinimap		= f.ClampMousToMinimap
 
--- local GetDef                            = f.GetDef
---local CheckReach                      = f.CheckReach
--- local CheckCanSub                       = f.CheckCanSub
-local UniTraceScreenRay                 = f.UniTraceScreenRay
-local SpiralSquare                      = f.SpiralSquare
-local TestBuild                         = f.TestBuild
---local GetDirection                    = f.GetDirection
---local plusMin                         = f.plusMin
---local table                           = f.table
-
--- local l                                 = f.l
--- local GetInsertPosOrder                 = f.GetInsertPosOrder
--- local GetPosOrder                       = f.GetPosOrder
--- local IsEqual                           = f.IsEqual
--- local GetTeamUnits                      = f.GetTeamUnits
--- local QueueChanged                      = f.QueueChanged
--- local Page                              = f.Page
-local GetCameraHeight                   = f.GetCameraHeight
-
-local getconTable                       = f.getconTable
-
--- local IdentifyPlacement                 = f.IdentifyPlacement
-local getcons                           = f.getcons
-local MultiInsert                       = f.MultiInsert
--- local Overlapping                       = f.Overlapping
-local GetCommandPos                     = f.GetCommandPos
--- local deepcopy                          = f.deepcopy
--- local CheckTime                         = f.CheckTime
-local MakeOptions                       = f.MakeOptions
-
-local spGetActiveCommand        = Spring.GetActiveCommand
-local spSetActiveCommand        = Spring.SetActiveCommand
-local spGetMouseState           = Spring.GetMouseState
+local spGetActiveCommand		= Spring.GetActiveCommand
+local spSetActiveCommand		= Spring.SetActiveCommand
+local spGetMouseState			= Spring.GetMouseState
 -- local spTraceScreenRay          = Spring.TraceScreenRay
-local spGetGroundHeight         = Spring.GetGroundHeight
-local spGetGroundOrigHeight     = Spring.GetGroundOrigHeight
-local spGetSelectedUnits        = Spring.GetSelectedUnits
-local spGetModKeyState          = Spring.GetModKeyState
+local spGetGroundHeight			= Spring.GetGroundHeight
+local spGetGroundOrigHeight		= Spring.GetGroundOrigHeight
+local spGetSelectedUnits		= Spring.GetSelectedUnits
+local spGetModKeyState			= Spring.GetModKeyState
 -- local spGetUnitTeam             = Spring.GetUnitTeam
 
-local spGetAllUnits             = Spring.GetAllUnits
-local spGetCommandQueue         = Spring.GetCommandQueue
-local spGiveOrderToUnit         = Spring.GiveOrderToUnit
-local spGiveOrderToUnitArray    = Spring.GiveOrderToUnitArray
-local spSendCommands            = Spring.SendCommands
-local spTestBuildOrder          = Spring.TestBuildOrder
-local spGetBuildFacing          = Spring.GetBuildFacing
--- local spGetGroundBlocked        = Spring.GetGroundBlocked
-local spGetTimer                = Spring.GetTimer
-local spDiffTimers              = Spring.DiffTimers
-local spClosestBuildPos         = Spring.ClosestBuildPos
--- local spGetCameraState          = Spring.GetCameraState
-local spValidUnitID             = Spring.ValidUnitID
-local spGetUnitDefID            = Spring.GetUnitDefID
--- local spPos2BuildPos            = Spring.Pos2BuildPos
-local spGetBuildSpacing         = Spring.GetBuildSpacing
--- local spGetGameSeconds          = Spring.GetGameSeconds
-local spFindUnitCmdDesc         = Spring.FindUnitCmdDesc
-local spGetUnitIsDead           = Spring.GetUnitIsDead
-local spGetUnitPosition         = Spring.GetUnitPosition
+local spGetAllUnits				= Spring.GetAllUnits
+local spGetCommandQueue			= Spring.GetCommandQueue
+local spGiveOrderToUnit			= Spring.GiveOrderToUnit
+local spGiveOrderToUnitArray	= Spring.GiveOrderToUnitArray
+local spSendCommands			= Spring.SendCommands
+local spTestBuildOrder			= Spring.TestBuildOrder
+local spGetBuildFacing			= Spring.GetBuildFacing
+-- local spGetGroundBlocked		= Spring.GetGroundBlocked
+local spGetTimer				= Spring.GetTimer
+local spDiffTimers				= Spring.DiffTimers
+local spClosestBuildPos			= Spring.ClosestBuildPos
+-- local spGetCameraState		= Spring.GetCameraState
+local spValidUnitID				= Spring.ValidUnitID
+local spGetUnitDefID			= Spring.GetUnitDefID
+-- local spPos2BuildPos			= Spring.Pos2BuildPos
+local spGetBuildSpacing			= Spring.GetBuildSpacing
+-- local spGetGameSeconds		= Spring.GetGameSeconds
+local spFindUnitCmdDesc			= Spring.FindUnitCmdDesc
+local spGetUnitIsDead			= Spring.GetUnitIsDead
+local spGetUnitPosition			= Spring.GetUnitPosition
 
--- local spuAndBit                 = Spring.Utilities.AndBit
-local spuCheckBit               = Spring.Utilities.CheckBit
---local spuGetUnitCanBuild = Spring.Utilities.GetUnitCanBuild -- (id, defID to build)
-local spGetUnitCurrentCommand   = Spring.GetUnitCurrentCommand
+-- local spuAndBit				= Spring.Utilities.AndBit
+local spuCheckBit				= Spring.Utilities.CheckBit
+--local spuGetUnitCanBuild		= Spring.Utilities.GetUnitCanBuild -- (id, defID to build)
+local spGetUnitCurrentCommand	= Spring.GetUnitCurrentCommand
+local spIsAboveMiniMap			= Spring.IsAboveMiniMap
 
 
 local UnitDefs = UnitDefs
@@ -164,6 +160,8 @@ local elevRangeDraw = {
 	update = false,
 }
 
+local useMinimap = false
+
 -- previously local INSERT_TABLE = {[3]=CMD_OPT_SHIFT}
 
 
@@ -172,9 +170,11 @@ local myTeamID = Spring.GetMyTeamID()
 -- local sDefID = Spring.GetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.dyntrainer_strike_base.id-- Starting unit def ID
 
 
+
 local opt = {
 	findPlatform = true,
-	forceWindNoTerra = true,
+	force_wind_no_terra = true,
+	auto_fix_mex = true,
 }
 
 local dbg_options_path = 'Hel-K/' .. widget:GetInfo().name
@@ -226,7 +226,7 @@ local hotkeyPath = "Hotkeys/Construction"
 options_path = 'Settings/Interface/Building Placement'
 options_order = {   
 	'enterSetHeightWithB', 'altMouseToSetHeight', 'label_structure', 'hotkey_toggle', 'hotkey_raise', 'hotkey_lower',
-	'fix_mex', 'forceWindNoTerra',
+	'auto_fix_mex', 'force_wind_no_terra',
 }
 if SPECIFIED_MEMORY then
 	table.insert(options_order, 'rmbHeightOverGame')
@@ -327,22 +327,22 @@ options = {
 		path = hotkeyPath,
 	},
 	--------------------
-	fix_mex = {
+	auto_fix_mex = {
 		name = "Auto Fix Mex",
 		type = "bool",
-		value = autoFixMex,
+		value = opt.auto_fix_mex,
 		noHotkey = true,
 		desc = 'Level ground if mex spot is found to be unfit after being ordered',
 		OnChange = function(self)
-			autoFixMex = self.value
+			opt[self.key] = self.value
 		end,
 		path = helkpath,
 	},
-	forceWindNoTerra = {
+	force_wind_no_terra = {
 		name = 'Force no terra on wind',
 		desc = 'When placing first wind on a too steep slope, look around to find a better place',
 		type = 'bool',
-		value = opt.forceWindNoTerra,
+		value = opt.force_wind_no_terra,
 		OnChange = function(self)
 			opt[self.key] = self.value
 		end,
@@ -1306,19 +1306,19 @@ end
 
 
 -- tool to store/verify and get platform of elevated building created by user
-function myPlatforms:Process(px,pz)
+function myPlatforms:Process(px, pz)
 	-- Echo('plat',self.x, math.round(os.clock()))
 	local out =  not self.x
 	local platX, platZ
 	if --[[ round(placementHeight)~=0 and--]] not surround --[[and PID~=mexDefID--]] then
 		-- local camHeight = GetCameraHeight(spGetCameraState())
 		local radius = round(Cam.relDist/1000) * 3
-		platX, platZ = myPlatforms:LookFor(p.sizeX,px,pz,(radius * 8)^2)
+		platX, platZ = myPlatforms:LookFor(p.sizeX, px, pz, (radius * 8)^2)
 	end
 	-- Echo("out, self.x is ", out, self.x)
 	if out and self.x then
 		self.oriPH = placementHeight
-		groundModule:Update(self.x,self.z)
+		groundModule:Update(self.x, self.z)
 		-- placementHeight = round((groundModule.height - groundModule.minGround) /INCREMENT_SIZE) * INCREMENT_SIZE
 		placementHeight = 0
 	elseif not self.x and self.oriPH then
@@ -1330,31 +1330,31 @@ function myPlatforms:Process(px,pz)
 	end
 	return platX, platZ
 end
-function myPlatforms:New(sx,x,z,defID)
+function myPlatforms:New(sx, x, z, defID)
 	if not self[sx] then
 		self[sx] = {}
 	end
 	if not self[sx][x] then
 		self[sx][x] = {}
 	end
-	self[sx][x][z] = {defID=defID,time=os.clock()}
+	self[sx][x][z] = {defID = defID, time = os.clock()}
 	Debug.platform('new platform of ' .. defID .. ' x' .. sx .. ' created !','['..x..']['..z..']')
 end
-function myPlatforms:Remove(sx,x,z)
-   self[sx][x][z] = nil
-   if not next(self[sx][x]) then
-   self[sx][x] = nil
-   end
-   if not next(self[sx]) then
-   self[sx] = nil
-   end
-   self.x, self.z = nil, nil
-   Debug.platform('platform ',sx,x,z,'successfully removed')
+function myPlatforms:Remove(sx, x, z)
+	self[sx][x][z] = nil
+	if not next(self[sx][x]) then
+		self[sx][x] = nil
+	end
+	if not next(self[sx]) then
+		self[sx] = nil
+	end
+	self.x, self.z = nil, nil
+	Debug.platform('platform ', sx, x, z,'successfully removed')
 end
-function myPlatforms:Verify(X,Z,sx,sz,acceptance)
+function myPlatforms:Verify(X, Z, sx, sz, acceptance)
 	-- first step : register the modded height points on foot print
 	-- 
-	Debug.platform('Verifying platform',X,Z,sx)
+	Debug.platform('Verifying platform', X, Z, sx)
 
 	local thre = 7 -- threshold
 	local debugOwnPlat = Debug.platform()
@@ -1362,24 +1362,26 @@ function myPlatforms:Verify(X,Z,sx,sz,acceptance)
 	local heights = {}
 	local n_points = (( sx/4 + 1 )*( sz/4 + 1 ))
 	local n_goal = round(n_points * acceptance)
-	for x=X-sx, X+sx,8 do
-		for z=Z-sz, Z+sz,8 do
+	for x = X - sx, X + sx, 8 do
+		for z = Z - sz, Z + sz, 8 do
 			local ht = spGetGroundHeight(x, z)
 			local oht = (origHeightMap and origHeightMap[x][z] or spGetGroundOrigHeight(x,z))
 			-- Echo("origHeight",origHeight,"placementHeight",placementHeight,"height ", height)
 			if oht and not mol(ht,oht,thre) then -- might be out off map so we check if oht exist
 				-- setting or upping a score to that height rounded by thre
-				local rh = nround(ht,thre)
-				local ref= heights[rh-thre] and rh-thre or heights[rh] and rh or heights[rh+thre] and rh+thre
+				local rh = nround(ht, thre)
+				local ref = heights[rh - thre] and rh - thre
+					or heights[rh] and rh
+					or heights[rh + thre] and rh + thre
 				if not ref then
-					ref=rh
+					ref = rh
 					heights[ref] = 0
 				end
-				heights[ref]=heights[ref]+1
+				heights[ref] = heights[ref] + 1
 			else
 				-- Points[#Points+1]={x,ht,z,txt=ref}
-				bad = bad+1
-				if bad>(n_points-n_goal) then
+				bad = bad + 1
+				if bad > (n_points - n_goal) then
 					-- majority of points have same height than original, we don't look further
 					if debugOwnPlat then
 						Echo('but too many points have same height than original: ' .. bad .. '/' .. n_points )
@@ -1393,15 +1395,15 @@ function myPlatforms:Verify(X,Z,sx,sz,acceptance)
 	local platH, platScore = next(heights)
 	local n_heights=0
 	for h,score in pairs(heights,platH) do
-		if score>platScore then
-			platH,platScore=h,score
+		if score > platScore then
+			platH, platScore = h, score
 		end
 	end
 	if debugOwnPlat then
 		Echo('modded height  '.. platH .. ' has the highest score: ' .. platScore )
 	end
 
-	if platScore<n_goal then
+	if platScore < n_goal then
 		if debugOwnPlat then
 			Echo("No platform detected.")
 		end
@@ -1414,17 +1416,17 @@ function myPlatforms:Verify(X,Z,sx,sz,acceptance)
 	end
 	-- if the terrain has been elevated we guess if it has been elevated for multiple structure by checking around, in this case we reconsider the mod height
 	local good=0
-	local startingLayer = sx/8+1 -- TODO:I didnt make a spiral rectangle function yet
+	local startingLayer = sx/8 + 1 -- TODO:I didnt make a spiral rectangle function yet
 	local layers=sx~=sz and 4 or 3
 	local n_around = ( (sx)/4 + 1 + layers*2 )^2 - n_points
 	local found 
 	local function check(layer,offx,offz)
-		local ht = spGetGroundHeight(X+offx, Z+offz)
+		local ht = spGetGroundHeight(X + offx, Z + offz)
 		-- Points[#Points+1]={X+offx,ht, Z+offz}
 
-		if not mol(ht,platH,thre) then
-			good=good+1
-			if good >= round(n_around*0.85) then 
+		if not mol(ht, platH, thre) then
+			good = good + 1
+			if good >= round(n_around * 0.85) then 
 				return true
 			end
 		end
@@ -1441,7 +1443,7 @@ function myPlatforms:Verify(X,Z,sx,sz,acceptance)
 
 	return found
 end
-function myPlatforms:LookFor(sx,cx,cz,distance,sz,pid)
+function myPlatforms:LookFor(sx, cx, cz, distance, sz, pid)
 -- Echo("table.size(self) is ", table.size(self))
 	local bestDist = math.huge
 	local foundX, foundY, foundZ
@@ -1453,17 +1455,17 @@ function myPlatforms:LookFor(sx,cx,cz,distance,sz,pid)
 			if dx <= distance then
 				for z, t in pairs(tx) do
 					if pid and t.defID == pid then
-						local dz = abs(z-cz)
+						local dz = abs(z - cz)
 						if dz <= distance then
 
 							local dist = (dx^2 + dz^2)--^0.5
 							-- Echo("dist, distance is ", dist, distance)
-							if dist<distance and dist<bestDist then
-								if self:Verify(x,z,sx,sz or sx, 0.6) then
+							if dist < distance and dist < bestDist then
+								if self:Verify(x, z, sx, sz or sx, 0.6) then
 									bestDist = dist
-									foundX,foundZ = x,z
-								elseif time-t.time>30 then
-									self:Remove(sx,x,z)
+									foundX,foundZ = x, z
+								elseif time - t.time > 30 then
+									self:Remove(sx, x, z)
 								end
 							end
 						end
@@ -1505,7 +1507,7 @@ end
 --VFS.Include("Map/MapInfo.h")
 do
 	local GetPos = Spring.GetUnitPosition
-	local struct = {defID=0,0,0,0}
+	local struct = {defID = 0, 0, 0, 0}
 	local SpiralSquare= f.SpiralSquare
 	local nround = f.nround
 	local shipFactoryDefID = UnitDefNames.factoryship.id
@@ -1522,7 +1524,7 @@ do
 		end
 		pid = pid or PID
 		if X then
-			if type(X)=='table' then
+			if type(X) == 'table' then
 				X,Z = X[1],X[2]
 			end
 		else 
@@ -1530,7 +1532,7 @@ do
 		end
 
 		local p = _p or customPid and IdentifyPlacement(pid) or p
-		groundModule:Update(X,Z,p)
+		groundModule:Update(X, Z, p)
 		local height = groundModule.height
 		local origHeight = groundModule.origHeight
 
@@ -1539,10 +1541,10 @@ do
 
 		-- local waterline = p.floatOnWater and not g.lava and 0 or OFF_WATER
 		-- local snap          = min(abs(height),INCREMENT_SIZE*0.5)
-		local snap          = INCREMENT_SIZE*0.5
+		local snap          = INCREMENT_SIZE * 0.5
 		--if abs(origHeight-height)<snap then Echo('==') origHeight=height  else Echo('~=',abs(origHeight-height)) end
 
-		water               = round(height)<=0
+		water               = round(height) <= 0
 		-- local modHeight     = groundModule.modHeight --origHeight and height-origHeight -- diff more or less by 10 which is the max before having to terraform
 		-- local elevated      = groundModule.elevated -- modHeight and height>origHeight
 		-- local subelevated   = groundModule.subelevated -- modHeight and height<origHeight
@@ -1598,15 +1600,15 @@ do
 			level = OFF_WATER
 		end
 		if Debug.elevChange() then
-			Echo("PH, height is ", PH, height,spGetGroundHeight(X,Z),'=>',PH + height)
+			Echo("PH, height is ", PH, height, spGetGroundHeight(X, Z), '=>', PH + height)
 		end
 		-- Echo("level is ", level)
 		--Echo("modHeight,PH is ", modHeight,PH)
-		local snapGround    = level<height+snap+OFF_WATER and level>height-snap+OFF_WATER
+		local snapGround    = level < height + snap + OFF_WATER and level > height - snap + OFF_WATER
 
 		groundModule.snapFloat           = not snapGround 
-											and (level~=4 or not specialAboveWaterDefID[p.PID] )
-											and (level < snap+OFF_WATER and level > -snap+OFF_WATER or not p.underSea and level <= OFF_WATER)
+											and (level ~= 4 or not specialAboveWaterDefID[p.PID] )
+											and (level < snap + OFF_WATER and level > -snap + OFF_WATER or not p.underSea and level <= OFF_WATER)
 
 
 		-- local digToWater    = not water and (snapFloat or level<0 and height>1)
@@ -1634,8 +1636,8 @@ do
 				pointY = OFF_WATER
 			end
 		else
-			if pid==winDefID and pointY==0.1 then
-				pointY=0
+			if pid == winDefID and pointY == 0.1 then
+				pointY = 0
 			end
 		end
 
@@ -1650,14 +1652,14 @@ do
 				 ..  (
 						groundModule.snap
 						or water and (p.underSea and height or PH<OFF_WATER and -PH or OFF_WATER )
-						or height<=OFF_WATER and not p.underSea and OFF_WATER
-						or min(height,origHeight)
+						or height <= OFF_WATER and not p.underSea and OFF_WATER
+						or min(height, origHeight)
 					  )
 				 ..')'
 			)
 		end
 		groundModule.snap = false
-		drawWater = --[[(pointY == OFF_WATER) or--]] (level< 80)
+		drawWater = --[[(pointY == OFF_WATER) or--]] (level < 80)
 
 		---- Find out if the build pass
 
@@ -1671,17 +1673,17 @@ do
 		local _, offset
 		local cantPlace, onPlaced
 		local offset = 0
-		local finalElev = abs(pointY-height)
+		local finalElev = abs(pointY - height)
 		------ EXPERIMENTAL:  augment the footprint by the difference between wanted elevation and current ground height, this is not ideal, it's only useful if the terrain is same height as the footprint
 		------ offset the build automatically when zoomed out, if needed due to other builds in vicinity (this doesnt check for ground height and assume neighbour build are on flat surface, TODO: might be hard and costly but maybe implement the height ground checking for neighbours)
 		if (Cam.relDist - finalElev) > 2000 then
 			local extra = pointY < height and 28 or 0 -- when digging the space taken is a bit wider
-			offset = math.floor((finalElev+extra)/28) * 8-- for 28 height diff the pyramid half size enlarge by 8 on a flat surface, we follow this and assume the terrain would be flat
+			offset = math.floor((finalElev + extra)/28) * 8-- for 28 height diff the pyramid half size enlarge by 8 on a flat surface, we follow this and assume the terrain would be flat
 			-- Echo('elev',finalElev,math.floor(finalElev/28),'offset',offset)
 			offset = math.max(offset,0)
 		end
 		------
-		cantPlace,_,blockingStruct,_,onPlaced = TestBuild(X,Z,p,true,placed,nil,nil,nil,nil,offset)
+		cantPlace, _, blockingStruct, _, onPlaced = TestBuild(X, Z, p, true, placed, nil, nil, nil, nil, offset)
 
 		-- end
 		-- Echo("X,Z,pid,placed and #placed,blockingStruct is ", X,Z,pid,placed and #placed,blockingStruct)
@@ -1715,7 +1717,7 @@ do
 		-- Echo("pointY is ", pointY)
 		return not g.noterra and mustTerraform, pointY, blockingStruct, sloppedTerrain
 	end
-	CheckTerra=WG.CheckTerra
+	CheckTerra = WG.CheckTerra
 end
 
 local function CheckEnabled()
@@ -1764,7 +1766,7 @@ local function reset(shift,keepAcom,force)
 		if force and not shift then
 			forceResetAcom = false
 		end
-		movedPlacement[1]=-1
+		movedPlacement[1] = -1
 		update=true
 		g.timeOutNoTerra = 0
 		if WG.DrawTerra then WG.DrawTerra.finish=true end
@@ -1813,7 +1815,7 @@ function widget:KeyRelease(key,mods)
 			reset(false)
 		end
 	end
-	alt,ctrl,meta,shift = newalt,newctrl,newmeta,newshift
+	alt, ctrl, meta, shift = newalt, newctrl, newmeta, newshift
 	if not ordered then
 		return
 	end
@@ -1836,7 +1838,7 @@ function widget:KeyPress(key, mods, isRepeat)
 	if isRepeat then
 		return
 	end
-	alt,ctrl,meta,shift = mods.alt,mods.ctrl,mods.meta,mods.shift
+	alt, ctrl, meta, shift = mods.alt, mods.ctrl, mods.meta, mods.shift
 --Page(Spring,'map')
 	-- Debug.CheckKeys(key,mods)
 	-- if mods.ctrl and key==262 then -- Ctrl + KP6 to reload
@@ -1853,30 +1855,34 @@ function widget:KeyPress(key, mods, isRepeat)
 	end
 	if not g.toggleEnabled then return false end
 	local value = key == heightIncrease and 1 or key == heightDecrease and -1
-	if not value then return end
-	if groundModule.snapFloat and not p.underSea and value<0 then return true end
+	if not value then 
+		return
+	end
+	if groundModule.snapFloat and not p.underSea and value < 0 then
+		return true
+	end
 	if g.noterra then
 		g.timeOutNoTerra = os.clock() + 3
 		return true
 	end
-    if g.NEW_PID then
-        g.NEW_PID = false
-        placementHeight = not g.noterra and buildHeight[PID] or 0
-        if placementHeight ~= 0 then
-            snapTime=spGetTimer()
-            -- g.BRIEF_SNAP = true
-            update = true
-            groundModule:DefineMaxOffset(key == heightIncrease,value,true)
-        end
-        WG.placementHeight = placementHeight
-        return true
-    end
-    if snapTime and spDiffTimers(spGetTimer(),snapTime)<(0.25 - (g.BRIEF_SNAP and 0.15 or 0)) then
-        return true
-    else 
-        snapTime=false
-        g.BRIEF_SNAP = false
-    end
+	if g.NEW_PID then
+		g.NEW_PID = false
+		placementHeight = not g.noterra and buildHeight[PID] or 0
+		if placementHeight ~= 0 then
+			snapTime=spGetTimer()
+			-- g.BRIEF_SNAP = true
+			update = true
+			groundModule:DefineMaxOffset(key == heightIncrease,value,true)
+		end
+		WG.placementHeight = placementHeight
+		return true
+	end
+	if snapTime and spDiffTimers(spGetTimer(),snapTime) < 0.25 - (g.BRIEF_SNAP and 0.15 or 0) then
+		return true
+	else 
+		snapTime=false
+		g.BRIEF_SNAP = false
+	end
 
 	-- block height change for 0.25 second when reaching float point or zero ground point for the ease of the user wanting to get back quickly to zero elevation
 	placementHeight, pointY = groundModule:DefineMaxOffset(key == heightIncrease,value,true)
@@ -1896,28 +1902,28 @@ function widget:MouseWheel(up, value)
 		g.timeOutNoTerra = os.clock() + 3
 		return true
 	end
-	if groundModule.snapFloat and p.floater and value<0 then
+	if groundModule.snapFloat and p.floater and value < 0 then
 		return true
 	end
-    if snapTime and spDiffTimers(spGetTimer(),snapTime)<0.25 - (g.BRIEF_SNAP and 0.15 or 0) then
-        return true
-    else 
-        snapTime=false
-        g.BRIEF_SNAP = false
-    end
+	if snapTime and spDiffTimers(spGetTimer(),snapTime) < 0.25 - (g.BRIEF_SNAP and 0.15 or 0) then
+		return true
+	else 
+		snapTime=false
+		g.BRIEF_SNAP = false
+	end
 -- block height change for 0.25 second when reaching float point or zero ground point for the ease of the user wanting to get back quickly to zero elevation
-    if g.NEW_PID then
-        g.NEW_PID = false
-        placementHeight = not g.noterra and buildHeight[PID] or 0
-        if placementHeight ~= 0 then
-            snapTime=spGetTimer()
-            -- g.BRIEF_SNAP = true
-            update = true
-            groundModule:DefineMaxOffset(up,0)
-        end
-        WG.placementHeight = placementHeight
-        return true
-    end
+	if g.NEW_PID then
+		g.NEW_PID = false
+		placementHeight = not g.noterra and buildHeight[PID] or 0
+		if placementHeight ~= 0 then
+			snapTime = spGetTimer()
+			-- g.BRIEF_SNAP = true
+			update = true
+			groundModule:DefineMaxOffset(up,0)
+		end
+		WG.placementHeight = placementHeight
+		return true
+	end
 -- block height change for 0.25 second when reaching float point or zero ground point for the ease of the user wanting to get back quickly to zero elevation
 	placementHeight, pointY = groundModule:DefineMaxOffset(up,value)
 
@@ -1940,8 +1946,10 @@ local function ApplyHeight(lot,useBuildHeight, exceptPlatform) -- defining heigh
 	while i<=items do
 		local X,Z,facing = lot[i+n][1],lot[i+n][2],lot[i+n][4]
 		if facing then -- in case of surrounding, we get the facing from CommandNotify then we have to reupdate for our own facing afterward
-			if facing~=p.facing then p = IdentifyPlacement(PID,facing) end
-			update=true
+			if facing ~= p.facing then
+				p = IdentifyPlacement(PID,facing)
+			end
+			update = true
 		end
 		--Echo("X,Z is ", X,Z)
 		local isMex = lot[i+n].mex
@@ -1949,7 +1957,7 @@ local function ApplyHeight(lot,useBuildHeight, exceptPlatform) -- defining heigh
 		local customElev
 		local platX, platZ
 		if exceptPlatform and not isMex then
-			platX, platZ = myPlatforms:LookFor(p.sizeX, X, Z, p.radius * 8, nil, pid)
+			platX, platZ = myPlatforms:LookFor(p.sizeX, X, Z, p.radiusSq, nil, pid)
 			if platX then
 				X, Z = platX, platZ
 				customElev = 0
@@ -1960,42 +1968,45 @@ local function ApplyHeight(lot,useBuildHeight, exceptPlatform) -- defining heigh
 			if isMex or g.noterra then
 				customElev = 0
 			elseif pid == PID then
-            	customElev = g.NEW_PID and 0 or placementHeight
-	        elseif useBuildHeight then
-	            customElev = g.NEW_PID and 0 or buildHeight[pid]
+				customElev = g.NEW_PID and 0 or placementHeight
+			elseif useBuildHeight then
+				customElev = g.NEW_PID and 0 or buildHeight[pid]
 			end
-        end
-		local outMap =  X-p.sizeX<0 or X+p.sizeX>maxx or Z-p.sizeZ<0 or Z+p.sizeZ>maxz
+		end
+		local outMap =  X-p.sizeX < 0
+			or X + p.sizeX > maxx
+			or Z - p.sizeZ < 0
+			or Z + p.sizeZ > maxz
 		if outMap then 
-			table.remove(lot,i+n)
-			i=i-1
-			items = items-1
-		elseif CheckTerra(X,Z,pid,nil,nil,customElev) then
+			table.remove(lot,i + n)
+			i = i - 1
+			items = items - 1
+		elseif CheckTerra(X, Z, pid, nil, nil, customElev) then
 			-- replace the table with our y added
-			local newEntry = {X,pointY,Z,facing,pid=pid,mex=isMex,terra=true}
+			local newEntry = {X, pointY, Z, facing, pid = pid, mex = isMex, terra=true}
 
 			if not g.preGame then
-				table.insert(lot,i+n, newEntry)
-				n=n+1
+				table.insert(lot,i + n, newEntry)
+				n = n + 1
 			end
-			lot[i+n]= {X,pointY,Z,facing,pid=pid,mex=isMex}
+			lot[i + n] = {X, pointY, Z, facing, pid = pid, mex = isMex}
 			-- duplicate for sorting terra -- SHOULD JUST ADD .terra instead
 			if ghosts then
-				ghosts.ln = ghosts.ln+1
+				ghosts.ln = ghosts.ln + 1
 				ghosts[ghosts.ln] = newEntry
-				ghosts[X..pointY..Z]=ln
+				ghosts[X..pointY..Z] = ln
 			end
 		else
 			--local height = spGetGroundHeight(X,Z)
 			if pid ~= mexDefID and surround and (blockingStruct) then --remove the surrounding buildings made by ctrl+shift if they are stepping on existing buildings
 				table.remove(lot, i+n)
-				i=i-1
-				items = items-1
+				i = i - 1
+				items = items - 1
 			else
-				lot[i+n]={X, pointY, Z, facing, mex = isMex, pid = pid}
+				lot[i + n]={X, pointY, Z, facing, mex = isMex, pid = pid}
 			end
 		end
-		i=i+1
+		i = i + 1
 	end
 end
 local function CreateTerra(cl, unitID)
@@ -2025,35 +2036,27 @@ local function CreateTerra(cl, unitID)
 	return groundModule:SetTerraforming(cons, myTeamID, pointX, pointY, pointZ, p.terraSizeX, p.terraSizeZ)
 
 end
-
-function WidgetInitNotify(w, name, preloading)
-	if name == 'Draw Placement' then
-		widgets.drawing_placement = w
-	elseif name == 'Mex Placement Handler' then
-		widgets.mex_placement = w
-	elseif name == 'FixAutoGuard' then
-		widgets.fix_autoguard = w
-	elseif name == 'Building Starter' then
-		widgets.building_starter = w
-	elseif name == 'Guard Remove' then
-		widgets.guard_remove = w
-	elseif name == 'Hold Ctrl during placement to morph' then
-		widgets.ctrl_morph = w
+do
+	local widgetNames = {
+		['Draw Placement'] = 'drawing_placement',
+		['Mex Placement Handler'] = 'mex_placement',
+		['FixAutoGuard'] = 'fix_autoguard',
+		['Building Starter'] = 'building_starter',
+		['Guard Remove'] = 'guard_remove',
+		['Hold Ctrl during placement to morph'] = 'ctrl_morph',
+		['Factory Preorder'] = 'fac_preorder',
+	}
+	function WidgetInitNotify(w, name, preloading)
+		local key = widgetNames[name]
+		if key then
+			widgets[key] = w
+		end
 	end
-end
-function WidgetRemoveNotify(w, name, preloading)
-	if name == 'Draw Placement' then
-		widgets.drawing_placement = nil
-	elseif name == 'Mex Placement Handler' then
-		widgets.mex_placement = nil
-	elseif name == 'FixAutoGuard' then
-		widgets.fix_autoguard = nil
-	elseif name == 'Building Starter' then
-		widgets.building_starter = nil
-	elseif name == 'Guard Remove' then
-		widgets.guard_remove = nil
-	elseif name == 'Hold Ctrl during placement to morph' then
-		widgets.ctrl_morph = nil
+	function WidgetRemoveNotify(w, name, preloading)
+		local key = widgetNames[name]
+		if key then
+			widgets[key] = nil
+		end
 	end
 end
 
@@ -2084,24 +2087,23 @@ local function DistributeOrders(lot, PID, meta, shift)
 		-- Echo(FormatTime(os.clock()))
 		conTable.inserted_time = false
 		conTable.waitOrder = false
-		for id,con in pairs(conTable.cons) do
+		for id, con in pairs(conTable.cons) do
 			local queue = spGetCommandQueue(id,-1) or EMPTY_TABLE
 			local commands = {}
-			local numOrder = 1
+			local first = 1
 			-- for i, order in ipairs(queue) do
 			-- 	Echo('QUEUE: ' .. i, 'cmd ' .. order.id, 'p: ', unpack(order.params))
 			-- end
 			for i, order in ipairs(queue) do
-				if order.id == 0 then -- 
-					numOrder = 2
+				if i == 1 and order.id == 0 then -- 
+					first = 2
 				end
-
-				-- if includeConPos == true and i == numOrder then
+				-- if includeConPos == true and i == first then
 					
 				--     Echo(order.id,'unpack(order.params)', unpack(order.params))
 				-- end
-				-- if includeConPos == true and i == numOrder and order.id == CMD_REPAIR and not order.params[5] then
-				-- if includeConPos == true and i == numOrder and order.id < 0 and not order.params[5] then -- TODO: UPDATE THIS WITH BUILD RADIUS CHECK
+				-- if includeConPos == true and i == first and order.id == CMD_REPAIR and not order.params[5] then
+				-- if includeConPos == true and i == first and order.id < 0 and not order.params[5] then -- TODO: UPDATE THIS WITH BUILD RADIUS CHECK
 				-- 	-- Echo(('cancel includeCon params'):upper())
 				-- 	-- (!this behaviour is outdated)
 				-- 	-- the con is currently building, we don't include the con position in the insertion calculation, to avoid inserting before the current build
@@ -2109,8 +2111,25 @@ local function DistributeOrders(lot, PID, meta, shift)
 				-- 	-- when the build has been started, the PID disappear and the facing remains so we can assume the build has started with 4 params
 				-- 	includeConPos = false
 				-- end
-				local posx,_,posz = GetCommandPos(order)
-				commands[i] = not posx and EMPTY_TABLE or {posx,posz, cmd = order.id, facing = order.id<0 and order[4] or 0}
+				local posx, _, posz = GetCommandPos(order)
+				if i == first and includeConPos == true and  posx then
+					local targetDefID
+					if order.id == CMD_REPAIR then
+						if not order.params[2] then
+							targetDefID = spGetUnitDefID(order.params[1])
+						end
+					elseif order.id < 0 then
+						targetDefID = -order.id
+					end
+					if targetDefID then
+						local radius = WG.PlacementModule:Measure(targetDefID).radius
+						local x, _, z = spGetUnitPosition(id)
+						if math.diag(x - posx, z - posz) < (con.buildDistance + radius) then
+							includeConPos = false
+						end
+					end
+				end
+				commands[i] = not posx and EMPTY_TABLE or {posx,posz, cmd = order.id, facing = order.id < 0 and order[4] or 0}
 				-- Echo('add',i,posx,posz,  order.id, order.id<0 and order.params[4])
 			end
 			con.commands = commands
@@ -2275,6 +2294,10 @@ local function DistributeOrders(lot, PID, meta, shift)
 								conTable.waitOrder = {order[1], order[2]}
 								firstcon = false
 							end
+							if widgets.fac_preorder then
+								widgets.fac_preorder:CommandNotify(cmdID, {pointX, pointY, pointZ, facing}, {shift = true})
+							end
+
 						end
 						if not conTable.multiInsert then -- completing the virtual queue ourselves if MultiInsert wasn't called
 							if posCommand == -1 then
@@ -2383,9 +2406,9 @@ local function ProcessPreGameQueue(preGameQueue,tasker)
 
 			commandTag = CreateTerra()
 			-- spGiveOrderToUnit(tasker,CMD_INSERT,{-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag},CMD_OPT_ALT)
-			spGiveOrderToUnit(tasker, CMD_INSERT, {-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag}, CMD_OPT_ALT + CMD_OPT_SHIFT)
+			spGiveOrderToUnit(tasker, CMD_INSERT, {-1, CMD_LEVEL, CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 		end
-		spGiveOrderToUnit(tasker, CMD_INSERT, {-1,-PID,CMD_OPT_SHIFT, pointX, pointY, pointZ, facing}, CMD_OPT_ALT + CMD_OPT_SHIFT)
+		spGiveOrderToUnit(tasker, CMD_INSERT, {-1, -PID, CMD_OPT_SHIFT, pointX, pointY, pointZ, facing}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 	end
 
 end
@@ -2397,31 +2420,31 @@ end
 --if check("resume")>0.01 then check("reset") end
 -- local cnt = 0
 local function CheckForDuplicateMex(x, z)
-    if timeBlockDuplicate then 
-        -- this is for preventing mex to be cancelled because user would spam a mex
-        -- few time after, Drawing Placement will fill up cantMex[spot] and then it won't matter
-        -- but this wouldnt fix the problem if DrawingPlacement wasnt there
-        -- and it doesnt fix the overalapping mex on area mex
-        -- TODO need to centralize and unify the placement handling completely (big work)
-        local time = os.clock()
-        local changed = false
-        for btime, toblock in pairs(timeBlockDuplicate) do
-            if time - btime > SEND_DELAY then
-                changed = true
-                timeBlockDuplicate[btime] = nil
-                -- Echo('delete duplicate', time - btime, toblock[1], toblock[2])
-            else
-                
-                if toblock[1] == x and toblock[2] == z then
-                    -- Echo('blocked duplicate', time - btime, x, z)
-                    return true
-                end
-            end
-        end
-        if changed and not next(timeBlockDuplicate) then
-            timeBlockDuplicate = nil
-        end
-    end
+	if timeBlockDuplicate then 
+		-- this is for preventing mex to be cancelled because user would spam a mex
+		-- few time after, Drawing Placement will fill up cantMex[spot] and then it won't matter
+		-- but this wouldnt fix the problem if DrawingPlacement wasnt there
+		-- and it doesnt fix the overalapping mex on area mex
+		-- TODO need to centralize and unify the placement handling completely (big work)
+		local time = os.clock()
+		local changed = false
+		for btime, toblock in pairs(timeBlockDuplicate) do
+			if time - btime > SEND_DELAY then
+				changed = true
+				timeBlockDuplicate[btime] = nil
+				-- Echo('delete duplicate', time - btime, toblock[1], toblock[2])
+			else
+				
+				if toblock[1] == x and toblock[2] == z then
+					-- Echo('blocked duplicate', time - btime, x, z)
+					return true
+				end
+			end
+		end
+		if changed and not next(timeBlockDuplicate) then
+			timeBlockDuplicate = nil
+		end
+	end
 end
 local function AddToBlockDuplicateMex(x, z)
 	local time = os.clock()
@@ -2434,7 +2457,7 @@ local function AddToBlockDuplicateMex(x, z)
 			time = time + 0.01
 		end
 	end
-	-- Echo('add duplicate to block',time, x, z,'already existing?', timeBlockDuplicate[time])
+	-- Echo('add duplicate to block', time, x, z, 'already existing?', timeBlockDuplicate[time])
 	timeBlockDuplicate[time] = {x, z}
 end
 local IsOccupied
@@ -2448,8 +2471,8 @@ local IsMexable
 do
 	local spIsUnitAllied = Spring.IsUnitAllied
 	local spGetUnitHealth = Spring.GetUnitHealth
-	function IsMexable(x,z, ignoreEnemy)
-		local mexID =IsOccupied(x,z)
+	function IsMexable(x, z, ignoreEnemy)
+		local mexID = IsOccupied(x, z)
 		if not mexID then
 			return true
 		end
@@ -2467,8 +2490,9 @@ do
 	local solarp
 	local windp
 	local lotusp
-
+	local count = 0
 	function widget:CommandNotify(cmd, params, opts)
+		count = count + 1
 		-- NOTE: when using Alt and Draw Placement, it happens the active command get reset by some widget at CommandNotify stage
 		-- replacing Mex Placement Handler behaviour 
 		-- Echo('CN',cmd,unpack(params))
@@ -2734,15 +2758,15 @@ function widget:UnitDestroyed(unitID, defID, team)
 	if team ~= myTeamID then
 		return
 	end
-	if autoFixMex and defID == terraDefID and terraUnits[unitID] then
+	if defID == terraDefID and terraUnits[unitID] and opt.auto_fix_mex then
 		local xz = terraUnits[unitID]
 		local x,z
 		if xz then
-			x,z = xz:match(('^([^%-]+)%-([^%-]+)')) 
+			x, z = xz:match(('^([^%-]+)%-([^%-]+)')) 
 			if x then
-				x,z = tonumber(x), tonumber(z)
+				x, z = tonumber(x), tonumber(z)
 			end
-			Debug.fixMex('x,z is',x,z,'=>',cmdTags[x] and cmdTags[x][z])
+			Debug.fixMex('x, z is',x, z, '=>',cmdTags[x] and cmdTags[x][z])
 		end
 		local commandTag = z and cmdTags[x] and cmdTags[x][z]
 		if commandTag then
@@ -2784,21 +2808,19 @@ local IsCmdReallyDone = function(unitID,defID, team, cmdDone, params)
 	return true
 end
 
-function widget:UnitCmdDone(unitID,defID, team, cmdDone, params)
+function widget:UnitCmdDone(unitID, defID, team, cmdDone, params)
 	if team ~= myTeamID then
 		return
 	end
-	if not autoFixMex then
-		return
-	end
-	--[[if cmdDone == CMD_LEVEL  and IsCmdReallyDone(unitID,defID, team, cmdDone, params) then
+
+	--[[if cmdDone == CMD_LEVEL and opt.auto_fix_mex and IsCmdReallyDone(unitID,defID, team, cmdDone, params) then
 		local commandTag = params[4]
 		local xz = params[1]..'-'..params[3]
 		local found = tagHolder[commandTag]
 		-- Echo(os.clock(),'CMD_LEVEL done, commandTag:', commandTag,'x-z',xz,'found?',found)
 
 	else--]]
-	if cmdDone == -mexDefID and spotsPos and params[3] and not params[5] then
+	if cmdDone == -mexDefID and spotsPos and opt.auto_fix_mex and  params[3] and not params[5] then
 
 		if IsCmdReallyDone(unitID,defID, team, cmdDone, params) then
 			local x,y,z = unpack(params)
@@ -2806,9 +2828,9 @@ function widget:UnitCmdDone(unitID,defID, team, cmdDone, params)
 			if not commandTag then    
 				if not Spring.GetUnitsInRectangle(x,z,x,z)[1] then
 					-- Echo("spGetGroundBlocked(mexDefID,x,y,z) is ", Spring.GetGroundBlocked(x-24,z-24,x+24,z+24))
-					if Spring.TestBuildOrder(mexDefID, x, 0, z, 1)==0 then
-						if CheckTerra(x,z,mexDefID,nil,nil,0) then
-							commandTag = groundModule:SetTerraforming( {unitID}, myTeamID, x,y,z,23.9, 23.9)
+					if Spring.TestBuildOrder(mexDefID, x, 0, z, 1) == 0 then
+						if CheckTerra(x, z, mexDefID, nil, nil, 0) then
+							commandTag = groundModule:SetTerraforming( {unitID}, myTeamID, x, y, z, 23.9, 23.9)
 							cmdTags[x] = cmdTags[x] or {}
 							cmdTags[x][z] = commandTag
 							tagHolder[commandTag] = false
@@ -2821,8 +2843,8 @@ function widget:UnitCmdDone(unitID,defID, team, cmdDone, params)
 				Debug.fixMex(os.clock(), unitID, 'reuse terra tag', commandTag)
 			end
 			if commandTag then
-				spGiveOrderToUnit(unitID,CMD_INSERT,{0,CMD_LEVEL,CMD_OPT_SHIFT, x,y,z, commandTag},CMD_OPT_ALT + CMD_OPT_SHIFT)
-				spGiveOrderToUnit(unitID,CMD_INSERT,{1,-mexDefID,CMD_OPT_SHIFT, x, y, z, 1},CMD_OPT_ALT + CMD_OPT_SHIFT)
+				spGiveOrderToUnit(unitID,CMD_INSERT, {0, CMD_LEVEL,CMD_OPT_SHIFT, x, y, z, commandTag}, CMD_OPT_ALT + CMD_OPT_SHIFT)
+				spGiveOrderToUnit(unitID,CMD_INSERT, {1, -mexDefID,CMD_OPT_SHIFT, x, y, z, 1}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 			end
 		end
 	end
@@ -2831,43 +2853,48 @@ end
 
 
 function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOpts, cmdTag)
-	if autoFixMex then
+	if cmdID == CMD_INSERT and opt.auto_fix_mex then
 		local commandTag = attachTerraUnits[unitID]
 		if commandTag then
 			if tagHolder[commandTag] then
 				return
 			end
-			if cmdID == CMD_INSERT then
-				if cmdParams[2] == CMD_LEVEL then
-					-- skip
-				elseif cmdParams[1] == 0 and cmdParams[2] == CMD_REPAIR then
-					local debugMe = Debug.fixMex()
-					local terraID = cmdParams[4]
-					local defID = terraID and spGetUnitDefID(terraID)
-					if debugMe then Echo(terraID,'terraDefID ?',terraDefID,defID) end
-					if defID == terraDefID then
-						-- local order = spGetCommandQueue(unitID,1)[1]
-						local cmd,_,_,p1,p2,p3,p4 = spGetUnitCurrentCommand(unitID)
-						if debugMe then Echo('cmd ?',cmd, p4,'==', commandTag) end
-						if cmd == CMD_LEVEL then
-							if p4 == commandTag  then
-								local xz = p1 .. '-' .. p3
-								terraUnits[terraID] = xz
-								tagHolder[commandTag] = terraID
-								if debugMe then Echo('created attachment of terra unit ',terraID,'to xz',p1,p3,' verif?',cmdTags[p1] and cmdTags[p1][p3]) end
+			if cmdParams[2] == CMD_LEVEL then
+				-- skip
+			elseif cmdParams[1] == 0 and cmdParams[2] == CMD_REPAIR then
+				local debugMe = Debug.fixMex()
+				local terraID = cmdParams[4]
+				local defID = terraID and spGetUnitDefID(terraID)
+				if debugMe then
+					Echo(terraID, 'terraDefID ?', terraDefID, defID)
+				end
+				if defID == terraDefID then
+					-- local order = spGetCommandQueue(unitID,1)[1]
+					local cmd, _, _, p1, p2, p3, p4 = spGetUnitCurrentCommand(unitID)
+					if debugMe then
+						Echo('cmd ?', cmd, p4,'==', commandTag)
+					end
+					if cmd == CMD_LEVEL then
+						if p4 == commandTag  then
+							local xz = p1 .. '-' .. p3
+							terraUnits[terraID] = xz
+							tagHolder[commandTag] = terraID
+							if debugMe then
+								Echo('created attachment of terra unit ',terraID, 'to xz', p1, p3,' verif?', cmdTags[p1] and cmdTags[p1][p3])
 							end
 						end
 					end
 					attachTerraUnits[unitID] = nil
-
 				end
+				
 			end
+
 		end
 	end
 
 	if conTable.waitOrder and conTable.cons[unitID] then
 		local waitOrder = conTable.waitOrder
-		if waitOrder[1] == cmdID and table.compare(waitOrder[2],cmdParams) then -- until the last (but first of a batch) user order has not been received here, we keep the virtual queue made by multiinsert
+		if waitOrder[1] == cmdID and table.compare(waitOrder[2], cmdParams) then -- until the last (but first of a batch) user order has not been received here, we keep the virtual queue made by multiinsert
 			conTable.inserted_time = false
 			conTable.waitOrder = false
 			-- Echo('UC at ',Spring.GetGameFrame(),Spring.GetGameFrame()-orderF,spGetCommandQueue(unitID,0))
@@ -2939,7 +2966,7 @@ function widget:CommandsChanged()
 	--     end
 	-- end
 
-	cons=newsel
+	cons = newsel
 
 	conTable = getconTable()
 end
@@ -2978,8 +3005,8 @@ do
 			-- if needTerra then
 				DT.new=true
 				DT.finish=false
-				  DT[1],  DT[2], DT[3], DT[4],  DT[5],                DT[6],              DT[7], DT[8],    DT[9],   DT[10]
-				= pointX,pointY,pointZ,p.sizeX,p.sizeZ, (p.floatOnWater and pointY<=0.1), PID, p.facing, needTerra,drawWater
+				  DT[1],   DT[2],  DT[3],  DT[4],   DT[5],                DT[6],             DT[7],  DT[8],    DT[9],     DT[10]
+				= pointX, pointY, pointZ, p.sizeX, p.sizeZ, (p.floatOnWater and pointY<=0.1), PID,  p.facing, needTerra, drawWater
 
 				-- WG.DrawTerra = draw
 				-- Echo("needTerra is ", needTerra)
@@ -3053,7 +3080,26 @@ end
 -- Update process
 local lastCamDist = 0
 
-local function Process(mx,my,update)
+local function Process(mx, my, update)
+	-- Should not ignore water if the structure can float. See https://springrts.com/mantis/view.php?id=5390
+	local px, _, pz
+	if not mx then
+		mx,my = spGetMouseState()
+	end
+	if not leftClick then
+		useMinimap = spIsAboveMiniMap(mx, my)
+	elseif useMinimap then
+		mx, my = ClampMouseToMinimap(mx, my)
+	end
+
+	-- if useMinimap then
+	-- 	mx, my = ClampMouseToMinimap(mx, my)
+	-- end
+
+	px, _, pz, offmap = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+	if not px then
+		return
+	end
 
 	--special = shift and table.has(eSpec,PID)
 	if update or p.facing ~= spGetBuildFacing() then
@@ -3062,11 +3108,6 @@ local function Process(mx,my,update)
 		update = true
 	end
 	p.spacing = spGetBuildSpacing()
-	mx,my = spGetMouseState()
-
-	-- Should not ignore water if the structure can float. See https://springrts.com/mantis/view.php?id=5390
-	local px,_,pz
-	px,_,pz,offmap = UniTraceScreenRay(mx, my,not p.floatOnWater,p.sizeX,p.sizeZ)
 
 	-- Echo("upx,upy,upz is ", upx,upy,upz)
 
@@ -3075,7 +3116,7 @@ local function Process(mx,my,update)
 
 
 	local mex
-	if PID==mexDefID then 
+	if PID == mexDefID then 
 		mex =  spotsPos and WG.GetClosestMetalSpot(px,pz)
 		if mex then px,pz = mex.x, mex.z end
 		update = true
@@ -3090,8 +3131,8 @@ local function Process(mx,my,update)
 		-- if pz-sz<0 then pz=sz elseif pz+sz>maxz then pz=maxz-sz end
 	end
 	local geoSpot
-	if PID==geoDefID then
-		px,pz,geoSpot = CheckGeos(px,pz)
+	if PID == geoDefID then
+		px, pz, geoSpot = CheckGeos(px, pz)
 		update = true
 
 	end
@@ -3147,7 +3188,7 @@ local function Process(mx,my,update)
 		local noterra = g.noterra
 		if noterra or PID~=geoDefID or geoSpot then
 			local lookingForFlat = noterra or not blockingStruct and sloppedTerrain and mol(placementHeight,0,7)
-				and (PID == windDefID and opt.forceWindNoTerra or Cam.relDist>2000)
+				and (PID == windDefID and opt.force_wind_no_terra or Cam.relDist>2000)
 			local findAround = lookingForFlat or blockingStruct
 			-- Echo("wantNoTerra is ", wantNoTerra, findAround)
 			-- Echo('=>',math.round(os.clock()))
@@ -3420,6 +3461,9 @@ function widget:MousePress(mx, my, button)
 		forceResetAcom = false
 	elseif button == 3 then
 		rightClick = true
+		if PID and not ordered and not widgets.drawing_placement then
+			return true
+		end
 	end
 
 	if button == 3 and not PID and select(2, spGetDefaultCommand()) == -mexDefID then
@@ -3441,10 +3485,10 @@ function widget:MousePress(mx, my, button)
 		if not (cons[1] or g.preGame) or WG.Chili.Screen0:IsAbove(mx,my) then
 			return
 		end
-
+		useMinimap = spIsAboveMiniMap(mx, my)
 
 		-- update pointX, pointY, pointZ as something might have happened between the last update and the click
-		Process(mx,my,true)
+		Process(mx, my, true)
 	end
 	if not (PID and pointX and pointZ) then
 
@@ -3595,7 +3639,7 @@ function widget:MousePress(mx, my, button)
 				if g.preGame then
 					ignoreFirst = true
 				end
-				widgetHandler:CommandNotify(-PID,{pointX,pointY,pointZ,p.facing},MakeOptions())
+				widget:CommandNotify(-PID, {pointX,pointY,pointZ,p.facing}, MakeOptions())
 				if g.preGame then
 					spSetActiveCommand(0)
 				end
@@ -3791,16 +3835,16 @@ do
 	local CalcBallisticCircle 		= VFS.Include("LuaUI/Utilities/engine_range_circles.lua")
 	local presetTable = setmetatable(
 		{},
-	 	{
-	 		__index = function(self, num) 
-	 			local ret = {}
-	 			for i = 1, num do
-	 				ret[i] = {}
-	 			end
-	 			rawset(self, num, ret)
-	 			return ret
-	 		end
-	 	}
+		{
+			__index = function(self, num) 
+				local ret = {}
+				for i = 1, num do
+					ret[i] = {}
+				end
+				rawset(self, num, ret)
+				return ret
+			end
+		}
 	)
 	local function MakeVertices(t)
 		local len = #t
@@ -3854,7 +3898,7 @@ do
 							elevRangeDraw.verts = coords
 						else
 							-- pre work for weapon #1 is already done
-							coords = CalcBallisticCircle(pointX, pointY + elevRangeDraw.offY, pointZ, elevRangeDraw.radius, elevRangeDraw.wDef)
+							coords = (WG.CalcBallisticCircle or CalcBallisticCircle)(pointX, pointY + elevRangeDraw.offY, pointZ, elevRangeDraw.radius, elevRangeDraw.wDef)
 							elevRangeDraw.verts = MakeVertices(coords)
 						end
 						-- Echo("coords is ", coords)
@@ -3918,10 +3962,10 @@ do
 
 			local bx,by,bz,bw,bh,float = pointX,pointY,pointZ,p.sizeX,p.sizeZ,water and not p.underSea --,not(snapFloat and water)
 			if movedPlacement[1]>-1 then
-				bx,bz=movedPlacement[1],movedPlacement[3]
+				bx, bz = movedPlacement[1], movedPlacement[3]
 			end
 			local gy = spGetGroundHeight(bx,bz)
-			if p.floatOnWater and gy<0 and placementHeight<=0 then gy=0 end
+			if p.floatOnWater and gy < 0 and placementHeight <= 0 then gy = 0 end
 			--glColor(0,1,0,0.4)
 			glLineWidth(1.0)
 
@@ -3929,7 +3973,7 @@ do
 
 			if drawWater then
 				
-				if pointY == 0.1 or snapFloat and level <=0.1 then
+				if pointY == 0.1 or snapFloat and level <= 0.1 then
 
 					glColor(color.tainted_blue)  
 					--glColor(waterColor)
@@ -3938,7 +3982,7 @@ do
 				end
 			end
 			glLineWidth(snapTime and 2.5 or 2)
-			glColor(pointY==0.1 and color.strong_blue or color.fade_blue)
+			glColor(pointY == 0.1 and color.strong_blue or color.fade_blue)
 			glBeginEnd(GL_LINE_STRIP, DrawRectangle, bx,by,bz,bw,bh)
 
 
@@ -3955,19 +3999,30 @@ do
 end
 
 
-local ProgressiveMapRegistration
 function PBHCallin(self) -- unused homemade callin
 	Echo("TRIGGERED",self.value)
 end
-do -- work around to get origHeight on auto generated maps where Spring.GetOrigHeight is broken
+do -- work around to get origHeight on auto generated maps where Spring.GetGroundOrigHeight is broken
+	local ProgressiveMapRegistration
 	local screenFrame = 0
+	local count = 0
+	local time = 0
+	local spGetTimer = Spring.GetTimer
+	local spDiffTimers = Spring.DiffTimers
 	function widget:DrawGenesis()
 		if screenFrame == 2 then
+			local timer = spGetTimer()
 		-- just need an overtime callin for the first rounds to fill up our map of heights progressively
 			if not (ProgressiveMapRegistration and ProgressiveMapRegistration()) then
 				-- Echo('registering done')
+				if count > 0 then
+					time = time + spDiffTimers(spGetTimer(), timer)
+					Echo('['..widget:GetInfo().name..']: sampled ' .. count .. ' map points in '.. time .. ' seconds')
+				end
 				widgetHandler:RemoveWidgetCallIn('DrawGenesis', widget)
+				return
 			end
+			time = time + spDiffTimers(spGetTimer(), timer)
 		end
 	end
 	function AfterInit(_,dt)
@@ -3979,10 +4034,12 @@ do -- work around to get origHeight on auto generated maps where Spring.GetOrigH
 				ProgressiveMapRegistration = coroutine.wrap(function()
 					origHeightMap = setmetatable({},{__index=function(self,k) local t = {} self[k] = t return t end})
 					WG.origHeightMap = origHeightMap
-					for x=0, maxx, 8 do
+					for x = 0, maxx, 8 do
+						count = count + 1
 						local oriX = origHeightMap[x]
-						for z=0,maxz,8 do
-							oriX[z]=spGetGroundHeight(x,z)
+						for z = 0, maxz, 8 do
+							count = count + 1
+							oriX[z] = spGetGroundHeight(x,z)
 						end
 						if x % 32 == 0 then
 							cyield(true)
@@ -3993,10 +4050,11 @@ do -- work around to get origHeight on auto generated maps where Spring.GetOrigH
 			end
 			widget.DrawScreen = widget._DrawScreen
 			widgets.command_insert = widgetHandler:FindWidget("CommandInsert") -- Get command insert widget
+			widgets.fac_preorder = widgetHandler:FindWidget("Factory Preorder")
 			widgetHandler:UpdateWidgetCallIn('Update', widget)
 			widgetHandler:UpdateWidgetCallIn('MousePress', widget)
 		end
-		screenFrame = screenFrame+1
+		screenFrame = screenFrame + 1
 	end
 end
 --------------------------------------------------------------------------------
@@ -4068,7 +4126,7 @@ function widget:Initialize()
 	spSetActiveCommand = Spring.SetActiveCommand
 	Cam = WG.Cam
 	if not Cam then
-		Echo(widget:GetInfo().name .. ' require HasViewChanged')
+		Echo(widget:GetInfo().name .. ' requires api_has_view_changed')
 		widgetHandler:RemoveWidget(self)
 		return
 	end
@@ -4092,7 +4150,7 @@ function widget:Initialize()
 	widgets.mex_placement       = widgetHandler:FindWidget('Mex Placement Handler')
 	widgets.drawing_placement   = widgetHandler:FindWidget('Draw Placement')
 	widgets.command_insert      = widgetHandler:FindWidget("CommandInsert")
-	-- Get command insert widget
+	
 
 	-----------------
 	if SPECIFIED_MEMORY then
@@ -4167,7 +4225,7 @@ function widget:Initialize()
 		spSendCommands("luaui disablewidget CommandInsert")
 	end--]]
 	ghosts = WG.ghosts
-	WG.PBHisListening=self
+	WG.PBHisListening = self
 	HotkeyChangeNotification()
 end
 
@@ -4190,7 +4248,7 @@ function widget:Shutdown()
 	-- save platforms in case widget is reloaded
 	--
 	-- Echo('PBH SHUTDOWN')
-	-- WG.PBHisListening=false
+	WG.PBHisListening = false
 	-- WG.CheckTerra = nil
 	-- WG.FindPlacementAround = nil
 	-- for k,v in pairs(WG.commandLot) do WG.commandLot[k]=nil end
