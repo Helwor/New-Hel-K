@@ -38,7 +38,7 @@ end
 function widget:Initialize()
     Cam = WG.Cam
     if not Cam then
-        Spring.Echo(widget:GetInfo().name .. ' require HasViewChanged')
+        Spring.Echo(widget:GetInfo().name .. ' require Widgets\\Include\\helk_core\\widgets\\api_view_changed.lua')
         widgetHandler:RemoveWidget(self)
         return
     end
