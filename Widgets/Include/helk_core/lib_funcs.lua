@@ -118,7 +118,8 @@ local sp = {
 	DiffTimers                  = Spring.DiffTimers,
 	SetClipboard                = Spring.SetClipboard,
 	GetClipboard                = Spring.GetClipboard,
-	TableEcho                   = Spring.Utilities.TableEcho
+	TableEcho                   = Spring.Utilities.TableEcho,
+	GetViewGeometry				= Spring.GetViewGeometry,
 }
 local spu = {
 	CheckBit                = Spring.Utilities.CheckBit,
@@ -156,10 +157,12 @@ local mapSizeX, mapSizeZ = Game.mapSizeX, Game.mapSizeZ
 ---------------------------------------------------------------------------------------------------
 local localEnv = {
 	_G = _G,
+	select = select, -- only used because since idk when, loadstring chunk now inherit from current env (!)
 	KEYSYMS = KEYSYMS,
 	KEYCODES = KEYCODES,
 } 
-setfenv(1,localEnv) -- setting from now on this localEnv as our current global, keeping only what has been declared as local
+
+setfenv(1, localEnv) -- setting from now on this localEnv as our current global, keeping only what has been declared as local
 
 WIDGET_DIRNAME    = LUAUI_DIRNAME .. 'Widgets/'
 local WIDGET_DIRNAME = WIDGET_DIRNAME
@@ -499,6 +502,38 @@ do -- select_range
 		end
 		return select_start(to - from + 1, select(from, ...))
 	end
+	function remove_arg(i, ...)
+		if i == 1 then
+			return select(2, ...)
+		end
+		local n = select('#', ...)
+		if i == n then
+			return select_start(n - 1, ...)
+		else
+			return JoinFold(Fold(select_start(i-1, ...)), select(i+1, ...))()
+		end
+	end
+
+	function remove_args(from, to, ...)
+		local n = select('#', ...)
+	
+		if from == 1 and to == n then
+			return  -- Tout retirer
+		elseif from == to then
+			return remove_arg(from, ...)
+		elseif from == 1 then
+			return select(to + 1, ...)  -- Retirer début
+		elseif to == n then
+			return select_start(from - 1, ...)  -- Retirer fin
+		elseif from == 1 then
+			return select(to + 1, ...)
+		else
+			return MergeFolds(
+				Fold(select_start(from - 1, ...)),
+				Fold(select(to + 1, ...))
+			)()
+		end
+	end
 
 end
 
@@ -546,13 +581,13 @@ do -- FOLDS (containing and manipulating varargs)
 			end
 			return retfunc
 		]]):format(locals, vars)
+		
 		code = assert(loadstring(str))
 		retFuncs[n] = code
 
 		call = code(...)
 		return call
 	end
-
 	-- joining and merging folds
 	local foldMerge = {}
 	function JoinFold(fold, ...) 
@@ -560,7 +595,6 @@ do -- FOLDS (containing and manipulating varargs)
 	end
 
 	function MergeBigFolds(fold, fold2, n, ...) 
-		Echo("n is ", n)
 		local big = foldMerge.big
 		if not big then
 			local vars = writeparams(120, 'a') -- 124 params max
@@ -598,6 +632,7 @@ do -- FOLDS (containing and manipulating varargs)
 		if n == 0 then
 			return MergeFolds( fold2, ...)
 		end
+
 		if n > 124 then
 			return MergeBigFolds(fold, fold2, n, ...)
 		end
@@ -672,7 +707,7 @@ do -- Join and JoinR (reverse) -- TODO CHECK AND IMPROVE PERF?
 		return thread
 	end
 end
-do
+do -- MapList(f, ...)
 	local function loop(f, n, max, first, ...)
 		if n > 0 then
 			return f(max - n + 1, first), loop(f, n-1, max, ...)
@@ -693,6 +728,7 @@ end
 			Echo(myjoin())
 			Echo(myjoin('a','b'))
 			Echo(myjoin('x','y'))
+
 			Echo(myjoin(nargs(4)))
 			Echo(myjoin('END'))
 			Echo("simple check", myjoin())
@@ -706,14 +742,16 @@ end
 			Echo('Insert at start', myjoin('START')) -- because we're using JoinR
 			Echo('Split in three')
 			local mysplit1 = Fold(select_start(3, myjoin()))
-			local mysplit2 = Fold(select_range(4,6, myjoin()))
+			local mysplit2 = Fold(select_range(4, 6, myjoin()))
 			local mysplit3 = Fold(select(7, myjoin()))
 			Echo("mysplit1 is ", mysplit1())
 			Echo("mysplit2 is ", mysplit2())
 			Echo("mysplit3 is ", mysplit3())
-			Echo('merge 2-1-3')
 			myfold = MergeFolds(mysplit2, mysplit1, mysplit3)
-			Echo(myfold())
+			Echo('merge 2-1-3', myfold())
+			myfold = Fold(remove_args(4, 6, myfold()))
+			Echo('remove range 4-6', myfold())
+
 
 		end
 		Echo('--')
@@ -723,7 +761,6 @@ end
 		Echo('----- Test Join Reverse')
 		TestJoin(JoinR('ini1', 'ini2')) -- JoinR doesn't reverse the arguments given at initialization
 	end
-
 --]]
 
 
@@ -1171,6 +1208,21 @@ function turnbest(turn) -- get shortest rotation sense
 	return turn, s
 end
 
+do
+	local spGetViewGeometry = sp.GetViewGeometry
+	local clamp = math.clamp
+	function ClampMouseToMinimap(x, y)
+		local map = WG.MinimapPosition
+		if map then
+			local vsx, vsy = spGetViewGeometry()
+			y = vsy - y
+			x, y = clamp(x, map[1] + 1, map[1] + map[3] - 1), clamp(y, map[2] + 1, map[2] + map[4] - 1)
+			y = vsy - y
+		end
+		return x, y
+	end
+end
+
 UniTraceScreenRay = (function() -- TraceScreenRay usage to keep validity out of map and follow the x or y of the mouse there
 	local mapSizeX, mapSizeZ = Game.mapSizeX,Game.mapSizeZ
 	local spTraceScreenRay = sp.TraceScreenRay
@@ -1179,13 +1231,15 @@ UniTraceScreenRay = (function() -- TraceScreenRay usage to keep validity out of 
 	local offset = {0, 0, 0, set=true}
 	local onMap = {0, 0, 0}
 	local offMap = false
-
-	return function(mx, my, throughWater, mrg_x, mrg_z, ignoreUI, noclamp)
+	return function(mx, my, useMinimap, throughWater, mrg_x, mrg_z, ignoreUI, noclamp)
 		mrg_x, mrg_z = mrg_x or 0, mrg_z or 0
-		if not noclamp and WG.ClampScreenPosToWorld then
-			mx, my = WG.ClampScreenPosToWorld(mx, my, true, throughWater, nil, true)
+		if not (noclamp) and WG.ClampScreenPosToWorld then
+			mx, my = WG.ClampScreenPosToWorld(mx, my, useMinimap, throughWater, nil, true)
 		end
-		local nature,pos =  spTraceScreenRay(mx, my, true, true, true, throughWater) -- mx, my, useMinimap, onlyCoords, includeSky, throughWater
+		local nature, pos =  spTraceScreenRay(mx, my, true, useMinimap, true, throughWater) -- mx, my, onlyCoords, useMinimap, includeSky, throughWater
+		if not pos then
+			return
+		end
 		offMap = nature == 'sky'
 		if offMap then 
 			if not offset.set then
@@ -1219,15 +1273,12 @@ UniTraceScreenRay = (function() -- TraceScreenRay usage to keep validity out of 
 		if clamped then
 			y = sp.GetGroundHeight(x,z)
 		end
-
-
-
 		return x, y, z, offMap
 	end
 end)()
 
 
-	-- CIRCLE MANIP
+-- CIRCLE MANIP
 
 local pi = math.pi
 function area(r)
@@ -1295,16 +1346,13 @@ MapCoords = function()
 				return
 			end
 			corx = round(k / 8) * 8
-			x = k ~= corx and x
 			return t[corx] -- correcting wrong x
 		end
 	}
 	local metz = {
 		__index = function(t, k)
 			corz = round(k / 8) * 8
-			z = k ~= corx and z
-			
-			return t[corz] -- correcting wrong x
+			return t[corz] -- correcting wrong z
 		end,
 		__newindex=function(t, k, v) -- if trying to change value of an unknown index(wrong), the value of the closest is affected
 			corz = round(k / 8) * 8
@@ -1328,24 +1376,24 @@ MapCoords = function()
 	return map
 end
 
-MapRect =function(map,toggle,x,z,sx,sz)
+MapRect =function(map, toggle, x, z, sx, sz)
 	local str = x..","..z..","..sx..","..sz
 --  local sx=sx-32
 --  local sz=sz-32
-	local midx,midz=x,z
+	local midx, midz = x, z
 	local hsx, hsz = sx / 2, sz / 2
 
 	local x,z = midx - hsx - 64, midz - hsz - 64
-	local endx,endz = x+sx+128,z+sz+128
-	local oldv,oldx,oldz,newv
-	local relx,relz
-	local related={}
+	local endx, endz = x + sx + 128, z + sz + 128
+	local oldv, oldx, oldz, newv
+	local relx, relz
+	local related = {}
 
 	local relstr
-	for x=x,endx,16 do
-		relx=abs(x-midx)
-		for z=z,endz,16 do
-			relz=abs(z-midz)
+	for x = x,endx,16 do
+		relx = abs(x - midx)
+		for z = z,endz,16 do
+			relz = abs(z - midz)
 
 			oldv = map.num[x][z]
 			local calcul = biggest( relx - hsx, relz - hsz)
@@ -1379,15 +1427,15 @@ MapRect =function(map,toggle,x,z,sx,sz)
 					related[relstr] = true
 				end
 				if oldv == calcul then
-				--local invcalcul=smallest(-relx+(16+64+hsx)+(oldv-calcul),-relz+(16+64+hsz)+(oldv-calcul))
-				--local invcalcul=smallest(-relx+(16+64+hsx)-oldv,-relz+(16+64+hsz)-oldv)
+				--local invcalcul = smallest(-relx + (16 + 64 + hsx) + (oldv - calcul), -relz + (16 + 64 +h sz) + (oldv - calcul))
+				--local invcalcul = smallest(-relx + (16 + 64 + hsx) - oldv, -relz + (16 + 64 + hsz) - oldv)
 					newv = false
 					map.num[x][z]=newv
 				end
 			end
 		end
 	end
-	if toggle==false then
+	if toggle == false then
 		return related
 	end
 
@@ -1607,7 +1655,7 @@ do -- TestBuild function
 			if info then
 				local isx, isz = info.sx, info.sz
 				local ix, iz = info.x, info.z
-				local dx,dz = (px - ix)^2, (pz - iz)^2
+				local dx, dz = (px - ix)^2, (pz - iz)^2
 				if  dx < (sx + isx)^2 and dz < (sz + isz)^2 then
 					cantPlace=true
 					local dist = dx + dz
@@ -1615,7 +1663,7 @@ do -- TestBuild function
 					bln = bln + 1
 					blockingStruct[bln]={ix, iz, isx, isz, dist, defID = defID, id = id}
 					if dist < cdist then
-						cdist=dist
+						cdist = dist
 						if overlapped then overlapped[1] = blockingStruct[bln] end
 						if remember then memX[pz] = blockingStruct end
 						blockingStruct.c = blockingStruct[bln]
@@ -1636,10 +1684,10 @@ do -- TestBuild function
 					if not IsOccupied(n, ix, iz) then
 						cantPlace=true
 						local dist = dx + dz
-						bln=bln+1
+						bln = bln + 1
 						blockingStruct[bln]={ix, iz, 24, 24, dist, isEmptyMex = true}
 						if dist < cdist then
-							cdist=dist
+							cdist = dist
 							if overlapped then 
 								overlapped[1] = blockingStruct[bln]
 							end
@@ -1663,7 +1711,7 @@ do -- TestBuild function
 				if  dx < (sx*2)^2 and dz < (sz*2)^2 then
 					overlapExtra = overlapExtra or {}
 					n = n + 1
-					overlapExtra[n] = {ix,iz,sx,sz}
+					overlapExtra[n] = {ix, iz, sx, sz}
 					if remember then
 						exX[pz] = overlapExtra
 						-- if Points then
@@ -1810,19 +1858,19 @@ function SpiralSquare(layers, step, callback, offset, reverse, ortho)
 		end
 	end
 end
-function SpiralOrthoSquare(layers,step,callback,offset,reverse) -- LOOP iterating squares clockwise from center to exterior, starting at bottom left corner
-	local brokeloop=false
+function SpiralOrthoSquare(layers, step, callback, offset, reverse) -- LOOP iterating squares clockwise from center to exterior, starting at bottom left corner
+	local brokeloop = false
 	local startlayer = offset and offset/step or 1
 	-- Echo("layers,startlayer,step is ", layers,startlayer,step)
 	-- reverse mode will start from top right and go anticlockwise
 	local ret
-	if startlayer==0 then
-		ret = callback(0,0,0)
+	if startlayer == 0 then
+		ret = callback(0, 0, 0)
 		if ret then return ret end
 		startlayer=1
 	end
 
-	if reverse then step=-step end
+	if reverse then step= -step end
 	for layer = startlayer, layers do 
 		local offx = 0
 		for s = step, -step, -2*step do -- browse half of perimeter per iteration (positive x and z then negative x and z)
@@ -3024,7 +3072,51 @@ function string:explode(div, regex) --copied and improved from gui_epicmenu.lua
 	return arr
 end
 
+do
+	-- Code point Unicode : [xxxxxxxx xxxxxxxx xxxxxxxx]
+	-- UTF-8 : on découpe en paquets de 6 bits : [xx][xxxxxx][xxxxxx][xxxxxx]
+	--         ↓
+	-- Octet 1 : [1110][xx]      ← préfixe 1110 + 2 premiers bits
+	-- Octet 2 : [10][xxxxxx]    ← préfixe 10 + 6 bits suivants  
+	-- Octet 3 : [10][xxxxxx]    ← préfixe 10 + 6 derniers bits
+	local floor = math.floor
+	local base = 0x100/4 -- 64 = 6 bits
+	local base2 = base*2
+	local base3 = base*3
+	local baseE2 = base^2
+	local baseE3 = base^3
+	function utf8ToBytes(code)
+		if code < 0x100/2 then
+			return code
+		elseif code < 0x1000/2 then
+			return 
+				base3 + floor(code / base),
+				base2 + code % base
+		elseif code < 0x10000 then
+			return
+				base3 + base/2 + floor(code / baseE2),
+				base2 + floor((code % baseE2) / base),
+				base2 + code % base
+		elseif code < 0x110000 then
+			return
+				base3 + base*3/4 + floor(code / (baseE3)),
+				base2 + floor((code % baseE3) / baseE2),
+				base2 + floor((code % baseE2) / base),
+				base2 + code % base
+		end
+	end
+end
 
+local function charToBytes(char, i) 
+	if not i then
+		i = 1
+	end
+	if i > #char then
+		return
+	else
+		return string.byte(char, i), charToBytes(char, i + 1) 
+	end
+end
 do
 	-- copied
 	local char, byte, pairs, floor = string.char, string.byte, pairs, math.floor
@@ -4129,6 +4221,24 @@ end
 
 --------------------------------------- TABLES ---------------------------------------
 
+local function unpackTables(i, j, ...) -- usage unpackTables(t1, t2, t3...)
+	if tonumber(i) then
+		local t, t2 = select(i, ...)
+		local v = t[j]
+		if v == nil then
+			if not t2 then
+				return
+			end
+			i = i + 1
+			j = 1
+			v = t2[1]
+		end
+		return v, unpackTables(i, j+1, ...)
+	else
+		return i[1], unpackTables(1, 2, i, j, ...)
+	end
+end
+
 local FastMapper = {} -- getting interesting in performance with a map of 300+ points
 do
 	FastMapper.mt = {__index = FastMapper}
@@ -4174,19 +4284,19 @@ do
 
 		for i = 1, order_len do 
 			local pos = order[i]
-		    local d = pos/div
-		    local short = d-d%1 -- like floor or modf but a tiny bit faster
-		    if short > last_short then
-		        shortcuts[short] = i
-		        -- Echo('make shortcut', short, 'for order', i)
-		        if short - last_short > 1 then -- reporting the last shortcut on missing shortcut(s)
-		            for sh = last_short, short-1 do
-		                shortcuts[sh] = last_index
-		            end
-		        end
-		        last_short = short
-		        last_index = i
-		    end
+			local d = pos/div
+			local short = d-d%1 -- like floor or modf but a tiny bit faster
+			if short > last_short then
+				shortcuts[short] = i
+				-- Echo('make shortcut', short, 'for order', i)
+				if short - last_short > 1 then -- reporting the last shortcut on missing shortcut(s)
+					for sh = last_short, short-1 do
+						shortcuts[sh] = last_index
+					end
+				end
+				last_short = short
+				last_index = i
+			end
 		end
 		self.sc_len = last_short
 	end
@@ -4194,45 +4304,44 @@ do
 
 	function FastMapper:Process(div)
 		table.sort(self.order)
-		local map = self.map
 		self:MakeShortcuts(div)
 	end
 
 	function FastMapper:getX(x, start)
-	    local d = x/self.div
-	    local order_len = self.order_len
-	    local order = self.order
+		local d = x/self.div
+		local order_len = self.order_len
+		local order = self.order
 
-	    d = d - d%1
+		d = d - d%1
 
-	    if d < 0 then
-	    	return 1, self.order[1]
-	    elseif d > self.sc_len then
-	    	return order_len, order[order_len]
-	    end
-	    local shortcut = self.shortcuts[d]
+		if d < 0 then
+			return 1, self.order[1]
+		elseif d > self.sc_len then
+			return order_len, order[order_len]
+		end
+		local shortcut = self.shortcuts[d]
 
-	    if not start or start < shortcut then
-	        start = shortcut
-	    end
-	    local last_diff = 0
-	    local lastX
-	    for i = start, order_len do
-	    	local thisX = order[i]
-	    	local diff = x - thisX -- supposedly going to be last_diff and positive to be compared with current diff
-	        if thisX >= x then
-	        	if diff <= last_diff then
-	        		-- Echo('return after or equal', i, thisX)
-	        		return i, thisX, true
-	        	else
-	        		-- Echo('return before', i - 1, lastX)
-	            	return i - 1, lastX
-	            end
-	        end
-	        last_diff = diff
-	        lastX = thisX
-	    end
-	    return order_len, order[order_len]
+		if not start or start < shortcut then
+			start = shortcut
+		end
+		local last_diff = 0
+		local lastX
+		for i = start, order_len do
+			local thisX = order[i]
+			local diff = x - thisX -- supposedly going to be last_diff and positive to be compared with current diff
+			if thisX >= x then
+				if diff <= last_diff then
+					-- Echo('return after or equal', i, thisX)
+					return i, thisX, true
+				else
+					-- Echo('return before', i - 1, lastX)
+					return i - 1, lastX
+				end
+			end
+			last_diff = diff
+			lastX = thisX
+		end
+		return order_len, order[order_len]
 	end
 
 	local huge = math.huge
@@ -5334,14 +5443,6 @@ selectplus = function(selection,...) -- select several alone or multiple argumen
 	return unpack(results)
 end
 
-table.haskey=function(T,key)
-	for k,v in pairs(T) do
-		if k==key then return true end
-	end
-	return false
-end
-
-
 table.valtostr = function(T)
 local str=""
 	for _,v in pairs(T) do
@@ -5360,21 +5461,6 @@ table.removes = function(T,n) -- remove n number of elements at the end of the t
 			T[i]=nil
 		end
 	end
-end
-
-
-table.findcoords = function(T,argument,...)
-	if l(T)==0 then return false end
-	if argument=="places" then
-		local search={...}
-		local x,z=search[1],search[#search]
-		for i=1,#T do
-			if x==T[i][1] and z==T[i][2] then
-				return i
-			end
-		end
-	end
-	return false
 end
 
 
@@ -10618,7 +10704,26 @@ function GetUnitsInOrientedRectangle(p1, p2, width, allegiance)
 	return ret,n
 end
 
-
+function table:rearrange(index)
+	local maxLen = #index
+	local tries = 0
+	for here, where in ipairs(index) do
+		if here ~= where then
+			local toPlace = self[where]
+			self[where] = self[here]
+			where, index[where] = index[where], where
+			while where ~= index[where] do
+				tries = tries + 1
+				if tries > maxLen then
+					Echo('PROBLEM TABLE.REARRANGE INF LOOP')
+					break
+				end
+				self[where], toPlace = toPlace, self[where]
+				where, index[where] = index[where], where
+			end
+		end
+	end
+end
 
 function table:compare(t2)
 	local eq, t1count, t2count = false, 0, 0
@@ -11652,7 +11757,7 @@ local oriShutdown = widget.Shutdown
 widget.Shutdown = function()
 	widgetHandler.actionHandler:RemoveAction(widget, 'renewfuncs')
 	if oriShutdown then
-		return oriShutdown()
+		return oriShutdown(widget)
 	end
 end
 --
