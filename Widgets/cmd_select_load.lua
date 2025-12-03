@@ -3,14 +3,14 @@
 
 function widget:GetInfo()
   return {
-    name      = "Transport Load Double Tap",
-    desc      = "Matches selected transports and units when load is double pressed.",
-    author    = "GoogleFrog, rewrite and improved by Helwor",
-    date      = "8 May 2015",
-    license   = "GNU GPL, v2 or later",
-    layer     = -math.huge,
-    handler   = true,
-    enabled   = true,
+	name      = "Transport Load Double Tap",
+	desc      = "Matches selected transports and units when load is double pressed.",
+	author    = "GoogleFrog, rewrite and improved by Helwor",
+	date      = "8 May 2015",
+	license   = "GNU GPL, v2 or later",
+	layer     = -math.huge,
+	handler   = true,
+	enabled   = true,
   }
 end
 
@@ -64,18 +64,18 @@ for defID, def in pairs(UnitDefs) do
 		if def.isTransport then
 			transDefID[defID] = true
 			if def.customParams.islighttransport then
-                table.insert(indexedLightTrans, defID)
+				table.insert(indexedLightTrans, defID)
 				lightTransDefID[defID] = true
-            else
-                table.insert(indexedHeavyTrans, defID)
+			else
+				table.insert(indexedHeavyTrans, defID)
 			end
-        else
-            untransportableDefID[defID] = true
+		else
+			untransportableDefID[defID] = true
 		end
 	else
-        if def.customParams.requireheavytrans then
+		if def.customParams.requireheavytrans then
 		  heavyDefID[defID] = true
-        end
+		end
 
 	end
 end
@@ -88,41 +88,41 @@ options_order = {'nocopyshortwalk','noselneeded','letautowait'}
 options = {}
 
 options.nocopyshortwalk = {
-    name = "Don't retain Unit Move on Short Walk",
-    desc = "If the Unit to load has a short travel distance (min set below), don't copy unit's orders.",
-    type = 'number',
-    value = shortWalkDist,
-    min = 0,
-    max = 1500,
-    step = 20,
-    OnChange = function(self)
-        shortWalkDist = self.value
-    end,
+	name = "Don't retain Unit Move on Short Walk",
+	desc = "If the Unit to load has a short travel distance (min set below), don't copy unit's orders.",
+	type = 'number',
+	value = shortWalkDist,
+	min = 0,
+	max = 1500,
+	step = 20,
+	OnChange = function(self)
+		shortWalkDist = self.value
+	end,
 }
 
 options.noselneeded = {
-    name = "Default to available transports",
-    desc = 'Use any available transport if none selected',
-    type = 'bool',
-    value = noSelectNeeded,
-    OnChange = function(self)
-        noSelectNeeded = self.value
-    end,
+	name = "Default to available transports",
+	desc = 'Use any available transport if none selected',
+	type = 'bool',
+	value = noSelectNeeded,
+	OnChange = function(self)
+		noSelectNeeded = self.value
+	end,
 }
 
 
 options.letautowait = {
-    name = "Use 'Load AI'",
-    desc = "If you have the widget Load AI, let it manage the waiting",
-    type = 'bool',
-    value = letAutoWait,
-    OnChange = function(self)
-        if self.value and widgetHandler:FindWidget('API Load AI') then
-            letAutoWait = true
-        else
-            letAutoWait = false
-        end
-    end,
+	name = "Use 'Load AI'",
+	desc = "If you have the widget Load AI, let it manage the waiting",
+	type = 'bool',
+	value = letAutoWait,
+	OnChange = function(self)
+		if self.value and widgetHandler:FindWidget('API Load AI') then
+			letAutoWait = true
+		else
+			letAutoWait = false
+		end
+	end,
 }
 
 
@@ -166,22 +166,22 @@ local goodCommand = {
 }
 
 local function AdjustForBuildDistance(unitID, params, lastMove)
-    local range = spGetUnitEffectiveBuildRange(unitID)
-    -- Echo("lastMove is ", lastMove)
-    if not lastMove then
-        lastMove = {spGetUnitPosition(unitID)}
-    end
-    local dirx,dirz = params[1]-lastMove[1], params[3]-lastMove[3]
-    local dist = (dirx^2 + dirz^2)^0.5
-    if dist < range then
-        Echo('dist too close')
-        return false
-    end
-    dirx, dirz = dirx / dist, dirz / dist
-    params[1] = params[1] + range * -dirx
-    params[3] = params[3] + range * -dirz
-    params[2] = spGetGroundHeight(params[1], params[3])
-    return true
+	local range = spGetUnitEffectiveBuildRange(unitID)
+	-- Echo("lastMove is ", lastMove)
+	if not lastMove then
+		lastMove = {spGetUnitPosition(unitID)}
+	end
+	local dirx,dirz = params[1]-lastMove[1], params[3]-lastMove[3]
+	local dist = (dirx^2 + dirz^2)^0.5
+	if dist < range then
+		Echo('dist too close')
+		return false
+	end
+	dirx, dirz = dirx / dist, dirz / dist
+	params[1] = params[1] + range * -dirx
+	params[3] = params[3] + range * -dirz
+	params[2] = spGetGroundHeight(params[1], params[3])
+	return true
 end
 
 local function ProcessCommand(unitID, cmdID, params, lastMove)
@@ -192,11 +192,11 @@ local function ProcessCommand(unitID, cmdID, params, lastMove)
 	if cmdID == CMD_SET_WANTED_MAX_SPEED then
 		return true, halting
 	end
-    if cmdID == CMD_RAW_BUILD or cmdID < 0 then
-        if not AdjustForBuildDistance(unitID,params,lastMove) then
-            return false
-        end
-    end
+	if cmdID == CMD_RAW_BUILD or cmdID < 0 then
+		if not AdjustForBuildDistance(unitID,params,lastMove) then
+			return false
+		end
+	end
 	local targetOverride
 
 	if params[5] and not params[6] and (cmdID == CMD_RESURRECT or cmdID == CMD_RECLAIM or cmdID == CMD_REPAIR) then
@@ -214,9 +214,9 @@ local function ProcessCommand(unitID, cmdID, params, lastMove)
 		areaTarget = nil
 	end
 	if not targetOverride then
-        if cmdID == CMD_RAW_BUILD and params[3] then
-            return true, halting, params
-        elseif params[3] and not params[5] then
+		if cmdID == CMD_RAW_BUILD and params[3] then
+			return true, halting, params
+		elseif params[3] and not params[5] then
 			return true, halting, params
 		elseif not params[1] then
 			return true, halting
@@ -324,12 +324,12 @@ local function AdjustForBlockedGround(location, unitID)
 	local radius = spGetUnitRadius(unitID)
 	-- Echo("spGetGroundBlocked(x - 100, z - 100, x + 100, z + 100)  is ", spGetGroundBlocked(x - radius, z - radius, x + radius, z + radius) )
 	-- local testMove = Spring.TestMoveOrder()
-    local gblock = spGetGroundBlocked(x - 100, z - 100, x + 100, z + 100)
-    
-    if gblock == 'feature' then
+	local gblock = spGetGroundBlocked(x - 100, z - 100, x + 100, z + 100)
+	
+	if gblock == 'feature' then
 
-    end
-    -- Echo("gblock is ", gblock)
+	end
+	-- Echo("gblock is ", gblock)
 	-- if gblock then
 	-- 	x, y, z = spClosestBuildPos(0,solarDefID, x, 0, z, 200 ,0 ,0)
 	-- 	if x then
@@ -337,14 +337,14 @@ local function AdjustForBlockedGround(location, unitID)
 	-- 		-- Echo('=>',x,y,z)
 	-- 	end
 	-- end
-    -- if not gblock then
-        local defID = spGetUnitDefID(unitID)
-        x, y, z = spClosestBuildPos(0,defID, x, 0, z, 200 ,0 ,0)
-        if x then
-            location[1], location[2], location[3] = x, y, z
-            -- Echo('=>',x,y,z)
-        end
-    -- end
+	-- if not gblock then
+		local defID = spGetUnitDefID(unitID)
+		x, y, z = spClosestBuildPos(0,defID, x, 0, z, 200 ,0 ,0)
+		if x then
+			location[1], location[2], location[3] = x, y, z
+			-- Echo('=>',x,y,z)
+		end
+	-- end
 	-- end
 end
 
@@ -358,7 +358,7 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 	local queueToRemove, r = {}, 0
 	
 	areaTarget = nil
-    local lastMove
+	local lastMove
 	for i = (isWaiting and 2 or 1), #cmdQueue do -- ignore the first waitcommand executed
 
 		local cmd = cmdQueue[i]
@@ -368,15 +368,15 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 		end
 		
 		if moveParams then
-            c = c + 1
+			c = c + 1
 			commandLocations[c] = moveParams
-            lastMove = moveParams
+			lastMove = moveParams
 		end
 		
 		if haltAtCommand then
 			break
 		else
-            r = r + 1
+			r = r + 1
 			queueToRemove[r] = cmd.tag
 		end
 	end
@@ -384,19 +384,19 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 	if c == 0 then
 		return
 	end
-    local ux,uy,uz = spGetUnitPosition(unitID)
-    local dist = 0
-    for i=1, c do
-        local move = commandLocations[i]
-        local mx, my, mz = unpack(move)
-        local dist3D = ((mx-ux)^2 + (my-uy)^2 + (mz-uz)^2)^0.5
-        dist = dist + dist3D
-    end
+	local ux,uy,uz = spGetUnitPosition(unitID)
+	local dist = 0
+	for i=1, c do
+		local move = commandLocations[i]
+		local mx, my, mz = unpack(move)
+		local dist3D = ((mx-ux)^2 + (my-uy)^2 + (mz-uz)^2)^0.5
+		dist = dist + dist3D
+	end
 
-    if dist < shortWalkDist then
-        spGiveOrderToUnit(unitID, CMD_REMOVE, queueToRemove, 0)
-        return
-    end
+	if dist < shortWalkDist then
+		spGiveOrderToUnit(unitID, CMD_REMOVE, queueToRemove, 0)
+		return
+	end
 
 	local commands = {}
 	for i = 1, c - 1 do
@@ -477,7 +477,7 @@ local function DoSelectionLoadOLD()
 end
 
 local function IsBusy(transID)
-    return waitForLoad[transID] or spGetUnitCurrentCommand(transID) == CMD_LOAD_UNITS
+	return waitForLoad[transID] or spGetUnitCurrentCommand(transID) == CMD_LOAD_UNITS
 end
 
 local function DoSelectionLoad()
@@ -486,72 +486,72 @@ local function DoSelectionLoad()
 	local heavyTrans, hT = {}, 0
 	local light, l = {}, 0
 	local heavy, h = {}, 0
-    -- local unitDefs = {}
-    local selTypes = WG.selectionDefID or spGetSelectedUnitsSorted()
-    ----------- Pick all team units if needed 
+	-- local unitDefs = {}
+	local selTypes = WG.selectionDefID or spGetSelectedUnitsSorted()
+	----------- Pick all team units if needed 
 
-    local transSelected
-    for defID in pairs(transDefID) do
-        if selTypes[defID] then
-            transSelected = true
-            break
-        end
-    end
-    if not transSelected and noSelectNeeded then
-        local units = spGetTeamUnitsByDefs(myTeamID, indexedLightTrans)
-        for i, unitID in ipairs(units) do
-            if not IsBusy(unitID) then
-                local transportUnits = spGetUnitIsTransporting(unitID)
-                if transportUnits and not transportUnits[1] then
-                    lT = lT + 1
-                    lightTrans[lT] = unitID
-                end
-            end
-        end
-        units = spGetTeamUnitsByDefs(myTeamID, indexedHeavyTrans)
-        for i, unitID in ipairs(units) do
-            if not IsBusy(unitID) then
-                local transportUnits = spGetUnitIsTransporting(unitID)
-                if transportUnits and not transportUnits[1] then
-                    hT = hT + 1
-                    heavyTrans[hT] = unitID
-                end
-            end
-        end
-    end
-    -----------------------
+	local transSelected
+	for defID in pairs(transDefID) do
+		if selTypes[defID] then
+			transSelected = true
+			break
+		end
+	end
+	if not transSelected and noSelectNeeded then
+		local units = spGetTeamUnitsByDefs(myTeamID, indexedLightTrans)
+		for i, unitID in ipairs(units) do
+			if not IsBusy(unitID) then
+				local transportUnits = spGetUnitIsTransporting(unitID)
+				if transportUnits and not transportUnits[1] then
+					lT = lT + 1
+					lightTrans[lT] = unitID
+				end
+			end
+		end
+		units = spGetTeamUnitsByDefs(myTeamID, indexedHeavyTrans)
+		for i, unitID in ipairs(units) do
+			if not IsBusy(unitID) then
+				local transportUnits = spGetUnitIsTransporting(unitID)
+				if transportUnits and not transportUnits[1] then
+					hT = hT + 1
+					heavyTrans[hT] = unitID
+				end
+			end
+		end
+	end
+	-----------------------
 
 	for defID, units in pairs(selTypes) do
-        if transDefID[defID] then
-            local isLightT = lightTransDefID[defID]
-            for i, unitID in ipairs(units) do
-                if not IsBusy(unitID) then
-    				local transportUnits = spGetUnitIsTransporting(unitID)
-    				if transportUnits and not transportUnits[1] then
-                        if isLightT then
-    						lT = lT + 1
-    						lightTrans[lT] = unitID
-                        else
-       						hT = hT + 1
-       						heavyTrans[hT] = unitID
-        				end
-                    end
-                end
-            end
+		if transDefID[defID] then
+			local isLightT = lightTransDefID[defID]
+			for i, unitID in ipairs(units) do
+				if not IsBusy(unitID) then
+					local transportUnits = spGetUnitIsTransporting(unitID)
+					if transportUnits and not transportUnits[1] then
+						if isLightT then
+							lT = lT + 1
+							lightTrans[lT] = unitID
+						else
+							hT = hT + 1
+							heavyTrans[hT] = unitID
+						end
+					end
+				end
+			end
 		elseif heavyDefID[defID] then
 			for i, unitID in ipairs(units) do
-                h = h + 1
-			    heavy[h] = unitID
-            end
+				h = h + 1
+				heavy[h] = unitID
+			end
 		elseif not untransportableDefID[defID] then
-            for i, unitID in ipairs(units) do
-                l = l + 1
-                light[l] = unitID
-            end
+			for i, unitID in ipairs(units) do
+				l = l + 1
+				light[l] = unitID
+			end
 		end
 	end
 
-    local new
+	local new
 	-- first we deal with the heavy units
 	local poses = {}
 	local extraHeavy = hT > h
@@ -565,14 +565,14 @@ local function DoSelectionLoad()
 				heavyTrans[j] = nil
 
 				spGiveOrderToUnit(transID, CMD_LOAD_UNITS, {unitID}, CMD_OPT_RIGHT)
-                if letAutoWait then
-                    widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
-                else
-				    spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
-                end
+				if letAutoWait then
+					widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
+				else
+					spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
+				end
 				-- CopyMoveThenUnload(transID, unitID)
 				waitForLoad[transID] = unitID -- fix to get the last commands given to the unit if the CMD_LOAD_UNITS has been triggered in a same span of time, the orders need some time to get replied by the server
-                new = true
+				new = true
 			end
 		end
 	end
@@ -588,13 +588,13 @@ local function DoSelectionLoad()
 				if transID then
 					light[i] = nil
 					spGiveOrderToUnit(transID, CMD_LOAD_UNITS, {unitID}, CMD_OPT_RIGHT)
-                    if letAutoWait then
-                        widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
-                    else
-                        spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
-                    end
+					if letAutoWait then
+						widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
+					else
+						spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
+					end
 					waitForLoad[transID] = unitID
-                    new = true
+					new = true
 					-- CopyMoveThenUnload(transID, unitID)
 				end
 			end
@@ -617,19 +617,19 @@ local function DoSelectionLoad()
 				local transID = heavyTransRem[j]
 				if transID then
 					spGiveOrderToUnit(transID, CMD_LOAD_UNITS, {unitID}, CMD_OPT_RIGHT)
-                    if letAutoWait then
-                        widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
-                    else
-                        spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
-                    end
+					if letAutoWait then
+						widgetHandler:UnitCommandNotify(transID, CMD_LOAD_UNITS, {unitID}, OPT_RIGHT_TABLE)
+					else
+						spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, CMD_OPT_RIGHT)
+					end
 					waitForLoad[transID] = unitID
-                    new = true
+					new = true
 				end
 			end
 		end
 	end
 	Spring.SetActiveCommand(nil)
-    return new
+	return new
 end
 
 -------------- Drop close ground feature
@@ -637,7 +637,7 @@ end
 -----------------------
 
 function widget:CommandNotify(cmdId, params, opts)
-    -- Echo("unpack(params) is ", params and unpack(params))
+	-- Echo("unpack(params) is ", params and unpack(params))
 	if cmdId == CMD_LOADUNITS_SELECTED then
 		return DoSelectionLoad()
 	end
@@ -647,57 +647,57 @@ end
 local waitForWait = {}
 local IsWaiting
 do
-    local CMD_OPT_ALT = CMD.OPT_ALT
-    function IsWaiting(id)
-        local cmd, opt = spGetUnitCurrentCommand(id)
-        return cmd == CMD_WAIT and (opt % (2*CMD_OPT_ALT) < CMD_OPT_ALT)
-    end
+	local CMD_OPT_ALT = CMD.OPT_ALT
+	function IsWaiting(id)
+		local cmd, opt = spGetUnitCurrentCommand(id)
+		return cmd == CMD_WAIT and (opt % (2*CMD_OPT_ALT) < CMD_OPT_ALT)
+	end
 end
 
 function widget:UnitCommand(unitID, defID, teamID, cmdID, params, opts)
-    -- if unitID == 28777 then
+	-- if unitID == 28777 then
 	   -- Echo("UC ", unitID, 'cmd', cmdID,'#params', #params,':',unpack(params))
-    --     for k,v in pairs(opts) do Echo(k,v) end
-    -- end
-    -- if os.clock() - (lasttime or 0) > 2 then
-    --     Echo('---------')
-    --     lasttime = os.clock()
-    -- end
-    if cmdID == 1 then cmdID = params[2] end
+	--     for k,v in pairs(opts) do Echo(k,v) end
+	-- end
+	-- if os.clock() - (lasttime or 0) > 2 then
+	--     Echo('---------')
+	--     lasttime = os.clock()
+	-- end
+	if cmdID == 1 then cmdID = params[2] end
 
-    -- Echo(UnitDefs[Spring.GetUnitDefID(unitID)].humanName,'cmd',cmdID,allCmds[cmdID],'wait for wait', waitForWait[unitID])
-    if cmdID == CMD_WAIT and waitForWait[unitID] then
-        local transID = waitForWait[unitID]
-        CopyMoveThenUnload(transID, unitID)
-        waitForWait[unitID] = nil
+	-- Echo(UnitDefs[Spring.GetUnitDefID(unitID)].humanName,'cmd',cmdID,allCmds[cmdID],'wait for wait', waitForWait[unitID])
+	if cmdID == CMD_WAIT and waitForWait[unitID] then
+		local transID = waitForWait[unitID]
+		CopyMoveThenUnload(transID, unitID)
+		waitForWait[unitID] = nil
 	elseif cmdID == CMD_LOAD_UNITS and waitForLoad[unitID] then
 		local transporteeID = waitForLoad[unitID]
-        local isWaiting = IsWaiting(transporteeID)
-        if letAutoWait and not isWaiting then
-            waitForWait[transporteeID] = unitID
-        else
-            -- Echo('copy',spGetCommandQueue(transporteeID, 0),'orders')
-		    CopyMoveThenUnload(unitID, transporteeID, isWaiting)
-        end
+		local isWaiting = IsWaiting(transporteeID)
+		if letAutoWait and not isWaiting then
+			waitForWait[transporteeID] = unitID
+		else
+			-- Echo('copy',spGetCommandQueue(transporteeID, 0),'orders')
+			CopyMoveThenUnload(unitID, transporteeID, isWaiting)
+		end
 		waitForLoad[unitID] = nil
 	end
 end
 local myPlayerID = Spring.GetMyPlayerID()
 function widget:PlayerChanged(playerID)
 	if playerID == myPlayerID then
-    	myTeamID = spGetMyTeamID()
-    end
+		myTeamID = spGetMyTeamID()
+	end
 end
 function widget:Initialize()
-    if Spring.GetSpectatingState() or Spring.IsReplay() then
-        widgetHandler:RemoveWidget(widget)
-        return
-    end    
-    widget:PlayerChanged(myPlayerID)
-    -- widgetHandler:RegisterGlobal(widget, 'taiEmbark', taiEmbark)
+	if Spring.GetSpectatingState() or Spring.IsReplay() then
+		widgetHandler:RemoveWidget(widget)
+		return
+	end    
+	widget:PlayerChanged(myPlayerID)
+	-- widgetHandler:RegisterGlobal(widget, 'taiEmbark', taiEmbark)
 end
 function widget:Shutdown()
-    -- widgetHandler:DeregisterGlobal(widget, 'taiEmbark')
+	-- widgetHandler:DeregisterGlobal(widget, 'taiEmbark')
 end
 
 
@@ -705,267 +705,267 @@ end
 ------------------
 -- Hungarian methods
 -- copied from Custom Formation 2 and modified a bit
-    -------------------------------------------------------------------------------------
-    -------------------------------------------------------------------------------------
-    -- (the following code is written by gunblob)
-    --   this code finds the optimal solution (slow, but effective!)
-    --   it uses the hungarian algorithm from http://www.public.iastate.edu/~ddoty/HungarianAlgorithm.html
-    --   if this violates gpl license please let gunblob and me know
-    -------------------------------------------------------------------------------------
-    -------------------------------------------------------------------------------------
+	-------------------------------------------------------------------------------------
+	-------------------------------------------------------------------------------------
+	-- (the following code is written by gunblob)
+	--   this code finds the optimal solution (slow, but effective!)
+	--   it uses the hungarian algorithm from http://www.public.iastate.edu/~ddoty/HungarianAlgorithm.html
+	--   if this violates gpl license please let gunblob and me know
+	-------------------------------------------------------------------------------------
+	-------------------------------------------------------------------------------------
 do
-    local doPrime, stepPrimeZeroes, stepFiveStar
-    local t
-    local osclock = os.clock
-    local huge = math.huge
-    local function FindHungarian(array, n)
-        
-        t = osclock()
-        -- Vars
-        local colcover = {}
-        local rowcover = {}
-        local starscol = {}
-        local primescol = {}
-        
-        -- Initialization
-        for i = 1, n do
-            rowcover[i] = false
-            colcover[i] = false
-            starscol[i] = false
-            primescol[i] = false
-        end
-        
-        -- Subtract minimum from rows
-        for i = 1, n do
-            
-            local aRow = array[i]
-            local minVal = aRow[1]
-            for j = 2, n do
-                if aRow[j] < minVal then
-                    minVal = aRow[j]
-                end
-            end
-            
-            for j = 1, n do
-                aRow[j] = aRow[j] - minVal
-            end
-        end
-        
-        -- Subtract minimum from columns
-        for j = 1, n do
-            
-            local minVal = array[1][j]
-            for i = 2, n do
-                if array[i][j] < minVal then
-                    minVal = array[i][j]
-                end
-            end
-            
-            for i = 1, n do
-                array[i][j] = array[i][j] - minVal
-            end
-        end
-        
-        -- Star zeroes
-        for i = 1, n do
-            local aRow = array[i]
-            for j = 1, n do
-                if (aRow[j] == 0) and not colcover[j] then
-                    colcover[j] = true
-                    starscol[i] = j
-                    break
-                end
-            end
-        end
-        
-        -- Start solving system
-        while true do
-            
-            -- Are we done ?
-            local done = true
-            for i = 1, n do
-                if not colcover[i] then
-                    done = false
-                    break
-                end
-            end
-            
-            if done then
-                return starscol
-            end
-            
-            -- Not done
-            local r, c = stepPrimeZeroes(array, colcover, rowcover, n, starscol, primescol)
-            stepFiveStar(colcover, rowcover, r, c, n, starscol, primescol)
-        end
-    end
-    doPrime = function(array, colcover, rowcover, n, starscol, r, c, rmax, primescol)
-        
-        primescol[r] = c
-        
-        local starCol = starscol[r]
-        if starCol then
-            
-            rowcover[r] = true
-            colcover[starCol] = false
-            
-            for i = 1, rmax do
-                if not rowcover[i] and (array[i][starCol] == 0) then
-                    local rr, cc = doPrime(array, colcover, rowcover, n, starscol, i, starCol, rmax, primescol)
-                    if rr then
-                        return rr, cc
-                    end
-                end
-            end
-            
-            return
-        else
-            return r, c
-        end
-    end
-    stepPrimeZeroes = function(array, colcover, rowcover, n, starscol, primescol)
-        
-        -- Infinite loop
-        while true do
-            
-            -- Find uncovered zeros and prime them
-            for i = 1, n do
-                if not rowcover[i] then
-                    local aRow = array[i]
-                    for j = 1, n do
-                        if (aRow[j] == 0) and not colcover[j] then
-                            local i, j = doPrime(array, colcover, rowcover, n, starscol, i, j, i-1, primescol)
-                            if i then
-                                return i, j
-                            end
-                            break -- this row is covered
-                        end
-                    end
-                end
-            end
-            
-            -- Find minimum uncovered
-            local minVal = huge
-            for i = 1, n do
-                if not rowcover[i] then
-                    local aRow = array[i]
-                    for j = 1, n do
-                        if (aRow[j] < minVal) and not colcover[j] then
-                            minVal = aRow[j]
-                        end
-                    end
-                end
-            end
-            
-            -- There is the potential for minVal to be 0, very very rarely though. (Checking for it costs more than the +/- 0's)
-            
-            -- Covered rows = +
-            -- Uncovered cols = -
-            for i = 1, n do
-                local aRow = array[i]
-                if rowcover[i] then
-                    for j = 1, n do
-                        if colcover[j] then
-                            aRow[j] = aRow[j] + minVal
-                        end
-                    end
-                else
-                    for j = 1, n do
-                        if not colcover[j] then
-                            aRow[j] = aRow[j] - minVal
-                        end
-                    end
-                end
-            end
-        end
-    end
-    stepFiveStar = function(colcover, rowcover, row, col, n, starscol, primescol)
-        
-        -- Star the initial prime
-        primescol[row] = false
-        starscol[row] = col
-        local ignoreRow = row -- Ignore the star on this row when looking for next
-        
-        repeat
-            if osclock()-t>0.8 then
-                break
-            end
-            local noFind = true
+	local doPrime, stepPrimeZeroes, stepFiveStar
+	local t
+	local osclock = os.clock
+	local huge = math.huge
+	local function FindHungarian(array, n)
+		
+		t = osclock()
+		-- Vars
+		local colcover = {}
+		local rowcover = {}
+		local starscol = {}
+		local primescol = {}
+		
+		-- Initialization
+		for i = 1, n do
+			rowcover[i] = false
+			colcover[i] = false
+			starscol[i] = false
+			primescol[i] = false
+		end
+		
+		-- Subtract minimum from rows
+		for i = 1, n do
+			
+			local aRow = array[i]
+			local minVal = aRow[1]
+			for j = 2, n do
+				if aRow[j] < minVal then
+					minVal = aRow[j]
+				end
+			end
+			
+			for j = 1, n do
+				aRow[j] = aRow[j] - minVal
+			end
+		end
+		
+		-- Subtract minimum from columns
+		for j = 1, n do
+			
+			local minVal = array[1][j]
+			for i = 2, n do
+				if array[i][j] < minVal then
+					minVal = array[i][j]
+				end
+			end
+			
+			for i = 1, n do
+				array[i][j] = array[i][j] - minVal
+			end
+		end
+		
+		-- Star zeroes
+		for i = 1, n do
+			local aRow = array[i]
+			for j = 1, n do
+				if (aRow[j] == 0) and not colcover[j] then
+					colcover[j] = true
+					starscol[i] = j
+					break
+				end
+			end
+		end
+		
+		-- Start solving system
+		while true do
+			
+			-- Are we done ?
+			local done = true
+			for i = 1, n do
+				if not colcover[i] then
+					done = false
+					break
+				end
+			end
+			
+			if done then
+				return starscol
+			end
+			
+			-- Not done
+			local r, c = stepPrimeZeroes(array, colcover, rowcover, n, starscol, primescol)
+			stepFiveStar(colcover, rowcover, r, c, n, starscol, primescol)
+		end
+	end
+	doPrime = function(array, colcover, rowcover, n, starscol, r, c, rmax, primescol)
+		
+		primescol[r] = c
+		
+		local starCol = starscol[r]
+		if starCol then
+			
+			rowcover[r] = true
+			colcover[starCol] = false
+			
+			for i = 1, rmax do
+				if not rowcover[i] and (array[i][starCol] == 0) then
+					local rr, cc = doPrime(array, colcover, rowcover, n, starscol, i, starCol, rmax, primescol)
+					if rr then
+						return rr, cc
+					end
+				end
+			end
+			
+			return
+		else
+			return r, c
+		end
+	end
+	stepPrimeZeroes = function(array, colcover, rowcover, n, starscol, primescol)
+		
+		-- Infinite loop
+		while true do
+			
+			-- Find uncovered zeros and prime them
+			for i = 1, n do
+				if not rowcover[i] then
+					local aRow = array[i]
+					for j = 1, n do
+						if (aRow[j] == 0) and not colcover[j] then
+							local i, j = doPrime(array, colcover, rowcover, n, starscol, i, j, i-1, primescol)
+							if i then
+								return i, j
+							end
+							break -- this row is covered
+						end
+					end
+				end
+			end
+			
+			-- Find minimum uncovered
+			local minVal = huge
+			for i = 1, n do
+				if not rowcover[i] then
+					local aRow = array[i]
+					for j = 1, n do
+						if (aRow[j] < minVal) and not colcover[j] then
+							minVal = aRow[j]
+						end
+					end
+				end
+			end
+			
+			-- There is the potential for minVal to be 0, very very rarely though. (Checking for it costs more than the +/- 0's)
+			
+			-- Covered rows = +
+			-- Uncovered cols = -
+			for i = 1, n do
+				local aRow = array[i]
+				if rowcover[i] then
+					for j = 1, n do
+						if colcover[j] then
+							aRow[j] = aRow[j] + minVal
+						end
+					end
+				else
+					for j = 1, n do
+						if not colcover[j] then
+							aRow[j] = aRow[j] - minVal
+						end
+					end
+				end
+			end
+		end
+	end
+	stepFiveStar = function(colcover, rowcover, row, col, n, starscol, primescol)
+		
+		-- Star the initial prime
+		primescol[row] = false
+		starscol[row] = col
+		local ignoreRow = row -- Ignore the star on this row when looking for next
+		
+		repeat
+			if osclock()-t>0.8 then
+				break
+			end
+			local noFind = true
 
-            for i = 1, n do
-                
-                if (starscol[i] == col) and (i ~= ignoreRow) then
-                    
-                    noFind = false
-                    
-                    -- Unstar the star
-                    -- Turn the prime on the same row into a star (And ignore this row (aka star) when searching for next star)
-                    
-                    local pcol = primescol[i]
-                    primescol[i] = false
-                    starscol[i] = pcol
-                    ignoreRow = i
-                    col = pcol
-                    
-                    break
-                end
-            end
-        until noFind
-        
-        for i = 1, n do
-            rowcover[i] = false
-            colcover[i] = false
-            primescol[i] = false
-        end
-        
-        for i = 1, n do
-            local scol = starscol[i]
-            if scol then
-                colcover[scol] = true
-            end
-        end
-    end
-    UseHungarian = function(t1, t2, poses)
-        -- collect distances, allow for asymmetric tables
+			for i = 1, n do
+				
+				if (starscol[i] == col) and (i ~= ignoreRow) then
+					
+					noFind = false
+					
+					-- Unstar the star
+					-- Turn the prime on the same row into a star (And ignore this row (aka star) when searching for next star)
+					
+					local pcol = primescol[i]
+					primescol[i] = false
+					starscol[i] = pcol
+					ignoreRow = i
+					col = pcol
+					
+					break
+				end
+			end
+		until noFind
+		
+		for i = 1, n do
+			rowcover[i] = false
+			colcover[i] = false
+			primescol[i] = false
+		end
+		
+		for i = 1, n do
+			local scol = starscol[i]
+			if scol then
+				colcover[scol] = true
+			end
+		end
+	end
+	UseHungarian = function(t1, t2, poses)
+		-- collect distances, allow for asymmetric tables
 		local dummy = 1000000000000
-        local dist_table = {}
-        local len1, len2 = #t1, #t2
-    	local maxLen = len1 >= len2 and len1 or len2
-        for i=1,maxLen do
+		local dist_table = {}
+		local len1, len2 = #t1, #t2
+		local maxLen = len1 >= len2 and len1 or len2
+		for i=1,maxLen do
 
-            local unitID = t1[i]
-            local x, z
-            if unitID then
-            	local pos = poses[unitID]
-            	if not pos then
-            		pos = {spGetUnitPosition(unitID)}
-            		poses[unitID] = pos
-            	end
-            	x, z = pos[1], pos[3]
-            end
-            local dist_col = {}
-            dist_table[i] = dist_col
-            for j=1,maxLen do 
-                local dist
-                if not x then
-                	dist = dummy
-                else
-		            local unitID = t2[j]
-		            if not unitID then
-		            	dist = dummy
-		            else
-			            local pos = poses[unitID]
-			            if not pos then
-			            	pos = {spGetUnitPosition(unitID)}
-			            	poses[unitID] = pos
-			            end
-	                	dist = math.round((x-pos[1])^2 + (z-pos[3])^2)
-	                end
-	            end
-                dist_col[j] = dist
-            end
-        end
-        --
-        return FindHungarian(dist_table,maxLen)
-    end
+			local unitID = t1[i]
+			local x, z
+			if unitID then
+				local pos = poses[unitID]
+				if not pos then
+					pos = {spGetUnitPosition(unitID)}
+					poses[unitID] = pos
+				end
+				x, z = pos[1], pos[3]
+			end
+			local dist_col = {}
+			dist_table[i] = dist_col
+			for j=1,maxLen do 
+				local dist
+				if not x then
+					dist = dummy
+				else
+					local unitID = t2[j]
+					if not unitID then
+						dist = dummy
+					else
+						local pos = poses[unitID]
+						if not pos then
+							pos = {spGetUnitPosition(unitID)}
+							poses[unitID] = pos
+						end
+						dist = math.round((x-pos[1])^2 + (z-pos[3])^2)
+					end
+				end
+				dist_col[j] = dist
+			end
+		end
+		--
+		return FindHungarian(dist_table,maxLen)
+	end
 end
