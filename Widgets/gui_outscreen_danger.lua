@@ -15,12 +15,11 @@ end
 ----------------------------------------------------------------
 --config
 ----------------------------------------------------------------
---negative to disable blinking
 local arrowSize = 40
 local maxAlpha = 0.9
-local blinkPeriod = -1
+local blinkPeriod = -1 --blinking time, negative to disable blinking
 local ttl = 30
-local forgetTime = 6 -- amount of time we're forgetting a unit forgetting the unit after he vanished (either by going out of los or completely)
+local forgetTime = 6 -- amount of time we're forgetting a unit after he vanished (either by going out of los or completely)
 local highlightSize = 32
 local highlightLineMin = 24
 local highlightLineMax = 40
