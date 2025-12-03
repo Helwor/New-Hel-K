@@ -533,7 +533,7 @@ local GiveClampedOrderToUnit = Spring.Utilities.GiveClampedOrderToUnit--]]
 --- CONFIG
 
 local UPDATE_CLUSTER_RATE = 100 -- rate of frame to evaluate clusters
-local UPDATE_RESOURCE_RATE = 100
+local UPDATE_RESOURCE_RATE = 200
 local UPDATE_RATE = 20 -- number of game frames to perform a full cycle for all builders
 local MAX_BUILDERS_PER_FRAME = 3 --   that might extend the time of a cycle but it's less taxing
 local CHECK_DELAY = 0 -- is recalculated on each new builder created/destroyed
@@ -709,7 +709,7 @@ end
 local function AdjustForLag()
 
 -- adjust with lag
-	local new_builders_per_frame =  max(1,BUILDERS_PER_FRAME / lag[1])
+	local new_builders_per_frame =  max(1, BUILDERS_PER_FRAME / lag[1])
 	-- local adjusted = new_builders_per_frame / BUILDERS_PER_FRAME 
 	local adjusted = 1
 	local new_check_delay = CHECK_DELAY * lag[1] * adjusted 
@@ -1353,16 +1353,16 @@ local relevantCmd = setmetatable(
 		end
 	}
 )
-local function IsNewAction(b,cmd,params)
+local function IsNewAction(b, cmd, params)
 	if b.cmd then
 		if b.cmd == cmd and b.params[1] == params[1] then
-			Debug.prevision('the order is the same',b.cmd,b.params[1])
+			Debug.prevision(b.sign .. 'the order is the same', b.cmd, b.params[1])
 			return false
 		end
 	end
 	if b.maincmd then
 		if b.maincmd == cmd and b.mainparams[1] == params[1] then
-			Debug.prevision(b.sign .. 'the main order is the same',b.maincmd,b.mainparams[1])
+			Debug.prevision(b.sign .. 'the main order is the same', b.maincmd, b.mainparams[1])
 			return false
 		end
 	end
@@ -1476,7 +1476,7 @@ local function PutOnListening(b)
 	end
 	return newaction
 end
-local function ResetUnit(id,unit)
+local function ResetUnit(id, unit, timeOut)
 	local b = builders[id]
 	if b then
 		local debugPos = Debug.pos()
@@ -1488,13 +1488,13 @@ local function ResetUnit(id,unit)
 
 		b.maincmd, b.mainparams = false, false
 		if b.canMove and wasManual --[[and b.currentAction == 'listening'--]] then
-			b.posX,b.posY,b.posZ = GetUnitPos(id,3)
+			b.posX,b.posY,b.posZ = GetUnitPos(id, 3)
 			-- b.posX,b.posY,b.posZ = unpack(Units[id].pos)
-			OrderDraw('pos',b.id,debugPos and {b.posX,b.posY,b.posZ})
+			OrderDraw('pos', b.id, debugPos and {b.posX, b.posY, b.posZ})
 		end
 
 
-		waiting[id]=b
+		waiting[id] = timeOut
 		-- if trackedUnits[id] then
 		--     trackedUnits[id].text = trackedUnits[id].text:gsub('\nAUTO','')
 		-- end
@@ -1525,7 +1525,7 @@ function NotifyIdle(id,unit)
 	b.fightingOrder = false
 	b.isFighting = false
 	b:UpdateRoam()
-	ResetUnit(id,unit)
+	ResetUnit(id, unit, 1)
 end
 
 function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,realparams,realopts,realtag,maincmd,mainparams)
@@ -1562,9 +1562,12 @@ function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,r
 		
 
 
-	if isOwn and cmd == CMD_GUARD or not isIOwn and unit.autoguard and cfg.override_autoguard then
-		ResetUnit(id,unit)
+	if isOwn and cmd == CMD_GUARD then
+		ResetUnit(id, unit, 11)
 		-- Echo('our own guard => reset')
+		return
+	elseif not isIOwn and unit.autoguard and cfg.override_autoguard then
+		ResetUnit(id, unit, 1)
 		return     
 	end
 
@@ -1627,16 +1630,15 @@ function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,r
 	local debugPos = Debug.pos()
 
 	if wasManual or unit.manual then
-		local x,y,z = GetUnitPos(id,3)
-		b.posX,b.posY,b.posZ = x,y,z
-		OrderDraw('pos',b.id,debugPos and {b.posX,b.posY,b.posZ})
+		local x, y, z = GetUnitPos(id, 3)
+		b.posX, b.posY, b.posZ = x, y, z
+		OrderDraw('pos', b.id, debugPos and {b.posX, b.posY, b.posZ})
 	end
 
 	-- if unit.waitManual and isOwn then
 	--     Echo('order should be removed for ',id) -- it seems to be handled, but not sure it is in every case
 	-- end
 	if unit.manual
-
 		or not isOwn -- work around to detect manual shifted order (other than build) just after an own order removed
 		or (unit.isFighting or b.isFighting) and not b.canRoam then
 		-- widget don't act upon builder if currentAction == 'manual'
@@ -1650,7 +1652,7 @@ function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,r
 		b.tag = tagConv[b.currentAction]
 	elseif b.canRoam then
 		-- Echo('canRoam, reset unit')
-		ResetUnit(id,unit) 
+		ResetUnit(id, unit, 1) 
 	else
 		-- Echo('no response') 
 	end
@@ -1669,6 +1671,7 @@ local ByDistFeatures = function(a,b)
 	end
 	return dist[a]<dist[b]
 end
+
 local ByDistUnits = function(a,b)
 	if not dist[a] then
 		local ux,_,uz = spGetUnitPosition(a)
@@ -1790,9 +1793,9 @@ local function UpdateOrder(bID,b,frame)
 	--[[            if not res.needM and res.wantM and recM then minM = 0                               ; res.needM = res.mCur+res.mDelta<minM end
 			if not res.needE and res.wantE and recE then minE = 0  + (res.eMax>0 and res.eReserve or 0); res.needE = res.eCur+res.eDelta<minE end--]]
 	end
-	local mChange,eChange
-	local canRepair = res.needE <= b.buildSpeed/2
-	local canBuild  = res.needM <= b.buildSpeed/2 and canRepair
+	local mChange, eChange
+	local canRepair = res.needE <= b.buildSpeed*2
+	local canBuild  = res.needM <= b.buildSpeed*2 and canRepair
 
 	--Echo("eChange is ", res.eCur+res.eDelta + b.buildSpeed * eChange - (res.eMax>0 and res.eReserve or 0))
 	--Echo(Units[bID].name,"canBuild", canBuild,"=>>",res.mDelta, mChange)
@@ -2226,7 +2229,7 @@ local function UpdateOrder(bID,b,frame)
 		 --  or manualTarget --[[and spValidFeatureID(manualTarget-maxUnits) and manualTarget--]])
 		then
 
-		local isNew = IsNewAction(b,CMD_RECLAIM,{toReclaim})
+		local isNew = IsNewAction(b, CMD_RECLAIM, {toReclaim})
 
 		if isNew then
 		-- if (tgtID~=curID or cmdID~=CMD_REPAIR)   --[[or Units[tgtID].isGtBuilt~=(wantedAction=="building")--]] then
@@ -2246,7 +2249,7 @@ local function UpdateOrder(bID,b,frame)
 			if debugReclaim then
 				Echo(b.sign .. debugReclaim,os.clock())
 			end
-			num.reclaiming = num.reclaiming+1
+			-- num.reclaiming = num.reclaiming+1
 			-- if b.priority~= "normal" then
 			--     GiveOrderToUnit(bID, CMD_PRIORITY, TABLE_1,SB_INTERNAL)
 			--     b.priority = "normal"
@@ -2282,7 +2285,7 @@ local function UpdateOrder(bID,b,frame)
 		if isNew then
 		-- if (new_target~=curID or cmdID~=CMD_REPAIR)   --[[or Units[new_target].isGtBuilt~=(wantedAction=="building")--]] then
 			local actBefore, mBefore, eBefore, needMBefore, needEBefore = b.action, res.mDelta, res.eDelta, res.needM, res.needE
-			local action = UpdateAction(b,CMD_REPAIR,{new_target})
+			local action = UpdateAction(b, CMD_REPAIR, {new_target})
 			if Debug.prevision() then
 				Echo(
 					b.sign ..
@@ -2359,7 +2362,7 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 		if Debug.sequence() then
 			-- Echo('UC: received order',((newCmd==1) and params[2]..' insert at '.. params[1]) or newCmd,'current action:',b.currentAction,'current command:',Spring.GetUnitCurrentCommand(id))
 			-- Echo('UC: received order',newCmd,unpack(params))
-			local queue = spGetCommandQueue(id,1)
+			local queue = spGetCommandQueue(id, 1)
 			Echo('UC: current action:',b.currentAction,'current command:',queue[1] and queue[1].id,'manual ? ',Units[id].manual)
 		end
 		local unit = Units[id]
@@ -2371,12 +2374,12 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 			b.moveState = params[1]
 
 			if b.isIdle then
-				ResetUnit(id,unit)
+				ResetUnit(id, unit, 1)
 			end
 			return
 		elseif newCmd==CMD_RAW_BUILD
 			or newCmd==CMD_INSERT and params[2]==CMD_RAW_BUILD
-			or newCmd == CMD_REMOVE then
+			or newCmd==CMD_REMOVE then
 			return
 		end
 		if newCmd==CMD_INSERT then
@@ -2705,15 +2708,18 @@ function widget:GameFrame(frame)
 		if Debug.sequence() then
 			Echo('in waiting list')
 		end
-		for id,b in pairs(waiting) do
-			if spValidUnitID(id) and not spGetUnitIsDead(id) then
-				UpdateOrder(id,b,frame)
+		for bID, timeOut in pairs(waiting) do
+			timeOut = timeOut - 1
+			if timeOut == 0 then
+				timeOut = nil
+			end
+			waiting[bID] = timeOut
+			-- if not timeOut and spValidUnitID(bID) and not spGetUnitIsDead(bID) then
+				-- UpdateOrder(bID, builders[bID], frame)
 				-- FIXME the unit is not sent to update order because he is not getting idle due to guard command
 				-- count = (count or 0) + 1
 				-- Echo(count)
-			end
-
-			waiting[id]=nil
+			-- end
 		end
 	end
 
@@ -2726,20 +2732,21 @@ function widget:GameFrame(frame)
 	--     Echo("fps",cycle-frame)
 	--     cycle,time = frame,os.clock()
 	-- end
-	local count = math.max(builders_per_frame,1) -- how many builder per frame we have to process
+	local count = math.max(builders_per_frame, 1) -- how many builder per frame we have to process
 
 	while count > 0 do
+
 		if not builders[bID] then
 			bID = nil -- happens
 		else
-			bID, b = next(builders,bID)
+			bID, b = next(builders, bID)
 		end
 		if not bID then -- new cycle
 			thisRound = {}
 			-- Echo("new cycle",frame-cycle,"done in ",os.clock()-time)
 			-- Echo("builders_per_frame is ", builders_per_frame)
 			-- cycle,time = frame,os.clock()
-			bID,b = next(builders)
+			bID, b = next(builders)
 			--Echo("before l:"..cntleft,"r:"..cntright)
 			--Echo("after l:"..cntafterleft,"r:"..cntafterright)
 			-- cntleft,cntright,cntafterleft,cntafterright=0,0,0,0
@@ -2747,11 +2754,17 @@ function widget:GameFrame(frame)
 			--for k in pairs(featReclaimed) do --[[if not spValidFeatureID(k+maxUnits) then featReclaimed[k]=nil end--]] cnt=cnt+1 end
 
 			--Echo("features:"..cnt,"rec:"..num.reclaiming,"bd:"..num.building,"rep:"..num.repairing)
-			num.reclaiming = 0
-			num.building = 0
-			num.repairing = 0
-			
+			-- num.reclaiming = 0
+			-- num.building = 0
+			-- num.repairing = 0
 		end
+		while bID and waiting[bID] do
+			bID, b = next(builders, bID)
+		end
+		if not bID then
+			break
+		end
+
 		---------------------
 		if frame >= b.treated + UPDATE_RATE then
 			UpdateOrder(bID,b,frame)
@@ -2759,7 +2772,7 @@ function widget:GameFrame(frame)
 		end
 		count = count - 1
 	end
-	preGame=false
+	preGame = false
 end
 		--------- De coté
 --[[              local nearEnemyID = GetUnitNearestEnemy(bID,n.buildDistance)
@@ -2913,15 +2926,15 @@ end
 
 function Stop(bID, isFighting, tag)
 	if isFighting then
-		GiveOrderToUnit(bID,CMD_REMOVE,{tag},0)
+		GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
 	else
 		local b = builders[bID]
 		if b.canMove then
 			local x, _, z = Units[bID]:GetPos(3)
-			if diag(x - b.posX, z - b.posZ) > 32 then
+			if diag(x - b.posX, z - b.posZ) > 320 then
 				-- Echo('move back')
 				if tag then
-					GiveOrderToUnit(bID,CMD_REMOVE,{tag},0)
+					GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
 				end
 				GiveOrderToUnit(bID, CMD_RAW_MOVE, {b.posX, b.posY, b.posZ}, SB_INTERNAL + CMD_OPT_SHIFT)
 				b.movingBack = true
@@ -2984,7 +2997,7 @@ function widget:UnitDestroyed(id, unitDefID, unitTeam)
 	end
 	builders[id] = nil
 	n_builders = n_builders-1
-	BUILDERS_PER_FRAME = round(UPDATE_RATE/n_builders)
+	BUILDERS_PER_FRAME = n_builders == 0 and 0 or round(UPDATE_RATE/n_builders)
 	OrderDraw('pos',id)
 	if BUILDERS_PER_FRAME<1 then 
 		BUILDERS_PER_FRAME=1
