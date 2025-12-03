@@ -56,7 +56,6 @@ options.use_mem_limit = {
         useMemLimit = self.value
     end,
     children = {'mem_limit'},
-
 }
 
 options.mem_limit = {
@@ -119,7 +118,7 @@ function widget:DrawScreen()
             end
         end
     end
-    fhDraw( ("%.2f MB"):format(curUsage / 1024), vsx - width - 2, vsy + offy)
+    fhDraw( ("%.2f MB"):format(curUsage / 1024), math.floor(vsx - width - 2 + 0.5), math.floor(vsy + offy + 0.5))
     glColor(1,1,1,1)
 end
 
@@ -129,12 +128,6 @@ end
 local spGetConfigInt = Spring.GetConfigInt
 local spSetConfigInt = Spring.SetConfigInt
 function widget:Initialize()
-    -- Echo("Spring.GetConfigInt('MinDrawFPS') is ", Spring.GetConfigInt('MinDrawFPS'))
-    -- Echo("Spring.GetConfigFloat('MinSimDrawBalance') is ", Spring.GetConfigFloat('MinSimDrawBalance'))
-    -- Spring.SetConfigInt('MinSimDrawBalance', 0.25)
-    -- Spring.SetConfigFloat('MinSimDrawBalance', 0.25)
-    -- -- Spring.SendCommands('mindrawfps 15')
-    -- Spring.SetConfigInt('MinDrawFPS', 13)
 	widget:ViewResize(Spring.GetWindowGeometry())
 
 	if WG.MyZones then
