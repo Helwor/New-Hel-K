@@ -17,55 +17,74 @@ local spGiveOrderToUnit			= Spring.GiveOrderToUnit
 local spGiveOrderToUnitArray    = Spring.GiveOrderToUnitArray
 local spGetUnitCurrentCommand 	= Spring.GetUnitCurrentCommand
 local spGetCommandQueue			= Spring.GetCommandQueue
+local spGetFactoryCommands		= Spring.GetFactoryCommands
+local spGetUnitdefID			= Spring.GetUnitDefID
+local spGetSelectedUnitsSorted	= Spring.GetSelectedUnitsSorted
+local spGetSelectedUnitsCount	= Spring.GetSelectedUnitsCount
 local CMD_WAIT 					= CMD.WAIT
 local CMD_OPT_ALT 				= CMD.OPT_ALT
 local CMD_OPT_SHIFT				= CMD.OPT_SHIFT
 local EMPTY_TABLE				= {}
 
-
-function IsWaiting(id, shift)
-	local cmd, opt
-	if shift then
-		local queue = (spGetCommandQueue(id,-1) or EMPTY_TABLE)
-		local lastOrder = queue[#queue]
-		if lastOrder then
-			cmd, opt = lastOrder.id, lastOrder.options.coded
-		end
-	else
-		cmd, opt = spGetUnitCurrentCommand(id)
+local factoryDefs = {}
+for defID, def in ipairs(UnitDefs) do
+	if def.isFactory then
+		factoryDefs[defID] = true
 	end
-    return cmd == CMD_WAIT and (opt % (2*CMD_OPT_ALT) < CMD_OPT_ALT)
 end
 
-function widget:CommandNotify(cmd, params, opts)
-	if cmd ~= CMD_WAIT then
+function IsWaiting(unitID, isFac, shift)
+	local cmdID, opt
+	if isFac then
+		local order = (spGetFactoryCommands(unitID, 1) or EMPTY_TABLE)[1]
+		if order then
+			cmdID, opt = order.id, order.options.coded
+		end
+	elseif shift then
+		local queue = (spGetCommandQueue(unitID,-1) or EMPTY_TABLE)
+		local lastOrder = queue[#queue]
+		if lastOrder then
+			cmdID, opt = lastOrder.id, lastOrder.options.coded
+		end
+	else
+		cmdID, opt = spGetUnitCurrentCommand(unitID)
+	end
+    return cmdID == CMD_WAIT and (opt % (2*CMD_OPT_ALT) < CMD_OPT_ALT)
+end
+
+function widget:CommandNotify(cmdID, params, opts)
+	if cmdID ~= CMD_WAIT then
 		return
 	end
-	local sel = (spGetSelectedUnits() or EMPTY_TABLE)
-	if not sel[1] then
+	local selDefID = (spGetSelectedUnitsSorted() or EMPTY_TABLE)
+	if not next(selDefID) then
 		return
 	end
 
-	local ids, cnt = {}, 0
-	local len = #sel
+	local len = spGetSelectedUnitsCount()
+	if len < 2 then
+		return
+	end
+	local waiting, w = {}, 0
 	local shift = opts.shift
-	local commandBlocked
-
-	for i = 1, len do
-		local id = sel[i]
-		if IsWaiting(id, shift) then
-			cnt = cnt + 1
-			ids[cnt] = id
+	for defID, units in pairs(selDefID) do
+		local isFac = factoryDefs[defID]
+		for i, unitID in ipairs(units) do
+			if IsWaiting(unitID, isFac, shift) then
+				w = w + 1
+				waiting[w] = unitID
+			end
 		end
 	end
 
-	if cnt > 0 and cnt < len then
-		-- giving order one by one is smooth and doesnt take more time or very barely on big number (1000+)
-		for i=1, cnt do
-			spGiveOrderToUnit(ids[i], CMD_WAIT, EMPTY_TABLE, shift and CMD_OPT_SHIFT or 0)
+	if w > 0 and w < len then
+		-- giving order one by one is smooth and doesn't take more time or very barely on big number (1000+)
+		local opt = shift and not isFac and CMD_OPT_SHIFT or 0
+		for i, unitID in ipairs(waiting) do
+			spGiveOrderToUnit(unitID, CMD_WAIT, EMPTY_TABLE, opt)
 		end
 		-- provoke freeze on big number
-		-- spGiveOrderToUnitArray(ids, CMD_WAIT, EMPTY_TABLE, shift and CMD_OPT_SHIFT or 0)
+		-- spGiveOrderToUnitArray(waiting, CMD_WAIT, EMPTY_TABLE, shift and CMD_OPT_SHIFT or 0)
 		return true
 	end
 end
