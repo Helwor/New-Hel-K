@@ -5,7 +5,7 @@ function widget:GetInfo()
 	return {
 		name      = "Widget Profiler New",
 		desc      = "",
-		author    = "jK, Bluestone",
+		author    = "jK, Bluestone, rewrite, improved, and optimized Helwor",
 		version   = "2.0",
 		date      = "2007+",
 		license   = "GNU GPL, v2 or later",
@@ -65,7 +65,9 @@ options = {
 		value = WATCHDOG_MODE,
 		OnChange = function(self)
 			WATCHDOG_MODE = self.value
-			Init()
+			if enabled then
+				Init()
+			end
 		end,
 	},
 	updateRate = {
