@@ -6,15 +6,22 @@ local cos   = math.cos
 local sin   = math.sin
 local sqrt  = math.sqrt
 local pi    = math.pi
-
+local clamp = math.clamp
+local mapSizeX, mapSizeZ = Game.mapSizeX, Game.mapSizeZ
 local spGetGroundHeight = Spring.GetGroundHeight
 
 local function GetRange2DWeapon(range, yDiff)
-	local adjRadius = sqrt(range * range - yDiff * yDiff)
-	if yDiff > range  or -yDiff > range then
+	-- local adjRadius = sqrt(range * range - yDiff * yDiff)
+	-- if yDiff > range  or -yDiff > range then
+	-- 	return 0
+	-- end
+	-- return sqrt(range * range - yDiff * yDiff)
+	local root1 = range * range - yDiff * yDiff
+	if root1 < 0 then
 		return 0
+	else
+		return sqrt(root1)
 	end
-	return sqrt(range * range - yDiff * yDiff)
 end
 
 local GAME_GRAVITY = Game.gravity / (Game.gameSpeed^2)
@@ -62,24 +69,17 @@ local function CalcBallisticCircle( x, y, z, range, wDef)
 		heightMod = 1
 	end
 	-- Echo("wType, heightMod is ", wType, heightMod, projectilespeed, myGravity)
-	local divs, steps = 40, 49
-	if range < 1000 then
-		divs = max(math.modf(range / 25), 16)
-		steps = max(math.modf(range / 20.5), 5)
-	end
-	-- if not done[range] then
-	-- 	done[range] = true
-	-- 	Echo('range', range, 'divs,', divs, 'steps', steps)
-	-- end
+	local divs, steps -- = 40, 49
+	divs = max(math.modf(range^0.5)*2, 20)
+	steps = max(math.modf(range^0.5)*2, 20)
 	for i = 1, divs do
 		local radians = 2.0 * pi * i / divs
 		local rAdj = range
 
 		local sinR = sin(radians)
 		local cosR = cos(radians)
-
-		local posx = x + sinR * rAdj
-		local posz = z + cosR * rAdj
+		local posx = clamp(x + sinR * rAdj, 0, mapSizeX)
+		local posz = clamp(z + cosR * rAdj, 0, mapSizeZ)
 		local posy = spGetGroundHeight(posx, posz)
 
 		local heightDiff = (posy - y) / 2.0 
@@ -100,8 +100,8 @@ local function CalcBallisticCircle( x, y, z, range, wDef)
 				rAdj = rAdj - adjustment
 				adjustment = adjustment / 2.0
 			end
-			posx = x + ( sinR * rAdj )
-			posz = z + ( cosR * rAdj )
+			posx = clamp(x + sinR * rAdj, 0, mapSizeX)
+			posz = clamp(z + cosR * rAdj, 0, mapSizeZ)
 			local newY = spGetGroundHeight( posx, posz )
 			yDiff = abs( posy - newY )
 			posy = newY
@@ -110,13 +110,12 @@ local function CalcBallisticCircle( x, y, z, range, wDef)
 			adjRadius = rangeFunc( range, heightDiff * heightMod, projectilespeed, rangeFactor, myGravity, yDiff )
 		end
 
-		posx = x + ( sinR * adjRadius )
-		posz = z + ( cosR * adjRadius )
+		posx = clamp(x + sinR * rAdj, 0, mapSizeX)
+		posz = clamp(z + cosR * rAdj, 0, mapSizeZ)
 		if not pcall(spGetGroundHeight, posx, posz) then
 			Echo(os.clock(), 'BREAK DOWN', wName, wType, projectilespeed, rangeFactor, myGravity, yDiff, sinR, heightDiff, heightMod, adjRadius, cosR, range, heightDiff * heightMod, projectilespeed, oriAdj, rangefunc == GetRange2DCannon)
 		end
 		posy = spGetGroundHeight( posx, posz ) + 5.0
-
 		posy = max( posy, 0.0 )   --hack
 
 		rangeLineStrip[i] = { posx, posy, posz }
