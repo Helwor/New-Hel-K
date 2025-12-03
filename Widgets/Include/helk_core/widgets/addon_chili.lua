@@ -491,14 +491,14 @@ local function AddTrackbarFunctions()
 		end
 		local steps = floor((v / self.step) + 0.5)
 		v = steps * self.step
-
+		
 		v = self:_Clamp(v)
 		local oldvalue = self.value
 		self.value = v
 		if self.tooltipFunction then
-		self.tooltip = self.tooltipFunction(self, v)
+			self.tooltip = self.tooltipFunction(self, v)
 		elseif self.useValueTooltip then
-		self.tooltip = FormatNum(v, self.tooltip_format, self.step)
+			self.tooltip = FormatNum(v, self.tooltip_format, self.step)
 		end
 		self:CallListeners(self.OnChange,v,oldvalue)
 		self:Invalidate()
