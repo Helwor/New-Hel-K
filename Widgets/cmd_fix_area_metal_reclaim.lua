@@ -56,7 +56,6 @@ options.active = {
     type = 'bool',
     value = active,
     OnChange = function(self)
-        Echo('on change')
         UpdateStatus(self.value, Spring.GetSpectatingState())
     end,
 }
