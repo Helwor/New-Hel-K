@@ -191,6 +191,7 @@ local onlyOnIcons = false
 local showAllySelected = true
 local showHealth = true
 local showStatus = true
+local showNonManualCons = true
 local showCommandStatus = false
 local showCloaked = true
 local alphaStatus = 1
@@ -243,6 +244,7 @@ options_order = {
 	'alpha_health',
 
 	'show_status',
+	'show_non_manual_cons',
 	'show_command_status',
 	'alpha_status',
 
@@ -412,6 +414,16 @@ options.show_status = {
 	children = {'alpha_status', 'show_command_status'},
 }
 
+options.show_non_manual_cons = {
+	name = 'Show Idle Cons',
+	type = 'bool',
+	value = showNonManualCons,
+	OnChange = function(self)
+		showNonManualCons = self.value
+	end,
+	noHotkey = true,
+	parents 		= {'show_status'},
+}
 options.show_command_status = {
 	name = "Extra command status",
 	desc = "Add status command of tracked units by widgets",
@@ -423,6 +435,7 @@ options.show_command_status = {
 	noHotkey = true,
 	parents 		= {'show_status'},
 }
+
 
 options.alpha_status = {
 	name            = '	..transparency',
@@ -834,6 +847,9 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 							or unit.waitManual and yellow
 							-- or unit.actualCmd == 90 and paleviolet
 							or unit.cmd and green
+						)
+					or showNonManualCons and unit.tracked and (
+							unit.isCon and not (unit.manual or unit.waitManual) and blue
 						)
 
 				if not statusColor then
