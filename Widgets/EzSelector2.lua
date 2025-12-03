@@ -31,7 +31,7 @@ local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
 local KEYSYMS = KEYSYMS
 local specialKeys--[[, ToKeysyms--]] = include('Configs/integral_menu_special_keys.lua')
 
-local MODS_FALSE = {shift = false, ctrl = false, meta = false, alt = false, internal = false, coded = 0}
+local MODS_FALSE = {alt = false, ctrl = false, meta = false, shift = false, internal = false, coded = 0}
 local EMPTY_TABLE = {}
 local DEFAULT_DRAW_POS = {resX/2, resY/2} -- default of draw screen  in non cylinder mode selection info
 local DEFAULT_CYLINDER_DRAW_POS = {(resX/2), 180}
@@ -897,7 +897,7 @@ local hotkeysCombos = {
 						local mx, my, mz = unpack(call.mouseStart)
 						local tryUdist = ((tux-mx)^2 + (tuz-mz)^2) ^0.5
 						local curUdist = ((cux-mx)^2 + (cuz-mz)^2) ^0.5
-						if tryUdist < curUdist * 0.66 then
+						if tryUdist < curUdist * 0.75 then
 							return true
 						end
 					end
@@ -966,7 +966,7 @@ local hotkeysCombos = {
 				-- 	, {['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
 				-- },
 				-- shift_on_same_last_call = true,
-				switch_time = 0.1,
+				switch_time = 1,
 				add_last_call_pool = true,
 				add_last_call_pool_if = 'Com / Funnel',
 				-- previous_time = 1,
@@ -974,7 +974,7 @@ local hotkeysCombos = {
 				-- use_prev = true,
 				-- no_pick_in_prev = true,
 				-- from_cursor = true,
-				groups = { 
+				switch = { 
 					-- HOW GROUPS WORKS: units closest of cursor are multichecked against the differents defs in group,
 					-- whichever def is the first matching become the filter that will be used on the rest of the units
 
@@ -991,7 +991,7 @@ local hotkeysCombos = {
 							['?'] = {
 								'isIdle',
 								{'!manual', '!waitManual'},
-								{['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
+								-- {['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
 							},
 						},
 						-- {},
@@ -1009,11 +1009,11 @@ local hotkeysCombos = {
 							['?'] = {
 								'manual', 'waitManual',
 							},
-							{
-								['?'] = {
-									['!order'] = CMD_RAW_MOVE,	order = 'moveFar'
-								}
-							}
+							-- {
+							-- 	['?'] = {
+							-- 		['!order'] = CMD_RAW_MOVE,	order = 'moveFar'
+							-- 	}
+							-- }
 						},
 
 
@@ -1043,7 +1043,7 @@ local hotkeysCombos = {
 				-- ignore_from_sel = true,
 
 				switch_on_identical = true, -- switch on identical but also the first matching switch is kept
-				fail_on_identical = true,
+				-- fail_on_identical = true,
 				-- typeOrder = {
 				-- 	'unknown'
 				-- },
@@ -2140,6 +2140,7 @@ local hotkeysCombos = {
 			-- typeOrder = 'byClosest',
 
 			selname = true, -- show the unit name instead of the macro name
+			on_press = true,
 			want = 1,
 			pref_use_prev = true,
 			previous_time = 0.5,
@@ -2179,7 +2180,7 @@ local hotkeysCombos = {
 			keys = {'?SPACE', '?AIR', 'N_3', 'RClick', 'longClick', '?doubleRClick', '?spam'},
 			-- defs = {'isUnit'},
 			-- on_press = true,
-			longPressTime = 0.15, -- longPress is evaluated true within that time
+			longPressTime = 0.1, -- longPress is evaluated true within that time
 			color = {0.2, 0.5, 1, 0.99},
 			fading = 0.5,
 			-- force_finish = true, -- achieve 'One Commando' call before starting this one
@@ -3193,11 +3194,12 @@ local hotkeysCombos = {
 			keys = {'?SPACE', 'N_2', 'LClick', 'longClick'},
 			force = true,
 			share_radius = 'Set Scout',
+			-- on_press = true,
 		}, 
 
 
 		{
-			name = 'non scout AA', -- pick up any AA except the cloaky AA on hold-fire (preventing to picking scouts along)
+			name = 'Non Scout AA', -- pick up any AA except the cloaky AA on hold-fire (preventing to picking scouts along)
 			method = 'cylinder',
 			keys = {'?SPACE', 'N_2', 'doubleTap', '?spam'},						
 			-- defs = { class = 'aaunit', ['?'] = {['!fireState'] = 0, ['!name'] = 'cloakaa'} },
@@ -3216,11 +3218,15 @@ local hotkeysCombos = {
 			name = 'all AA', -- pick up all AA and put them back with fire ON
 			method = 'cylinder',
 			-- keys = {'?SPACE', 'N_2', 'doubleTap', 'spam'},						
-			keys = {'?SPACE', 'N_2', 'doubleTap', 'longPress'},
+			keys = {'?SPACE', 'N_2', 'doubleTap', 'longPress', 'mouseStill'},
+			longPressTime = 0.1,
+			share_radius = 'Non Scout AA',
 			defs = { class = 'aaunit' },
 			give_order = {[CMD.FIRE_STATE] = {2, 0}},
-			color = {0.2, 0.2, 0.6, 1},
-			fading = 1
+			add_last_acquired = true,
+			color = {0.6, 0.3, 0.7, 1},
+			fading = 1,
+
 		},
 
 	------ SPECIAL -------
@@ -4554,6 +4560,9 @@ local function RealizeCall(call, selecting, acquired, lastSel, success)
 			-- keep fullSel in case we were just adding but nothing found
 		else
 			fullSel = final[1] and final
+			if fullSel then
+				fullSel.partial = 1
+			end
 		end
 		-- Echo('finish call ', call.name, 'with', g.acquired.n)
 		---lockSelection = true
@@ -4610,7 +4619,9 @@ local function RealizeCall(call, selecting, acquired, lastSel, success)
 end
 function widget:CommandNotify(cmd)
 	-- Echo("selectionResized is ", fullSel and fullSel.partial < 1)
-	if cmd == CMD_RAW_MOVE and partialNoSelect > 0 --[[and currentSel[1]--]] and (not currentSel[2] or selectionResized and fullSel and (fullSel.partial or 1) < 1) then
+	if cmd == CMD_RAW_MOVE and partialNoSelect > 0 --[[and currentSel[1]--]]
+	and (not currentSel[2] or selectionResized and fullSel and (fullSel.partial or 1) < 1)
+	then
 		local now = osclock()
 		for i, id in ipairs(currentSel) do
 			local unit = Units[id]
@@ -4629,7 +4640,9 @@ do
 			return
 		end
 		thisround = now
-		if cmd == CMD_RAW_MOVE and partialNoSelect > 0 --[[and currentSel[1]--]] and (not currentSel[2] or selectionResized and fullSel and fullSel.partial < 1) then
+		if cmd == CMD_RAW_MOVE and partialNoSelect > 0 --[[and currentSel[1]--]] 
+		and (not currentSel[2] or selectionResized and fullSel and fullSel.partial < 1)
+		then
 			local now = osclock()
 			for i, id in ipairs(currentSel) do
 				local unit = Units[id]
@@ -4841,7 +4854,7 @@ local function FinishCall(selecting)
 		Process(0)
 	end
 	if ignore_on_fail and not success then
-		return false
+		return true -- VERIFY: CHANGED RECENTLY TO FIX "1" + RIGHT CLICK NOT BLOCKED
 	end
 	return selecting or force
 end
@@ -6285,6 +6298,7 @@ function widget:SelectionChanged(newsel)
 	end
 	if not selectionResized and newsel[1] then
 		fullSel = newsel
+		fullSel.partial = 1
 		-- local n = g.verify
 		-- g.verify = false
 		-- if n and  newsel[n+1] then
@@ -6887,7 +6901,7 @@ do
 				if not spValidUnitID(id) or spGetUnitIsDead(id) then
 					local tickSound = LUAUI_DIRNAME .. 'Sounds/buildbar_rem.wav'
 					Spring.PlaySoundFile(tickSound, 0.95, 'ui')
-					Echo('found invalid in FindUnits', id, spGetUnitIsDead(id), Units[id])
+					-- Echo('found invalid in FindUnits', id, spGetUnitIsDead(id), Units[id])
 				else
 						-- Echo("checking", (Units[id].name..' ('..id..')'):upper())
 					local pass
@@ -8129,7 +8143,7 @@ do
 			if call.skipUpdate then
 				if delta>0 then
 				 	call.skipUpdate = false
-				 	return
+				 	return true
 				end
 			end
 		else
@@ -8196,7 +8210,7 @@ do
 		local delay = call and (call.on_delay or call.ifSecondary and call.secondary and call.ifSecondary.on_delay)
 		if delay then
 			if osclock()-call.clock<delay then
-				return
+				return true
 			end
 		end
 
@@ -8592,7 +8606,9 @@ do
 					end
 					call = HKCombos[ownedCombos[call.cycle[cycle.selected]]]
 				end
-				if (call.on_delay or call.ifSecondary and call.secondary and call.ifSecondary.on_delay) then return end
+				if (call.on_delay or call.ifSecondary and call.secondary and call.ifSecondary.on_delay) then
+					return
+				end
 			end
 		end
 		-----------------------
@@ -8600,8 +8616,6 @@ do
 		-----------------------
 		--------- CALL UPDATING
 		-----------------------
-				--x, y, z = UniTraceScreenRay(spGetMouseState())
-
 		--count = call and count+1 or 0
 		
 		-- if this Update Round got triggered by KeyPress, this latter CallIn will get Informed to block the key, and might in turn inform MousePress to do aswell
@@ -8796,7 +8810,10 @@ do
 				-- 	, lastCall and osclock()-lastCall.clock<5
 				-- 	, 'fullSel', fullSel
 				-- 	)
-			if fullSel and fullSel[2] then -- reduce/re-augment the selection, from closest of mouse
+			if fullSel then -- reduce/re-augment the selection, from closest of mouse
+				if not fullSel[2] then
+					return true
+				end
 				local dists = {}
 					-- NOTE: interestingly enough, the dists table will be filled while using the sorting func as intended, but then after
 					-- trying to traverse it with pairs() will not work, nor next() will find anything, the table is emptied
@@ -8854,7 +8871,7 @@ do
 					fullSel.defIDs = bySize
 				end
 
-				local step = max(fullSel.partial*abs(value)*0.1, 1/n)-- step is 10% per notch or at least one unit
+				local step = max(fullSel.partial*abs(value)*0.2, 1/n)-- step is 10% per notch or at least one unit
 				fullSel.partial = min(max(step, fullSel.partial + step * (up and 1 or -1)), 1)
 				local nToSelect = max(1, round(n*fullSel.partial))
 
