@@ -13,9 +13,9 @@ end
 
 local Echo = Spring.Echo
 
-local requirements = {
+requirements = {
 	exists = {
-		[(WIDGET_DIRNAME or LUAUI_DIRNAME .. 'Widgets/') .. '-SelectionAPI.lua'] = {nil, nil, true}
+		[(WIDGET_DIRNAME or LUAUI_DIRNAME .. 'Widgets/') .. '\\Include\\helk_core\\widgets\\api_selection_handler.lua'] = {nil, nil, true}
 	}
 }
 
