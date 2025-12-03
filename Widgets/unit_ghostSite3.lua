@@ -1074,7 +1074,7 @@ local function DrawGhostSites3()
 			glUnitShapeTextures(defID, true)
 			local alpha = 1
 			-- local important = ofImportanceDefID[defID]
-			local cost = math.clamp(1, UnitDefs[defID].cost/300, 4)
+			local cost = math.clamp(UnitDefs[defID].cost/300, 1,  4)
 			cost = 1 + (cost - 1)/2
 			cost = cost * (alphaMult[defID] or 1)
 			-- cost = 1
