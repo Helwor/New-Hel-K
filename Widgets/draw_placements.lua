@@ -16,12 +16,12 @@ function widget:GetInfo()
 	}
 end
 local requirements = {
-    exists = {
-    	-- handle terraform build and much more
-    	[WIDGET_DIRNAME ..'persistent_build_heigth2.lua'] = {VFS.RAW},
-        -- enhance option system
-        [WIDGET_DIRNAME ..'gui_epicmenu.lua'] = {VFS.RAW},
-    },
+	exists = {
+		-- handle terraform build and much more
+		[WIDGET_DIRNAME ..'persistent_build_heigth2.lua'] = {VFS.RAW},
+		-- enhance option system
+		[WIDGET_DIRNAME ..'gui_epicmenu.lua'] = {VFS.RAW},
+	},
 	value = {
 		-- tracking game units and maintain their database
 		['WG.UnitsIDCard and WG.UnitsIDCard.active'] = {'Requires api_unit_data.lua and running'},
@@ -31,7 +31,6 @@ local requirements = {
 		['WG.commandTrackerActive'] = {'Requires API Command Tracker widget to be active'},
 	}
 }
-
 
 
 local Echo = Spring.Echo
@@ -46,21 +45,21 @@ include("keysym.lua")
 local MAX_REACH = 500 -- set radius of unit scan around the cursor, to detect connections of grid, 500 for pylon, 150 for singu/fusion
 
 local SEND_DELAY = 0.8
------ default value of options before user touche them
+----- default value of options before user touch them
 local opt = {
 	showRail = false,
 
 
 	-- dev options, need to be reverified, best settings is already set
-	neatFarm = false,
 	autoNeat = true,
+	neatFarm = false,
 	useExtra = true, -- use extra search around to choose between 2 best methods that return the same number of poses
 	useReverse = true,
 	tryEdges = false,
 	------
 
 	connectWithAllied = true, -- not fully implemented, always true
-	update_rail_MM  = true,
+	update_rail_MM  = false,
 
 
 	enableEraser = true, 
@@ -73,7 +72,7 @@ local opt = {
 	alwaysMex = true, -- cap mex nearby without connection mode -- not implemented with farm, might be expensive
 	-- experimental
 	mexToAreaMex = false, -- single mex click do area mex, not ideally implemented
-	ctrlCloseEBuild = false, -- switch temporary to spacing 0 with ctrl held
+	ctrlBehaviour = 'no_spacing', -- switch temporary to spacing 0 with ctrl held
 
 	grabMexes = false, -- grab mexes around depending on cam height
 	grabMexesMultRadius = 1,
@@ -84,6 +83,9 @@ local opt = {
 	remoteMultRadius = 2,
 	remoteCap = 300, -- maximum
 
+	disallowSurround = false, -- 
+
+
 
 }
 -----
@@ -93,55 +95,43 @@ local myPlayerID = Spring.GetMyPlayerID()
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
-local f = WG.utilFuncs
 
-
--- local Page 								= f.Page
--- local GetDirection 						= f.GetDirection
+-- local Page 							= f.Page
+-- local GetDirection 					= f.GetDirection
 local s									= f.s
--- local GetDef 							= f.GetDef
+-- local GetDef 						= f.GetDef
 local l									= f.l
-local inTable							= f.inTable
+-- local inTable						= f.inTable
 local UniTraceScreenRay					= f.UniTraceScreenRay
-local CheckCanSub						= f.CheckCanSub
+local ClampMouseToMinimap				= f.ClampMouseToMinimap
 local TestBuild                   		= f.TestBuild
+local CheckCanSub 						= f.CheckCanSub
 local PushOut							= f.PushOut
 local getconTable						= f.getconTable
 local GetDist 							= f.GetDist
 local GetPosOrder 						= f.GetPosOrder
-
-local GetTeamUnits						= f.GetTeamUnits
-
-local roughequal 						= f.roughequal
--- local sbiggest 							= f.sbiggest
-local rects 							= f.rects
+-- local roughequal 					= f.roughequal
+-- local sbiggest 						= f.sbiggest
 -- local contiguous 					= f.contiguous
-local corners 							= f.corners
 -- local MergeRects 					= f.MergeRects
 -- local minMaxCoord 					= f.minMaxCoord
 -- local MapRect 						= f.MapRect
 local IsOverlap							= f.IsOverlap
--- local StateToPos 						= f.StateToPos
+-- local StateToPos 					= f.StateToPos
 local GetCons 							= f.GetCons
 local GetCommandPos						= f.GetCommandPos
-local res 								= f.res
-local IsEqual 							= f.IsEqual
-
-
-
+-- local IsEqual 						= f.IsEqual
 local MultiInsert 						= f.MultiInsert
 local getcons 							= f.getcons
 local deepcopy 							= f.deepcopy
--- local bet 								= f.bet
+-- local bet 							= f.bet
 local toMouse 							= f.toMouse
-
--- local togrid 							= f.pointToGrid
-
+-- local togrid 						= f.pointToGrid
 local GetCameraHeight					= f.GetCameraHeight
 -- local newTable 						= f.newTable
 
 
-local toValidPlacement 				= f.toValidPlacement
+local toValidPlacement 					= f.toValidPlacement
 
 -- local Overlapping 					= f.Overlapping
 -- local Overlappings 					= f.Overlappings
@@ -159,70 +149,70 @@ local color = COLORS
 
 local UnitDefs = UnitDefs
 
-local Points={} -- debugging
+local Points = {} -- debugging
 local Cam, NewView
 
 
 
 local sp = {
 
-	GetActiveCommand 		= Spring.GetActiveCommand
-	,SetActiveCommand 		= Spring.SetActiveCommand
+	GetActiveCommand 		= Spring.GetActiveCommand,
+	SetActiveCommand 		= Spring.SetActiveCommand,
 
-	,GetModKeyState   		= Spring.GetModKeyState
-	,GetUnitsInCylinder		= Spring.GetUnitsInCylinder
-	,GetUnitsInRectangle	= Spring.GetUnitsInRectangle
-	,GetUnitDefID	 		= Spring.GetUnitDefID
-	,GetSelectedUnits 		= Spring.GetSelectedUnits
-	,GetMyTeamID 			= Spring.GetMyTeamID
-	,GetAllUnits 	 		= Spring.GetAllUnits
-
-
-	,GetCommandQueue  		= Spring.GetCommandQueue
-	,GiveOrderToUnit  		= Spring.GiveOrderToUnit
-	,GiveOrderToUnitArray  	= Spring.GiveOrderToUnitArray
-
-	,WarpMouse 		 		= Spring.WarpMouse
-	,WorldToScreenCoords 	= Spring.WorldToScreenCoords
-	,GetMouseState    		= Spring.GetMouseState
-	,TraceScreenRay  	 	= Spring.TraceScreenRay
-	,GetGroundHeight  		= Spring.GetGroundHeight
-
-	,SendCommands			= Spring.SendCommands
-
-	,ValidUnitID			= Spring.ValidUnitID
-	,ValidFeatureID			= Spring.ValidFeatureID
-	,GetUnitPosition 	    = Spring.GetUnitPosition
-	,GetFeaturePosition		= Spring.GetFeaturePosition
+	GetModKeyState			= Spring.GetModKeyState,
+	GetUnitsInCylinder		= Spring.GetUnitsInCylinder,
+	GetUnitsInRectangle		= Spring.GetUnitsInRectangle,
+	GetUnitDefID	 		= Spring.GetUnitDefID,
+	GetSelectedUnits 		= Spring.GetSelectedUnits,
+	GetMyTeamID 			= Spring.GetMyTeamID,
+	GetAllUnits 	 		= Spring.GetAllUnits,
 
 
-	,GetBuildFacing			= Spring.GetBuildFacing
-	,GetBuildSpacing		= Spring.GetBuildSpacing
-	,SetBuildSpacing		= Spring.SetBuildSpacing
-	,GetUnitBuildFacing		= Spring.GetUnitBuildFacing
+	GetCommandQueue  		= Spring.GetCommandQueue,
+	GiveOrderToUnit  		= Spring.GiveOrderToUnit,
+	GiveOrderToUnitArray  	= Spring.GiveOrderToUnitArray,
 
-	,GetCameraState			= Spring.GetCameraState
-	,GetCameraPosition		= Spring.GetCameraPosition
-	,SetCameraTarget		= Spring.SetCameraTarget
+	WarpMouse 		 		= Spring.WarpMouse,
+	WorldToScreenCoords 	= Spring.WorldToScreenCoords,
+	GetMouseState    		= Spring.GetMouseState,
+	TraceScreenRay  	 	= Spring.TraceScreenRay,
+	GetGroundHeight  		= Spring.GetGroundHeight,
 
-	,GetTimer				= Spring.GetTimer
-	,DiffTimers 			= Spring.DiffTimers
+	SendCommands			= Spring.SendCommands,
 
-	,Pos2BuildPos 			= Spring.Pos2BuildPos
-	,ClosestBuildPos 		= Spring.ClosestBuildPos
+	ValidUnitID				= Spring.ValidUnitID,
+	ValidFeatureID			= Spring.ValidFeatureID,
+	GetUnitPosition 	    = Spring.GetUnitPosition,
+	GetFeaturePosition		= Spring.GetFeaturePosition,
 
-	,FindUnitCmdDesc  		= Spring.FindUnitCmdDesc
-	,GetMyTeamID     		= Spring.GetMyTeamID
-	,GetUnitTeam 			= Spring.GetUnitTeam
-	,SetMouseCursor 		= Spring.SetMouseCursor
-	,GetUnitsInRectangle	= Spring.GetUnitsInRectangle
 
-	,IsUnitAllied			= Spring.IsUnitAllied
-	,GetCmdDescIndex		= Spring.GetCmdDescIndex
+	GetBuildFacing			= Spring.GetBuildFacing,
+	GetBuildSpacing			= Spring.GetBuildSpacing,
+	SetBuildSpacing			= Spring.SetBuildSpacing,
+	GetUnitBuildFacing		= Spring.GetUnitBuildFacing,
 
-	,GetModKeyState			= Spring.GetModKeyState
+	GetCameraState			= Spring.GetCameraState,
+	GetCameraPosition		= Spring.GetCameraPosition,
+	SetCameraTarget			= Spring.SetCameraTarget,
 
-	,WorldToScreenCoords	= Spring.WorldToScreenCoords
+	GetTimer				= Spring.GetTimer,
+	DiffTimers 				= Spring.DiffTimers,
+
+	Pos2BuildPos 			= Spring.Pos2BuildPos,
+	ClosestBuildPos 		= Spring.ClosestBuildPos,
+
+	FindUnitCmdDesc  		= Spring.FindUnitCmdDesc,
+	GetMyTeamID     		= Spring.GetMyTeamID,
+	GetUnitTeam 			= Spring.GetUnitTeam,
+	SetMouseCursor 			= Spring.SetMouseCursor,
+	GetUnitsInRectangle		= Spring.GetUnitsInRectangle,
+
+	IsUnitAllied			= Spring.IsUnitAllied,
+	GetCmdDescIndex			= Spring.GetCmdDescIndex,
+
+	GetModKeyState			= Spring.GetModKeyState,
+	IsAboveMiniMap			= Spring.IsAboveMiniMap,
+	WorldToScreenCoords	= Spring.WorldToScreenCoords,
 
 }
 
@@ -237,11 +227,17 @@ end
 local g = {
 	noterra = not Game.mapDamage or (Game.modName or ''):lower():find('arena mod'),
 	preGame = Spring.GetGameSeconds() < 1,
+	cantMex = {},
+	previMex = {},
+	closeMex = {},
+	visitedOnce = {},
+	remoteRadius = false,
+	magnetScreen = false,
 
 }
 local initialized = false
 
-
+local useMinimap = false
 
 
 
@@ -366,7 +362,7 @@ options.autoneat = {
 
 options.useextra = {
 	name = 'Paint Farm: Use extra search',
-	desc = 'use extra search around to get the most desirable positions for our current poses',
+	desc = 'Use extra search around to get the most desirable positions for our current poses',
 	type = 'bool',
 	value = opt.useExtra,
 	OnChange = function(self)
@@ -377,7 +373,7 @@ options.useextra = {
 }
 options.usereverse = {
 	name = 'Paint Farm: Use reverse search',
-	desc = 'use a third method going reverse to get better results',
+	desc = 'Use a third method going reverse to get better results',
 	type = 'bool',
 	value = opt.useReverse,
 	OnChange = function(self)
@@ -388,7 +384,7 @@ options.usereverse = {
 }
 options.tryedges = {
 	name = 'Paint Farm: Try edges method',
-	desc = 'priviledgize pose that has touch the most edge points of posed builds',
+	desc = 'Priviledgize pose location that touch the most edge points of posed builds',
 	type = 'bool',
 	value = opt.tryEdges,
 	OnChange = function(self)
@@ -553,7 +549,7 @@ options.grabMexesMultRadius = {
 
 options.remote = {
 	name = 'Remote Connection',
-	desc = 'EXPERIMENTAL\nExtend rail to remote mexes and connect them.',
+	desc = 'Extend rail to remote mexes and connect them.',
 	type = 'bool',
 	value = opt.remote,
 	OnChange = function(self)
@@ -577,7 +573,7 @@ options.remote = {
 -- }
 
 options.remoteMultRadius = {
-	name = 'Remote Radius (and Magnet)',
+	name = 'Remote Radius',
 
 	type = 'number', 
 	value = opt.remoteMultRadius,
@@ -613,23 +609,38 @@ options.remoteCap = {
 
 
 
-options.ctrlCloseEBuild = {
-	name = 'Ctrl => 0 spacing when connect',
-	type = 'bool',
-	desc = 'Switch temporary to spacing 0 with ctrl held when you\'re set for connection mode',
-	value = opt.ctrlCloseEBuild,
+options.ctrlBehaviour = {
+	name = 'Behaviour while holding Ctrl',
+	type = 'radioButton',
+	-- desc = 'Switch temporary to spacing 0 with ctrl held when you\'re set for connection mode',
+	value = opt.ctrlBehaviour,
+	items = {
+		{key = 'engine', name = 'Engine behaviour'},
+		{key = 'no_spacing', name = 'No Spacing'},
+	},
 	OnChange = function(self)
 		opt[self.key] = self.value
 	end,
 }
 options.alwaysMex = {
-	value = 'always Mex',
+	name = 'always Mex',
 	desc = 'Even when not in connect mode, add mex nearby',
 	value = opt.alwaysMex,
 	OnChange = function(self)
 		opt[self.key] = self.value
 	end,	
 }
+
+options.disallowSurround = {
+	name = 'Disallow Surround',
+	desc = 'While Drawing, don\'t let the engine place builds around a target, continue as usual',
+	value = opt.disallowSurround,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,	
+}
+
+
 ------------- DEBUG OPTIONS
 
 local Debug = { -- default values, modifiable in options
@@ -665,12 +676,9 @@ local abs 		= math.abs
 local sqrt		= math.sqrt
 local floor 	= math.floor
 local ceil 		= math.ceil
--- local biggest 	= math.biggest
---local sbiggest  = math.sbiggest
--- local t   		= type
-local clock 	= os.clock
 
-local format 			= string.format
+local format 	= string.format
+local clock 	= os.clock
 
 
 -- local SM = widgetHandler:FindWidget('Selection Modkeys')
@@ -692,7 +700,7 @@ local heightDecrease = KEYSYMS.V
 
 local spacingIncrease = KEYSYMS.Z
 local spacingDecrease = KEYSYMS.X
-local tempCtrl = false
+
 ---------------------------------
 -- Epic Menu
 ---------------------------------
@@ -715,12 +723,13 @@ VFS.Include("LuaRules/Configs/customcmds.h.lua")
 --local tick={}
 --local coroute={}
 
-local DP={}
+local DP = {}
+local pos = false
+
 local eraser_color = { 0.6, 0.7, 0.5, 0.2}
 eraser_color = {0.8, 0.2, 0.3, 0.2}
 local mexDefID = UnitDefNames["staticmex"].id
 local pylonDefID = UnitDefNames['energypylon'].id
-local pos = false
 
 local noDraw = {
 	[UnitDefNames["staticcon"].id]=true,
@@ -791,10 +800,9 @@ local UPDATE_RAIL = false
 local overlapped = {}
 
 
-local closeMex = {}
-local cantMex={}
+
 local GetClosestAvailableMex
-local visitedOnce = {}
+
 do
 
 	function GetClosestAvailableMex(x,z, distRange, once)
@@ -811,20 +819,20 @@ do
 			local dist = dx*dx + dz*dz
 			if distRange then
 				if dist < distRange then
-					if not (once and visitedOnce[spot]) then
-						if not cantMex[spot] then
+					if not (once and g.visitedOnce[spot]) then
+						if not g.cantMex[spot] then
 							if not t then
 								t = {}
 							end
 							t[#t + 1] = {spot.x, spot.y, spot.z, spot = spot, dist = dist}
 						end
 						if once then 
-							visitedOnce[spot] = true
+							g.visitedOnce[spot] = true
 						end
 					end
 				end
 			end
-			if dist < bestDist and not cantMex[spot] then
+			if dist < bestDist and not g.cantMex[spot] then
 				bestSpot = spot
 				bestDist = dist
 			end
@@ -837,7 +845,7 @@ local switchSM, SM_enable_opt
 
 
 
-local previMex = {}
+
 
 local forgetMex = {}
 local spacing = false
@@ -848,7 +856,7 @@ local newmove
 
 local CURSOR_ERASE_NAME, CURSOR_ERASE = 'map_erase','eraser'
 
-local mx,my = false,false
+local mx, my = false, false
 
 --local places
 
@@ -856,9 +864,10 @@ local mx,my = false,false
 
 local rail = {n=0}
 local specs = {
-	n=0, mexes = {},
+	n = 0,
+	mexes = {},
 	clear = function(self)
-		for i=1,#self do
+		for i = 1, #self do
 			self[i] = nil
 		end
 		for k in pairs(self.mexes) do
@@ -1314,8 +1323,10 @@ do
 		CMD_RAW_BUILD = customCmds.RAW_BUILD
 		CMD_RAW_MOVE = customCmds.RAW_MOVE
 	end
-	local function overlap(rad, x, z, sx, sz, ix, iz, isx, isz)
-		if rad then
+	local function overlap(rad, x, z, sx, sz, ix, iz, isx, isz, checkSurround)
+		if checkSurround then -- for surround to apply, the placement center must be inside the other placement
+			return (x-ix)^2 < isx^2 and (z-iz)^2 < isz^2
+		elseif rad then
 			return (x-ix)^2 + (z-iz)^2 < (((rad^2)/2)^0.5 + isx)^2 + (((rad^2)/2)^0.5 + isz)^2 
 			-- return (x-ix)^2 + (z-iz)^2 < (sx + isx)^2 + (sz + isz)^2 -- distance check
 			-- (only work because the radius used is (sx^2 + sz^2)^0.5, else it requires the commented line above)
@@ -1325,8 +1336,7 @@ do
 			return (x-ix)^2 < (sx+isx)^2 and (z-iz)^2 < (sz+isz)^2
 		end
 	end
-	EraseOverlap = function(x,z, checkOnlyOverlap) 
-
+	EraseOverlap = function(x,z, checkOnlyOverlap, checkSurround) 
 		local GetQueue, GiveOrder, CMD_REMOVE, pcall = sp.GetCommandQueue, sp.GiveOrderToUnit,CMD.REMOVE, pcall
 		if not checkOnlyOverlap then
 			sp.SetMouseCursor(CURSOR_ERASE_NAME)
@@ -1349,7 +1359,7 @@ do
 				local order = queue[j]
 				local defid, ix, iy, iz, facing = unpack(order)
 				local info = p:Measure(defid, facing)
-				if overlap(rad, x, z, sx, sz, ix, iz, info.sizeX, info.sizeZ) then
+				if overlap(rad, x, z, sx, sz, ix, iz, info.sizeX, info.sizeZ, checkSurround) then
 					if checkOnlyOverlap then
 						return true
 					end
@@ -1400,7 +1410,7 @@ do
 								if not levelOfBuild then
 									loneleveltag = leveltag
 								end
-								if overlap(rad, x, z, sx, sz, ix, iz, info.sizeX, info.sizeZ) then
+								if overlap(rad, x, z, sx, sz, ix, iz, info.sizeX, info.sizeZ, checkSurround) then
 									-- we verify the cons hasnt plopped the nanoframe yet
 									if checkOnlyOverlap then
 										return true
@@ -1517,8 +1527,8 @@ local function GetPlacements() -- for now, only placements from current cons are
 			if pid == mexDefID and GetCloseMex --[[and not g.preGame--]] then
 				local spot = GetCloseMex(x,z)
 				if spot then
-					-- cantMex[spot]=not IsMexable(spot)
-					cantMex[spot]=true
+					-- g.cantMex[spot]=not IsMexable(spot)
+					g.cantMex[spot]=true
 				end
 			end
 			length = length + 1
@@ -1672,11 +1682,6 @@ local function reset(complete)
 	-- if complete then
 	-- 	Echo(debug.traceback())
 	-- end
-	if tempCtrl and (not ctrl--[[ or complete]]) then
-		Spring.SetBuildSpacing(tempCtrl)
-		tempCtrl = false
-		-- Echo("debug.traceback() is ", debug.traceback())
-	end
 
 	--Echo(debug.getinfo(2).currentline)
 	WG.drawEnabled=false
@@ -1686,17 +1691,13 @@ local function reset(complete)
 			WG.old_showeco = nil
 		end
 		WG.force_show_queue_grid = false
-		-- if tempCtrl then
-		-- 	Spring.SetBuildSpacing(tempCtrl)
-		-- 	tempCtrl = false
-		-- end
 	end
 	-- paint farm stuff
 	Paint('reset') 
 	farm_spread=false
 	farm_scale = false
 	REMOTE = false
-	visitedOnce = {}
+	g.visitedOnce = {}
 	TestBuild('reset memory')
 	--
 	-- TestBuild('reset invalid')
@@ -1717,8 +1718,8 @@ local function reset(complete)
 	-- AVG={n=0}
 	primRail={n=0}
 	geos.cant={}
-	cantMex={}
-	previMex = {}
+	g.cantMex={}
+	g.previMex = {}
 	knownUnits={}
 	prev.pos = false
 	prev.lasP_To_Cur = 0
@@ -2161,7 +2162,7 @@ local function AdaptForMex(name)
 	end
 
 	local min, max = math.min, math.max
-	-- local spot, mDist = closeMex[1],closeMex[2]
+	-- local spot, mDist = g.closeMex[1],g.closeMex[2]
 	-- local spot, mDist = GetCloseMex(pointX, pointZ)
 
 	local spot, mDist, t = GetClosestAvailableMex(pointX, pointZ, (CalcRemoteRadius() + E_RADIUS[mexDefID])^2, true)
@@ -2253,25 +2254,25 @@ local function AvoidMex(x,z)
 	if not GetCloseMex then
 		return
 	end
-	local mPos,mDist = closeMex[1],closeMex[2]
-	local mPosx,mPosy,mPosz = mPos.x,mPos.y,mPos.z
+	local mPos,mDist = g.closeMex[1], g.closeMex[2]
+	local mPosx, mPosy, mPosz = mPos.x, mPos.y, mPos.z
 	--Echo(" mex ", mPos.x,mPos.z)
 	--Echo("cursor", x,z)
-	local sx,sz = p.sizeX,p.sizeZ
-	local mDirx,mDirz = mPosx-x, mPosz-z
+	local sx, sz = p.sizeX, p.sizeZ
+	local mDirx, mDirz = mPosx-x, mPosz-z
 	local biggest =  math.max( abs(mDirx), abs(mDirz) )
-	mDirx,mDirz = mDirx/biggest, mDirz/biggest
-	x = floor((x + 8 - p.oddX)/16)*16 + p.oddX
-	z = floor((z + 8 - p.oddZ)/16)*16 + p.oddZ
+	mDirx, mDirz = mDirx / biggest, mDirz / biggest
+	x = floor((x + 8 - p.oddX)/16) * 16 + p.oddX
+	z = floor((z + 8 - p.oddZ)/16) * 16 + p.oddZ
 
 	--while IsOverlap(mPosx,mPosz,24,24,x,z,sx,sz) do
-	while ((x-mPosx)^2 < (sx+24)^2 and (z-mPosz)^2 < (sz+24)^2) do
-		x = x+16*-mDirx
-		z = z+16*-mDirz
-		x = floor((x + 8 - p.oddX)/16)*16 + p.oddX
-		z = floor((z + 8 - p.oddZ)/16)*16 + p.oddZ
+	while ((x - mPosx)^2 < (sx + 24)^2 and (z - mPosz)^2 < (sz + 24)^2) do
+		x = x + 16 * -mDirx
+		z = z + 16 * -mDirz
+		x = floor((x + 8 - p.oddX)/16) * 16 + p.oddX
+		z = floor((z + 8 - p.oddZ)/16) * 16 + p.oddZ
 	end
-	sp.WarpMouse(Spring.WorldToScreenCoords(x,sp.GetGroundHeight(x,z),z))
+	sp.WarpMouse(Spring.WorldToScreenCoords(x, sp.GetGroundHeight(x,z), z))
 	return x,z
 end
 
@@ -2280,8 +2281,8 @@ local function FixBetween(x,z,connected)
 	local unitx,unitz = connected[1], connected[2]
 	local ud = UnitDefs[ connected[3] ]
 	local laspx,laspz = unpack(specs[specs.n])
-	local w,h = p.sizeX*2,p.sizeZ*2
-	local unitw,unith = ud.xsize*8,ud.zsize*8
+	local w,h = p.sizeX*2, p.sizeZ*2
+	local unitw,unith = ud.xsize*8, ud.zsize*8
 
 	x = floor((x + 8 - p.oddX)/16)*16 + p.oddX
 	z = floor((z + 8 - p.oddZ)/16)*16 + p.oddZ
@@ -2293,20 +2294,20 @@ local function FixBetween(x,z,connected)
 
 	--Echo(Overlapping( {x1,z1,w1,h1}, {x2,z2,w1,h1} ), Overlapping( {x1,z1,w1,h1}, {x3,z3,w3,h3} ))
 	if
-		IsOverlap( x,z,w,h, laspx,laspz,w,h )
+		IsOverlap( x, z, w, h, laspx, laspz, w, h )
 	or
-		IsOverlap( x,z,w,h, unitx,unitz,unitw,unith )
+		IsOverlap( x, z, w, h, unitx, unitz, unitw, unith )
 	then
 		--local ratio = (UnitDefs[PID].name=='energysolar' and 1.5 or 1) / (UnitDefs[connected[3]].name=='energysolar' and 1.5 or 1)
 --[[	local tX = pointX + (connected[1]-laspec[1])
 		local tZ = pointX + (connected[2]-laspec[2])--]]
-		x = abs(unitx+laspx)/2
-		z = abs(unitz+laspz)/2
+		x = abs(unitx + laspx)/2
+		z = abs(unitz + laspz)/2
 --[[				Echo("pointX,tX is ", pointX,tX)
 		Echo("pointZ,tZ is ", pointZ,tZ)--]]
-		x = floor((pointX + 8 - p.oddX)/16)*16 + p.oddX
-		z = floor((pointZ + 8 - p.oddZ)/16)*16 + p.oddZ
-		fixed={x,z}
+		x = floor((pointX + 8 - p.oddX)/16) * 16 + p.oddX
+		z = floor((pointZ + 8 - p.oddZ)/16) * 16 + p.oddZ
+		fixed = {x, z}
 	end
 
 	--pointZ = pointZ + (connected[2]-laspec[2])/32--*ratio
@@ -2319,24 +2320,24 @@ local function FixBetween(x,z,connected)
 	return fixed
 end
 
-local function UpdateMexes(px,pz,remove,at,virtual,irail)
-	local spotsPos=WG.metalSpotsByPos or EMPTY_TABLE
-	local spots=WG.metalSpots or EMPTY_TABLE
+local function UpdateMexes(px, pz, remove, at, virtual, irail)
+	local spotsPos = WG.metalSpotsByPos or EMPTY_TABLE
+	local spots = WG.metalSpots or EMPTY_TABLE
 	if remove then
 		if mexes[at] --[[and not g.preGame--]]  then
 			local imexes = mexes[at]
 			for i = 1, #imexes do
 				local x, z = imexes[i][1], imexes[i][2]
 				local n = spotsPos[x][z]
-				cantMex[spots[n]] = nil
+				g.cantMex[spots[n]] = nil
 				allGrids['m'..n] = nil
 			end
-			mexes[at]=nil
+			mexes[at] = nil
 		end
 		return
 	end
 	if virtual then
-		previMex = {}
+		g.previMex = {}
 	end
 	-- local IsOccupied = sp.GetUnitsInRectangle
 	local rad = E_RADIUS[PID]
@@ -2346,12 +2347,12 @@ local function UpdateMexes(px,pz,remove,at,virtual,irail)
 		local spot = spots[n]
 		local dist = (px-spot.x)^2 + (pz-spot.z)^2
 		-- if dist<(rad+49)^2  and not IsOccupied(x,z,x,z)[1] then -- check if the virtual mex is in my range then
-		if dist < sqMaxDist and (virtual or not cantMex[spot]) then
+		if dist < sqMaxDist and (virtual or not g.cantMex[spot]) then
 			if IsMexable(spot) then -- check if the virtual mex is in my range then
 				-- adding mex to place by the way
 				if virtual then
-					previMex[#previMex+1]={spot.x,spot.z}
-				elseif not cantMex[spot] then
+					g.previMex[#g.previMex+1]={spot.x,spot.z}
+				elseif not g.cantMex[spot] then
 					local imexes = mexes[at]
 					if not imexes then
 						-- Echo('new',at, 1)
@@ -2368,7 +2369,7 @@ local function UpdateMexes(px,pz,remove,at,virtual,irail)
 						irail.color = color.yellow
 					end
 					allGrids['m'..n]=true
-					cantMex[spot]=true
+					g.cantMex[spot]=true
 				end
 				--
 			end
@@ -2695,7 +2696,7 @@ local function readgrids(grids)
 	end
 	return str:sub(1,-2)
 end
-local function Judge(rx,rz,sx,sz,lasp,llasp,PBH,irail,lastRail)
+local function Judge(rx, rz, sx, sz, lasp, llasp, PBH, irail, lastRail)
 	-- FIXME: the grid system need to be bettered: make it so that we can know all grids we're connected to
 	-- IMPROVE AND SIMPLIFY
 --Page(connectedTo)
@@ -2765,7 +2766,7 @@ local function Judge(rx,rz,sx,sz,lasp,llasp,PBH,irail,lastRail)
 	if canMoveConnection then
 		for k in pairs(lasp.newgrids) do
 			if not grids[k]  then
-				if k~='s' then
+				if k ~= 's' then
 					canMoveConnection=false
 					if debug then
 						Echo('loosing', k, 'if move connection',os.clock())
@@ -2834,11 +2835,11 @@ local function Judge(rx,rz,sx,sz,lasp,llasp,PBH,irail,lastRail)
 
 	local pushBackR
 	if status == 'onGrid' then
-		for g, v in pairs(grids) do
-			if string.find(g, 'm') then
-				local n = tonumber(string.match(g,'%d+'))
+		for grid, v in pairs(grids) do
+			if string.find(grid, 'm') then
+				local n = tonumber(string.match(grid,'%d+'))
 				local at = specs.n
-				if not cantMex[spots[n]] then
+				if not g.cantMex[spots[n]] then
 					UpdateMexes(rx, rz, nil, at)
 				end
 			end
@@ -3135,20 +3136,20 @@ local function PoseOnRail()
 	local railLen = rail.n
 
 
-	local r=laspec and laspec.r or 0
-	local a=rail.processed
+	local r = laspec and laspec.r or 0
+	local a = rail.processed
 	-- Echo('PoseOnRail', 'from', a,'r', r,'specs len',#specs, 'real', f.l(specs))
 
 	--laspx,_,laspz = sp.ClosestBuildPos(0,PID, laspx, 0, laspz, 1000,0,p.facing)
 	local sx, sz, oddx, oddz,facing = p.sizeX, p.sizeZ, p.oddX, p.oddZ, p.facing
 	local rx,rz
 	local alwaysMex = opt.alwaysMex and E_RADIUS[PID]
-	while a<railLen do
-		a=a+1
-		local gap = a-r
-		local posable = gap>=mingap -- the minimum before caring to verify
+	while a < railLen do
+		a = a + 1
+		local gap = a - r
+		local posable = gap >= mingap -- the minimum before caring to verify
 		if posable then
-			rx,_,rz=unpack(rail[a])
+			rx, _, rz = unpack(rail[a])
 			rx = floor((rx + 8 - oddx)/16)*16 + oddx
 			rz = floor((rz + 8 - oddz)/16)*16 + oddz
 
@@ -3156,9 +3157,9 @@ local function PoseOnRail()
 			if not (overlap or overlapPlacement) then
 				r = a
 				n = n + 1
-				specs[n]={rx, rz, r=r, n=n}
+				specs[n] = {rx, rz, r = r, n = n}
 				if alwaysMex then
-					UpdateMexes(rx,rz,nil,n,false,rail[a])
+					UpdateMexes(rx, rz, nil, n, false, rail[a])
 				end
 				-- laspx,laspz = rx,rz
 			end
@@ -3913,7 +3914,7 @@ local function Init()
 	specs:clear()
 	for _, r in ipairs(rail) do r.color = nil r.done = false end
 	TestBuild('forget extra')
-	cantMex = {}
+	g.cantMex = {}
 	WG.drawingPlacement = specs
 	local hasOverlap = TestBuild(x,z,p,(not PBH or g.noTerra),placed,overlapped,nil,true)
 
@@ -4045,7 +4046,10 @@ do
 				changed = true
 			end
 			if changed then
-				local x, y, z = UniTraceScreenRay(mx, my, not self.floater, self.sizeX, self.sizeZ)
+				local x, y, z = UniTraceScreenRay(mx, my, useMinimap, self.underSea, self.sizeX, self.sizeZ)
+				if not x then
+					return
+				end
 				local oddX, oddZ = self.oddX, self.oddZ
 				curx = floor((x + 8 - oddX)/16)*16 + oddX
 				curz = floor((z + 8 - oddZ)/16)*16 + oddZ
@@ -4061,35 +4065,35 @@ do
 	local spuGetMoveType = Spring.Utilities.getMovetype
 	local function newcache(PID)
 		local t = {}
-		local ud = UnitDefs[PID]
-		local footX, footZ = ud.xsize/2, ud.zsize/2
+		local def = UnitDefs[PID]
+		local footX, footZ = def.xsize/2, def.zsize/2
 		local offfacing = false
 		local sizeX, sizeZ = footX * 8, footZ * 8 
 		local oddX,oddZ = (footX%2)*8, (footZ%2)*8
-		local canSub = CheckCanSub(ud.name)
-        --[[
-            Note:
-            -floatOnWater is only correct for buildings (at the notable exception of turretgauss) and flying units
-            -canMove and isBuilding are unreliable:
-               staticjammer, staticshield, staticradar, factories... have 'canMove'
-               staticcon, striderhub doesn't have... 'isBuilding'
-            -isGroundUnit is reliable
-            -spuGetMoveType is better as it discern also between flying (1) and building (false)
-            -ud.maxWaterDepth is only correct for telling us if a non floating building can be a valid build undersea
-            -ud.moveDef.depth is always correct about units except for hover
-            -ud.moveDef.depthMod is 100% reliable for telling if non flying unit can be built under sea, on float or only on shallow water:
-               no depthMod = flying or building,
-               0 = walking unit undersea,
-               0.1 = sub, ship or hover,
-               0.02 = walking unit only on shallow water
-        --]]
-        local isUnit = spuGetMoveType(ud) -- 1 == flying, 2 == on ground/water false = building
-        local depthMod = isUnit and ud.moveDef.depthMod
-        local floatOnWater = ud.floatOnWater
-        local gridAboveWater = floatOnWater or isUnit -- that's what the engine relate to, with a position based on trace screen ray that has floatOnWater only, which offset the grid for units
-        local underSea = depthMod == 0 or not (isUnit or floatOnWater or ud.maxWaterDepth == 0)
-        local reallyFloat = isUnit == 2 and depthMod == 0.1 or floatOnWater and ud.name ~= 'turretgauss'
-        local cantPlaceOnWater = not (underSea or reallyFloat)
+		local canSub = CheckCanSub(def.name)
+		--[[
+			Note:
+			-floatOnWater is only correct for buildings (at the notable exception of turretgauss) and flying units
+			-canMove and isBuilding are unreliable:
+			   staticjammer, staticshield, staticradar, factories... have 'canMove'
+			   staticcon, striderhub doesn't have... 'isBuilding'
+			-isGroundUnit is reliable
+			-spuGetMoveType is better as it discern also between flying (1) and building (false)
+			-def.maxWaterDepth is only correct for telling us if a non floating building can be a valid build undersea
+			-def.moveDef.depth is always correct about units except for hover
+			-def.moveDef.depthMod is 100% reliable for telling if non flying unit can be built under sea, on float or only on shallow water:
+			   no depthMod = flying or building,
+			   0 = walking unit undersea,
+			   0.1 = sub, ship or hover,
+			   0.02 = walking unit only on shallow water
+		--]]
+		local isUnit = spuGetMoveType(def) -- 1 == flying, 2 == on ground/water false = building
+		local depthMod = isUnit and def.moveDef.depthMod
+		local floatOnWater = def.floatOnWater
+		local gridAboveWater = floatOnWater or isUnit -- that's what the engine relate to, with a position based on trace screen ray that has floatOnWater only, which offset the grid for units
+		local underSea = depthMod == 0 or not (isUnit or floatOnWater or def.maxWaterDepth == 0)
+		local reallyFloat = isUnit == 2 and depthMod == 0.1 or floatOnWater and def.name ~= 'turretgauss'
+		local cantPlaceOnWater = not (underSea or reallyFloat)
 		t.footX				= footX
 		t.footZ				= footZ
 		t.oddX				= oddX
@@ -4100,19 +4104,20 @@ do
 		t.terraSizeZ		= sizeZ-0.1
 		t.offfacing			= false
 		t.canSub			= canSub
-		t.floater			= ud.floatOnWater or not canSub
-		t.needTerraOnWater	= not canSub and not ud.name:match('hover')
-        t.underSea			= underSea
-        t.reallyFloat		= reallyFloat
-        t.cantPlaceOnWater	= cantPlaceOnWater
-        t.gridAboveWater	= gridAboveWater -- following the wrong engine grid 
-        t.floatOnWater		= floatOnWater
+		t.floater			= def.floatOnWater or not canSub
+		t.needTerraOnWater	= not canSub and not def.name:match('hover')
+		t.underSea			= underSea
+		t.reallyFloat		= reallyFloat
+		t.cantPlaceOnWater	= cantPlaceOnWater
+		t.gridAboveWater	= gridAboveWater -- following the wrong engine grid 
+		t.floatOnWater		= floatOnWater
 		f.facing 			= 0
-		t.height			= ud.height
-		t.name				= ud.name
+		t.height			= def.height
+		t.name				= def.name
 		t.PID				= PID
 		t.eradius			= E_RADIUS[PID]
-		t.radius			= ud.name == "energypylon" and 3877 or (ud.radius^2)/8
+		t.radiusSq			= def.name == "energypylon" and 3877 or (def.radius^2)
+		t.radius			= def.radius
 
 		if footX ~= footZ then
 			local off = {}
@@ -4180,7 +4185,7 @@ function PlacementModule:Update()
 					return
 				end
 				reMeasure = true
-				self.spacing = sp.GetBuildSpacing()
+				self:UpdateSpacing()
 				-- self.PID,self.lastPID = PID,self.PID or PID
 				self.PID, self.lastPID = PID, PID
 				-- WG.force_show_queue_grid = not not E_SPEC[PID]
@@ -4188,7 +4193,6 @@ function PlacementModule:Update()
 			end
 			local facing = sp.GetBuildFacing()
 			if facing and facing ~= self.facing then
-
 				reMeasure, self.facing = true, facing
 			end
 		else
@@ -4222,6 +4226,66 @@ do
 		end
 	end
 end
+function PlacementModule:UpdateSpacing(value)
+	local spacing = sp.GetBuildSpacing()
+	if ctrl and opt.ctrlBehaviour == 'no_spacing' then
+		spacing = 0
+		special = false
+	else
+		spacing = math.max(spacing + (value or 0), 0)
+		special = E_SPEC[PID] and spacing >= 7 and dstatus ~= 'paint_farm'
+		if special then
+			spacing = 7
+		end
+		if value and dstatus ~= 'paint_farm' then
+			Spring.SetBuildSpacing(spacing)
+			if PID then
+				WG.buildSpacing[PID] = spacing
+			else
+				Echo('NO PID ???', debug.traceback())
+			end
+		end
+	end
+	if self.spacing ~= spacing then 
+		self.spacing = spacing
+		return true
+	end
+end
+function PlacementModule:GetRealSurround(x, z)
+	if Cam.relDist > 2500 then
+		return false
+	end
+	-- if we really want the real surround it would need to check every order of every units, we only check selected cons order
+	local overlap = EraseOverlap(x, z, true, true)
+	if overlap then
+		return true
+	end
+	local under = WG.PreSelection_GetUnitUnderCursor()
+	if under then
+		local ux, uy, uz = sp.GetUnitPosition(under)
+		local gy = sp.GetGroundHeight(ux,uz)
+		if uy > gy + 30 then
+			return false
+		end
+		return true
+		----- not needed
+		-- local defID = sp.GetUnitDefID(under)
+		-- if not defID then
+		-- 	return false
+		-- end
+		-- local def = UnitDefs[defID]
+		-- local facing = def.isImmobile and Spring.GetUnitBuildFacing(under) or 0
+		-- local usx, usz = def.xsize * 4, def.zsize * 4
+		-- if facing%2 == 1 then
+		-- 	usx, usz = usz, usx
+		-- end
+		-- if (x-ux)^2 < usx^2 and (z-uz)^2 < usz^2 then
+		-- 	return true
+		-- end
+	end
+	return false
+end
+
 
 
 local Controls ={}
@@ -4287,7 +4351,7 @@ end
 
 local UpdateRail = function()
 	if rail[2] then
-		previMex={}
+		g.previMex={}
 		local update = NormalizeRail() -- this will complete and normalize the rail by separating/creating each point by 16, no matter the speed of the mouse
 		if update then
 			NormalizeRail()
@@ -4319,9 +4383,9 @@ function widget:IsAbove(x, y)	-- previously Update
 	-- 	Echo( len > 0 and sp.GetCommandQueue(id, -1)[len].id or 'no order left')
 	-- end
 	local wasLeftClick, wasRightClick = leftClick, rightClick
-	_,_,leftClick,_,rightClick = sp.GetMouseState()
-	alt, ctrl, meta, shift = sp.GetModKeyState()
 
+	mx, my, leftClick, _, rightClick = sp.GetMouseState()
+	alt, ctrl, meta, shift = sp.GetModKeyState()
 	if dstatus == 'verif_!R_or_place' then
 		dstatus = 'engaged'
 		FinishDrawing(PID == mexDefID and GetCloseMex, MODS)
@@ -4354,7 +4418,7 @@ function widget:IsAbove(x, y)	-- previously Update
 	PID = p.PID
 	drawEnabled = PID and not noDraw[PID]
 	WG.drawEnabled = drawEnabled
-	special = drawEnabled and E_SPEC[PID] and dstatus ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
+	special = drawEnabled and E_SPEC[PID] and dstatus ~= 'paint_farm' and p.spacing >= 7
 	if g.preGame then
 		if Spring.GetGameFrame() > 0 and not WG.InitialQueue then
 			g.preGame = false
@@ -4378,9 +4442,8 @@ function widget:IsAbove(x, y)	-- previously Update
 				VERIF_SHIFT = false
 				widgetHandler.mouseOwner = nil
 				Spring.WarpMouse(_mx,_my)
-				local mx, my = sp.GetMouseState()
 				Spring.SendCommands('mouse1')
-				Spring.WarpMouse(mx + (mx-_mx)*1, my + (my - _my) * 1)
+				Spring.WarpMouse(mx + (mx - _mx) * 1, my + (my - _my) * 1)
 				-- Spring.WarpMouse(mx,my)
 				return widget:IsAbove(dt)
 				-- Echo('ok')
@@ -4465,8 +4528,17 @@ function widget:IsAbove(x, y)	-- previously Update
 		return
 	end
 
-	mx,my = sp.GetMouseState()
-	pos = {UniTraceScreenRay(mx, my, not p.floater, p.sizeX, p.sizeZ)}
+
+	if not leftClick then
+		useMinimap = sp.IsAboveMiniMap(mx, my)
+	elseif useMinimap then
+		mx, my = ClampMouseToMinimap(mx, my)
+	end
+	local _x, _y, _z, _offMap = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+	if not _x then
+		return
+	end
+	pos = {_x, _y ,_z, offMap}
 	if PID == mexDefID and opt.grabMexes and GetCloseMex then
 		CalcGrabRadius()
 	end
@@ -4526,8 +4598,8 @@ function widget:IsAbove(x, y)	-- previously Update
 
 		if special then
 			UpdateMexes(pos[1], pos[3], nil, nil, 'virtual') 
-		elseif previMex[1] then
-			previMex = {}
+		elseif g.previMex[1] then
+			g.previMex = {}
 		end
 	end
 
@@ -4544,22 +4616,15 @@ end
 	if dstatus == 'paint_farm' then return end
 	----------------------
 	-- if leftClick then  sp.SetActiveCommand(-1) end
-	local spacing = sp.GetBuildSpacing()
-	if not p.spacing then
-		p.spacing = spacing
-	--Echo(" is ", spacing,sp.GetBuildSpacing())
-	elseif p.spacing ~= spacing then 
-		p.spacing = spacing
+	if p:UpdateSpacing() then
 		Init()
-		--widgetHandler:UpdateWidgetCallIn("DrawWorld", self)	
-		return
 	end
 end
 
 function widget:KeyRelease(key, mods)
 	local newalt, newctrl, newmeta, newshift = mods.alt, mods.ctrl, mods.meta, mods.shift
-	local shiftRelease = shift and not mods.shift
-	local ctrlRelease = ctrl and not mods.ctrl
+	local shiftRelease = shift and not newshift
+	local ctrlRelease = ctrl and not newctrl
 	alt, ctrl, meta, shift = newalt, newctrl, newmeta, newshift
 	-- local _alt, _ctrl, _meta, _shift = sp.GetModKeyState()
 	-- if shift ~= _shift then
@@ -4569,25 +4634,13 @@ function widget:KeyRelease(key, mods)
 	if Drawing and shift and PID then
 		GoStraight(alt)
 	end
-	if tempCtrl then
-		if not ctrl then
-			Spring.SetBuildSpacing(tempCtrl)
-			tempCtrl = false
-		end
-	elseif special and ctrl and opt.ctrlCloseEBuild then
-		tempCtrl = sp.GetBuildSpacing()
-		Spring.SetBuildSpacing(0)
-	end
+
 	if (dstatus == 'engaged' or dstatus == 'erasing')
 		and not (shift or ctrl)
 		and (shiftRelease or ctrlRelease)
 		and not specs[1] then
 		dstatus = 'none'
 
-		-- if tempCtrl and (not ctrl or complete) then
-		-- 	Spring.SetBuildSpacing(tempCtrl)
-		-- 	tempCtrl = false
-		-- end
 		-- happens when laggy, another PID got get by the user but controls didnt got time to update
 		-- restricting more the leave of the command
 		-- if PID and -PID == select(2, sp.GetActiveCommand()) then
@@ -4603,15 +4656,7 @@ end
 
 local function ChangeSpacing(value)
 	if Drawing then
-		local spacing = sp.GetBuildSpacing()
-		if E_SPEC[PID] and spacing >= 6 and value > 0 then
-			special = true
-			spacing = 7
-		else
-			spacing = spacing + value
-		end
-		Spring.SetBuildSpacing(spacing)
-		WG.buildSpacing[PID] = spacing
+		p:UpdateSpacing(value)
 		return true
 	end
 	return false
@@ -4691,17 +4736,7 @@ end
 function widget:KeyPress(key, mods,isRepeat)
 	local wasCtrl = ctrl
 	alt, ctrl, meta, shift = mods.alt, mods.ctrl, mods.meta, mods.shift
-	-- Echo("special, ctrl, opt.ctrlCloseEBuild is ", special, ctrl, opt.ctrlCloseEBuild)
-	if tempCtrl then
-		if not ctrl then
-			Spring.SetBuildSpacing(tempCtrl)
-			tempCtrl = false
-		end
-	elseif special and ctrl and opt.ctrlCloseEBuild then
-		tempCtrl = sp.GetBuildSpacing()
-		Spring.SetBuildSpacing(0)
-	end
-
+	-- Echo("special, ctrl, opt.ctrlBehaviour is ", special, ctrl, opt.ctrlBehaviour)
 	local inc, dec = key == spacingIncrease, key == spacingDecrease
 	if (inc or dec) then
 		if ChangeSpacing(inc and 1 or -1) then
@@ -4756,10 +4791,6 @@ end
 function widget:MousePress(mx, my, button)
 	alt, ctrl, meta, shift = sp.GetModKeyState()
 	--
-	if tempCtrl and not ctrl then
-		Spring.SetBuildSpacing(tempCtrl)
-		tempCtrl = false
-	end
 	if button == 2 then return end
 	--
 	if dstatus == 'verif_!R_or_place' then
@@ -4789,7 +4820,7 @@ function widget:MousePress(mx, my, button)
 		return true -- block the mouse until the rollback occur
 
 	elseif (dstatus =='paint_farm' or dstatus == 'erasing') then
-		if button==1 then
+		if button == 1 then
 			dstatus ='held_!L'
 			sp.SetActiveCommand(0)
 			WG.force_show_queue_grid = true
@@ -4813,19 +4844,26 @@ function widget:MousePress(mx, my, button)
 		widget:IsAbove(0)
 		Echo('didnt have PID, now ?',PID,os.clock())
 		Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+		if not PID then
+			return
+		end
 	end
 	-- if button==1 and WG.Chili.Screen0:IsAbove(mx,my) then
 	-- 	return
 	-- end
-	-- Echo("ctrl, tempCtrl is ", ctrl, tempCtrl)
 	if button == 1 and PID then
-		if (ctrl and not tempCtrl) and shift then
-		-- use the normal engine building system when ctrl and shift are pressed
-			local surroundCancelled = Cam.relDist > 2500 and (WG.PreSelection_GetUnitUnderCursor() or EraseOverlap(nil, nil, true))
-			if not surroundCancelled and (PID ~= mexDefID or not GetCloseMex) then
+		if ctrl and shift and (PID ~= mexDefID or not CloseMex) then -- surround
+			-- use the normal engine building system when ctrl and shift are pressed and some conditions are met
+			if not opt.disallowSurround	then
+				if WG.PlacementModule:GetRealSurround(pos[1], pos[3]) then
+					dstatus = 'engaged'
+					return
+				end
+			end
+			if opt.ctrlBehaviour == 'engine' then
 				dstatus = 'engaged'
 				return
-			end
+			end				
 		elseif not shift then
 			-- dstatus = 'wait1'
 			dstatus = 'engaged'
@@ -4834,7 +4872,7 @@ function widget:MousePress(mx, my, button)
 		end
 	end
 	-- if button==1 and meta and not (shift or ctrl) and PID then dstatus = 'engaged' return end
-	local x,y,z
+	local x, y, z
 	if shift and PID then
 		if dstatus == "ready" and PBH then
 			PBH.Process(mx,my) -- if user moved the cursor fast, PBH didnt scan for moved placement (etc...) at the current position
@@ -4862,8 +4900,12 @@ function widget:MousePress(mx, my, button)
 				return true
 			end
 		end
-		prev.firstmx, prev.firstmy = mx,my
-		x, y, z = UniTraceScreenRay(mx, my, not p.floater, p.sizeX, p.sizeZ)
+		useMinimap = sp.IsAboveMiniMap(mx, my)
+		x, y, z = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+		if not x then
+			return
+		end
+		prev.firstmx, prev.firstmy = mx, my
 		-- x,y,z = unpack(pos)
 		x = floor((x + 8 - p.oddX)/16)*16 + p.oddX
 		z = floor((z + 8 - p.oddZ)/16)*16 + p.oddZ
@@ -4895,13 +4937,13 @@ function widget:MousePress(mx, my, button)
 		elseif drawEnabled and button == 1 then
 			-- Echo('there',os.clock())
 			if GetCloseMex then
-				closeMex[1],closeMex[2] = GetCloseMex(x,z)
+				g.closeMex[1],g.closeMex[2] = GetCloseMex(x,z)
 			end
 			--x,z = AvoidMex(x,z)
 
 			--local x,y,z = pointToGrid(16,x,z)
 	--		cons = GetCons()
-			p.spacing = sp.GetBuildSpacing()
+			p:UpdateSpacing()
 			--places,blockIndexes=DefineBlocks()
 
 	--[[		if getaround then
@@ -4928,8 +4970,8 @@ function widget:MousePress(mx, my, button)
 				prev.press_time = os.clock()
 				if PID == mexDefID and GetCloseMex --[[and not g.preGame--]] then
 					local spot = GetCloseMex(x,z)
-					if spot and not cantMex[spot] then
-						cantMex[spot] = true
+					if spot and not g.cantMex[spot] then
+						g.cantMex[spot] = true
 						if (alt or ctrl) or IsMexable(spot, true) then -- finally allow already mexed spot to be completed
 							specs[1] = {spot.x, spot.z, r = 1}
 							specs.n = 1
@@ -5141,6 +5183,9 @@ local OrderPointsByLeastDistance = function(points,startPoint) -- reorder table 
 end
 function widget:MouseMove(x, y, _, _, button, recursion)
 	-- if not Drawing --[[and not (warpBack=="ready")--]] then	return	end
+	if useMinimap then
+		x, y = ClampMouseToMinimap(x, y)
+	end
 
 	if not recursion then
 		if prev.firstmx and (PID ~= mexDefID) then
@@ -5155,14 +5200,17 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 		end
 		prev.firstmx = false
 		if dstatus == 'erasing' then
-			local x,y,z = UniTraceScreenRay(x, y, not p.floater, p.sizeX, p.sizeZ)
-			EraseOverlap(x,z)
+			local x, y, z = UniTraceScreenRay(x, y, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+			if not x then
+				return
+			end
+			EraseOverlap(x, z)
 			return
 		end
 		if not Drawing then return	end
 
 		if g.unStraightened then
-			if clock()-g.unStraightened < 0.3 then 
+			if clock() - g.unStraightened < 0.3 then 
 				return
 			else
 				g.unStraightened=false
@@ -5184,8 +5232,11 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 	end--]]
 ---------------------------------------------------------
 
-	pos = {UniTraceScreenRay(x, y, not p.floater, p.sizeX, p.sizeZ)}
--- 
+	local _x, _y, _z, _offMap = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+	if not _x then
+		return
+	end
+	pos = {_x, _y ,_z, _offMap}
 
 	if not recursion then
 
@@ -5221,7 +5272,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 				mx, my = endmx, endmy
 
 				-- Echo('recur end', prev.mx, '=>', endmx, '=', prev.dist_drawn, '+' ,((prev.mx - mx)^2 + (prev.my - my)^2) ^ 0.5)
-				RECUREND = true
+				-- RECUREND = true
 			end
 			-- widget:MouseMove(endmx,endmy, 0, 0, 1, true)
 		end
@@ -5229,9 +5280,9 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 
 
 	-- Points[np] = {txt = (recursion and 'R' or '') .. np, color = recursion and Colors.red or nil,  unpack(pos)}
-	if RECUREND then
-		-- Echo('RECUREND', prev.mx, '=>', mx, '=', prev.dist_drawn, '+' ,((prev.mx - mx)^2 + (prev.my - my)^2) ^ 0.5)
-	end
+	-- if RECUREND then
+	-- 	Echo('RECUREND', prev.mx, '=>', mx, '=', prev.dist_drawn, '+' ,((prev.mx - mx)^2 + (prev.my - my)^2) ^ 0.5)
+	-- end
 	prev.dist_drawn = prev.dist_drawn + ((prev.mx - mx)^2 + (prev.my - my)^2) ^ 0.5
 	--- WIP Debug
 	-- local np = #Points + 1
@@ -5245,7 +5296,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 
 	-- CATCH MEXES around the cursor depending on cam height
 	if PID == mexDefID and GetCloseMex then
-		local x,y,z = pos[1],pos[2],pos[3]
+		local x, y, z = pos[1],pos[2],pos[3]
 		local spots = WG.metalSpots
 		local sqrt = math.sqrt
 		if opt.grabMexes then
@@ -5260,7 +5311,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 				local dx, dz = x - spot.x, z - spot.z
 				local dist = dx*dx + dz*dz
 
-				if dist < threshold  and not cantMex[spot] then
+				if dist < threshold  and not g.cantMex[spot] then
 					if (alt or ctrl) or IsMexable(spot, true) then -- finally allow already mexed spot to be completed
 						a = a + 1
 						local new = {spot.x,spot.z,r=1, dist = dist, index = a}
@@ -5271,7 +5322,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 						end
 						
 					end
-					cantMex[spot]=true
+					g.cantMex[spot]=true
 				end
 
 			end
@@ -5320,19 +5371,19 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 			end
 		else
 			local spot = GetCloseMex(x,z)
-			if spot and not cantMex[spot] then 
+			if spot and not g.cantMex[spot] then 
 				-- specs[#specs+1]={spot.x,spot.z,r=1}
 				-- if not sp.GetUnitsInRectangle(spot.x,spot.z,spot.x,spot.z)[1] then
 				if IsMexable(spot) then
 					specs[#specs+1] = {spot.x, spot.z, r = 1}
 				end
-				cantMex[spot]=true
+				g.cantMex[spot]=true
 			end
 		end
 		return -- dont need to make a rail for this
 	end
 
-	local newx,newy,newz = pos[1],pos[2], pos[3]
+	local newx, newy, newz = pos[1], pos[2], pos[3]
 	-- local railLen = #rail
 	-- if #rail ~= rail.n then
 	-- 	error('can\'t rely on rail.n')
@@ -5560,7 +5611,6 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 
 	if opt.update_rail_MM then
 		UpdateRail()
-
 	else
 		UPDATE_RAIL = true
 	end
@@ -5573,27 +5623,27 @@ end
 local drawValue = true
 local glLists = {}
 do
-	local GL_LINE_STRIP		= GL.LINE_STRIP
-	local GL_LINES			= GL.LINES
-	local GL_POINTS			= GL.POINTS
-	local GL_ALWAYS			= GL.ALWAYS
+	local GL_LINE_STRIP			= GL.LINE_STRIP
+	local GL_LINES				= GL.LINES
+	local GL_POINTS				= GL.POINTS
+	local GL_ALWAYS				= GL.ALWAYS
 
 
-	local glVertex			= gl.Vertex
-	local glLineWidth   	= gl.LineWidth
-	local glColor       	= gl.Color
-	local glBeginEnd    	= gl.BeginEnd
-	local glPushMatrix 		= gl.PushMatrix
-	local glPopMatrix		= gl.PopMatrix
-	local glText 			= gl.Text
-	local glDrawGroundCircle=gl.DrawGroundCircle
-	local glPointSize 		= gl.PointSize
-	local glNormal 			= gl.Normal
-	local glDepthTest		= gl.DepthTest
-	local glTranslate 		= gl.Translate
-	local glBillboard       = gl.Billboard
-	local GL_POINTS			= GL.POINTS
-	local glCallList		= gl.CallList
+	local glVertex				= gl.Vertex
+	local glLineWidth   		= gl.LineWidth
+	local glColor       		= gl.Color
+	local glBeginEnd    		= gl.BeginEnd
+	local glPushMatrix 			= gl.PushMatrix
+	local glPopMatrix			= gl.PopMatrix
+	local glText 				= gl.Text
+	local glDrawGroundCircle	= gl.DrawGroundCircle
+	local glPointSize 			= gl.PointSize
+	local glNormal 				= gl.Normal
+	local glDepthTest			= gl.DepthTest
+	local glTranslate 			= gl.Translate
+	local glBillboard       	= gl.Billboard
+	local GL_POINTS				= GL.POINTS
+	local glCallList			= gl.CallList
 
 	local ToScreen = Spring.WorldToScreenCoords
 	local gluDrawScreenDisc
@@ -5723,15 +5773,16 @@ do
 			-- end
 			if special then
 				glColor(0.7,0.7,0,1)
-				glText(format("eBuild"), 0,vsy-89, 25)
-			end
-			if tempCtrl then
-				glColor(0.7,0.7,0,1)
-				glText(format("tmpCtrl: ".. tostring(tempCtrl)), 0,vsy-131, 25)
+				glText("eBuild", 0,vsy-89, 25)
 			end
 			if true then
 				glColor(0.7,0.7,0,1)
-				glText(format(sp.GetBuildSpacing()), 0,vsy-152, 25)
+				local spacing = sp.GetBuildSpacing()
+				if p.spacing ~= spacing then
+					glText(p.spacing .. ' ('..spacing..')', 0,vsy-152, 25)
+				else
+					glText(p.spacing, 0,vsy-152, 25)
+				end
 			end
 
 		end
@@ -5889,18 +5940,18 @@ do
 		 if h<0 and (mex or p.floater) then
 			h=0
 		 end
-		 local x,z,sx,sz = t[1],t[2]
+		 local x, z, sx, sz = t[1], t[2]
 		 if pl then
 			if t[4] then
-				sx,sz = t[3],t[4]
+				sx, sz = t[3], t[4]
 			else
 				local info = p:Measure(t[3], t[4]) -- defID and facing
-				sx,sz = info.sizeX, info.sizeZ
+				sx, sz = info.sizeX, info.sizeZ
 			end
 		 elseif mex then
-			sx,sz = 24,24
+			sx, sz = 24,24
 		 else
-			sx,sz = p.sizeX,p.sizeZ
+			sx, sz = p.sizeX, p.sizeZ
 		 end
 		 
 		glVertex(x + sx, h, z + sz)
@@ -6042,7 +6093,10 @@ do
 					SHOW_ERASER_RADIUS = false
 				end
 				local _
-				x, _, z = UniTraceScreenRay(vsx/2, vsy/2, not p.floater, p.sizeX, p.sizeZ)
+				x, _, z = UniTraceScreenRay(vsx/2, vsy/2, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+				if not x then
+					return
+				end
 			else
 				x, z = pos[1], pos[3]
 				stipple = dstatus ~= 'erasing'
@@ -6105,7 +6159,10 @@ do
 					local spread = FARM_SPREAD[PID] or 1
 					local scale = FARM_SCALE[PID] or 0
 					if not x then
-						x, y, z = UniTraceScreenRay(mx, my, not p.floater, sx, sz)
+						x, y, z = UniTraceScreenRay(mx, my, useMinimap, p.underSea, sx, sz)
+						if not x then
+							return
+						end
 					end
 					-- x,y,z = unpack(pos)
 					x = floor((x + 8 - p.oddX)/16)*16 + p.oddX
@@ -6159,7 +6216,10 @@ do
 			end
 			-- CATCH_MEX_RADIUS
 			if not x then
-				x,y,z=UniTraceScreenRay(mx,my, true, 24, 24)
+				x, y, z = UniTraceScreenRay(mx, my, useMinimap, true, 24, 24)
+				if not x then
+					return
+				end
 			end
 
 			glColor(0.8,0.7,0.2,0.2)
@@ -6183,7 +6243,10 @@ do
 			end
 
 			if not x then
-				x, y, z = UniTraceScreenRay(mx,my, true, 24, 24)
+				x, y, z = UniTraceScreenRay(mx,my, useMinimap, true, 24, 24)
+				if not x then
+					return
+				end
 			end
 			if r > 0 then
 				glColor(0.2,0.7,0.2,0.2)
@@ -6198,12 +6261,15 @@ do
 		if PID and (special or PID == mexDefID) and Debug.mexing() then
 			glColor(1,0,1,1)
 			glLineWidth(3)
-			for spot in pairs(cantMex) do
+			for spot in pairs(g.cantMex) do
 				DrawRect(spot.x,spot.z,28,28)
 			end
 			local mx, my = sp.GetMouseState()
 			if not x then
-				x, y, z = UniTraceScreenRay(mx,my,not p.floater,p.sizeX,p.sizeZ)
+				x, y, z = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+				if not x then
+					return
+				end
 			end
 			local avspot = GetClosestAvailableMex(x, z)
 			
@@ -6213,7 +6279,7 @@ do
 			end
 			
 			-- Echo("REMOTE_RADIUS is ", REMOTE_RADIUS)
-			if special and PID ~= pylonDefID and opt.remote then
+			if special and PID ~= pylonDefID and opt.remote and Drawing then
 				glColor(1,1,0,1)
 				glLineWidth(1)
 				gl.LineStipple('spring default')
@@ -6233,12 +6299,12 @@ do
 			glLineWidth(1.0)
 		end
 
-		if previMex[1] then
+		if g.previMex[1] then
 			glColor(1,0.7,0,1)
-			for i=1,#previMex do
-				local mex = previMex[i]
+			for i=1,#g.previMex do
+				local mex = g.previMex[i]
 				DrawRect(mex[1],mex[2],24,24)
-				-- glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, previMex[i],nil,true)
+				-- glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, g.previMex[i],nil,true)
 			end
 			glColor(specColor)
 		end
@@ -6249,11 +6315,13 @@ do
 			
 			local sx,sz = p.sizeX, p.sizeZ
 			local floater = p and p.floater
-			for i=1, specLength do
+			for i = 1, specLength do
 				--Draw the placements
 				local spec = specs[i]
-				if spec.tf then glColor(1,0.3,0,1) end
-				local width = (6.5-(specLength-i))/2
+				if spec.tf then
+					glColor(1,0.3,0,1)
+				end
+				local width = (6.5 - (specLength - i)) / 2
 
 				glLineWidth(width>1 and width or 1)
 
@@ -6263,7 +6331,7 @@ do
 				local mexes = mexes[i]
 				if mexes then
 					glColor(1,0.7,0,1)
-					for i=1,#mexes do
+					for i = 1, #mexes do
 						-- glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, mexes[i],nil,true)
 						local mex = mexes[i]
 						DrawRect(mex[1],mex[2],24,24, true)
@@ -6275,7 +6343,7 @@ do
 			local lasmexes = mexes[specLength+1]
 			if lasmexes then
 				glColor(1,0.7,0,1)
-				for i=1,#lasmexes do
+				for i = 1, #lasmexes do
 					local mex = lasmexes[i]
 					DrawRect(mex[1],mex[2],24,24, true)
 					-- glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, lasmexes[i],nil,true)
