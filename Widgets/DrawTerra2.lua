@@ -1109,7 +1109,7 @@ do
 		local footPrint ={}
 		local fracCount = 0
 		local layer ={}
-		local maxElevSlope, maxDigSlope = 0, 0
+		local maxElevSlope, maxDigSlope = 0.0001, -0.0001 -- workaround prevent div by 0
 		local endSlopeStart -- correct but unused variable
 		local outi
 		--**--
@@ -2515,7 +2515,7 @@ local function DrawSlopeMask(face, i, ground, color, maxSlope, mark)
 		for p, point in ipairs(face) do
 			if mark then point.mark = true end
 			if slopeFading and color then
-				color[4] = ((point.slope or 0)/maxSlope * maxalpha)^2
+				color[4] = ((point.slope or 0) / maxSlope * maxalpha) ^ 2
 				if color[4] < minalpha then
 					color[4] = minalpha
 				end
@@ -2527,8 +2527,10 @@ local function DrawSlopeMask(face, i, ground, color, maxSlope, mark)
 		for p, point in ipairs(face) do
 			if mark then point.mark = true end
 			if slopeFading and color then
-				color[4]= (point.slope or 0)/maxSlope*maxalpha
-				if color[4]< minalpha then color[4]= minalpha end
+				color[4] = (point.slope or 0) / maxSlope * maxalpha
+				if color[4] < minalpha then 
+					color[4] = minalpha
+				end
 				glColor(color)
 			end
 			glVertex(point[1], point[2], point[3])
