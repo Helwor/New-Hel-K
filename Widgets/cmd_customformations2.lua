@@ -591,9 +591,6 @@ local function GetFormationRanks(mUnits, cmdID)
 	end
 	local ranks = {}
 	for defID, u in pairs(mUnits) do
-		-- if singleInEachType and u[2] then
-		-- 	singleInEachType = false
-		-- end
 		for i, id in ipairs(u) do
 			local unitRank = formationRank[id] or (defaultRank[defID]) or 2
 			local rank = ranks[unitRank]
