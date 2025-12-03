@@ -1,5 +1,5 @@
 function widget:GetInfo()
-  return {
+	return {
 	name      = "EzTarget",
 	desc      = "When zoomed out, help you targetting while using right click",
 	author    = "Helwor",
@@ -10,7 +10,7 @@ function widget:GetInfo()
 	-- layer     = 1002, -- 1001 is mex placement
 	enabled   = true,  --  loaded by default?
 	handler   = true,
-  }
+	}
 end
 -- April 2025 fix dots appearing above UI (DrawScreenEffects instead of DrawScreen)
 local Echo = Spring.Echo
@@ -811,7 +811,7 @@ function reset()
 	--         spSetActiveCommand(0)
 	--     end            
 	-- end
-	v.moddedTarget, s.moddedSelect, v.moddedCmd, drawCircle = nil, nil, nil, EMPTY_TABLE
+	v.moddedTarget, s.moddedSelect, v.moddedCmd, drawCircle = nil, nil, nil, {}
 	v.dist2, v.prefer = nil, nil
 
 end
@@ -2126,27 +2126,27 @@ end
 
 Execute = function(mx, my) -- execute a single target cmd if CF2 didnt take over to make a trail
 	if v.defaultCmd == buildMexDefID then
-		local _, pos = spTraceScreenRay(mx,my,true,true,true,false)
+		local _, pos = spTraceScreenRay(mx, my, true, true, true, false)
 		if not pos then
 			return
 		end
 		pos[4], pos[5], pos[6] = nil
-		if wh:CommandNotify(v.defaultCmd,pos,opts) then
+		if wh:CommandNotify(v.defaultCmd, pos, opts) then
 			return true
 		else
-			spGiveOrder(v.defaultCmd,pos,opts.coded)
+			spGiveOrder(v.defaultCmd, pos, opts.coded)
 			return true
 		end
 	elseif v.defaultCmd == CMD_REPAIR then
-		local type, id = spTraceScreenRay(mx,my,false,true,true,false)
+		local type, id = spTraceScreenRay(mx, my, false, true, true, false)
 		if not id or type ~= 'unit' then
 			return
 		end
 		TARGET_TABLE[1] = id
-		if wh:CommandNotify(v.defaultCmd,TARGET_TABLE,opts) then
+		if wh:CommandNotify(v.defaultCmd, TARGET_TABLE, opts) then
 			return true
 		else
-			spGiveOrder(v.defaultCmd,id,opts.coded)
+			spGiveOrder(v.defaultCmd, id, opts.coded)
 			return true
 		end
 
@@ -2177,7 +2177,7 @@ do --- EzTarget ---
 	iconSizeByDefID = WG.iconSizeByDefID
 	local GetIconMidY = WG.GetIconMidY
 	if not GetIconMidY then
-		Echo("WARN EzTarget doesnt got WG.GetIconMidY")
+		Echo("WARN EzTarget doesn\'t got WG.GetIconMidY")
 		function GetIconMidY(defID,y)
 			return y
 		end
@@ -2847,7 +2847,7 @@ do
 			glBeginEnd(GL_POINTS, function()
 				glNormal(x, y, z)
 				glVertex(x, y, z)
-			  end)
+				end)
 			glPointSize(2.0)
 			--
 			-- if i<3 then
@@ -3020,6 +3020,7 @@ function widget:Shutdown()
 	if widget.varDebug then
 		widget.varDebug:Delete()
 	end
+	WG.EzTarget = nil
 --         for list in pairs(lists) do
 --             gl.DeleteList(list)
 -- --         end
