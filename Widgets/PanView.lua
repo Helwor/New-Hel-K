@@ -1393,16 +1393,21 @@ local function Move(mx,my,dx,dy)
 			interp_zoom.timer = Spring.GetTimer()
 		end
 	end
+	v.mouse_delta = (dx^2 + dy^2)^0.5
+	v.travel = v.travel + v.mouse_delta
 	if not v.move then
 		-- start panning and apply zoom out or zoom in with delay, we started with an unit under cursor
 		if not v.panning then
-			Locking(cs, v.this_smoothness, mx, my)
+			if not unit or v.travel > 10 then
+				Locking(cs, v.this_smoothness, mx, my)
+			else
+				return
+			end
 		end
 		--
 		v.move=true      
 	end
 	v.last_px, v.last_pz = cs.viewPos[1], cs.viewPos[3]
-	v.mouse_delta = (dx^2 + dy^2)^0.5
 	-- Echo("mx,my is ", mx,my)
 	-- Echo("dx,dy is ", dx,dy)
 	local move_time = time-v.mouse_time
@@ -1420,7 +1425,7 @@ local function Move(mx,my,dx,dy)
 			-- local lagfactor = math.max(1, spGetLastUpdateSeconds() / 0.04)
 			local lagfactor = 1
 			-- Echo("lagfactor is ", lagfactor)
-			v.travel = v.travel + (dx^2 + dy^2)^0.5
+
 			-- local dx,dy = lagfactor * v.amp_mod * 0.25 * (dx), lagfactor *  v.amp_mod * 0.25 * (dy)
 			local dx,dy = lagfactor * v.amp_mod * dx, lagfactor *  v.amp_mod * dy
 			SlideCamera(cs,dx,dy)
@@ -1933,6 +1938,7 @@ function widget:MouseRelease(mx, my, button, fake)
 	CalcMouseSpeedAverage('reset')
 	if SmoothCam then wh:UpdateWidgetCallIn("Update", SmoothCam) end
 	--------------
+
 	-- fixing space+click behaviour
 	if unit  then 
 		-- normal behaviour, panning didnt really happen
