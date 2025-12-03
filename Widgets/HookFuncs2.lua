@@ -7124,9 +7124,6 @@ function widget:Update()
 				win = win()
 			end
 		end
-		if win then
-			Echo('count check', CheckObj(win))
-		end
 	end
 end
 ---------------------------------------
