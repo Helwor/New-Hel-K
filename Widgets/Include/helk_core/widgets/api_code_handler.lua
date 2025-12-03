@@ -882,26 +882,26 @@ end
 
 
 
-local N
-do
-    include('keysym.h.lua')
-    N = KEYSYMS.N
-    KEYSYMS = nil
-end
-function widget:KeyPress(key,mods, isRepeat)
-    if isRepeat then
-        return
-    end
-    if key == N and mods.alt then
-        Reload()
-        return true
-    end
-end
+-- local N
+-- do
+--     include('keysym.h.lua')
+--     N = KEYSYMS.N
+--     KEYSYMS = nil
+-- end
+-- function widget:KeyPress(key,mods, isRepeat)
+--     if isRepeat then
+--         return
+--     end
+--     if key == N and mods.alt then
+--         Reload()
+--         return true
+--     end
+-- end
 -- Echo('CodeHandler is loaded.')
 function Reload()
         Echo('CodeHandler is getting reloaded.')
-    Spring.SendCommands('luaui disablewidget CodeHandler')
-    Spring.SendCommands('luaui enablewidget CodeHandler')
+    Spring.SendCommands('luaui disablewidget '.. widget.GetInfo().name)
+    Spring.SendCommands('luaui enablewidget ' .. widget.GetInfo().name)
 end
 WG.Code.Reload = Reload
 
