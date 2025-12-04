@@ -19,6 +19,7 @@ end
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
+
 local Echo = Spring.Echo
 
 
@@ -81,6 +82,9 @@ local glDeleteList      = gl.DeleteList
 local glCallList        = gl.CallList
 local glCreateShader    = gl.CreateShader
 local glDeleteShader    = gl.DeleteShader
+local glUniform         = gl.Uniform
+local glUseShader		= gl.UseShader
+
 local glPointSize       = gl.PointSize
 --[[local GL_FUNC_ADD = 0x8006
 local GL_FUNC_SUBTRACT = 0x800a
@@ -95,13 +99,11 @@ local glDepthMask       = gl.DepthMask
 local glTranslate       = gl.Translate
 local glRotate          = gl.Rotate
 local glUnitShape       = gl.UnitShape
-local glUseShader       = gl.UseShader
 local glBillboard       = gl.Billboard
 local glText            = gl.Text
 local glPopMatrix       = gl.PopMatrix
 local glPushMatrix      = gl.PushMatrix
-local glUniform         = gl.Uniform
-local glDepthTest = gl.DepthTest
+local glDepthTest 		= gl.DepthTest
 if not gl.CreateShader then
 	glUseShader = function() end
 	glCreateShader = function() end
@@ -201,21 +203,22 @@ local debugging = false
 --------------------------------------------------------------------------------
 
 --local preGame = true
-local preGame = Spring.GetGameSeconds() == 0
+local preGame
 local preGameBuildQueue
 
 
 
 
 local overbump, moreoverbump, evenmoreoverbump, pushalittle, pullalittle
-local uniShader, div, unifLoc
+local uniShader, unifLoc
+local div = 1.0
 local function GenerateShaders() -- those shaders will help make the grid appear above little bumps of the map
 	local fragCode = [[
 		varying vec4 color;
 		uniform float div;
 		void main() {
 			gl_FragData[0].rgba = color;
-			gl_FragDepth = (gl_FragCoord.b)*DEPTH_NUM ;
+			gl_FragDepth = (gl_FragCoord.z) * div ;
 		}
 	]]
 	local vertexCode = [[
@@ -232,17 +235,19 @@ local function GenerateShaders() -- those shaders will help make the grid appear
 	uniShader = glCreateShader(
 		{ 
 			vertex = vertexCode,
-			fragment = fragCode:gsub('DEPTH_NUM', 'div'),
+			fragment = fragCode,
             uniformFloat = { -- specify uniform floats here
                 div = div,
                 -- myFloat4 = {0, 1, 2, 3},
             },
 		}
 	)
+	if not uniShader then
+		Echo('['..widget:GetInfo().name..']: ERROR GENERATING SHADER:', gl.GetShaderLog())
+	end
 	overbump, moreoverbump, evenmoreoverbump, pushalittle, pullalittle = 
 		0.99998, 0.9999, 0.999, 1.0001, 0.99999
 end
-
 
 
 -- options variables setup default value
@@ -2794,7 +2799,6 @@ local function DeleteShaders()
 	if not glDeleteShader then
 		return
 	end
-
 	glDeleteShader(uniShader or 0)
 end
 local function Finish()
@@ -2849,13 +2853,11 @@ end
 
 
 local function DrawBasicSlope(layers)
-	if not unifLoc then
-		unifLoc = gl.GetUniformLocation(uniShader, 'div')
-	end
 	-- it is the basic cell quality of SLOPE MODE
-	glDepthMask(true)
 	glUseShader(uniShader)
+	unifLoc = gl.GetUniformLocation(uniShader, 'div')
 	glUniform(unifLoc, pushalittle)
+	glDepthMask(not preGame)
 	glDepthTest(GL.LEQUAL)
 	for i = 1,#layers do
 		glColor(0, 0, 0, 0)
@@ -2918,7 +2920,7 @@ local function DrawBasicSlope(layers)
 
 		--- ghost draw
 		glPushMatrix()
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(GL_ALWAYS);
 		glTranslate(slope.bx, slope.by, slope.bz)
 		glRotate(facing*90, 0, 1, 0);
@@ -2959,14 +2961,12 @@ local function DrawSlope(layers)
 		-- end
 
 	end
-	if not unifLoc then
-		unifLoc = gl.GetUniformLocation(uniShader, 'div')
-	end
 	glUseShader(uniShader)
+	unifLoc = gl.GetUniformLocation(uniShader, 'div')
 	glUniform(unifLoc, curPullShader)
 	 -- it is the BASIC MODE (verticals only)
 	if show_basic then
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(GL.LESS);--GL.LESS
 	   -- gl.Clear(GL.DEPTH_BUFFER_BIT)
 		glColor(0, 1, 0, 0.1)
@@ -2980,7 +2980,7 @@ local function DrawSlope(layers)
 	if show_basic then
 		glColor(0, 1, 0, 0.5)
 		glLineWidth(1)        
-		--glDepthMask(true)
+		--glDepthMask(not preGame)
 		glLineStipple('')
 		-- glLineStipple(true)
 		glBeginEnd(GL_LINES, DrawVerticals, digging.gp, digging.lvl,'hide') -- stipples lines symbolizing digging will not be masked by the terrain
@@ -2998,7 +2998,7 @@ local function DrawSlope(layers)
 	glColor(0, 1, 0, 0.9)
 	glBeginEnd(GL_LINES, DrawFlatGrid, layers.elevRect, bw*2, bh*2) -- replace engine grid with proper elevated grid, full green
 	--[[if not float then
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(GL_ALWAYS);            
 	   -- gl.Clear(GL.DEPTH_BUFFER_BIT)
 
@@ -3057,7 +3057,7 @@ local function DrawSlope(layers)
 		glLineWidth(1)
 		--*** old method: drawing elevation layers transitionned to ground surface above Dig
 
-		--[[ glDepthMask(true) -- Create a mask made of transition to dig zone (ground version) partially covered by the elevation zone + transition(elevation version)
+		--[[ glDepthMask(not preGame) -- Create a mask made of transition to dig zone (ground version) partially covered by the elevation zone + transition(elevation version)
 		-- with this mask we will be able to show only the part of the dig zone shaping the ground that emerges from the build grid aswell as masking elevation grid that goes behind
 		-- (test transparent mask main dig)
 
@@ -3070,7 +3070,7 @@ local function DrawSlope(layers)
 			end
 			glDepthTest(false)
 			-- mask and draw: transition (elevation version)
-			--glDepthMask(true)
+			--glDepthMask(not preGame)
 			glDepthTest(GL.LESS)
 			glColor(0, 1, 0, 0.3)
 			for i, face in ipairs(slopeFaces[3]) do
@@ -3178,7 +3178,7 @@ local function DrawSlope(layers)
 		--*** NEW VERSION: elevation slope transitionned to dig slope with shading surface above dig
 
 		------ Elevation Part + contour
-		glDepthMask(true) -- building mask of elevation
+		glDepthMask(not preGame) -- building mask of elevation
 		local color ={unpack(s_elev_color)}
 		if gotElev then --  mask of main elevation without pushing shader
 			glDepthTest(GL.LESS)
@@ -3221,7 +3221,7 @@ local function DrawSlope(layers)
 			glUseShader(0)
 			color = {unpack(s_dig_color)}
 			--** start of masking **--
-			glDepthMask(true)--***
+			glDepthMask(not preGame)--***
 			glDepthTest(GL.GREATER)
 			glColor(0, 0, 0, 0)
 			for i, face in ipairs(slopeFaces[2]) do
@@ -3267,7 +3267,7 @@ local function DrawSlope(layers)
 			if gotTrans then DrawGrid(layers.gridTrans, layers.gridTransZ, s_dig_color, 1) end
 			glDepthTest(false)
 		end
-		
+		glUseShader(uniShader)
 		glUniform(unifLoc, curPullShader)
 
 
@@ -3321,7 +3321,7 @@ local function DrawSlope(layers)
 	-- end
 
 	--- ghost draw
-	glDepthMask(true)
+	glDepthMask(not preGame)
 	glPushMatrix()
 	glTranslate(bx, by, bz)
 	glRotate(facing*90, 0, 1, 0);
@@ -3387,6 +3387,9 @@ local function Execute()
 	-- if collectgarbage('count') > 190000 then Echo('collect') collectgarbage('collect') end
 
 --        glDeleteList(DrawingList)
+	if not uniShader then
+		GenerateShaders()
+	end
 	if not dwOn then --[[GenerateShaders()--]] end
 
 	--avgcreate('resume')
@@ -3478,8 +3481,16 @@ local function Execute()
 	--avgcreate('pause')
 
 end
-function widget:Update(dt)
 
+
+function widget:GameFrame()
+	preGame = false
+	widgetHandler:RemoveCallIn('GameFrame')
+end
+
+
+
+function widget:Update(dt)
 --Echo(Spring.GetBuildProjects("count"))
 --Page(Spring.GetBuildProjects("poses"), {content = true})
 --local A, B = Spring.GetBuildProjects("count")
@@ -3504,6 +3515,7 @@ function widget:Update(dt)
 	elseif WG.DrawTerra.finish --[[and not bx--]] then
 		Finish()
 	end
+
 end
 
 
@@ -3559,6 +3571,9 @@ end
 
 function widget:DrawWorld()
 	dwOn = true
+
+
+
 	if not DrawingList then return end
 	glCallList(DrawingList)
 
@@ -3683,7 +3698,7 @@ function widget:DrawWorld()
 		--[[--gl.Blending(true)
 		-- masking the original unitShape
 		--glPushMatrix()
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(true);
 		--glTranslate(bx, gy, bz)
 		glColor(1, 1, 1, 1)
@@ -3741,7 +3756,7 @@ function widget:DrawWorld()
 
 		 --*** CobbleStone
 
-		--[[glDepthMask(true)
+		--[[glDepthMask(not preGame)
 		--gl.ColorMask(true, true, true, true)
 		--gl.StencilMask(GL.LESS)
 		glDepthTest(GL.LEQUAL);
@@ -3761,7 +3776,7 @@ function widget:DrawWorld()
 		--[[-- masking the original unitShape
 		glLineWidth(1.0)  
 		--gl.Blending(false)
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(true)
 		gl.PushMatrix()
 
@@ -3779,7 +3794,7 @@ function widget:DrawWorld()
 
 		--[[glPushMatrix()
 		glColor(1, 1, 1, 0.5)
-		glDepthMask(true)
+		glDepthMask(not preGame)
 		glDepthTest(true)
 
 		glTranslate(bx, gy, bz)
@@ -3852,9 +3867,13 @@ function widget:Initialize()
 	DrawTerra = WG.DrawTerra
 	if Spring.SetDrawBuild then Spring.SetDrawBuild(false, false) end
 	panels = WG.Chili.Screen0.children
-	GenerateShaders()
+	-- GenerateShaders()
 	widgetHandler:RemoveCallIn('DrawWorld')
 	dwOn = false
+	preGame = Spring.GetGameFrame() <= 0
+	if not preGame then
+		widgetHandler:RemoveCallIn('GameFrame')
+	end
 	widget._Update = widget.Update
 	widget.Update = widget.AfterInit
 end
