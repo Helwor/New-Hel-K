@@ -131,6 +131,7 @@ local spGetModKeyState			= Spring.GetModKeyState
 local spGetActiveCommand		= Spring.GetActiveCommand
 local spSetActiveCommand		= Spring.SetActiveCommand
 local spIsUserWriting			= Spring.IsUserWriting
+local spGetUnitBuildFacing		= Spring.GetUnitBuildFacing
 
 local glPushMatrix  = gl.PushMatrix
 local glTexture     = gl.Texture
@@ -485,8 +486,10 @@ function FacUI:New(defID, params)
 	if index > max_instances then
 		return
 	end
+	local keyID
 	if defID then
-		if FacUI.map[params[1]..'-'..params[3]..'-'..defID] then
+		keyID = defID..'-'..params[1]..'-'..params[3]..'-'..(params[4] or 0)
+		if FacUI.map[keyID] then
 			return
 		end
 	end
@@ -520,13 +523,14 @@ function FacUI:New(defID, params)
 		obj.hasAttached = 0
 		obj.range = factoryDefs[defID].range
 		obj.isFactory = factoryDefs[defID].isFactory
+		obj.keyID = keyID
 		local facing = obj.pos[4] or 0
 		local sx, sz = factoryDefs[defID].sx, factoryDefs[defID].sz
 		if facing%2 == 1 then
 			sx, sz = sz, sx
 		end
 		obj.sx, obj.sz = sx, sz
-		self.map[params[1]..'-'..params[3]..'-'..defID] = obj
+		self.map[keyID] = obj
 	else
 		return obj
 	end
@@ -1030,7 +1034,7 @@ function FacUI:Delete()
 	self:EndInvite()
 	table.remove(self.stack, self.index)
 	if self.defID then
-		FacUI.map[self.pos[1]..'-'..self.pos[3]..'-'..self.defID] = nil
+		FacUI.map[self.keyID] = nil
 	end
 	for i = self.index, #self.stack do
 		local obj = self.stack[i]
@@ -1215,8 +1219,8 @@ function FacUI:DetachAll()
 	end
 end
 
-function FacUI:SetObjUnitID(x, z, unitID, defID)
-	local obj = self.map[x..'-'..z..'-'..defID]
+function FacUI:SetObjUnitID(unitID, defID, x, z, facing)
+	local obj = self.map[defID..'-'..x..'-'..z..'-'..facing]
 	if obj then
 		obj.unitID = unitID
 		obj.timeout = TIME_OUT_ORDER
@@ -1352,7 +1356,7 @@ function widget:Update(dt)
 			for i, order in ipairs(WG.preGameBuildQueue) do
 				if factoryDefs[order[1]] then
 					FacUI:New(order[1], {unpack(order, 2)})
-					current[order[2]..'-'..order[4]..'-'..order[1]] = true
+					current[order[1]..'-'..order[2]..'-'..order[4]..'-'..order[5]] = true
 				end
 			end
 			for keyID, obj in pairs(FacUI.map) do
@@ -1374,8 +1378,9 @@ function widget:Update(dt)
 				if order.id < 0 and factoryDefs[-order.id] then
 					for obj, cmdID in pairs(trackedUnits[unitID]) do
 						if cmdID == order.id then
-							local x, z = obj.pos[1], obj.pos[3]
-							if x == order.params[1] and z == order.params[3] then
+							local params = order.params
+							local x, z, facing = obj.pos[1], obj.pos[3], obj.pos[4] or 0
+							if x == params[1] and z == params[3] and facing == (params[4] or 0) then
 								okayed[obj] = true
 							end
 						end
@@ -1466,7 +1471,7 @@ function widget:UnitCreated(unitID, defID, teamID)
 		if factoryDefs[defID] then
 			local x, _, z = spGetUnitPosition(unitID)
 			if x then
-				FacUI:SetObjUnitID(x, z, unitID, defID)
+				FacUI:SetObjUnitID(unitID, defID, x, z, spGetUnitBuildFacing(unitID) or 0)
 			end
 		end
 	end
@@ -1785,13 +1790,20 @@ function widget:DrawWorld()
 					gl.StencilFunc(GL.EQUAL, 0, 1)
 					gl.ColorMask(false, false, false, true)
 					gl.UnitShape(defID, myTeamID, true, true, true)
+
 					-- then we temporary stop the stencil test to make a box just a little larger than the model to avoid z fighting
-					-- that box will become 'solid' through gl.DepthMask, that way the engine build will not be drawn because greater than the new depth we create
+					-- that box will become 'solid' through gl.DepthMask, that way the engine build will not be drawn because greater than the new depth we create*
+					-- instead of box making a larger model to envelop it
 					gl.StencilTest(false)
 					gl.DepthMask(true)
-					local model = UnitDefs[defID].model
-					gl.Utilities.DrawMyBox(model.minx - 1 , model.miny - 1  , model.minz - 1 , model.maxx + 1 , model.maxy + 1 , model.maxz + 1 )
+					-- local model = UnitDefs[defID].model
+					-- gl.Utilities.DrawMyBox(model.minx - 1 , model.miny - 1  , model.minz - 1 , model.maxx + 1 , model.maxy + 1 , model.maxz + 1 )
+					gl.PolygonOffset(-1, -1)
+					gl.PolygonMode(GL.FRONT_AND_BACK, GL.FILL)
+    				gl.UnitShape(defID, 0, true, true, true)
+					gl.PolygonOffset(false)
 					gl.DepthMask(false)
+
 					-- finally we take back our stencil test to draw our ghost, the ghost won't respect the depth so it will be drawn despite our solid box
 					-- but it will have to respect our stencil, which is respecting the original ground depth, so our ghost will not appear through the terrain
 					gl.StencilTest(true)
