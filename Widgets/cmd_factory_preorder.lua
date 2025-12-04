@@ -1873,6 +1873,10 @@ function WidgetRemoveNotify(w, name)
 end
 
 function widget:Initialize()
+	if Spring.GetSpectatingState() or Spring.IsReplay() then
+		widgetHandler:RemoveWidget(widget)
+		return
+	end
 	myTeamID = Spring.GetMyTeamID()
 	-- widgetHandler:RemoveWidgetCallIn('DrawScreen', widget)  -- we can't remove DrawScreen or TweakDrawScreen will not trigger
 	widget:ViewResize(gl.GetViewSizes()) -- or Spring.Orig.GetViewSizes
