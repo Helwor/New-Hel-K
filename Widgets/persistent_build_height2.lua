@@ -3638,8 +3638,10 @@ function widget:MousePress(mx, my, button)
 			elseif meta and not shift then
 				if g.preGame then
 					ignoreFirst = true
+					widgetHandler:CommandNotify(-PID, {pointX,pointY,pointZ,p.facing}, MakeOptions())
+				else
+					widget:CommandNotify(-PID, {pointX,pointY,pointZ,p.facing}, MakeOptions())
 				end
-				widget:CommandNotify(-PID, {pointX,pointY,pointZ,p.facing}, MakeOptions())
 				if g.preGame then
 					spSetActiveCommand(0)
 				end
