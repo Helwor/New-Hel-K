@@ -1,23 +1,29 @@
 local version = 2.131
 function widget:GetInfo()
-  return {
-    name      = "Attrition Counter",
-    desc      = "Shows a counter that keeps track of player/team kills/losses",
-    author    = "Anarchid, Klon",
-    date      = "Dec 2012, Aug 2015",
-    license   = "GPL",
-    layer     = -10,
-    enabled   = false  --  loaded by default?
-  }
+	return {
+		name      = "Attrition Counter",
+		desc      = "Shows a counter that keeps track of player/team kills/losses",
+		author    = "Anarchid, Klon",
+		date      = "Dec 2012, Aug 2015",
+		license   = "GPL",
+		layer     = -10,
+		enabled   = false  --  loaded by default?
+	}
 end
 
 include("colors.lua")
 VFS.Include("LuaRules/Configs/constants.lua")
 
 local GetLeftRightAllyTeamIDs = VFS.Include("LuaUI/Headers/allyteam_selection_utilities.lua")
+local helk_path = 'Hel-K/' .. widget.GetInfo().name
+local compact = false
+local SwitchCompactMode
+local thick_compact = "💀" -- U+1F480 - SKULL
+local thin_compact = "☠️" -- U+2620 - SKULL AND CROSSBONES
+local compact_symbol = thin_compact
 
 options_path = 'Settings/HUD Panels/Extras/Attrition Counter'
-options_order = {'updateFrequency'}
+options_order = {'updateFrequency', 'compact', 'thick_compact'}
 options = {
 	updateFrequency = { -- fixme: this setting should die and the counters should update if and only if needed
 		name = "Update every N Frames",
@@ -29,10 +35,38 @@ options = {
 	},
 }
 
+options.compact = {
+	name = 'Compact Mode',
+	type = 'bool',
+	value = compact,
+	OnChange = function(self)
+		compact = self.value
+		SwitchCompactMode(compact)
+	end,
+	path = helk_path,
+}
+
+options.thick_compact = {
+	name = 'Thick symbol 💀',
+	type = 'bool',
+	value = compact,
+	OnChange = function(self)
+		compact_symbol = self.value and thick_compact or thin_compact
+		if compact then
+			SwitchCompactMode(compact)
+		end
+	end,
+	path = helk_path,
+}
+
+
+
 local Chili
 local Window
 local Label
 local Image
+
+local UnitDefs = UnitDefs
 
 local red = {1,0,0,1}
 local green = {0,1,0,1}
@@ -53,8 +87,8 @@ local UnitDestroyed = Spring.UnitDestroyed -- (unitID, unitDefID, unitTeam, atta
 local spectating = Spring.GetSpectatingState();
 
 local window_main
-local label_rate
-local global_command_button
+-- local label_rate
+
 
 local label_self
 local label_other
@@ -74,6 +108,8 @@ local ICON_KILLS_FILE = 'luaui/images/AttritionCounter/skull.png'
 local ICON_METAL_FILE = 'luaui/images/costIcon.png'
 
 local font -- dummy, need this to call GetTextWidth without looking up an instance
+local rate_font
+local rate_compact_font
 
 local myTeam
 local myAllyTeam
@@ -143,7 +179,6 @@ local function GetOpposingAllyTeams()
 	local gaiaAllyTeamID = select(6, Spring.GetTeamInfo(Spring.GetGaiaTeamID(), false))
 	local returnData = {}
 	local allyTeamList = GetLeftRightAllyTeamIDs()
-	Spring.Echo('Attrition left right',unpack(allyTeamList))
 	for i = 1, #allyTeamList do
 		local allyTeamID = allyTeamList[i]
 
@@ -172,22 +207,27 @@ local function GetOpposingAllyTeams()
 end
 
 local function UpdateCounters()
-
 	local rate = allyTeams[myAllyTeam].rate
-	local caption
-	if rate < 0 then caption = 'N/A'; label_rate_player.font.color = grey
-	elseif rate > 9.99 then caption = 'PWN!'; label_rate_player.font.color = blue
+	local caption = ''
+	if compact then
+		caption = compact_symbol .. ' '
+	end
+	if rate < 0 then
+		caption = caption .. 'N/A'
+		label_rate_player.font.color = grey
+	elseif rate > 9.99 then
+		caption = caption..'PWN!'
+		label_rate_player.font.color = blue
 	else
-		caption = tostring(floor(rate*100))..'%'
+		caption = caption .. tostring(floor(rate*100))..'%'
 		label_rate_player.font.color = {
 			cap(3-rate*2),
 			cap(2*rate-1),
 			cap((rate-2) / 2),
 			1}
 	end
-	
 	label_rate_player:SetCaption(caption)
-	label_rate_player.x = (window_main.width / 2) - (font:GetTextWidth(caption, 30) / 2)
+	label_rate_player.x = (window_main.width / 2) - (label_rate_player.font:GetTextWidth(caption) / 2)
 	
 	label_own_kills_units:SetCaption(allyTeams[enemyAllyTeam].lostUnits)
 	label_own_kills_metal:SetCaption('/ '..floor(allyTeams[enemyAllyTeam].lostMetal))
@@ -251,9 +291,9 @@ end
 ------------------------------------------------------------------------------------------------------------------------------------
 
 local function languageChanged ()
-	if global_command_button then
-		global_command_button.tooltip = WG.Translate("interface", "toggle_attrition_counter_name") .. "\n\n" .. WG.Translate("interface", "toggle_attrition_counter_desc")
-		global_command_button:Invalidate()
+	if WG.attrition_global_button then
+		WG.attrition_global_button.tooltip = WG.Translate("interface", "toggle_attrition_counter_name") .. "\n\n" .. WG.Translate("interface", "toggle_attrition_counter_desc")
+		WG.attrition_global_button:Invalidate()
 	end
 	-- todo: translate the rest of the widget as well
 end
@@ -269,10 +309,12 @@ function widget:Initialize()
 	Label = Chili.Label
 	Image = Chili.Image
 	
-	font = Chili.Font:New{} -- need this to call GetTextWidth without looking up an instance
-	
+	font = Chili.Font:New{size = 30} -- need this to call GetTextWidth without looking up an instance
+	rate_compact_font = WG.GetSpecialFont(25, "res_outline", {
+			outline = true, outlineWidth = 2, outlineWeight = 2,
+		})
 	--[[ in the original design, "own" team was supposed to be on the left,
-	     but when speccing it's better to put the geographical left there ]]
+			 but when speccing it's better to put the geographical left there ]]
 	if spectating then
 		myAllyTeam = GetLeftRightAllyTeamIDs()[1]
 	else
@@ -417,19 +459,19 @@ function widget:UnitDestroyed(unitID, unitDefID, teamID, attUnitID, attDefID, at
 	
 	-- prevents factory-cancel from counting as kill.
 	-- TODO: only count mobile units because statics are never factory-made
-	local buildProgress = select(5, GetUnitHealth(unitID))
-	if GetUnitHealth(unitID) > 0 and buildProgress < 1 then return end
-	
-	-- don't count morphed units
-	local wasMorphed = Spring.GetUnitRulesParam(unitID, "wasMorphedTo");
-	if wasMorphed then return end
-
 	if teamID == gaiaTeam then return end
 	
 	if deadUnits[unitID] and deadUnits[unitID] == unitDefID then
 		deadUnits[unitID] = nil
 		return
 	end
+	local hp, _, _, _, buildProgress = GetUnitHealth(unitID)
+	if hp > 0 and buildProgress < 1 then return end
+	
+	-- don't count morphed units
+	local wasMorphed = Spring.GetUnitRulesParam(unitID, "wasMorphedTo");
+	if wasMorphed then return end
+
 	
 	capturedUnits[unitID] = nil;
 	
@@ -466,7 +508,61 @@ end
 ------------------------------------------------------------------------------------------------------------------------------------
 --------------- layout
 ------------------------------------------------------------------------------------------------------------------------------------
+local function ChangeWindowClass(window, className)
+	local currentSkin = Chili.theme.skin.general.skinName
+	local skin = Chili.SkinHandler.GetSkin(currentSkin)
+	local newSkin = skin[className]
+	if not newSkin then
+		Echo('['..widget.Getinfo().name..']: '..'error no such skin for class', className)
+		return
+	end
+	window.class = className
+	window.tiles = newSkin.tiles
+	window.TileImageFG = newSkin.TileImageFG
+	-- window.backgroundColor = newSkin.backgroundColor
+	window.TileImageBK = newSkin.TileImageBK
+	window.DrawControl = newSkin.DrawControl
+	window:Invalidate()
+end
+function SwitchCompactMode(compact)
+	if not window_main then
+		return
+	end
+	ChangeWindowClass(window_main, compact and "panel" or "main_window_small_very_flat")
+	if compact then
+		window_main.backgroundColor = {0, 0, 0, 0}
+	end
+	for i, control in ipairs({label_self, label_other,
+							label_own_kills_units, label_own_kills_metal,
+							label_other_kills_units, label_other_kills_metal, icon_own_skull,
+							icon_own_bars, icon_other_skull, icon_other_bars}) do
+		if compact then
+			control:Hide()
+		else
+			control:Show()
+		end
+		control:Invalidate()
+	end
+	local caption = label_rate_player.caption:gsub(thin_compact .. ' ', '')
+	caption = caption:gsub(thick_compact .. ' ', '')
 
+	caption = (compact and compact_symbol .. ' ' or '') .. caption
+	-- label_rate_player.font:Dispose()
+	-- label_rate_player:RemoveChild(label_rate_player.font)
+	local color = label_rate_player.font.color
+	label_rate_player.font = (
+		compact and rate_compact_font
+		or rate_font
+	)
+	label_rate_player.font.color = color
+	-- Echo("label_rate_player.font is ", label_rate_player.font)
+	label_rate_player.font:SetParent(label_rate_player)
+
+	label_rate_player.x = (window_main.clientWidth / 2) - (label_rate_player.font:GetTextWidth(caption) / 2); label_rate_player:Invalidate()
+	label_rate_player:SetCaption(caption)
+	label_rate_player:Invalidate()
+
+end
 function CreateWindow()
 	local countsOffset = 43;
 	
@@ -503,6 +599,7 @@ function CreateWindow()
 		textColor = grey,
 		caption = '---',
 	}
+	rate_font = label_rate_player.font
 	
 	-- first team labels
 	label_self = Label:New {
@@ -617,7 +714,7 @@ function CreateWindow()
 	
 	window_main.OnResize = {
 		function(self,...)
-			label_rate_player.x = (self.clientWidth / 2) - (font:GetTextWidth('---', 30) / 2); label_rate_player:Invalidate()
+			label_rate_player.x = (self.clientWidth / 2) - (label_rate_player.font:GetTextWidth(label_rate_player.caption) / 2); label_rate_player:Invalidate()
 			
 			icon_own_skull.x = font:GetTextWidth(label_own_kills_units.caption) + label_own_kills_units.x + 1; icon_own_skull:Invalidate()
 			label_own_kills_metal.x = icon_own_skull.x + 20
@@ -629,21 +726,26 @@ function CreateWindow()
 			label_other_kills_units.x = icon_other_skull.x - (font:GetTextWidth(label_other_kills_units.caption) + 1); label_other_kills_units:Invalidate()
 		end
 	}
-	
 	if WG.GlobalCommandBar then
 		local function ToggleWindow()
 			if window_main then
 				window_main:SetVisibility(not window_main.visible)
 			end
 		end
-		global_command_button = WG.GlobalCommandBar.AddCommand("LuaUI/Images/AttritionCounter/Skull.png", "", ToggleWindow)
+		if WG.attrition_global_button then -- work around since GlobalCommandBar doesn't have a remove function
+			WG.attrition_global_button.OnClick = {ToggleWindow}
+			WG.attrition_global_button:Show()
+		else
+			WG.attrition_global_button = WG.GlobalCommandBar.AddCommand("LuaUI/Images/AttritionCounter/Skull.png", "", ToggleWindow)
+		end
 	end
-
-	
 end
 
 
 function DestroyWindow()
 	window_main:Dispose()
 	window_main = nil
+end
+if f then
+	f.DebugWidget(widget)
 end
