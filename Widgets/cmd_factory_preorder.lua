@@ -1336,14 +1336,15 @@ function widget:Update(dt)
 			showTempOrders = false
 		end
 	end
-
-	if fake_command then
-		Spring.SetMouseCursor(fake_command)
-	elseif allow_rightclick and FacUI.hasDevelopped > 0 then
-		if not Screen0.hoveredControl then
-			local _, cmdID, _, cmdName = spGetActiveCommand()
-			if not cmdID or cmdID >= 0 then
-				Spring.SetMouseCursor("GatherWait")
+	if not WG.panning then
+		if fake_command then
+			Spring.SetMouseCursor(fake_command)
+		elseif allow_rightclick and FacUI.hasDevelopped > 0 then
+			if not Screen0.hoveredControl then
+				local _, cmdID, _, cmdName = spGetActiveCommand()
+				if not cmdID or cmdID >= 0 then
+					Spring.SetMouseCursor("GatherWait")
+				end
 			end
 		end
 	end
