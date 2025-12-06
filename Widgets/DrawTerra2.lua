@@ -202,7 +202,6 @@ local debugging = false
 -- Local Vars
 --------------------------------------------------------------------------------
 
---local preGame = true
 local preGame
 local preGameBuildQueue
 
@@ -2857,7 +2856,7 @@ local function DrawBasicSlope(layers)
 	glUseShader(uniShader)
 	unifLoc = gl.GetUniformLocation(uniShader, 'div')
 	glUniform(unifLoc, pushalittle)
-	glDepthMask(not preGame)
+	glDepthMask(true)
 	glDepthTest(GL.LEQUAL)
 	for i = 1,#layers do
 		glColor(0, 0, 0, 0)
@@ -2868,10 +2867,7 @@ local function DrawBasicSlope(layers)
 			glBeginEnd(GL_TRIANGLE_STRIP, DrawSlopeMask , shapes[i], i)
 		end
 	end
-	glUseShader(0)
 	glDepthMask(false)
-	--glUseShader(curPullShader)
-	glUseShader(uniShader)
 
 	if drawContour then -- display the contour at front only, masked by the landscape / static alpha
 		glUniform(unifLoc, evenmoreoverbump)
@@ -2920,7 +2916,7 @@ local function DrawBasicSlope(layers)
 
 		--- ghost draw
 		glPushMatrix()
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(GL_ALWAYS);
 		glTranslate(slope.bx, slope.by, slope.bz)
 		glRotate(facing*90, 0, 1, 0);
@@ -2934,6 +2930,7 @@ local function DrawBasicSlope(layers)
 end
 
 local function DrawSlope(layers)
+
 	--[[if not float then
 		Echo("type(elevMask2D) is ", type(elevMask2D))
 		gl.PushMatrix()
@@ -2966,7 +2963,7 @@ local function DrawSlope(layers)
 	glUniform(unifLoc, curPullShader)
 	 -- it is the BASIC MODE (verticals only)
 	if show_basic then
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(GL.LESS);--GL.LESS
 	   -- gl.Clear(GL.DEPTH_BUFFER_BIT)
 		glColor(0, 1, 0, 0.1)
@@ -2980,7 +2977,7 @@ local function DrawSlope(layers)
 	if show_basic then
 		glColor(0, 1, 0, 0.5)
 		glLineWidth(1)        
-		--glDepthMask(not preGame)
+		--glDepthMask(true)
 		glLineStipple('')
 		-- glLineStipple(true)
 		glBeginEnd(GL_LINES, DrawVerticals, digging.gp, digging.lvl,'hide') -- stipples lines symbolizing digging will not be masked by the terrain
@@ -2998,7 +2995,7 @@ local function DrawSlope(layers)
 	glColor(0, 1, 0, 0.9)
 	glBeginEnd(GL_LINES, DrawFlatGrid, layers.elevRect, bw*2, bh*2) -- replace engine grid with proper elevated grid, full green
 	--[[if not float then
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(GL_ALWAYS);            
 	   -- gl.Clear(GL.DEPTH_BUFFER_BIT)
 
@@ -3057,7 +3054,7 @@ local function DrawSlope(layers)
 		glLineWidth(1)
 		--*** old method: drawing elevation layers transitionned to ground surface above Dig
 
-		--[[ glDepthMask(not preGame) -- Create a mask made of transition to dig zone (ground version) partially covered by the elevation zone + transition(elevation version)
+		--[[ glDepthMask(true) -- Create a mask made of transition to dig zone (ground version) partially covered by the elevation zone + transition(elevation version)
 		-- with this mask we will be able to show only the part of the dig zone shaping the ground that emerges from the build grid aswell as masking elevation grid that goes behind
 		-- (test transparent mask main dig)
 
@@ -3070,7 +3067,7 @@ local function DrawSlope(layers)
 			end
 			glDepthTest(false)
 			-- mask and draw: transition (elevation version)
-			--glDepthMask(not preGame)
+			--glDepthMask(true)
 			glDepthTest(GL.LESS)
 			glColor(0, 1, 0, 0.3)
 			for i, face in ipairs(slopeFaces[3]) do
@@ -3178,7 +3175,7 @@ local function DrawSlope(layers)
 		--*** NEW VERSION: elevation slope transitionned to dig slope with shading surface above dig
 
 		------ Elevation Part + contour
-		glDepthMask(not preGame) -- building mask of elevation
+		glDepthMask(true) -- building mask of elevation
 		local color ={unpack(s_elev_color)}
 		if gotElev then --  mask of main elevation without pushing shader
 			glDepthTest(GL.LESS)
@@ -3221,7 +3218,7 @@ local function DrawSlope(layers)
 			glUseShader(0)
 			color = {unpack(s_dig_color)}
 			--** start of masking **--
-			glDepthMask(not preGame)--***
+			glDepthMask(true)--***
 			glDepthTest(GL.GREATER)
 			glColor(0, 0, 0, 0)
 			for i, face in ipairs(slopeFaces[2]) do
@@ -3321,7 +3318,7 @@ local function DrawSlope(layers)
 	-- end
 
 	--- ghost draw
-	glDepthMask(not preGame)
+	glDepthMask(true)
 	glPushMatrix()
 	glTranslate(bx, by, bz)
 	glRotate(facing*90, 0, 1, 0);
@@ -3471,7 +3468,7 @@ local function Execute()
 	--Echo("   is ", quality =='automatic' and inc == 8 and timecheck() > 0.25)
 	if DrawingList then glDeleteList(DrawingList) DrawingList = false end
 	if needTerra and (quality =='basic' or curcount > 1) then
-		DrawingList = glCreateList( DrawBasicSlope, slopes)
+		DrawingList = glCreateList(DrawBasicSlope, slopes)
 	else
 		DrawingList = glCreateList(DrawSlope, layers)
 	end
@@ -3698,7 +3695,7 @@ function widget:DrawWorld()
 		--[[--gl.Blending(true)
 		-- masking the original unitShape
 		--glPushMatrix()
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(true);
 		--glTranslate(bx, gy, bz)
 		glColor(1, 1, 1, 1)
@@ -3756,7 +3753,7 @@ function widget:DrawWorld()
 
 		 --*** CobbleStone
 
-		--[[glDepthMask(not preGame)
+		--[[glDepthMask(true)
 		--gl.ColorMask(true, true, true, true)
 		--gl.StencilMask(GL.LESS)
 		glDepthTest(GL.LEQUAL);
@@ -3776,7 +3773,7 @@ function widget:DrawWorld()
 		--[[-- masking the original unitShape
 		glLineWidth(1.0)  
 		--gl.Blending(false)
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(true)
 		gl.PushMatrix()
 
@@ -3794,7 +3791,7 @@ function widget:DrawWorld()
 
 		--[[glPushMatrix()
 		glColor(1, 1, 1, 0.5)
-		glDepthMask(not preGame)
+		glDepthMask(true)
 		glDepthTest(true)
 
 		glTranslate(bx, gy, bz)
@@ -3858,11 +3855,11 @@ function widget:Initialize()
 		Echo('compat mode, DrawTerra 2 removed')
 		return
 	end
-	if Spring.GetSpectatingState() or Spring.IsReplay() then
-		-- Spring.Echo(widget:GetInfo().name..' disabled for spectators')
-		-- widgetHandler:RemoveWidget(self)
-		-- return
-	end
+	-- if Spring.GetSpectatingState() or Spring.IsReplay() then
+	-- 	Spring.Echo(widget:GetInfo().name..' disabled for spectators')
+	-- 	widgetHandler:RemoveWidget(self)
+	-- 	return
+	-- end
 	WG.DrawTerra.ready = true
 	DrawTerra = WG.DrawTerra
 	if Spring.SetDrawBuild then Spring.SetDrawBuild(false, false) end
