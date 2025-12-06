@@ -866,9 +866,9 @@ local function DrawUnitShapes(unitList, color, stencil)
 	glColorMask(false,false,false,true)
 	if stencil then
 		glClear(GL_STENCIL_BUFFER_BIT, 0)
-		gl.StencilTest(true)
-		gl.StencilFunc(GL.EQUAL, 0, 1)
-		gl.StencilOp(GL.KEEP, GL.INCR, GL.INCR)
+		glStencilTest(true)
+		glStencilFunc(GL.EQUAL, 0, 1)
+		glStencilOp(GL.KEEP, GL.INCR, GL.INCR)
 		for i = 1, len do
 			local unitID = unitList[i]
 			local udid = unitDefIDMap[unitID] or spGetUnitDefID(unitID)
@@ -879,10 +879,10 @@ local function DrawUnitShapes(unitList, color, stencil)
 				glDrawListAtUnit(unitID, unit.shape.inner_plain_mask, false, unit.xscale * scale, 1.0, unit.zscale * scale, degrot[unitID], 0, degrot[unitID], 0)
 			end
 		end
-		gl.StencilOp(GL.KEEP, GL.KEEP, GL.KEEP)
+		glStencilOp(GL.KEEP, GL.KEEP, GL.KEEP)
 	end
 
-	-- glBlending(true)
+	glBlending(true)
 	glBlendFunc(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA)
 	for i = 1, len do
 		local unitID = unitList[i]
@@ -896,7 +896,7 @@ local function DrawUnitShapes(unitList, color, stencil)
 	end
 	glColor(color)
 	glColorMask(true,true,true,true)
-	glBlending(true)
+	-- glBlending(true)
 	glBlendFuncSeparate(GL_ONE_MINUS_DST_ALPHA, GL_DST_ALPHA, GL_ONE, GL_ONE)
 
 	for i = 1, len do
@@ -909,11 +909,10 @@ local function DrawUnitShapes(unitList, color, stencil)
 			glDrawListAtUnit(unitID, unit.shape.outer, false, unit.xscale * scale, 1.0, unit.zscale * scale, degrot[unitID], 0, degrot[unitID], 0)
 		end
 	end
-	-- glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-	-- glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ONE, GL_ZERO)
+	glBlending(false)
 	if stencil then
 		glClear(GL_STENCIL_BUFFER_BIT, 0)
-		gl.StencilTest(false)
+		glStencilTest(false)
 	end
 end
 
@@ -923,7 +922,7 @@ local function DrawAllShapes()
 	-- for i,id in ipairs(visibleBoxed) do
 	--  exception[id] = true
 	-- end
-	gl.PushAttrib(GL.COLOR_BUFFER_BIT)
+	gl.PushAttrib(GL.COLOR_BUFFER_BIT) 
 	DrawUnitShapes(visibleSelected, rgba, true)
 	if hasVisibleAllySelections then
 		if isSpectating and options.showallyplayercolours.value then
@@ -944,10 +943,8 @@ local function DrawAllShapes()
 	DrawUnitShapes(visibleBoxed, hoverColor, true)
 	DrawUnitShapes(hoveredUnit, hoverColor, false, wantHoverInner)
 	gl.PopAttrib()
-	-- gl.StencilTest(false)
 end
 local function Draw()
-	-- glClear(GL_STENCIL_BUFFER_BIT)
 	if timePassed == 0 then
 		if globalDraw then
 			glDeleteList(globalDraw)
