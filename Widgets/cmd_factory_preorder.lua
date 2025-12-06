@@ -481,7 +481,6 @@ end
 
 
 function FacUI:New(defID, params)
-	
 	local index = #self.stack + 1
 	if index > max_instances then
 		return
@@ -1307,6 +1306,7 @@ function widget:GameFrame(f) -- note: unit_initial_queue.lua attach the tasker a
 				end
 			end
 			if done then
+				preGame = false
 				widgetHandler:RemoveWidgetCallIn('GameFrame', widget)
 			end
 		end
@@ -1379,7 +1379,7 @@ function widget:Update(dt)
 		end
 	end
 
-	if preGame  and WG.preGameBuildQueue then
+	if preGame and WG.preGameBuildQueue then
 		preGameCheck = preGameCheck - dt
 		if preGameCheck <= 0 then
 			preGameCheck = PREGAME_UPDATE
@@ -1468,9 +1468,9 @@ function widget:SelectionChanged()
 end
 
 function widget:CommandsChanged()
-	if not selChanged then
-		return
-	end
+	-- if not selChanged then
+	-- 	return
+	-- end
 	selChanged = false
 	if fake_command then
 		Spring.SetMouseCursor('none')
