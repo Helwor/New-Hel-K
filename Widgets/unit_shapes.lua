@@ -6,8 +6,7 @@ function widget:GetInfo()
 		date      = "30.07.2010",
 		license   = "GNU GPL, v2 or later",
 		-- layer     = -9, -- before draw grid, after outline no shader -- originally layer==2
-		-- layer     = 1, -- before draw grid, after outline no shader -- originally layer==2
-		later =  2000,
+		layer     = 1, -- before draw grid, after outline no shader -- originally layer==2
 		enabled   = false,
 		detailsDefault = 1
 	}
@@ -864,9 +863,27 @@ local function DrawUnitShapes(unitList, color, stencil)
 	end
 	local len = #unitList
 	
-	glBlending(true)
-	glBlendFunc(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA)
 	glColorMask(false,false,false,true)
+	if stencil then
+		glClear(GL_STENCIL_BUFFER_BIT, 0)
+		gl.StencilTest(true)
+		gl.StencilFunc(GL.EQUAL, 0, 1)
+		gl.StencilOp(GL.KEEP, GL.INCR, GL.INCR)
+		for i = 1, len do
+			local unitID = unitList[i]
+			local udid = unitDefIDMap[unitID] or spGetUnitDefID(unitID)
+			local unit = unitConf[udid]
+			local scale = unitScaleMap[unitID] or 1
+
+			if unit then
+				glDrawListAtUnit(unitID, unit.shape.inner_plain_mask, false, unit.xscale * scale, 1.0, unit.zscale * scale, degrot[unitID], 0, degrot[unitID], 0)
+			end
+		end
+		gl.StencilOp(GL.KEEP, GL.KEEP, GL.KEEP)
+	end
+
+	-- glBlending(true)
+	glBlendFunc(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA)
 	for i = 1, len do
 		local unitID = unitList[i]
 		local udid = unitDefIDMap[unitID] or spGetUnitDefID(unitID)
@@ -877,7 +894,6 @@ local function DrawUnitShapes(unitList, color, stencil)
 			glDrawListAtUnit(unitID, unit.shape.outermask, false, unit.xscale * scale, 1.0, unit.zscale * scale, degrot[unitID], 0, degrot[unitID], 0)
 		end
 	end
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 	glColor(color)
 	glColorMask(true,true,true,true)
 	glBlending(true)
@@ -893,7 +909,12 @@ local function DrawUnitShapes(unitList, color, stencil)
 			glDrawListAtUnit(unitID, unit.shape.outer, false, unit.xscale * scale, 1.0, unit.zscale * scale, degrot[unitID], 0, degrot[unitID], 0)
 		end
 	end
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+	-- glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+	-- glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ONE, GL_ZERO)
+	if stencil then
+		glClear(GL_STENCIL_BUFFER_BIT, 0)
+		gl.StencilTest(false)
+	end
 end
 
 local function DrawAllShapes()
@@ -902,6 +923,7 @@ local function DrawAllShapes()
 	-- for i,id in ipairs(visibleBoxed) do
 	--  exception[id] = true
 	-- end
+	gl.PushAttrib(GL.COLOR_BUFFER_BIT)
 	DrawUnitShapes(visibleSelected, rgba, true)
 	if hasVisibleAllySelections then
 		if isSpectating and options.showallyplayercolours.value then
@@ -918,11 +940,11 @@ local function DrawAllShapes()
 			DrawUnitShapes(visibleAllySelUnits[1], yellow, true)
 		end
 	end
-	-- glClear(GL_STENCIL_BUFFER_BIT)
+
 	DrawUnitShapes(visibleBoxed, hoverColor, true)
 	DrawUnitShapes(hoveredUnit, hoverColor, false, wantHoverInner)
+	gl.PopAttrib()
 	-- gl.StencilTest(false)
-	glClear(GL_STENCIL_BUFFER_BIT, 0)
 end
 local function Draw()
 	-- glClear(GL_STENCIL_BUFFER_BIT)
@@ -947,8 +969,8 @@ local function Draw()
 	-- gl.PushAttrib(GL.DEPTH_BUFFER_BIT);
 	glDepthTest(GL.ALWAYS)
 	glCallList(globalDraw)
-	-- glDepthTest(GL_LEQUAL)
-	glBlending('reset')
+	glDepthTest(GL_LEQUAL)
+	-- glBlending('reset')
 	glColor(1,1,1,1)
 	-- gl.PopAttrib()
 end
