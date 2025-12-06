@@ -386,7 +386,7 @@ local function ChangeWindowClass(window, className)
 	local skin = Chili.SkinHandler.GetSkin(currentSkin)
 	local newSkin = skin[className]
 	if not newSkin then
-		Echo(' error no such skin for class', className)
+		Echo('['..widget.Getinfo().name..']: '..'error no such skin for class', className)
 		return
 	end
 	window.class = className
@@ -435,6 +435,8 @@ local function option_toggleExtra(self, value)
 	-- Global func
 	DoExtraToggle(self.extraKey, self.value)
 end
+
+local helk_path = 'Hel-K/' .. widget.GetInfo().name
 
 options_order = {
 	'lbl_metal', 'metalFlash', 'metalWarning',
@@ -544,7 +546,7 @@ options = {
 				end
 			end
 		end,
-		desc = "",
+		path =  helk_path,
 	},
 	lbl_visual = {name='Visuals', type='label'},
 	ecoPanelHideSpec = {
@@ -553,7 +555,7 @@ options = {
 		value = false,
 		noHotkey = true,
 		desc = "Should the panels hide when spectating? (except Wind Panel)",
-		OnChange = option_recreateWindow
+		OnChange = option_recreateWindow,
 	},
 	windPanelHideSpec = {
 		name  = 'Hide Include Wind Panel',
@@ -561,7 +563,8 @@ options = {
 		value = false,
 		noHotkey = true,
 		desc = "Should the Wind Panel hide when spectating?",
-		OnChange = option_recreateWindow
+		OnChange = option_recreateWindow,
+		path =  helk_path,
 	},
 	flowAsArrows = {
 		name  = "Flow as arrows",
