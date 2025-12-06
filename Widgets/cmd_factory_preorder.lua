@@ -1276,10 +1276,40 @@ function MorphFinished(oldID, newID)
 	end
 end
 
-function widget:GameFrame(f)
-	if f >= 3 then
+function widget:GameFrame(f) -- note: unit_initial_queue.lua attach the tasker at frame 2 or 3, we check from 2 to 4 to cover any layer position of our widget
+	if f < 2 then
+		return
+	elseif f > 4 then
 		preGame = false
+		for i, obj in ipairs(FacUI.stack) do
+			if obj.hasAttached == 0 then
+				obj:Delete()
+			end
+		end
 		widgetHandler:RemoveWidgetCallIn('GameFrame', widget)
+	else
+		if FacUI.stack[1] and WG.preGameBuildQueue and WG.preGameBuildQueue.tasker then 
+			local tasker = WG.preGameBuildQueue.tasker
+			local done = false
+			for i, obj in ipairs(FacUI.stack) do
+				if obj.defID then
+					if obj.hasAttached == 0 then
+						local tracked = trackedUnits[tasker]
+						if not tracked then
+							tracked = {}
+							trackedUnits[tasker] = tracked
+						end
+						tracked[obj] = -obj.defID
+						obj.attached = { [tasker] = true }
+						obj.hasAttached = obj.hasAttached + 1
+						done = true
+					end
+				end
+			end
+			if done then
+				widgetHandler:RemoveWidgetCallIn('GameFrame', widget)
+			end
+		end
 	end
 end
 
@@ -1432,7 +1462,16 @@ function widget:Update(dt)
 	end
 end
 
+local selChanged = false
+function widget:SelectionChanged()
+	selChanged = true
+end
+
 function widget:CommandsChanged()
+	if not selChanged then
+		return
+	end
+	selChanged = false
 	if fake_command then
 		Spring.SetMouseCursor('none')
 		fake_command = false
