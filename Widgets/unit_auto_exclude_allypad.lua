@@ -110,10 +110,14 @@ local updateMyAircraft = false
 
 local function UpdatePad(padID, bool, teamID, from)
 	if myAircraftID then
-		if DEBUG then
-			Echo((from or '')..(IsExcluded(padID) and 'Une' or 'E')..'xcluding '..((teamID and teamID or spGetUnitTeam(padID)) == myTeam and 'Own' or 'Ally')..' Pad '..padID..'.')
+		if IsExcluded(padID) ~= bool then
+			if DEBUG then
+				Echo((from or '')..(IsExcluded(padID) and 'Une' or 'E')..'xcluding '..((teamID and teamID or spGetUnitTeam(padID)) == myTeam and 'Own' or 'Ally')..' Pad '..padID..'.')
+			end
+			spGiveOrderToUnit(myAircraftID, CMD_EXCLUDE_PAD, padID, 0)
+		elseif DEBUG then
+			Echo((from or '')..((teamID and teamID or spGetUnitTeam(padID)) == myTeam and 'Own' or 'Ally')..' Pad '..padID.. ' is already ' .. (IsExcluded(padID) and 'Une' or 'E')..'xcluded '..'.')
 		end
-		spGiveOrderToUnit(myAircraftID, CMD_EXCLUDE_PAD, padID, 0)
 		pending[padID] = nil
 	else
 		pending[padID] = bool
