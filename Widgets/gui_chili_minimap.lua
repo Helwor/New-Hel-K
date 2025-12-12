@@ -5,7 +5,8 @@ function widget:GetInfo()
     author    = "Licho, CarRepairer",
     date      = "@2010",
     license   = "GNU GPL, v2 or later",
-    layer     = 10e38,
+    -- layer     = 10e38,
+    layer     = -10000,
     enabled   = true,
   }
 end
