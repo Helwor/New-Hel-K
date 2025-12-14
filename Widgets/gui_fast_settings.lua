@@ -35,7 +35,7 @@ local spForceTesselationUpdate = Spring.ForceTesselationUpdate
 local COFCName = 'Combo Overhead/Free Camera (experimental)'
 local Cam = WG.Cam
 local COFC
-
+local wiredMap = false
 
 options = {}
 local options = options -- avoid little freeze  when accessing global options?
@@ -244,19 +244,18 @@ options_order = {
 	'feature_dist',
 	'fovpow',
 	'fov',
-	'wire_map',
 	'map_drawer',
 	'adapt_detail',
 	'switch_wire',
 	'map_detail',
 	'shadows',
 	'dist_icon',
-	'gccontrol',
+	-- 'gccontrol',
+	-- 'gctimemult',
+	-- 'gcloadmult',
+	'hardware_cursor',
 	'maxzoomout' ,
 	'maxzoomout_alt',
-	-- 'min_draw_fps',
-	-- 'min_sim_draw_balance',
-
 }
 -- options.testnumber = {
 --     type = 'number',
@@ -274,7 +273,18 @@ options.lbl_collapse = {
 	OnChange = function(self)
 		-- self.value = not self.value
 		local hidden = self.value
-		for _, name in pairs({'mapshading','fov','dist_icon','feature_dist','map_detail','shadows','maxzoomout' ,'maxzoomout_alt', 'min_draw_fps', 'min_sim_draw_balance'}) do
+		for _, name in pairs({'mapshading',
+			'fov',
+			'dist_icon',
+			'feature_dist',
+			'map_detail',
+			'shadows',
+			-- 'gccontrol',
+			-- 'gctimemult',
+			-- 'gcloadmult',
+			'hardware_cursor',
+			'maxzoomout',
+			'maxzoomout_alt'}) do
 			options[name].hidden = hidden
 		end
 		-- self.value = not self.value
@@ -357,17 +367,10 @@ options.map_detail = {
 		-- update_on_the_fly = true,
 		tooltipFunction = function(self)
 			-- Echo('Tooltip Func Map Detail')
-			if options.switch_wire.value and self.state.hovered and not options.wire_map.value then
-				options.wire_map.value = true
-				options.wire_map:OnChange()
-				options.map_detail.wireSwitched = true
-				-- local hovered = WG.Chili.Screen0.hoveredControl
-				-- Echo("hovered is ", hovered, hovered and hovered.caption,self.state.hovered, self.caption, hovered==self)
+			if not wiredMap and self.state.hovered then
+				spSendCommands('WireMap') 
+				wiredMap = true
 			end
-			-- if not options.wire_map.value then
-			--     options.wire_map.value = true
-			--     options.wire_map:OnChange()
-			-- end
 			local thisvalue = AdaptDetail(self.value, spGetCameraState().fov)
 			if options.map_drawer.value ~= 2 then
 				thisvalue = thisvalue/(self.max/7)
@@ -381,11 +384,9 @@ options.map_detail = {
 		end,
 		OnChange = function(self)
 			-- Echo('On Change Map Detail')
-			if self.wireSwitched then
-			-- if options.wire_map.value then
-				options.wire_map.value = false
-				options.wire_map:OnChange()
-				self.wireSwitched = false
+			if wiredMap then
+				spSendCommands('WireMap') 
+				wiredMap = false
 			end
 
 			local thisvalue = AdaptDetail(self.value, spGetCameraState().fov)
@@ -462,7 +463,7 @@ options.fov = {
 			end
 			local newDistIcon = baseDistIcon * 45/cs.fov
 			spSetConfigInt('UnitIconDist', newDistIcon)
-			spSendCommands('disticon '..newDistIcon)
+			-- spSendCommands('disticon '..newDistIcon)
 			-- the quality vary depending on camera height and camera height vary depending on FOV, so we adjust
 			options.map_detail:OnChange()
 
@@ -519,6 +520,18 @@ options.maxzoomout_alt = {
 		linkOption = {'Settings/Camera/COFC Controls', COFCName .. 'maxzoomout_alt'},
 		hidden = true, -- collapsable
 	}
+options.hardware_cursor = {
+	name = 'Hardware Cursor',
+	-- must be updated/update into the code, must adapt to FOV change
+	desc = 'Use OS cursor reactivity',
+	type = 'bool',
+	value = Spring.GetConfigInt("HardwareCursor") == 1,
+	OnChange = function(self)
+		Spring.SendCommands('HardwareCursor ' .. (self.value and 1 or 0))
+		Spring.SetConfigInt('HardwareCursor', self.value and 1 or 0)
+	end,
+	hidden = true, -- collapsable	
+}
 options.min_draw_fps = {
 
 		name = 'Min FPS during Catch Up',
@@ -573,16 +586,7 @@ options.fovpow = { -- hidden option, dont touch or retain the best value before
 		-- tooltip_format = '%.2f'
 	}
 
-options.wire_map = {
-		name = 'Wire Map',
-		desc = 'Enable Wire Map to appreciate the level of detail of Map Meshes.',
-		type = 'bool',
-		value = false,
-		OnChange = function(self)
-			spSendCommands('WireMap ' .. (self.value and 1 or 0)) -- actually there is no value to give, it just switch wire map view --
-		end,
-		hidden = true,
-	}
+
 options.map_drawer = {
 		name = 'Map Mesh Drawer',
 		desc = 'Choose your way of processing map mesh',
@@ -617,25 +621,65 @@ options.switch_wire = {
 		value = true,
 		hidden = true,
 	}
-options.gccontrol = {
-		name = 'GC Control',
-		desc = 'Garbage Collector rate 1/frame (0) or 30/sec (1)',
-		type = "number",
-		value = 0,
-		min = 0,
-		max = 1,
-		step = 1,
-		simpleMode = true,
-		everyMode = true,
-		tooltipFunction = function(self)
-			return (self.value == 0 and '1/frame' or '30/sec')
-		end,
-		OnChange = function(self)
-			spSetConfigInt('LuaGCControl', self.value)
-			spSendCommands('LuaGCControl '..self.value)
-		end,
-		hidden = true, -- don't seems to change anything
-	}
+-- options.gccontrol = {
+-- 		name = 'GC Control',
+-- 		desc = 'Garbage Collector rate 1/frame (0) or 30/sec (1)',
+-- 		type = "number",
+-- 		value = 0,
+-- 		min = 0,
+-- 		max = 1,
+-- 		step = 1,
+-- 		simpleMode = true,
+-- 		everyMode = true,
+-- 		tooltipFunction = function(self)
+-- 			return (self.value == 0 and '1/frame' or '30/sec')
+-- 		end,
+-- 		OnChange = function(self)
+-- 			-- spSetConfigInt('LuaGCControl', self.value)
+-- 			spSendCommands('LuaGCControl '..self.value)
+-- 		end,
+-- 		hidden = true, -- don't seems to change anything
+-- 	}
+-- options.gctimemult = {
+-- 		name = 'GC Time Mult',
+-- 		desc = 'Time Mult Between Cycle',
+-- 		type = "number",
+-- 		value = Spring.GetConfigFloat('LuaGarbageCollectionRunTimeMult'),
+-- 		min = 1,
+-- 		max = 5,
+-- 		step = 0.1,
+-- 		simpleMode = true,
+-- 		everyMode = true,
+-- 		-- springsetting = 'LuaGarbageCollectionRunTimeMult',
+-- 		-- tooltipFunction = function(self)
+-- 		-- 	return (self.value == 0 and '1/frame' or '30/sec')
+-- 		-- end,
+-- 		OnChange = function(self)
+-- 			Spring.SetConfigFloat('LuaGarbageCollectionRunTimeMult', self.value)
+-- 			spSendCommands('LuaGarbageCollectionRunTimeMult '.. self.value)
+-- 		end,
+-- 		hidden = true, -- don't seems to change anything
+-- 	}
+-- options.gcloadmult = {
+-- 		name = 'GC Load Mult',
+-- 		desc = 'Memory threshold multiplier that will trigger Garbage Collection',
+-- 		type = "number",
+-- 		value = Spring.GetConfigFloat('LuaGarbageCollectionMemLoadMult'),
+-- 		min = 1,
+-- 		max = 10,
+-- 		step = 0.1,
+-- 		simpleMode = true,
+-- 		everyMode = true,
+-- 		-- springsetting = 'LuaGarbageCollectionMemLoadMult',
+-- 		-- tooltipFunction = function(self)
+-- 		-- 	return (self.value == 0 and '1/frame' or '30/sec')
+-- 		-- end,
+-- 		OnChange = function(self)
+-- 			Spring.SetConfigFloat('LuaGarbageCollectionMemLoadMult', self.value)
+-- 			spSendCommands('LuaGarbageCollectionMemLoadMult '.. self.value)
+-- 		end,
+-- 		hidden = true, -- don't seems to change anything
+-- 	}
 ---------
 
 local origCOFCFovOnChange
