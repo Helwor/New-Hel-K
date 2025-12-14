@@ -75,6 +75,7 @@ options_order = {
 	'maxzoomspeed',
 	'zoominfactor',
 	'zoomin',
+	'minzoomdistance',
 	'zoomoutfactor',
 	'zoomout',
 	'drifttocenter',
@@ -211,7 +212,7 @@ options = {
 		name = 'Smoothness',
 		desc = "Controls how smoothly the camera moves.",
 		type = 'number',
-		min = 0.0, max = 0.8, step = 0.02,
+		min = 0.0, max = 0.8, step = 0.1,
 		value = 0.3,
 		-- Applies to the following:
 		-- 	Zoom()
@@ -405,10 +406,17 @@ Complete Overhead/Free Camera has six actions:
 		path = zoomPath,
 	},
 
+	minzoomdistance = {
+		name = "Minimum zoom distance",
+		type =  'number',
+		min = 10, max = 1500, step=10,
+		value = 20,
+		path = zoomPath
+	},
 	rotatefactor = {
 		name = 'Rotation speed',
 		type = 'number',
-		min = 0.5, max = 20, step = 0.5,
+		min = 0.5, max = 10, step = 0.5,
 		value = 2,
 		path = rotatePath,
 	},
@@ -416,7 +424,7 @@ Complete Overhead/Free Camera has six actions:
 		name = 'Rotation Smoothness',
 		desc = "Controls how smoothly the camera rotates.",
 		type = 'number',
-		min = 0.0, max = 0.8, step = 0.02,
+		min = 0.0, max = 0.8, step = 0.1,
 		value = 0.1,
 		path = rotatePath,
 	},
@@ -606,7 +614,7 @@ Complete Overhead/Free Camera has six actions:
 		desc = "Go to overview mode, then restore view to cursor position.",
 		type = 'button',
 		hotkey = {key='tab', mod='ctrl+'},
-		OnChange = function(self) Echo('=>') OverviewAction() end,
+		OnChange = function(self) Echo('OverviewAction') OverviewAction() end,
 		path=miscPath,
 	},
 	overviewset = {
@@ -1056,7 +1064,7 @@ local lastMouseX, lastMouseY
 -- local zoomTimer
 
 local groundMin, groundMax = Spring.GetGroundExtremes() -- this might be wrong
-local topDownBufferZonePercent = 0.2
+local topDownBufferZonePercent = 0.20
 local groundBufferZone = 20
 local topDownBufferZone = maxDistY * topDownBufferZonePercent
 local minZoomTiltAngle = 35
@@ -1097,12 +1105,6 @@ GetDistForBounds = function(width, height, maxGroundHeight, mult, fov, useMapMul
 	return totalFittingLength/math.tan(currentFOVhalf_rad), edgeBuffer
 end
 
-
-local function SetSkyBufferProportion(cs)
-	local _,cs_py,_ = Spring.GetCameraPosition()
-	local topDownBufferZoneBottom = maxDistY - topDownBufferZone
-	WG.COFC_SkyBufferProportion = min(max((cs_py - topDownBufferZoneBottom)/topDownBufferZone + 0.2, 0.0), 1.0) --add 0.2 to start fading little before the straight-down zoomout
-end
 SetFOV = function(fov)
 	local _groundMin, _groundMax = Spring.GetGroundExtremes()
 	local cs = GetTargetCameraState()
@@ -1132,6 +1134,13 @@ SetFOV = function(fov)
 	  	spSetCameraState(cs,0)
 	end
 end
+
+local function SetSkyBufferProportion(cs)
+	local _,cs_py,_ = Spring.GetCameraPosition()
+	local topDownBufferZoneBottom = maxDistY - topDownBufferZone
+	WG.COFC_SkyBufferProportion = min(max((cs_py - topDownBufferZoneBottom)/topDownBufferZone + 0.2, 0.0), 1.0) --add 0.2 to start fading little before the straight-down zoomout
+end
+
 
 do SetFOV(Spring.GetCameraFOV()) end
 --------------------------------------------------------------------------------
@@ -1187,6 +1196,17 @@ local function GetDist(x1,y1,z1, x2,y2,z2)
 	return sqrt(d1*d1 + d2*d2 + d3*d3)
 end
 
+local function explode(div,str)
+  if (div=='') then return false end
+  local pos,arr = 0,{}
+  -- for each divider found
+  for st,sp in function() return string.find(str,div,pos,true) end do
+    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
+    pos = sp + 1 -- Jump past current divider
+  end
+  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+  return arr
+end
 
 local function LimitZoom(dx,dy,dz,sp,limit,distFactor)
 	--Check if anyone reach max speed
@@ -1489,7 +1509,7 @@ local function UpdateCam(cs)
 	local alt = sin(cstemp.rx) * ls_dist
 	local opp = cos(cstemp.rx) * ls_dist --OR same as: sqrt(ls_dist * ls_dist - alt * alt)
 	cstemp.px = ls_x - sin(cstemp.ry) * opp
-	cstemp.py = ls_y - alt -- 
+	cstemp.py = ls_y - alt
 	cstemp.pz = ls_z - cos(cstemp.ry) * opp
 
 
@@ -1748,7 +1768,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
         zoomin = not zoomin
     end
 	local maxDistY = maxDistY
-	if spGetModKeyState() then
+	if spGetModKeyState() then -- if alt pressed
 		-- Echo('max dist:',maxDistY,'=>',maxDistY * (mapToScreenFitAlt / mapToScreenFit))
 		maxDistY = maxDistY * (mapToScreenFitAlt / mapToScreenFit)
 	end
@@ -1787,7 +1807,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 		local new_pz = cs.pz + zoz
 		-- Spring.Echo("Zoom Speed Vector: ("..zox..", "..zoy..", "..zoz..")")
 
-		local groundMinimum = GetMapBoundedGroundHeight(new_px, new_pz) + 20
+		local groundMinimum = GetMapBoundedGroundHeight(new_px, new_pz) + options.minzoomdistance.value
 
 		-- Echo("groundMinimum is ", groundMinimum)
 		if not options.freemode.value then
@@ -1813,7 +1833,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 
 		end
 
-		if new_py == new_py then -- ??? it is always true
+		if new_py == new_py then -- ??? it is always true? or is it to prevent +inf/-inf/nan?
 			local boundedPy = (options.freemode.value and new_py) or min(max(new_py, groundMinimum), maxDistY - 10)
 			cs.px = new_px-- * (boundedPy/math.max(new_py, 0.0001))
 			cs.py = boundedPy
