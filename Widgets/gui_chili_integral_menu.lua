@@ -16,6 +16,10 @@ end
 local Echo = Spring.Echo
 -- Helwor Add
 	-- implement similarFacs detected to issue build order on other selected facs when user add or remove units from unit queue buttons
+	-- implement pro mode and semi pro mode, where command panel is moved far away from screen (semi pro to keep only panel visible if factory or fake factory is selected)
+	-- implement alt mod that can interact with StriderHubAlt ordering an automatic nanoframe plop with no need of placing manually
+	-- implement right button click for removing type of unit in the queue, alt + right button remove every order of the same type in the queue (can work with fake factories like Strider Hub too)
+	-- option to focus on athena build tab upon selection
 --
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -29,6 +33,7 @@ local spGetMouseState = Spring.GetMouseState
 local spGetRealBuildQueue = Spring.GetRealBuildQueue
 local spGetSelectedUnits = Spring.GetSelectedUnits
 local spGetSelectedUnitsCount = Spring.GetSelectedUnitsCount
+local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 local spGetSpectatingState = Spring.GetSpectatingState
 local spGetUnitDefID = Spring.GetUnitDefID
 local spGetUnitHealth = Spring.GetUnitHealth
@@ -48,17 +53,29 @@ local specialKeyCodes = include("Configs/integral_menu_special_keys.lua")
 local custom_cmd_actions = include("Configs/customCmdTypes.lua")
 local cullingSettingsList, commandCulling =  include("Configs/integral_menu_culling.lua")
 local transkey = include("Configs/transkey.lua")
+
+local factoryDef = {}
+local fakeFacDef = {}
 local facOfPlate = {}
+local mobileFakeFacDef = {}
 local plateOfFac = {}
-for i = 1, #UnitDefs do
-	local ud = UnitDefs[i]
-	local cp = ud.customParams
-	if (cp.parent_of_plate or cp.child_of_factory) then
-		if cp.child_of_factory then
-			facOfPlate[i] = UnitDefNames[cp.child_of_factory].id
+for defID, def in ipairs(UnitDefs) do
+	local cp = def.customParams
+	if def.isFactory then
+		factoryDef[defID] = true
+		if (cp.parent_of_plate or cp.child_of_factory) then
+			if cp.child_of_factory then
+				facOfPlate[defID] = UnitDefNames[cp.child_of_factory].id
+			end
+			if cp.parent_of_plate then
+				plateOfFac[defID] = UnitDefNames[cp.parent_of_plate].id
+			end
 		end
-		if cp.parent_of_plate then
-			plateOfFac[i] = UnitDefNames[cp.parent_of_plate].id
+	elseif cp.isfakefactory then
+		if cp.notreallyafactory then
+			mobileFakeFacDef[defID] = true
+		else
+			fakeFacDef[defID] = true
 		end
 	end
 end
@@ -150,19 +167,22 @@ local simpleModeEnabled = true
 local firstUpdate = 5
 local userBackGroundOpacity = 0.8
 local UpdateProModeNow
-local facSelected = false
+local anyFacSelected = false
 local wantUpdate = false
 
 local buildTabHolder, buttonsHolder -- Required for padding update setting
-local PRO_MODE = false
-local KEEP_FAC_BUILD = true
+local pro_mode = false
+local pro_keep_fac = true
+local focus_units_athena = false
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Widget Options
-
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
 options_path = 'Settings/HUD Panels/Command Panel'
 options_order = {
-	'simple_mode', 'pro_mode', 'keep_fac_in_pro', 'enable_return_fire', 'enable_roam',
+	'simple_mode',
+	'pro_mode', 'pro_keep_fac', 'focus_units_athena',
+	'enable_return_fire', 'enable_roam',
 	'background_opacity', 'keyboardType2',  'selectionClosesTab', 'selectionClosesTabOnSelect', 'altInsertBehind',
 	'unitsHotkeys2', 'ctrlDisableGrid', 'hide_when_spectating', 'applyCustomGrid', 'label_apply',
 	'label_tab', 'tab_economy', 'tab_defence', 'tab_special', 'tab_factory', 'tab_units',
@@ -202,28 +222,40 @@ options = {
 		name = "Pro Mode",
 		desc = "You don't need any comand button to show, you're too op.",
 		type = 'bool',
-		value = PRO_MODE,
+		value = pro_mode,
 		OnChange = function(self)
-			PRO_MODE = self.value
+			pro_mode = self.value
 			if not firstUpdate then
 				UpdateProModeNow()
 				tabPanel.MovePro()
 			end
 		end,
+		path = helk_path,
 	},
-	keep_fac_in_pro = {
+	pro_keep_fac = {
 		name = 'Keep Fac Build Options in Pro Mode',
 		desc=  'Keep Factory build and Queue in Pro Mode, because you\'re not that op.',
 		type = 'bool',
-		value = KEEP_FAC_BUILD,
+		value = pro_keep_fac,
 		OnChange = function(self)
-			KEEP_FAC_BUILD = self.value
+			pro_keep_fac = self.value
 			if not firstUpdate then
 				UpdateProModeNow()
 				tabPanel.MovePro()
 			end
 
 		end,
+		path = helk_path,
+	},
+	focus_units_athena = {
+		name = 'Focus Units Tab upon selecting Athenas',
+		desc = 'Or any other mobile fake factory',
+		type = 'bool',
+		value = focus_units_athena,
+		OnChange = function(self)
+			focus_units_athena = self.value
+		end,
+		path = helk_path,
 	},
 	enable_return_fire = {
 		name = "Enable return fire state",
@@ -1098,12 +1130,18 @@ end
 local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, queueBlock)
 	local left, right = mouse == 1, mouse == 3
 	local alt, ctrl, meta, shift = spGetModKeyState()
-
-	if right and alt then
-		-- fully remove a given buildType in the queue
-		spGiveOrderToUnit(factoryUnitID, CMD.REMOVE, cmdID, CMD.OPT_ALT + CMD.OPT_CTRL)
-		return true
-	end	
+	if factoryUnitID then
+		if right and alt then
+			-- fully remove a given buildType in the queue, can also work on fake factories like Strider Hub
+			spGiveOrderToUnit(factoryUnitID, CMD.REMOVE, cmdID, CMD.OPT_ALT + CMD.OPT_CTRL)
+			return true
+		elseif right and not isQueueButton then
+			-- remove amount of units in the queue
+			local opt = CMD.OPT_RIGHT + (shift and CMD.OPT_SHIFT or 0) + (ctrl and CMD.OPT_CTRL or 0)
+			spGiveOrderToUnit(factoryUnitID, cmdID, {}, opt)
+			return true
+		end	
+	end
 	-- -- RMB beats Alt since Alt is opposed to the concept of removing orders.
 	-- if right then
 	-- 	alt = false
@@ -1176,7 +1214,6 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 	local isDisabled = false
 	local isSelected = false
 	local isQueueButton = buttonLayout.queueButton
-	local hasUnitPanel
 	local hotkeyText
 	local keyToShowWhenVisible
 	local function DoClick(_, _, _, mouse)
@@ -1212,8 +1249,8 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 				-- Echo('button resize', firstUpdate, self.width)
 				if not firstUpdate then
 
-					if PRO_MODE ~= (self.x >= 10000) then
-						-- self:SetPos(self.x + (PRO_MODE and 10000 or -10000))
+					if pro_mode ~= (self.x >= 10000) then
+						-- self:SetPos(self.x + (pro_mode and 10000 or -10000))
 						-- if tabHolder.parent then
 						-- 	tabHolder.parent:Invalidate()
 						-- end
@@ -1535,7 +1572,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		-- Echo('updatePro button', firstUpdate)
 		if not firstUpdate then
 			if not isStateCommand then
-				if PRO_MODE and (not KEEP_FAC_BUILD or not (hasUnitPanel or isQueueButton)) then
+				if pro_mode and (not pro_keep_fac or not (anyFacSelected or isQueueButton)) then
 					-- button:Hide()
 					if button.x < 10000 then
 						button:SetPos(button.x + 10000)
@@ -1558,7 +1595,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		SetText(textConfig.queue.name, count)
 	end
 	externalFunctionsAndData.UpdateProMode = UpdateProMode
-	function externalFunctionsAndData.SetCommand(command, overrideCmdID, notGlobal, unitPanel)
+	function externalFunctionsAndData.SetCommand(command, overrideCmdID, notGlobal)
 		-- If overrideCmdID is negative then command can be nil.
 		local newCmdID = overrideCmdID or command.id
 
@@ -1570,7 +1607,6 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		end
 		
 		isStateCommand = command and (command.type == CMDTYPE.ICON_MODE and #command.params > 1)
-		hasUnitPanel = unitPanel
 
 		local state = isStateCommand and (((WG.GetOverriddenState and WG.GetOverriddenState(newCmdID)) or command.params[1]) + 1)
 
@@ -2077,12 +2113,12 @@ local function GetTabPanel(parent, rows, columns)
 		orientation = "horizontal",
 		OnResize = {
 			function(self)
-				-- Echo('shown', os.clock(),'parent', self.parent, 'PRO_MODE', PRO_MODE, 'firstUpdate', firstUpdate)
+				-- Echo('shown', os.clock(),'parent', self.parent, 'pro_mode', pro_mode, 'firstUpdate', firstUpdate)
 				wantUpdate = true
 				if not firstUpdate then
 					-- Echo('tab moved on resize')
-					-- if PRO_MODE ~= (self.x >= 10000) then
-					-- 	self:SetPos(self.x + (PRO_MODE and 10000 or -10000))
+					-- if pro_mode ~= (self.x >= 10000) then
+					-- 	self:SetPos(self.x + (pro_mode and 10000 or -10000))
 					-- end
 				end
 			end
@@ -2112,12 +2148,9 @@ local function GetTabPanel(parent, rows, columns)
 
 	local function MovePro()
 		if not firstUpdate then
-			local bool = PRO_MODE and not (KEEP_FAC_BUILD and facSelected)
+			local bool = pro_mode and not (pro_keep_fac and (anyFacSelected))
 			if bool ~= (tabHolder.x >= 10000) then
 				tabHolder:SetPos(tabHolder.x + (bool and 10000 or -10000))
-				-- if tabHolder.parent then
-				-- 	tabHolder.parent:Invalidate()
-				-- end
 				background.noClickThrough = not bool
 				background.backgroundColor[4] = bool and math.min(0.2, userBackGroundOpacity) or userBackGroundOpacity
 				background:Invalidate()
@@ -2179,36 +2212,29 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Command Handling
-local function GetSimilarFacs(targetDefID, selection, index)
-	local altDefID = plateOfFac[targetDefID] or facOfPlate[targetDefID]
-	local similars = {}
-	for i = index + 1, #selection do
-		local unitID = selection[i]
-		local defID = spGetUnitDefID(unitID)
-		if defID == targetDefID or defID == altDefID then
-			similars[#similars + 1] = unitID
-		end
-	end
-	if similars[1] then
-		similarFacs = similars
-	end
-end
-local function GetSelectionValues()
-	local selection = spGetSelectedUnits()
-	similarFacs = false
-	facSelected = false
-	for i = 1, #selection do
-		local unitID = selection[i]
-		local defID = spGetUnitDefID(unitID)
-		local def = defID and UnitDefs[defID]
-		if def and (def.isFactory or def.customParams.isfakefactory) and (not def.customParams.notreallyafactory) then
-			facSelected = true
-			return unitID, defID, def.customParams.isfakefactory, #selection, GetSimilarFacs(defID, selection, i)
-		end
-	end
-	return false, nil, nil, #selection
-end
 
+local function GetSelectionValues()
+	local selDefID = spGetSelectedUnitsSorted()
+	similarFacs = false
+	anyFacSelected = false
+	for defID, units in pairs(selDefID) do
+		if factoryDef[defID] or fakeFacDef[defID] then
+			anyFacSelected = true
+			similarFacs = units
+			local altUnits = selDefID[ plateOfFac[defID] or facOfPlate[defID] ]
+			if altUnits then
+				local n = #similarFacs
+				for i, unitID in ipairs(altUnits) do
+					similarFacs[n+i] = unitID
+				end
+			end
+			return units[1], defID, fakeFacDef[defID], spGetSelectedUnitsCount()
+		elseif mobileFakeFacDef[defID] then
+			anyFacSelected = true
+		end
+	end
+	return false, nil, nil, nil, spGetSelectedUnitsCount()
+end
 local function HiddenCommand(command)
 	return hiddenCommands[command.id] or command.hidden or (commandCulling and commandCulling[command.id])
 end
@@ -2269,7 +2295,7 @@ local function ProcessCommand(command, factoryUnitID, factoryUnitDefID, fakeFact
 			
 			local button = panel.buttons.GetButton(x, y, selectionIndex)
 			
-			button.SetCommand(command, nil, nil, factoryUnitDefID or unitMobilePanelSize > 1 or fakeFactory)
+			button.SetCommand(command, nil, nil)
 			if panel.factoryQueue then
 				button.SetQueueCommandParameter(factoryUnitID, nil, fakeFactory)
 			end
@@ -2362,7 +2388,7 @@ local function ProcessAllCommands(commands, customCommands)
 		if not unitsFactoryTab.IsTabPresent() then
 			tabToSelect = "units_factory"
 		end
-	elseif unitMobilePanelSize > 1 then
+	elseif focus_units_athena and anyFacSelected then
 		local unitsMobileTab = commandPanelMap.units_mobile.tabButton
 		if not unitsMobileTab.IsTabPresent() then
 			tabToSelect = "units_mobile"
@@ -2502,8 +2528,8 @@ local function InitializeControls()
 					if not firstUpdate then
 						-- Echo('move button panel', i, self.parent, self.visible)
 						-- for i, child in ipairs(self.children) do
-						-- 	if PRO_MODE ~= (child.x >= 10000) then
-						-- 		child:SetPos(child.x + (PRO_MODE and 10000 or -10000))
+						-- 	if pro_mode ~= (child.x >= 10000) then
+						-- 		child:SetPos(child.x + (pro_mode and 10000 or -10000))
 						-- 		-- child:Invalidate()
 						-- 		-- if tabHolder.parent then
 						-- 		-- 	tabHolder.parent:Invalidate()
@@ -2773,10 +2799,7 @@ function widget:Update()
 		firstUpdate = firstUpdate - 1
 		if firstUpdate == 0 then
 			firstUpdate = false
-
-			-- tabPanel.MovePro()
 			widget:CommandsChanged()
-			
 		end
 	end
 end
@@ -2818,6 +2841,7 @@ function widget:KeyPress(key, modifier, isRepeat)
 	end
 	return false
 end
+
 
 function widget:PlayerChanged(playerID)
 	if options.hide_when_spectating.value then
