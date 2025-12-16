@@ -2926,7 +2926,9 @@ function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOp
 	--if unitID==24703 then Echo("PBH UC unit:"..unitID,cmdID,unpack(cmdParams)) end
 	--if g.preGame then Echo("order stop") spGiveOrderToUnitArray({unitID},CMD.STOP, {},{}) end
 end
+local selChanged = false
 function widget:SelectionChanged(newsel,less)
+	selChanged = true
 	-- local identical = #cons == #newsel
 	-- if identical then
 	--     local common = {}
@@ -2946,6 +2948,9 @@ function widget:SelectionChanged(newsel,less)
 end
 
 function widget:CommandsChanged()
+	if not selChanged then
+		return
+	end
 	-- if not ordered then cons=getcons() end
 	local newsel = getcons()
 	myPlatforms.x, myPlatforms.z = false,false
@@ -4055,6 +4060,10 @@ do -- work around to get origHeight on auto generated maps where Spring.GetGroun
 			widgets.fac_preorder = widgetHandler:FindWidget("Factory Preorder")
 			widgetHandler:UpdateWidgetCallIn('Update', widget)
 			widgetHandler:UpdateWidgetCallIn('MousePress', widget)
+			local pbh = widgetHandler:FindWidget("Persistent Build Height")
+			if pbh then
+				widgetHandler:RemoveWidget(pbh)
+			end
 		end
 		screenFrame = screenFrame + 1
 	end
