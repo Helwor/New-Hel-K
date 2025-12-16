@@ -4282,6 +4282,8 @@ function widget:Shutdown()
 		widgets.command_insert.CommandNotify = widgets.command_insert._CommandNotify
 		widgets.command_insert._CommandNotify = nil
 	end
-
+	if widgetHandler.knownWidgets["Persistent Build Height"] then
+		widgetHandler:EnableWidget("Persistent Build Height")
+	end
 end
 f.DebugWidget(widget)
