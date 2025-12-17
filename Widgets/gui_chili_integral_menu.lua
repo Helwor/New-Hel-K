@@ -961,7 +961,6 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Command Queue Editing Implementation
-
 local function MoveOrRemoveCommands(cmdID, factoryUnitID, commands, queuePosition, inputMult, reinsertPosition)
 	if not commands then
 		return
@@ -982,7 +981,6 @@ local function MoveOrRemoveCommands(cmdID, factoryUnitID, commands, queuePositio
 			if thisCmdID ~= cmdID then
 				break
 			end
-	
 			alreadyRemovedTag[cmdTag] = true
 			spGiveOrderToUnit(factoryUnitID, CMD.REMOVE, {cmdTag}, CMD.OPT_CTRL)
 			if reinsertPosition then
@@ -1164,8 +1162,10 @@ local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, 
 		else
 			QueueClickFunc(mouse, right, alt, ctrl, meta, shift, cmdID, factoryUnitID, queueBlock)
 			if similarFacs then
-				for i, factoryUnitID in pairs(similarFacs) do
-					QueueClickFunc(mouse, right, alt, ctrl, meta, shift, cmdID, factoryUnitID, nil)
+				for i, facID in pairs(similarFacs) do
+					if facID ~= factoryUnitID then
+						QueueClickFunc(mouse, right, alt, ctrl, meta, shift, cmdID, facID, nil)
+					end
 				end
 			end
 		end
