@@ -157,7 +157,7 @@ function widget:CommandNotify(cmdID, params, opts) -- need modified gui_chili_in
 					moveOrders[unitID][#moveOrders[unitID] + 1] = params
 				end
 				capture = true
-			elseif cmdID < 0 then
+			elseif cmdID < 0 and opts.alt then
 				if newSequence then
 					local queue = spGetCommandQueue(unitID, -1)
 					local build = false
