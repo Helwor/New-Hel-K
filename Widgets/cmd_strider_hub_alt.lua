@@ -146,8 +146,10 @@ function widget:Update()
 end
 
 function widget:CommandNotify(cmdID, params, opts) -- need modified gui_chili_integral_menu.lua
+
 	if selectionDefID[striderHubDefID] then
 		local capture = false
+		local onUI = WG.Chili.Screen0.hoveredControl
 		for i, unitID in ipairs(selectionDefID[striderHubDefID]) do
 			if cmdID == CMD_RAW_MOVE then
 
@@ -158,21 +160,24 @@ function widget:CommandNotify(cmdID, params, opts) -- need modified gui_chili_in
 				end
 				capture = true
 			elseif cmdID < 0 and opts.alt then
+
 				if newSequence then
-					local queue = spGetCommandQueue(unitID, -1)
-					local build = false
-					for i, order in ipairs(queue) do
-						if order.id < 0 then
-							build = true
-							break
+					if onUI then
+						local queue = spGetCommandQueue(unitID, -1)
+						local build = false
+						for i, order in ipairs(queue) do
+							if order.id < 0 then
+								build = true
+								break
+							end
 						end
-					end
-					if not build then
-						local x, y, z = GetClosestBuildPos(-cmdID, unpack(myHubs[unitID]))
-						if x == -1 then
-							Echo('['..widget:GetInfo().name..']: '.. UnitDefs[striderHubDefID].humanName .. ' #' .. unitID .. ' couldn\'t find a location to build ' .. UnitDefs[-cmdID].humanName .. '.')
-						else
-							spGiveOrderToUnit(unitID, cmdID, {x, y, z, 0}, opts)
+						if not build then
+							local x, y, z = GetClosestBuildPos(-cmdID, unpack(myHubs[unitID]))
+							if x == -1 then
+								Echo('['..widget:GetInfo().name..']: '.. UnitDefs[striderHubDefID].humanName .. ' #' .. unitID .. ' couldn\'t find a location to build ' .. UnitDefs[-cmdID].humanName .. '.')
+							else
+								spGiveOrderToUnit(unitID, cmdID, {x, y, z, 0}, opts)
+							end
 						end
 					end
 					newSequence = false
