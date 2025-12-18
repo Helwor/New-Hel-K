@@ -874,7 +874,7 @@ function groundModule:GetSnapOrder(target)
 	if rTarget == 0 then
 		rTarget = OFF_WATER
 	end
-	local water = mol(rTarget,0,tol) and not (p.floater) and rTarget or OFF_WATER
+	local water = mol(rTarget,0,tol) and not (p.floater) and rTarget or OFF_WATER	-- if rTarget == 0 then
 	-- if rTarget == 0 then
 	--     rTarget = OFF_WATER
 	-- end
@@ -882,7 +882,7 @@ function groundModule:GetSnapOrder(target)
 	if rHeight <= tol and (p.floater) then
 		rHeight = water
 	end
-	if rOrigHeight<=tol and (p.floater) then
+	if rOrigHeight <= tol and (p.floater) then
 		rOrigHeight = water
 	end
 	-- Echo("rHeight,rOrigHeight,rTarget is ", rHeight,rOrigHeight,rTarget,mol(rHeight,rOrigHeight,7),mol(rHeight,rOrigHeight,7) and rOrigHeight or rHeight,mol(rHeight,rOrigHeight,7) and rHeight or rOrigHeight)
@@ -1578,6 +1578,7 @@ do
 		if (p.floater) and height < 0 then
 			level = level - height
 		end
+
 		-- level = PH + (p.floatOnWater and not p.underSea and 0 or height)
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + groundModule.minGround
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + refHeight
@@ -1594,8 +1595,7 @@ do
 		--     level = OFF_WATER
 		-- end
 		local oldlvl = level
-		level = groundModule:UpdateSnap(level,false,false,p)
-
+		level = groundModule:UpdateSnap(level, false, false, p)
 		if level == 0 then
 			level = OFF_WATER
 		end
@@ -1705,7 +1705,6 @@ do
 		if mustTerraform and PID == shipFactoryDefID and pointY == OFF_WATER and not g.lava then
 			pointY = -20
 		end
-
 		--if snapOriGround  and (isMex or not mustTerraform) or pointY==OFF_WATER and not digToWater and floater or (snapSub and not mustTerraform) then -- fixed water canFloat and digging
 	-- fixed water canFloat and 
 		if pid == geoDefID then
@@ -1714,7 +1713,6 @@ do
 				sloppedTerrain, mustTerraform = false, false
 			end
 		end
-		-- Echo("pointY is ", pointY)
 		return not g.noterra and mustTerraform, pointY, blockingStruct, sloppedTerrain
 	end
 	CheckTerra = WG.CheckTerra
@@ -3101,7 +3099,7 @@ local function Process(mx, my, update)
 	-- 	mx, my = ClampMouseToMinimap(mx, my)
 	-- end
 
-	px, _, pz, offmap = UniTraceScreenRay(mx, my, useMinimap, p.underSea, p.sizeX, p.sizeZ)
+	px, _, pz, offmap = UniTraceScreenRay(mx, my, useMinimap, not p.floatOnWater, p.sizeX, p.sizeZ)
 	if not px then
 		return
 	end
