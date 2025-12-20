@@ -1913,6 +1913,9 @@ function widget:MouseWheel(up, value)
 	if g.NEW_PID then
 		g.NEW_PID = false
 		placementHeight = not g.noterra and buildHeight[PID] or 0
+		if placementHeight > 0 ~= up then
+			placementHeight = 0
+		end
 		if placementHeight ~= 0 then
 			snapTime = spGetTimer()
 			-- g.BRIEF_SNAP = true
