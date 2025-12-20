@@ -37,6 +37,11 @@ local DEFAULT_DRAW_POS = {resX/2, resY/2} -- default of draw screen  in non cyli
 local DEFAULT_CYLINDER_DRAW_POS = {(resX/2), 180}
 local selectionChanged
 local KEYCODES = WG.KEYCODES
+
+
+
+
+
 --include("Widgets/COFCtools/TraceScreenRay.lua")
 
 local f = WG.utilFuncs
@@ -147,6 +152,7 @@ local Cam
 local call -- the macro running
 local lastCall -- to be able to change radius of calls that are on_press // not tested/implemented yet
 
+local sh = {Aloss = 0, Eloss = 0, CurAl = 0, CurEl = 0, SelCost = 0, Sel_n = 0, extra = false}
 
 local g = { -- mini global, shared variables amongst widget to avoid upvalues limit
 	ctrlGroups = {},
@@ -520,7 +526,7 @@ local BASE_CAMERA_HEIGHT = 2418
 ------------------------------------------------------------------------------------------------------------
 ---  CONFIG
 ------------------------------------------------------------------------------------------------------------
-local zoom_scaling = 4 -- divisor to tone down how much the zoom affect the radius
+local zoom_scaling = 6 -- divider to tone down how much the zoom affect the radius
 
 -- local MAX_SELECTIONS = 20 -- set the maximum Selections you want to memorize -- unused/unuseful combo deactivated
 local LONGPRESS_THRESHOLD = 0.3
@@ -571,17 +577,34 @@ local SwitchImpulse = function()
 	if not cmdDescs then
 		return
 	end
-	local cmdDescImpulseIndex = Spring.GetCmdDescIndex(CMD_PUSH_PULL)
-	if not  cmdDescImpulseIndex then
+	local cmdIdx = Spring.GetCmdDescIndex(CMD_PUSH_PULL)
+	if not  cmdIdx then
 		return
 	end
-	local impulseState = cmdDescs[cmdDescImpulseIndex].params[1]
+	local impulseState = cmdDescs[cmdIdx].params[1]
 
 	local newState = impulseState == '1' and 0 or 1
 	Spring.GiveOrder(CMD_PUSH_PULL, {newState, 0}, 0)
+	sh.extra = newState == 1 and ' ON' or ' OFF'
+	return true
 end
 
+local SwitchFlyIdleMode = function()
+	local cmdDescs = Spring.GetActiveCmdDescs()
+	if not cmdDescs then
+		return
+	end
+	local cmdIdx = Spring.GetCmdDescIndex(CMD.IDLEMODE)
+	if not  cmdIdx then
+		return
+	end
+	local flyState = cmdDescs[cmdIdx].params[1]
 
+	local newState = flyState == '1' and 0 or 1
+	sh.extra = newState == 1 and ' ON' or ' OFF'
+	Spring.GiveOrder(CMD.IDLEMODE, {newState, 0}, 0)
+	return true
+end
 
 
 
@@ -1167,7 +1190,7 @@ local hotkeysCombos = {
 					-- the starting switch is incremented at each new call
 					{
 						XAND = { -- XAND accept to add hover or amph if some ships has been found
-							family = {'hover', 'amph'}
+							family = {'hover', 'amph'}, ['!class'] = {'conunit', 'raider'}
 						},
 						family = 'ship', ['!class'] = {'conunit', 'raider'}
 					},
@@ -1444,6 +1467,7 @@ local hotkeysCombos = {
 				OnSuccessFunc = function() 
 					Spring.GiveOrder(CMD.GATHERWAIT, {}, {shift = true})  
 					WG.noises.PlayResponse(false, currentSel[1])
+					return true
 				end, -- CMD and param given directly to units covered by the method, without selecting them 
 				color = {0.8, 0.8, 0.0, 0.9  },
 				fading = 0.6,
@@ -1971,7 +1995,6 @@ local hotkeysCombos = {
 			keep_on_fail = true,
 			call_on_fail = 'Switch Impulse',
 			hasStructure = true,
-			-- same_units = true, -- use same 'previous' table as the cited macro
 		}, 
 
 
@@ -1981,11 +2004,22 @@ local hotkeysCombos = {
 			defs = {'isImpulse'},
 			no_select = true,
 			on_press = true,
-			-- give_order = {[CMD_CLOAK_SHIELD] = {1, 0}, [CMD_WANT_ONOFF] = {1, 0}}, -- activate the cloak shield, activate the cloak jammer if any
 			force = true,
 			hasStructure = true,
 			OnSuccessFunc = SwitchImpulse,
+			call_on_fail = "Switch Fly State",
 		}, 
+
+		{
+			name = 'Switch Fly State', -- 
+			method = 'on_selection',
+			defs = {['?'] = {'isPlane', 'isGS', 'isAthena'}},
+			no_select = true,
+			on_press = true,
+			force = true,
+			OnSuccessFunc = SwitchFlyIdleMode, 
+		}, 
+
 
 		{
 			name = 'High Prio', -- 
@@ -2453,6 +2487,7 @@ local hotkeysCombos = {
 			-- cancel the tab we're in
 				if IM then -- upon success, send an ESCAPE key press event to Integral Menu for it reset the tabs back
 					IM:KeyPress(KEYSYMS.ESCAPE, MODS_FALSE, false)
+					return true
 				end
 			end,
 
@@ -3376,7 +3411,7 @@ local hotkeysCombos = {
 			method = 'cylinder',
 			keys = {'AIR', '?SPACE', 1, 'longPress', '?mouseStill'},
 			-- on_press = true,
-			longPressTime = 0.2,
+			longPressTime = 0.1,
 			-- radius = 1000,
 			defs = {name = {'planefighter', 'chicken_pigeon'}},
 			-- no_key_order = true,
@@ -3871,8 +3906,6 @@ end--]]
 
 -- local TABLE_CUST_COMM_DRAW_DATA = {0.5, 1.0, 0.5, 1}
 
-local sh = {Aloss = 0, Eloss = 0, CurAl = 0, CurEl = 0, SelCost = 0, Sel_n = 0}
-
 
 --FullTableToStringCode(T, {clip = true, breaks = 1, sort = sort})
 g.Selections = {n = 0}
@@ -3885,7 +3918,7 @@ local fullSel
 
 
 local Debug = { -- default values
-	active = true, -- no debug, no hotkey active without this
+	active = false, -- no debug, no hotkey active without this
 	global = false, -- global is for no key : 'Debug(str)'
 
 	keyDetect = false,
@@ -3902,16 +3935,16 @@ options_path = 'Hel-K/' .. widget:GetInfo().name
 
 options_order = {
 	
-	'no_select_on_partial',
 	'use_screen_circle',
- 	-- debugging
- 	'test',
+	'no_select_on_partial',
+	'zoom_scaling',
+ 	-- 'test',
 }
 options = {}
 options.no_select_on_partial = {
 	name = 'No Select on partial sel',
-	desc = 'Temporary prevent from selecting units that comes from a partial selection'
-	.. '(resized or very small number). Set 0 to deactivate',
+	desc = 'Time in sec where you can\'t reselect a selection that has just been resized (or in very small number)\n'
+	.. 'In most cases where you want to split an army, control the first part, and then select the other part. Set 0 to deactivate',
 	type = 'number',
 	min = 0, max = 5, step = 0.1,
 	value = partialNoSelect,
@@ -3926,6 +3959,17 @@ options.use_screen_circle = {
 	value = useScreenCircle,
 	OnChange = function(self)
 		useScreenCircle = self.value
+	end,
+}
+
+options.zoom_scaling = {
+	name = 'Zoom Selection Scaling',
+	desc = 'How much the zooming out reduce the radius of selection',
+	value = zoom_scaling,
+	type = 'number',
+	min = 2, max = 10, step = 1,
+	OnChange = function(self)
+		zoom_scaling = self.value
 	end,
 }
 
@@ -4768,7 +4812,6 @@ local function FinishCall(selecting)
 		selecting = false
 	end
 	success = RealizeCall(call, selecting, acquired, lastSel, success)
-
 	call.success = success
 
 	local lchained =  last.chained[#last.chained]
@@ -4800,7 +4843,7 @@ local function FinishCall(selecting)
 	end
 	call.failed = not success
 	if success and call.OnSuccessFunc then
-		call.OnSuccessFunc()
+		success = call.OnSuccessFunc()
 	end
 	local call_on_fail = not success and call.secondary ~= call.call_on_fail and call.call_on_fail
 	local call_on_success = success and call.secondary ~= call.call_on_success and call.call_on_success
@@ -5427,7 +5470,7 @@ do ---- **INITIALIZATION** ------
 		----- optionable drawing ------
 
 		combo.color = set.color  or GetRandomizedColor(#set.name, i , #set.method, set.method == 'cylinder' and 1 or 0.6)
-		combo.fading = set.fading or combo.color[4]
+		combo.fading = set.fading or combo.on_press and 0.3 or 0.6
 		combo.hide = set.hide
 
 		-- Lock setting
@@ -6899,8 +6942,8 @@ do
 					checked[id] = true
 				end
 				if not spValidUnitID(id) or spGetUnitIsDead(id) then
-					local tickSound = LUAUI_DIRNAME .. 'Sounds/buildbar_rem.wav'
-					Spring.PlaySoundFile(tickSound, 0.95, 'ui')
+					-- local tickSound = LUAUI_DIRNAME .. 'Sounds/buildbar_rem.wav'
+					-- Spring.PlaySoundFile(tickSound, 0.95, 'ui')
 					-- Echo('found invalid in FindUnits', id, spGetUnitIsDead(id), Units[id])
 				else
 						-- Echo("checking", (Units[id].name..' ('..id..')'):upper())
@@ -8304,6 +8347,7 @@ do
 				sh.SelCost = 0
 				sh.Sel_n = 0
 				sh.sw = false
+				sh.extra = false
 
 				if call.option_name then 
 					local opt = options[call.option_name]
@@ -9301,6 +9345,9 @@ end
 				glColor(dR, dG, dB, dTextAlpha)
 				-- if call and call.continue and call.selname and g.acquired.n>0 then dsSelName = Units[next(g.acquired.byID, nil)].name end
 				local extra = ''
+				if sh.extra then
+					extra = extra .. sh.extra
+				end
 				if sh.sw then
 					extra = extra .. ' sw: '.. sh.sw
 				end
