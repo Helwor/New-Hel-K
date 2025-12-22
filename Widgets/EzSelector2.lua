@@ -1128,6 +1128,7 @@ local hotkeysCombos = {
 				share_radius = 'Cons (Idle)',
 				-- keep_on_fail = true,
 				-- ifSecondary = {keep_on_fail = true},
+				isTmpLock = 'AIR',
 				keep_on_identical = true,
 				color = {0, 0.8, 0.9,	0.8	},
 				fading = 0.6
