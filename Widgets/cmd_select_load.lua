@@ -27,11 +27,11 @@ local noSelectNeeded    = true
 --
 
 
-VFS.Include("LuaRules/Configs/customcmds.h.lua")
+local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
 
 
 local CMD_MOVE                  = CMD.MOVE
-local CMD_SET_WANTED_MAX_SPEED  = CMD.SET_WANTED_MAX_SPEED
+local CMD_SET_WANTED_MAX_SPEED  = CMD.SET_WANTED_MAX_SPEED or 70
 local CMD_LOAD_UNITS            = CMD.LOAD_UNITS
 local CMD_UNLOAD_UNIT           = CMD.UNLOAD_UNIT
 local CMD_RECLAIM               = CMD.RECLAIM
@@ -43,10 +43,16 @@ local CMD_MANUALFIRE            = CMD.MANUALFIRE
 
 local CMD_OPT_SHIFT             = CMD.OPT_SHIFT
 local CMD_OPT_RIGHT             = CMD.OPT_RIGHT
+local CMD_OPT_ALT				= CMD.OPT_ALT
 
-local CMD_ONECLICK_WEAPON       = CMD_ONECLICK_WEAPON
+local CMD_LOADUNITS_SELECTED	= customCmds.LOADUNITS_SELECTED
+local CMD_ONECLICK_WEAPON       = customCmds.ONECLICK_WEAPON
+local CMD_RAW_BUILD				= customCmds.RAW_BUILD
+local CMD_RAW_MOVE				= customCmds.RAW_MOVE
+local CMD_JUMP					= customCmds.JUMP
 
 
+customCmds = nil
 
 local UseHungarian, SpiralSquare
 
@@ -143,7 +149,8 @@ local spGetGroundHeight             = Spring.GetGroundHeight
 local spGetUnitVelocity             = Spring.GetUnitVelocity
 local spGetTeamUnitsByDefs          = Spring.GetTeamUnitsByDefs
 local spGetUnitEffectiveBuildRange  = Spring.GetUnitEffectiveBuildRange
-
+local spGetUnitDefID				= Spring.GetUnitDefID
+local spGetFeatureDefID				= Spring.GetFeatureDefID
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- From transport AI
@@ -153,11 +160,31 @@ local MAX_UNITS = Game.maxUnits
 local areaTarget -- used to match area command targets
 local myTeamId = spGetMyTeamID()
 
+
+local GetRadius
+do
+	local featureMode = false
+	local cache = setmetatable({}, {
+		__index = function(self, defID)
+			local radius = (featureMode and FeatureDefs or UnitDefs)[defID].radius
+			rawset(self, defID, radius)
+			return radius
+		end
+	})
+	function GetRadius(defID, isFeature)
+		if not defID then
+			return
+		end
+		featureMode = isFeature
+		return cache[defID]
+	end
+end
+
 local goodCommand = {
 	[CMD_MOVE] = true,
 	[CMD_RAW_MOVE] = true,
 	[CMD_RAW_BUILD] = true,
-	[CMD_SET_WANTED_MAX_SPEED or 70] = true,
+	[CMD_SET_WANTED_MAX_SPEED] = true,
 	[CMD.GUARD] = true,
 	[CMD_RECLAIM] = true,
 	[CMD_REPAIR] = true,
@@ -165,16 +192,28 @@ local goodCommand = {
 	[CMD_JUMP] = true,
 }
 
-local function AdjustForBuildDistance(unitID, params, lastMove)
-	local range = spGetUnitEffectiveBuildRange(unitID)
+local ignoreCommand = {
+	[CMD_SET_WANTED_MAX_SPEED] = true,
+	[CMD_RAW_BUILD] = true,
+	[CMD_WAIT] = true,
+}
+
+local function AdjustForBuildDistance(unitID, params, lastMove, targetRadius)
+	local range = spGetUnitEffectiveBuildRange(unitID) + (targetRadius or 0)
 	-- Echo("lastMove is ", lastMove)
 	if not lastMove then
 		lastMove = {spGetUnitPosition(unitID)}
 	end
+	if not params[3] then
+		params = {spGetUnitPosition(params[1])}
+		if not params[1] then
+			return false
+		end
+	end
 	local dirx,dirz = params[1]-lastMove[1], params[3]-lastMove[3]
 	local dist = (dirx^2 + dirz^2)^0.5
 	if dist < range then
-		Echo('dist too close')
+		-- Echo('dist too close')
 		return false
 	end
 	dirx, dirz = dirx / dist, dirz / dist
@@ -185,21 +224,22 @@ local function AdjustForBuildDistance(unitID, params, lastMove)
 end
 
 local function ProcessCommand(unitID, cmdID, params, lastMove)
+	if ignoreCommand[cmdID] then
+		return true, false
+	end
 	if not (goodCommand[cmdID] or cmdID < 0) then
 		return false
 	end
-	local halting = not (cmdID == CMD_MOVE or cmdID == CMD_RAW_MOVE or  cmdID == CMD_SET_WANTED_MAX_SPEED)
-	if cmdID == CMD_SET_WANTED_MAX_SPEED then
-		return true, halting
-	end
-	if cmdID == CMD_RAW_BUILD or cmdID < 0 then
-		if not AdjustForBuildDistance(unitID,params,lastMove) then
+	local halting = not (cmdID == CMD_MOVE or cmdID == CMD_RAW_MOVE or cmdID == CMD_SET_WANTED_MAX_SPEED or cmdID == CMD_RAW_BUILD)
+
+	if cmdID < 0 then
+		if not AdjustForBuildDistance(unitID, params, lastMove, GetRadius(-cmdID)) then
 			return false
 		end
 	end
 	local targetOverride
 
-	if params[5] and not params[6] and (cmdID == CMD_RESURRECT or cmdID == CMD_RECLAIM or cmdID == CMD_REPAIR) then
+	if params[5] and not params[6] and (cmdID == CMD_RESURRECT or cmdID == CMD_RECLAIM) then
 		areaTarget = {
 			x = params[2],
 			z = params[4],
@@ -225,10 +265,19 @@ local function ProcessCommand(unitID, cmdID, params, lastMove)
 	
 	local moveParams = {1, 2, 3}
 	if cmdID == CMD_RESURRECT or cmdID == CMD_RECLAIM then
-		moveParams[1], moveParams[2], moveParams[3] = spGetFeaturePosition((targetOverride or params[1] or 0) - MAX_UNITS)
+		local id = targetOverride or params[1]
+		moveParams[1], moveParams[2], moveParams[3] = spGetFeaturePosition((id or 0) - MAX_UNITS)
+		if moveParams[3] then
+			AdjustForBuildDistance(unitID, moveParams, lastMove, GetRadius(spGetFeatureDefID(id - MAX_UNITS), true))
+		end
 	else
-		moveParams[1], moveParams[2], moveParams[3] = spGetUnitPosition(targetOverride or params[1])
+		local id = targetOverride or params[1]
+		moveParams[1], moveParams[2], moveParams[3] = spGetUnitPosition(id)
+		if moveParams[3] then
+			AdjustForBuildDistance(unitID, moveParams, lastMove, GetRadius(spGetUnitDefID(id)))
+		end
 	end
+
 	return true, halting, moveParams[1] and moveParams
 end
 
@@ -349,7 +398,7 @@ local function AdjustForBlockedGround(location, unitID)
 end
 
 
-local function CopyMoveThenUnload(transID, unitID, isWaiting)
+local function CopyMoveThenUnload(transID, unitID)
 	local cmdQueue = spGetCommandQueue(unitID, -1)
 	if not cmdQueue then
 		return
@@ -359,28 +408,32 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 	
 	areaTarget = nil
 	local lastMove
-	for i = (isWaiting and 2 or 1), #cmdQueue do -- ignore the first waitcommand executed
+	-- for i = (isWaiting and 2 or 1), #cmdQueue do -- ignore the first waitcommand executed
+	for i = 1, #cmdQueue do -- ignore the first waitcommand executed
 
 		local cmd = cmdQueue[i]
-		local keepGoing, haltAtCommand, moveParams = ProcessCommand(unitID, cmd.id, cmd.params, lastMove)
-		if not keepGoing then
-			break
-		end
-		
-		if moveParams then
-			c = c + 1
-			commandLocations[c] = moveParams
-			lastMove = moveParams
-		end
-		
-		if haltAtCommand then
-			break
+		if i == 1 and cmd == CMD_WAIT then
+			-- skip
 		else
-			r = r + 1
-			queueToRemove[r] = cmd.tag
+			local keepGoing, haltAtCommand, moveParams = ProcessCommand(unitID, cmd.id, cmd.params, lastMove)
+			if not keepGoing then
+				break
+			end
+			
+			if moveParams then
+				c = c + 1
+				commandLocations[c] = moveParams
+				lastMove = moveParams
+			end
+			
+			if haltAtCommand then
+				break
+			else
+				r = r + 1
+				queueToRemove[r] = cmd.tag
+			end
 		end
 	end
-	
 	if c == 0 then
 		return
 	end
@@ -394,6 +447,7 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 	end
 
 	if dist < shortWalkDist then
+		-- Echo('short walk, remove '..table.size(queueToRemove)..' commands')
 		spGiveOrderToUnit(unitID, CMD_REMOVE, queueToRemove, 0)
 		return
 	end
@@ -410,6 +464,7 @@ local function CopyMoveThenUnload(transID, unitID, isWaiting)
 	
 	spGiveOrderArrayToUnitArray({transID}, commands)
 	spGiveOrderToUnit(unitID, CMD_REMOVE, queueToRemove, 0)
+	-- Echo('remove '..table.size(queueToRemove)..' commands')
 end
 
 local function DoSelectionLoadOLD()
@@ -677,7 +732,7 @@ function widget:UnitCommand(unitID, defID, teamID, cmdID, params, opts)
 			waitForWait[transporteeID] = unitID
 		else
 			-- Echo('copy',spGetCommandQueue(transporteeID, 0),'orders')
-			CopyMoveThenUnload(unitID, transporteeID, isWaiting)
+			CopyMoveThenUnload(unitID, transporteeID)
 		end
 		waitForLoad[unitID] = nil
 	end
