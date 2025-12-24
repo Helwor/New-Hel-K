@@ -1600,7 +1600,7 @@ function widget:MousePress(x, y, button)
 			x, y = x/WG.uiScale, y/WG.uiScale
 		end
 		if not Screen0:IsAbove(x,y) then
-			if FacUI.hasInvite > 0 and FacUI:ClickInvite(x, y) then
+			if FacUI.hasInvite > 0 and button == 1 and FacUI:ClickInvite(x, y) then
 				return true
 			elseif FacUI.hasDevelopped > 0 then
 
