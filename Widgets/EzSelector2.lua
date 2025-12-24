@@ -1808,6 +1808,7 @@ local hotkeysCombos = {
 			prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
 			force = true,
 			same_units = true,
+			add_last_acquired = true,
 			share_radius = 'One Bomb',
 			longPressTime = 0.1,
 		}, -- use same 'previous' table as the cited macro
@@ -8915,9 +8916,8 @@ do
 					-- we don't need to rmb the defIDs
 					fullSel.defIDs = bySize
 				end
-
-				local step = max(fullSel.partial*abs(value)*0.2, 1/n)-- step is 10% per notch or at least one unit
-				fullSel.partial = min(max(step, fullSel.partial + step * (up and 1 or -1)), 1)
+				local step = max(abs(value)*0.1, 1/n)-- step is 10% per notch or at least one unit
+				fullSel.partial = math.clamp(fullSel.partial + step * (up and 1 or -1), 1/n, 1)
 				local nToSelect = max(1, round(n*fullSel.partial))
 
 				local showNumberSelected = false
