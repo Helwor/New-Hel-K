@@ -13,7 +13,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-local Echo = Spring.Echo
+
 -- Helwor Add
 	-- implement similarFacs detected to issue build order on other selected facs when user add or remove units from unit queue buttons
 	-- implement pro mode and semi pro mode, where command panel is moved far away from screen (semi pro to keep only panel visible if factory or fake factory is selected)
@@ -1132,11 +1132,25 @@ local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, 
 		if right and alt then
 			-- fully remove a given buildType in the queue, can also work on fake factories like Strider Hub
 			spGiveOrderToUnit(factoryUnitID, CMD.REMOVE, cmdID, CMD.OPT_ALT + CMD.OPT_CTRL)
+			if similarFacs then
+				for i, facID in pairs(similarFacs) do
+					if facID ~= factoryUnitID then
+						spGiveOrderToUnit(facID, CMD.REMOVE, cmdID, CMD.OPT_ALT + CMD.OPT_CTRL)
+					end
+				end
+			end
 			return true
 		elseif right and not isQueueButton then
 			-- remove amount of units in the queue
 			local opt = CMD.OPT_RIGHT + (shift and CMD.OPT_SHIFT or 0) + (ctrl and CMD.OPT_CTRL or 0)
 			spGiveOrderToUnit(factoryUnitID, cmdID, {}, opt)
+			if similarFacs then
+				for i, facID in pairs(similarFacs) do
+					if facID ~= factoryUnitID then
+						spGiveOrderToUnit(factoryUnitID, cmdID, {}, opt)
+					end
+				end
+			end
 			return true
 		end	
 	end
