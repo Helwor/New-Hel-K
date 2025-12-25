@@ -877,6 +877,7 @@ local function Evaluate(type, id, engineCmd)
 	end
 	local alt, ctrl, meta, shift = spGetModKeyState()
 
+
 	if WG.drawingPlacement or (WG.EzSelecting and not meta) or WG.panning then
 		reset()
 		upd.updating = false
@@ -1648,6 +1649,7 @@ function widget:Update(dt)
 		-- Echo('MouseState:',unpack(MouseState))
 		v.mousePressed = false
 	end
+
 	if realMousePress and not v.mousePressed then
 		-- Echo('EzTARGET CORRECTED IN UPDATE, actually PRESSED ',spGetMouseState())
 		-- Echo('MouseState:',unpack(MouseState))
@@ -1679,6 +1681,12 @@ function widget:Update(dt)
 	-- Echo("checkForSelBox in Update is ", checkForSelBox)
 	if not lmb and checkForSelBox then
 		checkForSelBox = false
+		if s.selBoxActive then
+			s.acquiredSelect = false
+			s.selBoxActive = false
+			reset()
+			return
+		end
 	end
 	if outsideSpring or screen0:IsAbove(mx, my) then
 		if not lmb  and checkForSelBox then
@@ -1690,6 +1698,7 @@ function widget:Update(dt)
 	end
 	-- WG.PreSelection_IsSelectionBoxActive()
 	s.selBoxActive = checkForSelBox and WG.PreSelection_IsSelectionBoxActive()
+
 	if s.acquiredSelect then
 		if s.selBoxActive then
 			-- Echo("( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5 is ", ( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5)
