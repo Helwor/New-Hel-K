@@ -861,16 +861,16 @@ local function FirstUpdate(dt)
 	return widget:Update(dt)
 end
 function widget:Update(dt)
-	if call_later[1] then
+	while call_later[1] do
+	-- if call_later[1] then
+		-- Echo('call later', #call_later)
 		-- local err = pcall(table.remove(call_later,1))
 		-- if err then
-		--     Ehco(err)
+		--     Echo(err)
 		-- end
 		table.remove(call_later,1)()
-		if not call_later[1] then
-			widgetHandler:RemoveWidgetCallIn('Update',widget)
-		end
 	end
+	widgetHandler:RemoveWidgetCallIn('Update',widget)
 end
 
 WG.OnWidgetState = true
