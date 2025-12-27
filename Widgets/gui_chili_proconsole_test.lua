@@ -44,12 +44,15 @@ format syntax:
 	- p : color of the player who sent message (dynamic)
 - $var : gets replaced by msg['var'] ; interesting vars:
 	- playername
-	- argument	for messages, this is only the message part; for labels, this is the caption
-	- msgtype	type of message as identified by parseMessage()
-	- priority	as received by widget:AddConsoleLine()
-	- text		full message, as received by widget:AddConsoleLine()
+	- argument  for messages, this is only the message part; for labels, this is the caption
+	- msgtype   type of message as identified by parseMessage()
+	- priority  as received by widget:AddConsoleLine()
+	- text      full message, as received by widget:AddConsoleLine()
 
 --]]
+
+local emotes = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/emotes.lua')
+
 local MESSAGE_RULES = {
 	player_to_allies = {
 		name = "Player to allies message",
@@ -942,9 +945,9 @@ local function getOutputFormat(msgtype)
 		Spring.Echo("UNKNOWN MESSAGE TYPE: " .. (msgtype or "NiL"))
 		-- local _,msg = debug.getlocal(2, 1)
 		-- if msg and type(msg) == 'table' then
-		-- 	for k,v in pairs(msg) do
-		-- 		Echo('...',k,v)
-		-- 	end
+		--  for k,v in pairs(msg) do
+		--      Echo('...',k,v)
+		--  end
 		-- end
 		return
 	elseif rule.output then -- rule has multiple user-selectable output formats
@@ -1010,7 +1013,7 @@ local function detectHighlight(msg)
 		msg.highlight = true
 	end
 	
---	Spring.Echo("msg.source = " .. (msg.source or 'NiL'))
+--  Spring.Echo("msg.source = " .. (msg.source or 'NiL'))
 	if dontHighlightThatSource[msg.source] then
 		return
 	end
@@ -1299,19 +1302,19 @@ end
 
 
 local function setupColors()
-	incolor_dup			= color2incolor(options.color_dup.value)
-	incolor_highlight	= color2incolor(options.color_highlight.value)
-	-- incolor_fromlobby	= color2incolor(options.color_from_lobby.value)
-	local lobbycolor 	= options.color_from_lobby.value
+	incolor_dup         = color2incolor(options.color_dup.value)
+	incolor_highlight   = color2incolor(options.color_highlight.value)
+	-- incolor_fromlobby    = color2incolor(options.color_from_lobby.value)
+	local lobbycolor    = options.color_from_lobby.value
 	incolor_fromlobby_text = color2incolor(lobbycolor[1], lobbycolor[2], lobbycolor[3], lobbycolor[4])
 	local min = math.min
 	incolor_fromlobby_head = color2incolor(min(lobbycolor[1]*8/5, 1), min(lobbycolor[2]*8/5, 1), min(lobbycolor[3]*8/5, 1), lobbycolor[4])
-	incolors['#h']		= incolor_highlight
-	incolors['#a'] 		= color2incolor(options.color_ally.value)
-	incolors['#e'] 		= color2incolor(options.color_chat.value)
-	incolors['#o'] 		= color2incolor(options.color_other.value)
-	incolors['#s'] 		= color2incolor(options.color_spec.value)
-	incolors['#p'] 		= '' -- gets replaced with a player-specific color later; here just not to crash
+	incolors['#h']      = incolor_highlight
+	incolors['#a']      = color2incolor(options.color_ally.value)
+	incolors['#e']      = color2incolor(options.color_chat.value)
+	incolors['#o']      = color2incolor(options.color_other.value)
+	incolors['#s']      = color2incolor(options.color_spec.value)
+	incolors['#p']      = '' -- gets replaced with a player-specific color later; here just not to crash
 end
 local function setupPlayers(playerID)
 	if playerID then
@@ -1439,7 +1442,7 @@ local function MakeMessageWindow(name, enabled, ParentFunc)
 		local resourceBarWidth = 430
 		local maxWidth = math.min(screenWidth/2 - resourceBarWidth/2, screenWidth - 400 - resourceBarWidth)
 		bottom = nil
-		width  = 380 - 4	--screenWidth * 0.30	-- 380 is epic menu bar width
+		width  = 380 - 4    --screenWidth * 0.30    -- 380 is epic menu bar width
 		height = screenHeight * 0.20
 		x = screenWidth - width
 		y = 50
@@ -1477,20 +1480,20 @@ local function MakeMessageWindow(name, enabled, ParentFunc)
 		-- useRTT = false,
 
 		-- MouseDown = function(self,...)
-		-- 	Echo('down',...)
-		-- 	self.useRTT = false
-		-- 	return self.inherited.MouseDown(self,...)
+		--  Echo('down',...)
+		--  self.useRTT = false
+		--  return self.inherited.MouseDown(self,...)
 		-- end,
 		-- OnResize = {
-		--		function(self,clientWidth,clientHeight,a,b)
-		--			Echo('resizing',clientWidth,clientHeight)
-		--		end
+		--      function(self,clientWidth,clientHeight,a,b)
+		--          Echo('resizing',clientWidth,clientHeight)
+		--      end
 		-- },
 		-- MouseUp = function(self,...)
-		-- 	Echo('up',...)
-		-- 	self.useRTT = true
-		-- 	self:Invalidate()
-		-- 	return self.inherited.MouseUp(self,...)
+		--  Echo('up',...)
+		--  self.useRTT = true
+		--  self:Invalidate()
+		--  return self.inherited.MouseUp(self,...)
 		-- end,
 
 
@@ -1539,13 +1542,99 @@ local function CheckEnableAllyChat()
 	return (not myTeamList) or (#myTeamList > 1)
 end
 
-local keypadEnterPressed = false
+-- handling unicode detection
+-- example alt + 2669, alt + 266a for music notes
+local KEY = WG.KEYCODES
+local unicode = false
+local altPressed = false
+local lastKeyPressed = false
+local function GetUnicode()
+	local keys = Spring.GetPressedKeys()
+	local curAlt = keys[KEYSYMS.LALT] or keys[KEYSYMS.RALT]
+	-- Echo("curAlt, altPressed is ", curAlt, altPressed)
+	if altPressed then
+		if not curAlt then
+			if unicode then
+				if tonumber(unicode) then
+					local ch = string.char(f.utf8ToBytes(tonumber(code)))
+					Spring.SendCommands('pastetext ' .. ch)
+				end
+				unicode = false
+			end
+		elseif keys[lastKeyPressed] then
+			--skip
+		else
+			lastKeyPressed = false
+			for key in pairs(keys) do
+				key = tonumber(key)
+				if key ~= KEYSYMS.LALT and key ~= KEYSYMS.RALT then
+					local strKey = KEY[key]
+					if strKey then
+						lastKeyPressed = key
+						strKey = strKey:gsub('N_', ''):gsub('KP', '')
+						unicode = (unicode or "0x") .. strKey
+						break
+					end
+				end
+			end
+		end
+	else
+		unicode = false
+	end
+	altPressed = curAlt
+end
+local emote = false
 
-function widget:KeyPress(key, modifier, isRepeat)
+function widget:TextInput(char)
+	if unicode then
+		return true
+	end
+	if not emote then
+		if char == ':' then
+			emote = 1
+			return true
+		end
+	else
+		if emote == 1 then
+			if char == ':' then
+				emote = true
+				return true
+			else
+				emote = false
+				Spring.SendCommands('pastetext ' .. ':')
+			end
+		elseif emote == true then
+			emote = char
+			return true
+		elseif char == ' ' then
+			local str = emotes[emote]
+			if str then
+				Spring.SendCommands('pastetext ' .. str)
+			else
+				Echo('No such emote: ' .. tostring(emote) .. ' registered.')
+			end
+			emote = false
+			return true
+		else
+			emote = emote .. char
+			return true
+		end
+	end
+end
+
+
+
+function widget:KeyPress(key, modifier, isRepeat, label)
+	-- Echo("Spring.IsUserWriting() is ", Spring.IsUserWriting())
+
+	if not isRepeat then
+	end
 	if key == KEYSYMS.KP_ENTER then
 		keypadEnterPressed = true
 	end
 	if (key == KEYSYMS.RETURN) or (key == KEYSYMS.KP_ENTER) then
+		unicode = false
+		emote = false
 		if firstEnter then
 			if (not (modifier.Shift or modifier.Ctrl)) and CheckEnableAllyChat() then
 				Spring.SendCommands("chatally")
@@ -1567,7 +1656,8 @@ function widget:KeyPress(key, modifier, isRepeat)
 	end
 end
 
-function widget:KeyRelease(key, modifier, isRepeat)
+function widget:KeyRelease(key, modifier, label)
+
 	if (key == KEYSYMS.RETURN) or (key == KEYSYMS.KP_ENTER) then
 		if key == KEYSYMS.KP_ENTER and keypadEnterPressed then
 			keypadEnterPressed = false
@@ -1591,7 +1681,7 @@ function widget:TextCommand(cmd)
 end
 
 function widget:MapDrawCmd(playerId, cmdType, px, py, pz, caption)
---	Spring.Echo("########### MapDrawCmd " .. playerId .. " " .. cmdType .. " coo="..px..","..py..","..pz .. (caption and (" caption " .. caption) or ''))
+--  Spring.Echo("########### MapDrawCmd " .. playerId .. " " .. cmdType .. " coo="..px..","..py..","..pz .. (caption and (" caption " .. caption) or ''))
 	if (cmdType == 'point') then
 		widget:AddMapPoint(playerId, px, py, pz, caption) -- caption may be an empty string
 		return false
@@ -1790,7 +1880,7 @@ function widget:Initialize()
 		noFont = true,
 		bottom = inputsize + 2, -- This line is temporary until chili is fixed so that ReshapeConsole() works both times! -- TODO is it still required??
 		verticalSmartScroll = true,
--- DISABLED FOR CLICKABLE TextBox		disableChildrenHitTest = true,
+-- DISABLED FOR CLICKABLE TextBox       disableChildrenHitTest = true,
 		backgroundColor = options.color_chat_background.value,
 		borderColor = options.color_chat_background.value,
 		ignoreMouseWheel = true,
@@ -1870,8 +1960,8 @@ local function Initialize()
 		for i, msg in ipairs(widgetbuffer) do
 			-- fix points and label just being text when grabbed from the buffer
 			-- if (msg.msgtype == "point" or msg.msgtype == "label") and not msg.argument then 
-			-- 	Echo('POINT FIXED')
-			-- 	msg.argument = msg.text
+			--  Echo('POINT FIXED')
+			--  msg.argument = msg.text
 			-- end
 			widget:AddConsoleMessage(msg, true)
 		end
@@ -1912,7 +2002,7 @@ local function Initialize()
 
 		Echo('process console buffer from WH, ask ' .. whbufferLength, 'got', #whbuffer)
 		-- for i = whbufferLength, whbufferLength - 6, -1 do
-		-- 	Echo(i,'=>>>>',whbuffer[i].text)
+		--  Echo(i,'=>>>>',whbuffer[i].text)
 		-- end
 		for i=1, #whbuffer do
 			local msg = whbuffer[i]
@@ -1934,8 +2024,8 @@ local function Initialize()
 			local msg = widgetbuffer[i]
 			-- fix points and label just being text when grabbed from the buffer
 			-- if (msg.msgtype == "point" or msg.msgtype == "label") and not msg.argument then 
-			-- 	Echo('POINT FIXED')
-			-- 	msg.argument = msg.text
+			--  Echo('POINT FIXED')
+			--  msg.argument = msg.text
 			-- end
 			msg.argument = '[MY BUFFER'..i..'] ' ..msg.argument
 			widget:AddConsoleMessage(msg)
@@ -1958,9 +2048,13 @@ local timer = 0
 local initialSwapTime = 0.2
 local firstSwap = true
 
--- FIXME wtf is this obsessive function?
+
+
 
 function widget:Update(s)
+	if WG.enteringText then
+		GetUnicode()
+	end
 	if firstUpdate then
 		Initialize()
 		requestRemake = false
@@ -1973,7 +2067,7 @@ function widget:Update(s)
 		for stack in pairs(requestUpdate) do
 			-- stack:RequestUpdate()
 			-- if stack == stack_console then
-			-- 	scrollpanel_console:UpdateClientArea()
+			--  scrollpanel_console:UpdateClientArea()
 			-- else
 				stack:UpdateClientArea()
 			-- end
