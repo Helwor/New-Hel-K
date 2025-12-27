@@ -3965,6 +3965,7 @@ options_order = {
 	'use_screen_circle',
 	'no_select_on_partial',
 	'zoom_scaling',
+	'use_own_ctrl_group',
  	-- 'test',
 }
 options = {}
