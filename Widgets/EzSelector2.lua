@@ -14,7 +14,7 @@ function widget:GetInfo()
 	}
 end
 local useCtrlGroup = false -- in options
-local useMyFilter = true -- set true to preserve only some macros, fill up the table below with their name
+local useMyFilter = false -- set true to preserve only some macros, fill up the table below with their name
 local MacroFilterIn = { 
 	-- example with all macros related to SPACE + T for getting transport/auto transporting
 	'Call Transports',
