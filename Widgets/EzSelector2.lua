@@ -13,7 +13,16 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-local Echo = Spring.Echo
+local useCtrlGroup = false -- in options
+local useMyFilter = true -- set true to preserve only some macros, fill up the table below with their name
+local MacroFilterIn = { 
+	-- example with all macros related to SPACE + T for getting transport/auto transporting
+	'Call Transports',
+	'Get LOADING Transports',
+	'Get LOADED Transports',
+	'Get ANY Transports'
+}
+
 local Units -- attached to WG.UnitsIDCard or WG.Cam.Units in Initialize CallIn
 
 local zerowars = Game.mapName:find('^ZeroWars')
@@ -37,7 +46,6 @@ local DEFAULT_DRAW_POS = {resX/2, resY/2} -- default of draw screen  in non cyli
 local DEFAULT_CYLINDER_DRAW_POS = {(resX/2), 180}
 local selectionChanged
 local KEYCODES = WG.KEYCODES
-
 
 
 
@@ -1013,7 +1021,7 @@ local hotkeysCombos = {
 						{
 							['?'] = {
 								'isIdle',
-								{'!manual', '!waitManual'},
+								{'!manual', '!waitManual', '!isFighting'},
 								-- {['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
 							},
 						},
@@ -1030,7 +1038,7 @@ local hotkeysCombos = {
 						{
 
 							['?'] = {
-								'manual', 'waitManual',
+								'manual', 'waitManual','isFighting'
 							},
 							-- {
 							-- 	['?'] = {
@@ -3871,6 +3879,23 @@ local hotkeysCombos = {
 		--{name = 'DebugKeyDetect', method ="option", keys = {'CARET'}},
 }
 
+if useMyFilter then
+	local tremove = table.remove
+	local inFilter = {}
+	for _, name in ipairs(MacroFilterIn) do
+		inFilter[name] = true
+	end
+	MacroFilterIn = nil
+	local i, macro = 1, hotkeysCombos[1]
+	while macro do
+		if not inFilter[macro.name] then
+			tremove(hotkeysCombos, i)
+		else
+			i = i + 1
+		end
+		macro = hotkeysCombos[i]
+	end
+end
 
 
 --[[local UpdateKey = function(name)
@@ -3961,6 +3986,15 @@ options.use_screen_circle = {
 	value = useScreenCircle,
 	OnChange = function(self)
 		useScreenCircle = self.value
+	end,
+}
+
+options.use_own_ctrl_group = {
+	name = 'Use Own Ctrl Group System',
+	type = 'bool',
+	value = useCtrlGroup,
+	OnChange = function(self)
+		useCtrlGroup = self.value
 	end,
 }
 
@@ -6012,7 +6046,7 @@ do
 
 
 			ctrlGroups.selecting = false
-			if mods then
+			if mods and useCtrlGroup then
 				local keybSym = KEYCODES[key]
 				local num = keybSym:find('N_%d') and tonumber(keybSym:sub(3, -1))
 				if num then
