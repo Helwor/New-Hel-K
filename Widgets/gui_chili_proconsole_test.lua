@@ -242,6 +242,42 @@ options_order = {
 	'dedupe_messages', 'dedupe_points','color_dup',
 }
 
+local utf8ToBytes
+do
+	-- Code point Unicode : [xxxxxxxx xxxxxxxx xxxxxxxx]
+	-- UTF-8 : on découpe en paquets de 6 bits : [xx][xxxxxx][xxxxxx][xxxxxx]
+	--         ↓
+	-- Octet 1 : [1110][xx]      ← préfixe 1110 + 2 premiers bits
+	-- Octet 2 : [10][xxxxxx]    ← préfixe 10 + 6 bits suivants  
+	-- Octet 3 : [10][xxxxxx]    ← préfixe 10 + 6 derniers bits
+	local floor = math.floor
+	local base = 0x100/4 -- 64 = 6 bits
+	local base2 = base*2
+	local base3 = base*3
+	local baseE2 = base^2
+	local baseE3 = base^3
+	function utf8ToBytes(code)
+		if code < 0x100/2 then
+			return code
+		elseif code < 0x1000/2 then
+			return 
+				base3 + floor(code / base),
+				base2 + code % base
+		elseif code < 0x10000 then
+			return
+				base3 + base/2 + floor(code / baseE2),
+				base2 + floor((code % baseE2) / base),
+				base2 + code % base
+		elseif code < 0x110000 then
+			return
+				base3 + base*3/4 + floor(code / (baseE3)),
+				base2 + floor((code % baseE3) / baseE2),
+				base2 + floor((code % baseE2) / base),
+				base2 + code % base
+		end
+	end
+end
+
 local function onOptionsChanged()
 	requestRemake = true
 	-- RemakeConsole()
@@ -1556,7 +1592,7 @@ local function GetUnicode()
 		if not curAlt then
 			if unicode then
 				if tonumber(unicode) then
-					local ch = string.char(f.utf8ToBytes(tonumber(code)))
+					local ch = string.char(utf8ToBytes(tonumber(code)))
 					Spring.SendCommands('pastetext ' .. ch)
 				end
 				unicode = false
