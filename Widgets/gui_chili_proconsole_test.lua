@@ -199,7 +199,7 @@ local filter_path = options_path .. '/Filtering'
 local color_path = options_path .. '/Color Setup'
 
 options_order = {
-	
+	'emotes',
 	'lblGeneral',
 	
 	'enableConsole',
@@ -358,9 +358,14 @@ local function UpdateStackFontSize(stack, fontSize)
 		end
 	end
 end
-
+local helk_path = 'Hel-K/'..widget:GetInfo().name
 options = {
-	
+	emotes = {
+		name = 'Emotes',
+		type = 'table',
+		value = emotes,
+		path = helk_path,
+	},
 	--lblFilter = {name='Filtering', type='label', advanced = false},
 	--lblPointButtons = {name='Point Buttons', type='label', advanced = true},
 	lblAutohide = {name='Auto Hiding', type='label'},
