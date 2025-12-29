@@ -175,10 +175,11 @@ local actualCmds={[0]='STOP',[1]='INSERT',[2]='REMOVE',[16]='FIGHT',[20]='ATTACK
 for k,v in pairs(CMD) do
 
 	if tonumber(v) then
-		cmdNames[v] = actualCmds[k] or k 
+		cmdNames[v] = actualCmds[v] or k 
 	end
-	allCmds[k] = actualCmds[k] or v
+	allCmds[k] = actualCmds[v] or v
 end
+
 for k,v in pairs(customCmds) do
 	cmdNames[v] = k 
 	allCmds[v] = k
@@ -2282,7 +2283,6 @@ floatPlacingInfo = (function()
 		local underSea = depthMod == 0 or not (isUnit or floatOnWater or def.maxWaterDepth == 0)
 		local reallyFloat = isUnit == 2 and depthMod == 0.1 or floatOnWater and def.name ~= 'turretgauss'
 		local cantPlaceOnWater = not (underSea or reallyFloat)
-
 
 		t[defID] = {
 			underSea = underSea,
@@ -6265,7 +6265,6 @@ end
 do
 	local bool={[false]='false',[true]='true'}
 	DebugUnitCommand=function (id, defID, team, cmd, params, opts, tag, fromSynced, fromLua)
-		
 		local name=UnitDefs[defID] and UnitDefs[defID].name or "UNKNOWN BUILD"
 
 		--fromLua = fromLua==nil and 'nil' or bool[fromLua] or fromLua
@@ -6291,7 +6290,24 @@ do
 		return cmdname,name
 	end
 end
+do
+	local bool={[false]='false',[true]='true'}
+	DebugCommandNotify = function(cmd, params, opts)
+	  --local cmdname=GetCommandName(cmd)
+		local debugcmd = cmd==1 and 'INSERT '..(cmdNames[params[2]]..'('..params[2]..')' or 'UNKNOWN')..' at '..params[1]..
+									'\n'..GreyStr..'option(param3):('..table.kConcat(Decode(params[3]),' | ', 'only_true','debug_options'):upper()..')'
+						 or cmd==2 and 'REMOVE Order '..tostring(params[1])
+						 or (cmdNames[cmd] or 'UNKNOWN')..'('..cmd..')'
+		Echo(debugcmd)
+		Echo('PARAMS: '..table.kvConcat(params):upper())
+		Echo('OPTIONS:'..table.kConcat(opts,' | ', 'only_true','debug_options'):upper())
+		Echo('--')
+		--Echo(table.tostring(params))
+		--Echo(table.tostring(opts))
 
+		return
+	end
+end
 GetDef = function(id)
 	if not tonumber(id) then return false and Echo("Invalid ID") end
 	if t(id)=="table" then
@@ -9801,7 +9817,14 @@ function tracefunc(oriFunc, wid, Log,warn) -- wrap function to add properly trac
 end
 
 
-
+function GetCalledLine()
+	local info = debug.getinfo(3, 'lS')
+	if info then
+		return info.currentline, info.source
+	else
+		return -1
+	end
+end
 
 function DebugWidget(widget,Log,warn)
 	local wid = GetWidgetInfos()
