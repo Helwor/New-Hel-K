@@ -1,12 +1,11 @@
 function widget:GetInfo()
     return {
-        name      = "_Game To Lobby Message",
-        desc      = "Send to lobby widget api_msg_from_game",
+        name      = "Game To Lobby Message",
+        desc      = "Socket Communication to Chobby (via chobby widget api_msg_from_game.lua)",
         author    = "Helwor",
         date      = "June 2024",
         license   = "GNU GPL, v2 or later",
         layer     = 0,
-        -- layer     = 2,
         enabled   = true,  --  loaded by default?
         api       = true,
         handler   = true,
@@ -26,7 +25,7 @@ if not port then
 end
 port = port + 1
 
-LIB_LOBBY_DIRNAME = "libs/liblobby/lobby/" -- why is this needed? why doesnt api load first?
+LIB_LOBBY_DIRNAME = "libs/liblobby/lobby/"
 VFS.Include(LIB_LOBBY_DIRNAME .. "json.lua")
 if not json then
     Echo(sig .. 'wrong include dir: ' .. LIB_LOBBY_DIRNAME .. "json.lua")
@@ -94,7 +93,7 @@ local function WaitForMessage(self)
     local inbox, writeable, err = socket.select(client_holder, client_holder, 0)
     -- Echo('waiting for message',inbox and inbox[1], writeable and writeable[1],err)
     if err then
-        if err=="timeout" then
+        if err == "timeout" then
             return
         end
         Spring.Echo("Error in socket.select: " .. err)
