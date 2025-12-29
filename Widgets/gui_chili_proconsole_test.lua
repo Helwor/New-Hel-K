@@ -1592,7 +1592,7 @@ local function GetUnicode()
 		if not curAlt then
 			if unicode then
 				if tonumber(unicode) then
-					local ch = string.char(utf8ToBytes(tonumber(code)))
+					local ch = string.char(utf8ToBytes(tonumber(unicode)))
 					Spring.SendCommands('pastetext ' .. ch)
 				end
 				unicode = false
