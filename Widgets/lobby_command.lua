@@ -1,7 +1,7 @@
 function widget:GetInfo()
     return {
-        name      = "_Lobby Command",
-        desc      = "",
+        name      = "Lobby Command",
+        desc      = "Implement some commands LuaUI side that the lobby will execute",
         author    = "Helwor",
         date      = "Dec 2023",
         license   = "GNU GPL, v2 or later",
@@ -16,10 +16,6 @@ end
 
 local Echo = Spring.Echo
 
-
---------------------------------------------------------------------
-local f = WG.utilFuncs
---------------------------------------------------------------------
 local nextword = function(str,n)
     local count = 0
     for word in str:gmatch('[%w_]+') do
@@ -112,5 +108,6 @@ function widget:Shutdown()
         widgetHandler.ConfigureLayout = widgetHandler.__ConfigureLayout
     end
 end
-
-f.DebugWidget(widget)
+if f then
+    f.DebugWidget(widget)
+end
