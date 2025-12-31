@@ -4480,16 +4480,16 @@ local function TerminateCall()
 		return
 	end
 	-- Fix eventual temp lock getting stuck (the release event hasn't been detected for unknown reason)
-	local lockName = call.isTmpLock
-	if  lockName then -- setting up toggle if any -- replacing the key by the toggle
-		currentCombo.keys[lockName] = nil
-		locks.tmpPushed[lockName] = false
-		for key, combo in pairs(locks.tmpToggleByKey) do
-			if combo == call then
-				currentCombo.raw[key] = nil
-			end
-		end
-	end
+	-- local lockName = call.isTmpLock
+	-- if  lockName then -- setting up toggle if any -- replacing the key by the toggle
+	-- 	currentCombo.keys[lockName] = nil
+	-- 	locks.tmpPushed[lockName] = false
+	-- 	for key, combo in pairs(locks.tmpToggleByKey) do
+	-- 		if combo == call then
+	-- 			currentCombo.raw[key] = nil
+	-- 		end
+	-- 	end
+	-- end
 	if not call.success then 
 		call.failed = true
 	end
