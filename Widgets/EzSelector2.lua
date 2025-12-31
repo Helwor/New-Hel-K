@@ -6291,6 +6291,9 @@ do
 	------ MOUSE PRESS
 	------------------
 	function widget:MousePress(mx, my, button)
+		if button > 3 then
+			return
+		end
 		local time = osclock()
 		-- Echo('mouse pressed in EzSelector: '..time)
 		-- ignore clicks on the GUI
@@ -6445,6 +6448,9 @@ function widget:MouseRelease(mx, my, button)
 	-- updating click status
 	clicked['N'..button] = nil
 	g.clickTime = osclock()
+	if button > 3 then
+		return
+	end
 	local clickName = (button == 1 and 'L' or button == 2 and 'M' or button == 3 and 'R')..'Click'
 	-- disable temporarily Selection Modkeys widget that may select unwanted unit under cursor when letclick is released
 
