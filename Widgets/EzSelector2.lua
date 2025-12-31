@@ -5952,6 +5952,9 @@ do
 		end
 	end
 	function AfterMousePress(mx, my, button, from, locked, owner)
+		if button > 3 then
+			return
+		end
 		-- if from == 'MousePress' then -- this is either our own or a locked
 		-- 	return
 		-- end
@@ -5991,6 +5994,9 @@ do
 		-- end
 	end
 	function AfterMouseRelease(mx, my, button, from, wasOwner)
+		if button > 3 then
+			return
+		end
 		local buttonName = (button == 1 and 'L' or button == 2 and 'M' or 'R')..'Click'
 		if currentCombo.raw[buttonName] then
 			-- local owner = wasOwner and wasOwner:GetInfo().name
@@ -6216,13 +6222,13 @@ do
 					end
 				end
 				-- updating toggle if any
-				local lockName = (g.hkCombo.method == 'toggleLock' or g.hkCombo.method == 'tmpToggle') and g.hkCombo.name or g.hkCombo.isTmpLock
+				local lockName = (newcall.method == 'toggleLock' or newcall.method == 'tmpToggle') and newcall.name or newcall.isTmpLock
 				if  lockName then -- setting up toggle if any -- replacing the key by the toggle
 					cckeys[lockName] = cckeys[lockName] == nil and 0 or nil -- toggling with nil instead of false
-					if g.hkCombo.method == 'tmpToggle' or g.hkCombo.isTmpLock then
+					if newcall.method == 'tmpToggle' or newcall.isTmpLock then
 						locks.tmpPushed[lockName] = true
 					end
-					if not g.hkCombo.isTmpLock then
+					if not newcall.isTmpLock then
 						g.hkCombo = false
 						return true
 					end
