@@ -1956,7 +1956,6 @@ function widget:MousePress(mx,my,button)
 	if cf2.CF2 then
 		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
 
-		Echo("cf2.lastx,cf2.lasty is ", cf2.lastx,cf2.lasty)
 		cf2.CF2 = cf2.CF2:MousePress(cf2.lastx, cf2.lasty, button,'by Ez') and cf2.CF2
 		if cf2.CF2 then
 			mempoints = {n=0}
