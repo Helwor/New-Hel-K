@@ -1770,6 +1770,10 @@ function widget:MousePress(mx,my,button)
 	-- for i = 1, 2500000 do
 	--     t[i] = nil
 	-- end
+	if button > 3 then
+		reset()
+		return
+	end
 	v.mousePressed = true
 	if cf2.CF2_TakeOver then -- happen when trailing and another button is clicked, this will cancel the CF2 trailing        cf2.CF2_TakeOver = false
 		cf2.CF2_TakeOver = false
@@ -1890,7 +1894,6 @@ function widget:MousePress(mx,my,button)
 	-- local type, id = spTraceScreenRay(mx,my)
 
 	local _, defaultCommand, _, nameDefCom = spGetDefaultCommand()
-
 	-- local alttype, altid = type, id
 	-- if type=='ground' then
 	--     type,id = nil, nil
@@ -1920,7 +1923,7 @@ function widget:MousePress(mx,my,button)
 	-- local _,_,_,v.defaultCmd = spGetDefaultCommand()
 
 	if not v.clamped then 
-		if nameDefCom ~= 'staticmex'  and v.moddedCmd~=CMD_UNLOAD_UNITS  then
+		if nameDefCom ~= 'staticmex' and v.moddedCmd ~= CMD_UNLOAD_UNITS  then
 			if not (
 				selContext.hasValidAttacker
 				or v.defaultCmd == CMD_REPAIR and opt.cancelWhenDragOnDefault
@@ -1928,7 +1931,6 @@ function widget:MousePress(mx,my,button)
 			)
 			or opt.cancelWhenDragOnDefault and not (v.moddedTarget or v.defaultTarget or v.defaultCmd == CMD_REPAIR)
 			then
-
 				-- if nameDefCom == 'Attack' then
 				--     local t = {'COCO',"nameDefCom is ", nameDefCom, v.moddedTarget, v.defaultTarget,
 				--          v.moddedCmd, v.defaultCmd, type,id,alttype,altid}
@@ -1952,10 +1954,10 @@ function widget:MousePress(mx,my,button)
 	cf2.lastx,cf2.lasty,cf2.lastclock=mx,my,osclock()
 	-- check if cf2.CF2 want control
 	if cf2.CF2 then
-		v.cmdOverride=CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
+		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
 
-
-		cf2.CF2 = cf2.CF2:MousePress(cf2.lastx,cf2.lasty,button,'by Ez') and cf2.CF2
+		Echo("cf2.lastx,cf2.lasty is ", cf2.lastx,cf2.lasty)
+		cf2.CF2 = cf2.CF2:MousePress(cf2.lastx, cf2.lasty, button,'by Ez') and cf2.CF2
 		if cf2.CF2 then
 			mempoints = {n=0}
 			return true
@@ -2069,7 +2071,7 @@ function widget:MouseRelease(mx,my,button)
 			Debug.CF2("processing on release...")
 			-- tell CustomFormation2 to cancel the operation by giving it the opposite button
 			local cancel = Execute(mx, my, button)
-			cf2.CF2:MouseRelease(cf2.lastx,cf2.lasty,cancel and (button==1 and 3 or 1) or button)
+			cf2.CF2:MouseRelease(cf2.lastx, cf2.lasty, cancel and (button==1 and 3 or 1) or button)
 			-- local alt, ctrl, meta, shift = spGetModKeyState()
 
 			-- if alt or v.moddedTarget and not v.defaultTarget then
@@ -2162,14 +2164,13 @@ Execute = function(mx, my) -- execute a single target cmd if CF2 didnt take over
 
 	end
 	local cmd = v.moddedCmd or v.defaultCmd
-
-	if not cmd or cmd == CMD_RAW_MOVE or not v.acquiredTarget or not spValidUnitID(v.acquiredTarget) or spGetUnitIsDead(v.acquiredTarget) then
+	if not cmd or (cmd == CMD_RAW_MOVE or cmd == CMD_MOVE) or not v.acquiredTarget or not spValidUnitID(v.acquiredTarget) or spGetUnitIsDead(v.acquiredTarget) then
 		return
 	end
 	-- Echo("v.acquiredTarget,v.moddedCmd is ", v.acquiredTarget,v.moddedCmd)
 	TARGET_TABLE[1] = v.acquiredTarget
-	if not wh:CommandNotify(cmd,TARGET_TABLE,opts) then
-		spGiveOrder(cmd,TARGET_TABLE,opts.coded)
+	if not wh:CommandNotify(cmd, TARGET_TABLE, opts) then
+		spGiveOrder(cmd, TARGET_TABLE, opts.coded)
 	end
 	-- if spGetActiveCommand()~=0 then
 	-- 	Echo(os.clock(),'Active Command should have been 0 !')
