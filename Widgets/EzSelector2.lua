@@ -98,6 +98,7 @@ local spuGetUnitMoveState	  = Spring.Utilities.GetUnitMoveState
 local spuMergeTable 		  = Spring.Utilities.MergeTable
 local spGiveOrderToUnit		  = Spring.GiveOrderToUnit
 local spGetUnitIsActive 	  = Spring.GetUnitIsActive -- specific function used only in the macro table
+local spGetUnitCurrentCommand = Spring.GetUnitCurrentCommand
 
 local spGetUnitTransporter    = Spring.GetUnitTransporter
 local spGetUnitIsTransporting = Spring.GetUnitIsTransporting
@@ -609,15 +610,22 @@ local SwitchFlyIdleMode = function()
 	local flyState = cmdDescs[cmdIdx].params[1]
 
 	local newState = flyState == '1' and 0 or 1
-	sh.extra = newState == 1 and ' ON' or ' OFF'
+	sh.extra = newState == 1 and ' OFF' or ' ON'
 	Spring.GiveOrder(CMD.IDLEMODE, {newState, 0}, 0)
+	for defID, units in pairs(Spring.GetSelectedUnitsSorted()) do
+		local unit = Units[units[1]]
+		if unit and unit.isPlane then
+			for i, unitID in ipairs(units) do
+				if not spGetUnitCurrentCommand(unitID) then
+					local x, y, z = spGetUnitPosition(unitID)
+					spGiveOrderToUnit(unitID, CMD.MOVE, {x, y, z}, CMD.OPT_RIGHT)
+				end
+			end
+		end
+	end
 	return true
 end
 
-
-
--- NOTE Active Commands:
-	--75 = LOAD UNITS
 local HKCombos = {length = 0, byName = {}}
 	---------------------------------------------------------------
 	--- MACRO SETTING
@@ -1818,7 +1826,7 @@ local hotkeysCombos = {
 			same_units = true,
 			add_last_acquired = true,
 			share_radius = 'One Bomb',
-			longPressTime = 0.1,
+			longPressTime = 0.085	,
 		}, -- use same 'previous' table as the cited macro
 
 
@@ -7712,9 +7720,15 @@ do
 					myUnits = spGetUnitsInCylinder(x, z, g.radius, myTeamID) 
 				end
 				if not call.pos_from_selected then
-					if call.runs > 1  then
-						if ((x - call.runx)^2 + (z - call.runz)^2)^0.5 > g.radius then
-							local units = f.GetUnitsInOrientedRectangle({call.runx, call.runz}, {x, z}, g.radius, myTeamID)
+					local lastX, lastZ
+					if call.runs > 1 then
+						lastX, lastZ = call.runx, call.runz
+					elseif call.add_last_acquired and last.call then
+						lastX, lastZ = last.call.runx, last.call.runz
+					end
+					if lastX then
+						if ((x - lastX)^2 + (z - lastZ)^2)^0.5 > g.radius then
+							local units = f.GetUnitsInOrientedRectangle({lastX, lastZ}, {x, z}, g.radius, myTeamID)
 							-- TODO: implement for screen rectangle
 							local map = {}
 							for k,id in ipairs(myUnits) do
@@ -8772,6 +8786,7 @@ end
 		local symbol = click or KEYCODES[key]
 		local cckeys = currentCombo.keys
 		cckeys[key] = nil
+		currentCombo.raw[key] = nil
 		local tmpToggle = locks.tmpToggleByKey[symbol]
 		if tmpToggle then 
 			local tog_name = tmpToggle.name
@@ -9451,8 +9466,11 @@ end
 					if v == 0 then table.insert(box, k) end
 				end
 				for i, v in ipairs(box) do
-
 					combo_display = combo_display.. (i == 1 and '' or ' | ') ..v
+				end
+				combo_display = combo_display .. '\n'
+				for k, v in pairs(currentCombo.raw) do
+					combo_display = combo_display .. (KEYCODES[k] or k)
 				end
 				-- combo_display = table.concat(box, ' | ')
 
