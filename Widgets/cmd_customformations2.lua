@@ -22,7 +22,6 @@ local opt = {
 	shiftAttackTrailShootToward = false,
 	altShootOnce = true,
 	forceAlg = 'disabled',
-
 }
 
 
@@ -490,6 +489,7 @@ local function GetUnitFinalPosition(uID)
 
 			local params = cmd.params
 			if params[3] then
+				Echo('returned order #'..i)
 				return params[1], params[2], params[3]
 			else
 				if not params[2] then
@@ -504,13 +504,14 @@ local function GetUnitFinalPosition(uID)
 					end
 
 					if px then
+						Echo('returned order #'..i)
 						return px, py, pz
 					end
 				end
 			end
 		end
 	end
-
+	Echo('returned unit pos')
 	return ux, uy, uz
 end
 
@@ -1781,11 +1782,9 @@ function MatchUnitsToNodes(nodes, units, shifted)
 	if (not units[2]) then
 		return {{units[1], nodes[1]}}
 	elseif opt.forceAlg == 'noX' or opt.forceAlg == 'disabled' and units[maxHungarianUnits + 1] then
-		-- Echo('use no x','max', maxHungarianUnits)
-		return GetOrdersNoX(nodes, units, #units, shift and not meta)
+		return GetOrdersNoX(nodes, units, #units, shifted)
 	else
-		-- Echo('use hungarian', 'max', maxHungarianUnits)
-		return GetOrdersHungarian(nodes, units, #units, shift and not meta)
+		return GetOrdersHungarian(nodes, units, #units, shifted)
 	end
 end
 
