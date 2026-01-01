@@ -489,7 +489,6 @@ local function GetUnitFinalPosition(uID)
 
 			local params = cmd.params
 			if params[3] then
-				Echo('returned order #'..i)
 				return params[1], params[2], params[3]
 			else
 				if not params[2] then
@@ -504,14 +503,12 @@ local function GetUnitFinalPosition(uID)
 					end
 
 					if px then
-						Echo('returned order #'..i)
 						return px, py, pz
 					end
 				end
 			end
 		end
 	end
-	Echo('returned unit pos')
 	return ux, uy, uz
 end
 
@@ -1804,18 +1801,18 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 	local fm
 
 	for u = 1, unitCount do
-
+		local unitID = units[u]
 		-- Get unit position
 		local ux, uz
 		if shifted then
-			ux, _, uz = GetUnitFinalPosition(units[u])
+			ux, _, uz = GetUnitFinalPosition(unitID)
 		else
-			ux, _, uz = spGetUnitPosition(units[u])
+			ux, _, uz = spGetUnitPosition(unitID)
 			if not ux then
 				ux, uz = 0, 0
 			end
 		end
-		unitSet[u] = {ux, units[u], uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
+		unitSet[u] = {ux, unitID, uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
 
 		-- Work on finding furthest points (As we have ux/uz already)
 		for i = u - 1, 1, -1 do
@@ -1835,13 +1832,13 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 	-- Maybe nodes are further apart than the units
 	for i = 1, unitCount - 1 do
 
-		local np = nodes[i]
-		local nx, nz = np[1], np[3]
+		local node = nodes[i]
+		local nx, nz = node[1], node[3]
 
 		for j = i + 1, unitCount do
 
-			local mp = nodes[j]
-			local mx, mz = mp[1], mp[3]
+			local nexNode = nodes[j]
+			local mx, mz = nexNode[1], nexNode[3]
 			local dx, dz = mx - nx, mz - nz
 			local dist = dx*dx + dz*dz
 
