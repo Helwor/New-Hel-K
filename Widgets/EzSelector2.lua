@@ -8743,8 +8743,21 @@ do
 		
 	end
 end
-
+local dirtyFixUpdate = 1
 function widget:Update(dt)
+	dirtyFixUpdate = dirtyFixUpdate - dt
+	if dirtyFixUpdate == 0 then
+		dirtyFixUpdate = 1
+		if currentCombo.keys.AIR or locks.tmpPushed.AIR then
+			if not Spring.GetKeyPressed(KEYSYMS.SPACE) then
+				locks.tmpPushed.AIR = nil
+				currentCombo.keys.AIR = nil
+				currentCombo.raw[KEYSYMS.SPACE] = nil
+				Echo("DETECTED AIR LOCK BUG", os.clock())
+				Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+			end
+		end
+	end
 	for id, params in pairs(debugAtUnit) do
 		params.time = params.time - dt
 		if params.time < 0 then
@@ -9521,7 +9534,7 @@ end
 				lSet = true
 			end
 
-			for name, lock in ipairs(locks) do 
+			for i, lock in ipairs(locks) do 
 				 -- if there is more than one lock
 				if locks.count>1 then
 					lname = lock.name
