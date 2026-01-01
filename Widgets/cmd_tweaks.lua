@@ -106,14 +106,16 @@ local EMPTY_TABLE = {}
 -- end
 
 
-
-
 local hasBomber, hasWidow = false, false
 local hasSmallSelection = false
 local hasGunship = false
 local hasPuppy = false
 local hasAthena, hasOnlyAthena = false, false
 local hasPlane = false
+
+local newSequence = true
+local ovParams, ovOpts = false, false
+
 function widget:CommandsChanged()
 	-- hasBomber = false
 
@@ -126,8 +128,9 @@ function widget:CommandsChanged()
 	hasGunship = mySelection.hasGunship
 	hasPlane = mySelection.hasPlane
 end
-function Process(cmd,params,opts) -- global function to be accessed by widgets that intervene before
+function Process(cmd, params, opts, giveOrder) -- global function to be accessed by widgets that intervene before
 	-- Echo("hasOnlyAthena ,cmd , opts.ctrl is ", hasOnlyAthena ,cmd , opts.ctrl)
+	local override = false
 	if cmd == CMD_ATTACK and not opts.ctrl and (
 		opt_widow_shootOnce and hasWidow 
 		-- or hasBomber and params[3] and (not params[4] or params[4]==0)
@@ -136,8 +139,7 @@ function Process(cmd,params,opts) -- global function to be accessed by widgets t
 	) then
 		opts.ctrl = true
 		opts.coded = opts.coded + CMD_OPT_CTRL
-		spGiveOrder(cmd, params,opts)
-		return true
+		override = true
 	-- elseif hasOnlyAthena and cmd == CMD_RAW_MOVE and opts.ctrl then
 	--     for i,id in ipairs(WG.selection or spGetSelectedUnits()) do
 	--         spGiveOrderToUnit(id,CMD_WANTED_SPEED,{30},0)
@@ -150,8 +152,7 @@ function Process(cmd,params,opts) -- global function to be accessed by widgets t
 	then 
 		if not params[4] then-- force a more precise move, especially for gs that refuse to move to a close destination
 			params[4], params[5] = 16, 1 -- (min distance to consider the goal reached, timeout?)
-			spGiveOrder(cmd, params, opts)
-			return true
+			override = true
 		end
 	elseif (
 				opt_precise_plane_move and hasPlane
@@ -160,25 +161,42 @@ function Process(cmd,params,opts) -- global function to be accessed by widgets t
 	then 
 		if not params[4] then-- force a more precise move, especially for gs that refuse to move to a close destination
 			params[4], params[5] = 96, 1 -- (min distance to consider the goal reached, timeout?)
-			spGiveOrder(cmd, params, opts)
-			return true
+			override = true
 		end
 	end
-
+	if override then
+		if giveOrder then
+			spGiveOrder(cmd, params,opts)
+		end
+		return params, opts
+	end
 end
 local Process = Process
-function widget:CommandNotify(cmd,params,opts)
-	if Process(cmd,params,opts) then
-		
+function widget:CommandNotify(cmd, params, opts)
+	if Process(cmd, params, opts, true) then
 		return true
-	else
-		-- Echo('passed')
 	end
 end
 
--- function widget:UnitCommandNotify(id,cmd,params)
---     Echo('UCN',id,cmd,unpack(params))
--- end
+function widget:UnitCommandNotify(id, cmd, params, opts)
+	if newSequence then
+		ovParams, ovOpts =  Process(cmd, params, opts, false)
+		newSequence = false
+	end
+	if ovParams then
+		if ovParams[4] then
+			params[4], params[5] = ovParams[4], ovParams[5]
+		end
+		spGiveOrderToUnit(id, cmd, params, ovOpts.coded)
+		return true
+	end
+end
+
+function widget:Update()
+	if not newSequence then
+		newSequence, ovParams, ovOpts = true, false, false
+	end
+end
 
 function widget:Initialize()
 	if not widget:Requires(requirements) then
