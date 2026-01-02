@@ -37,20 +37,17 @@ local myTeamID, myPlayerID
 local symbolStatus = {
 	str = '*',
 	list = false,
-	offX = 2,
-	offY = -6,
 	Draw = function() end,
 	-- since the new GetMidY
 	offX = 0,
-	offY = -2,
+	-- offY = -2,
+	offY = -4,
 }
 
 local symbolSelAlly = {
 	-- str = string.char(176), -- '°'
 	str = '*', -- '*' need -4 y to be centered
 	list = false,
-	offX = 0,
-	offY = -4,
 	Draw = function() end,
 	-- since the new GetMidY
 	offX = 0,
@@ -59,8 +56,6 @@ local symbolSelAlly = {
 local symbolHealth = {
 	str = 'o',
 	list = false,
-	offX = 3,
-	offY = -4,
 	Draw = function() end,
 	-- since the new GetMidY
 	offX = 1,
@@ -611,7 +606,6 @@ local spValidUnitID                 = Spring.ValidUnitID
 local spGetUnitHealth               = Spring.GetUnitHealth
 local spGetSpectatingState          = Spring.GetSpectatingState
 local spGetUnitRulesParam           = Spring.GetUnitRulesParam
-local spGetUnitHealth               = Spring.GetUnitHealth
 local spGetUnitIsDead               = Spring.GetUnitIsDead
 local spGetGroundHeight 			= Spring.GetGroundHeight
 -- local spGetUnitTeam                 = Spring.GetUnitTeam
@@ -670,8 +664,8 @@ local    orange ,        turquoise,         paleviolet,         violet,         
 	= colors.orange,  colors.turquoise,  colors.paleviolet, colors.violet,     colors.hardviolet
 local     copper,         white,            grey,               lightgreen,         darkenedgreen,       lime
 	= colors.copper,  colors.white,      colors.grey,       colors.lightgreen, colors.darkenedgreen,   colors.lime
-local    whiteviolet, 		lightblue, 		   lightgrey
-	= colors.whiteviolet, colors.lightblue, colors.lightgrey
+local    whiteviolet, 		lightblue, 		   lightgrey,		ocre
+	= colors.whiteviolet, colors.lightblue, colors.lightgrey, colors.ocre
 
 local cyan, ice, teal = colors.cyan, colors.ice, colors.teal
 local nocolor = colors.nocolor
@@ -758,7 +752,8 @@ local function ApplyColor(id, statusColor, healthColor, alphaStatus, alphaHealth
 	end
 
 end
--- local done = false
+
+local enable3 = false -- debugging to see 3 different state at a time on any unit
 
 local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 	-- if spIsUnitVisible(id) and (not onlyOnIcons or spIsUnitIcon(id)) then
@@ -830,7 +825,7 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 							bp<0.8 and grey
 							or bp<1 and lightgreen
 						)
-					or paralyzed and b_ice
+					or (paralyzed or enable3) and b_ice
 					or disarmUnits[id]~=nil and b_whiteviolet
 					-- or builder and not builder.isFactory and white
 					or showCommandStatus and unit.tracked and (
@@ -849,7 +844,7 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 							or unit.cmd and green
 						)
 					or showNonManualCons and unit.tracked and (
-							unit.isCon and not (unit.manual or unit.waitManual) and blue
+							unit.isCon and not (unit.manual or unit.waitManual or unit.isFighting) and blue
 						)
 
 				if not statusColor then
@@ -862,21 +857,28 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 					elseif showCloaked and unit.isCloaked then
 					  alphaStatus = 0.7
 					  statusColor = paleblue
-					elseif not unit.isEnemy and defID and airpadDefID[defID] then
-						if spGetUnitRulesParam(id, "padExcluded" .. myTeamID) == 1 then
-							statusColor = copper
+					elseif defID then
+						if airpadDefID[defID] and not unit.isEnemy then
+							if spGetUnitRulesParam(id, "padExcluded" .. myTeamID) == 1 then
+								statusColor = copper
+							end
+						elseif unit.isBomber then
+							local noammo = spGetUnitRulesParam(id, "noammo")
+							if (noammo or 0) > 0 then
+								statusColor = ocre
+							end
 						end
 					end
 				end
 			end
 			if showHealth then
-				healthColor = health and (health<0.3 and red or health<0.6 and orange)
+				healthColor = health and (health<0.3 and red or (enable3 or health<0.6) and orange)
 			end
 			if showAllySelected or tryFont then
 				if allyOnTop then
-					allyDelayDraw = allySelUnits[id]
+					allyDelayDraw = enable3 or allySelUnits[id]
 				else
-					allySelColor = allySelUnits[id] and white
+					allySelColor = (enable3 or allySelUnits[id]) and white
 				end
 			end
 
@@ -916,8 +918,7 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 				end
 				if allySelColor then
 					symbolSelAlly:Draw(mx,my, allySelColor, alphaAlly)
-				end
-				if allyDelayDraw then
+				elseif allyDelayDraw then
 					return {mx,my}
 				end
 			end
