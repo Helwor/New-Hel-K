@@ -2417,6 +2417,7 @@ do --- EzTarget ---
 		-- Echo(#DBG, unpack(DBG[#DBG]))
 		return mx, my, pos, clamped
 	end
+
 	EzTarget = function(getTarget, getSelect, wantAllied)
 
 		if cancelEz then return end
@@ -2516,6 +2517,7 @@ do --- EzTarget ---
 		local wobbling = 55000 / Cam.relDist
 		wobbling = 0
 		rMax = rMax + wobbling
+		local fov = Cam.fov
 		for _, id in pairs(spGetUnitsInScreenRectangle(mx - rMax, my - rMax, mx + rMax, my + rMax))  do
 			local unit = Units[id]
 			if unit then
@@ -2537,11 +2539,12 @@ do --- EzTarget ---
 						-- max(camHeight,1000)/1000
 						
 						local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+						distFromCam = distFromCam * fov / 45
 						if distFromCam > opt.ezTargetThreshold then
 
 							local isIcon = isIcon[id] or not inSight[id]
 							if isIcon and defID then
-								y = GetIconMidY(defID,y,gy,distFromCam)
+								y = GetIconMidY(defID, y, gy, distFromCam)
 							end
 							local sx,sy = spWorldToScreenCoords(x,y,z) 
 							local scrDist = ((mx-sx)^2 + (my-sy)^2)^0.5
