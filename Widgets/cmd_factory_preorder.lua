@@ -13,10 +13,10 @@ end
 -- to work better, need: api_selection_handler, addon_handler_multi_register_global, api_clamp_mouse_to_world, draw_placements, gui_api_draw_before_chili, api_on_widget_state, (and eventually the whole hel-k system :p)
 
 local Echo = Spring.Echo
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 local screenWidth, screenHeight = Spring.GetViewGeometry()
+local playerID = Spring.GetMyPlayerID()
 
 -- option defaults
 local track_update = 2 -- seconds between checking command queues
@@ -172,6 +172,7 @@ local checkUnits = {}
 local trail = false
 local spGetSelectedUnits = Spring.GetSelectedUnits
 local selMap, selDefID
+local myUnitsSelected = false
 local GetUnderSea
 local CheckPotent
 local removeCommandOnShiftRelease = false
@@ -1477,9 +1478,15 @@ function widget:CommandsChanged()
 		fake_command = false
 	end
 	selDefID = WG.selectionDefID or spGetSelectedUnitsSorted()	
+	local _, units = next(selDefID)
+	local teamID = units and Spring.GetUnitTeam(units[1])
+	myUnitsSelected = teamID == myTeamID
 end
 
 function widget:CommandNotify(cmdID, params, options)
+	if not myUnitsSelected then
+		return
+	end
 	if cmdID < 0 and params[3] then
 		if factoryDefs[-cmdID] then
 			local obj = FacUI:New(-cmdID, params)
@@ -1923,7 +1930,11 @@ function WidgetRemoveNotify(w, name)
 		IntegralMenu = nil
 	end
 end
-
+function widget:PlayerChanged(playerID)
+	if playerID == myPlayerID then
+		myTeamID = Spring.GetMyTeamID()
+	end
+end
 function widget:Initialize()
 	if Spring.GetSpectatingState() or Spring.IsReplay() then
 		widgetHandler:RemoveWidget(widget)
