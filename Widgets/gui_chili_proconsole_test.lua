@@ -18,6 +18,8 @@ end
 	-- implement battle room chat messages
 -- April 2025
 	-- improve performance and memory
+-- Dec 2025
+	-- implement emotes
 local Echo = Spring.Echo
 include("keysym.lua")
 include("Widgets/COFCTools/ExportUtilities.lua")
@@ -365,6 +367,16 @@ options = {
 		type = 'table',
 		value = emotes,
 		path = helk_path,
+		action = 'emotes',
+		OnChange = function(self)
+		end,
+		preTreatment = function(t)
+			for k, v in pairs(emotes) do
+				if not t[k] then
+					t[k] = v
+				end
+			end
+		end,
 	},
 	--lblFilter = {name='Filtering', type='label', advanced = false},
 	--lblPointButtons = {name='Point Buttons', type='label', advanced = true},
@@ -1032,11 +1044,13 @@ local function escape_lua_pattern(s)
 	return (s:gsub(".", matches))
 end
 
-local function PlaySound(id)
+local function PlaySound(id, condition)
 	if recentSoundTime then
 		return
 	end
-
+	if condition ~= nil and not condition then
+		return
+	end
 	local file = SOUNDS[id]
 	if file then
 		Spring.PlaySoundFile(file, 1, 'ui')
@@ -1209,6 +1223,7 @@ local function AddMessage(msg, target, remake)
 		valign = "ascender",
 		lineSpacing = 0,
 		padding = tZeroes,
+
 		-- text = '['..COUNT..']'..maxReached..':Len:'..#stack.children..', prev:'..prevTxt..' | '..text,
 		text = text,
 		
@@ -1283,6 +1298,7 @@ local function AddMessage(msg, target, remake)
 			local tbheight = textbox.height + 2 -- not perfect
 			--Echo('tbheight', tbheight)
 			control = Panel:New{
+
 				width = '100%',
 				height = tbheight,
 				padding = tZeroes,
@@ -2095,6 +2111,8 @@ local firstSwap = true
 function widget:Update(s)
 	if WG.enteringText then
 		GetUnicode()
+	else
+		unicode = false
 	end
 	if firstUpdate then
 		Initialize()
@@ -2214,8 +2232,12 @@ function widget:RecvLuaMsg(msg, playerID)
 		if msg:find('^2_', st + 1) then
 			playerName = true
 			message = msg:sub(st + 3)
-			_, st, playerName = message:find('^([%w_]+)') 
-			message = message:sub(st + 2)
+			_, st, playerName = message:find('^([%w_]+)')
+			if playerName then -- rare nil can happen
+				message = message:sub(st + 2)
+			else
+				message = nil
+			end
 
 		elseif msg:find('^_', st + 1) then
 			message = msg:sub(st + 2)
@@ -2254,7 +2276,7 @@ function widget:Shutdown()
 	if (window_chat) then
 		window_chat:Dispose()
 	end
-	SetInputFontSize(20)
+	SetInputFontSize(18)
 	Spring.SendCommands({"console 1", "inputtextgeo default"}) -- not saved to spring's config file on exit
 	Spring.SetConfigString("InputTextGeo", "0.26 0.73 0.02 0.028") -- spring default values
 	
@@ -2262,5 +2284,6 @@ function widget:Shutdown()
 end
 
 
-
-f.DebugWidget(widget)
+if f then
+	f.DebugWidget(widget)
+end

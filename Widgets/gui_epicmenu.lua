@@ -6,6 +6,7 @@ Implementations:
 	- add 'table' option type to edit a table in widget, table is kept unique, can be directly declared from widget and used at runtime after modifying it by option, 
 		-- pre and post processing the table can be added function .preTReatment and function .postTreatment
 		-- .noRemove key will prevent user from removing hardcoded keys of table during game time
+		-- table can be opened/closed via action
 	- add key option 'alwaysOnChange' to apply user's OnChange function even if value hasn't changed
 	- add key option 'onChangeAtLoading' to apply OnChange function before widget Initialization 
 		, (fixed now?) but EPIC MENU must be already present before the widget get loaded to catch it
@@ -85,7 +86,7 @@ end
 local Echo = Spring.Echo
 local dev = true
 local debugMe = false
-
+local sig = '['..widget:GetInfo().name .. ']: '
 local CheckLUAFileAndBackup = VFS.Include("LuaUI/file_backups.lua", nil, VFS.GAME)
 
 --CRUDE EXPLAINATION (third party comment) on how things work: (by Msafwan)
@@ -1244,7 +1245,7 @@ end
 --create spring action for this option. Note: this is used by AddOption()
 local function CreateOptionAction(path, option)
 
-	local kbfunc = option.OnChange
+	local kbfunc = function() return option.OnChange(nil, true) end
 	
 	if option.type == 'bool' then
 		kbfunc = function()
@@ -1268,7 +1269,7 @@ local function CreateOptionAction(path, option)
 			end
 			--]]
 			option.value = not option.value
-			option.OnChange({checked = newval})
+			option.OnChange({checked = newval}, true)
 			
 			if MENU.win and MENU.win.visible then
 				if displayedOptions[option] then
@@ -1674,7 +1675,7 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 							Spring.SetConfigInt(option.springsetting, option.value)
 						end
 					else
-						Echo('['..widget.GetInfo().name..']: ' ..  'Error, ' .. option.springsetting .. 'is of type ' .. typeSet .. ' while option trying to set : ' .. tostring(option.value))
+						Echo(sig ..  'Error, ' .. option.springsetting .. 'is of type ' .. typeSet .. ' while option trying to set : ' .. tostring(option.value))
 					end
 				end
 			end
@@ -1703,7 +1704,7 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 							Spring.SetConfigInt(option.springsetting, option.value)
 						end
 					else
-						Echo('['..widget.GetInfo().name..']: ' ..  'Error, ' .. option.springsetting .. 'is of type ' .. typeSet .. ' while option trying to set : ' .. tostring(option.value))
+						Echo(sig ..  'Error, ' .. option.springsetting .. 'is of type ' .. typeSet .. ' while option trying to set : ' .. tostring(option.value))
 					end
 				end
 			end
@@ -1714,8 +1715,8 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 			option.value = value
 			userOnChange(option)
 		end
-		controlfunc = function(self)
-			if self and self.classname == 'button' then
+		controlfunc = function(self, fromAction)
+			if self and self.classname == 'button' or fromAction then
 				-- dont trigger if OnChange has been called by other mean through epic menu
 				if setPropWindow and not setPropWindow.disposed then
 					setPropWindow:Dispose()
@@ -1735,8 +1736,8 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 		end
 	end
 
-	option.OnChange = function(obj)
-		controlfunc(obj) --note: 'obj' (NOT ALWAYS AT ALL self, hence the redundancy with userOnChange) can refer to the button/checkbox/slider control or to an arbitrary table
+	option.OnChange = function(obj, fromAction)
+		controlfunc(obj, fromAction) --note: 'obj' (NOT ALWAYS AT ALL self, hence the redundancy with userOnChange) can refer to the button/checkbox/slider control or to an arbitrary table
 		if option.type ~= 'table' then
 			userOnChange(option)
 		end
@@ -1771,6 +1772,7 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 		end
 		if linked then
 			-- option is up, we can link it right now
+			Echo('OPTION IS ALREADY UP', path, '=>', linked.path)
 			linked.links = linked.links or {}
 			linked.links[option] = true
 			option.links = option.links or {}
@@ -1783,6 +1785,7 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 	-- case an option to be linked wasn't loaded yet and now it is
 	local linked = optionsToLink[path..wname..option.key]
 	if linked then
+		Echo('OPTION IS NOW UP', path, '=>', linked.path)
 		linked.links = linked.links or {}
 		linked.links[option] = true
 		option.links = option.links or {}
@@ -1913,7 +1916,7 @@ local function PreIntegrateWidget(w, alreadyLoaded)
 	local option = w.options[w.options_order[i]]
 	while option do
 		if option.springsetting and not allSettings[option.springsetting] then
-			Echo('['..widget:GetInfo().name..']: ' .. 'Error ' .. option.springsetting .. ' is not a Spring option.')
+			Echo(sig .. 'Error ' .. option.springsetting .. ' is not a Spring option.')
 			table.remove(w.options_order, i)
 		else
 			i = i + 1
@@ -2353,8 +2356,8 @@ local function ResetWinSettings(path)
 						end
 					end
 				end
-			else
-				Spring.Log(widget:GetInfo().name, LOG.ERROR, '<EPIC Menu> Error #627', option.name, option.type)
+			elseif option.type == 'label' and option.clickable then
+				Spring.Log(widget:GetInfo().name, LOG.ERROR, '<EPIC Menu> Error #627', option.name, option.type, 'doesn\'t have default valut')
 			end
 		end
 	end
@@ -2592,7 +2595,7 @@ function MENU:Navigate(newEventObj, pause)
 				end
 				local w = newEventObj.widget
 				if not w.options_order then
-					Echo('['..widget:GetInfo().name..']: ' .. widget:GetInfo().name .. ' doesn\'t have any options.')
+					Echo(sig .. w:GetInfo().name .. ' doesn\'t have any options.')
 					return
 				end
 				if eventObj.widget then
@@ -2613,13 +2616,17 @@ function MENU:Navigate(newEventObj, pause)
 					local opt = w.options[name]
 					if opt then
 						local path = opt.path
-						if not commons[path] then
-							commons[path] = true
-							for j = i, #w.options_order do
-								local name = w.options_order[j]
-								local opt = w.options[name]
-								if opt.path == path then
-									list[#list + 1] = {opt.path, opt}
+						if not opt.path then
+							Echo(sig .. '!! no opt path for', opt.wname, opt.name)
+						else
+							if not commons[path] then
+								commons[path] = true
+								for j = i, #w.options_order do
+									local name = w.options_order[j]
+									local opt = w.options[name]
+									if opt.path == path then
+										list[#list + 1] = {opt.path, opt}
+									end
 								end
 							end
 						end
@@ -4617,7 +4624,7 @@ function widget:Initialize()
 				requestRefresh = true
 			end
 		else
-			Echo('['..widget:GetInfo().name..']: ' .. 'Couldn\'t set option, no option found !', wname, path, pathoptions[path], key, value)
+			Echo(sig .. 'Couldn\'t set option, no option found !', wname, path, pathoptions[path], key, value)
 		end
 	end
 	WG.InitializeTranslation (LanguageChanged, GetInfo().name)
