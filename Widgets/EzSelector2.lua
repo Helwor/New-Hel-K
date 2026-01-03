@@ -3059,6 +3059,7 @@ local hotkeysCombos = {
 			defs = {class = 'riot'},
 			longPressTime = 0.1,
 			share_radius = 'Raiders',
+			add_last_acquired = true,
 			keep_on_fail = true,
 			force = true,
 			color = {0.5, 0.7, 0.7, 1},
