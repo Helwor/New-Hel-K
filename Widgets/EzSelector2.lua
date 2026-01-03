@@ -2981,12 +2981,10 @@ local hotkeysCombos = {
 		method = 'cylinder',
 		-- defs = {class = 'riot'},
 		-- prefer = {{name = 'striderdante'}, {'isGS'}},
-		switch = {
-			{
-				name = 'striderdante'},
+		groups = {
+			{name = 'striderdante'},
 			{class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}, '!isGS'},
-			{class = 'riot', name = {'spideremp', 'jumpblackhole', 'amphimpulse'}},
-			{class = 'riot', name = {'spiderriot', 'amphriot'}},
+			{class = 'riot', name = {'jumpblackhole'}},
 			{class = 'riot', 'isGS'},
 		},
 		switch_time = 1,
@@ -3029,22 +3027,24 @@ local hotkeysCombos = {
 
 
 		{
-			name = 'Alt Riot',
+			name = 'Slow/Fast Riot',
 			method = 'cylinder',
 			keys = {'?SPACE', 3, 'doubleTap'},
-			defs = {class = 'riot'},
+			defs = {'!isGS', class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}},
 			groups = { -- groups find the first matching group closest of cursor
 				{
-					['!name'] = {'spideremp', 'amphimpulse'},
+					-- ['!name'] = {'spideremp', 'amphimpulse', 'jumpblackhole'},
+					['d:speed'] = '>65',
 				},
 				{
-					['!name'] = {'spiderriot', 'amphriot'},
+					['d:speed'] = '<=65',
+					-- ['!name'] = {'spiderriot', 'amphriot', 'jumpblackhole'},
 				}
 			},
 			-- different_units = true,
-			switch_groups = 1,
+			-- switch_groups = 1,
 			force = true,
-			share_radius = 'Riot',
+			share_radius = 'Raiders',
 			color = {1, 0.8, 0.8, 1},
 			fading = 1,
 		},
@@ -3053,11 +3053,11 @@ local hotkeysCombos = {
 
 
 		{
-			name = 'Alt Riot 2',
+			name = 'Any Riot',
 			method = 'cylinder',
-			-- keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
-			defs = {class = 'riot', name = {'spideremp', 'amphimpulse', 'jumpblackhole'}},
-			longPressTime = 0.2,
+			keys = {'?SPACE', 3, 'longPress'},
+			defs = {class = 'riot'},
+			longPressTime = 0.1,
 			share_radius = 'Raiders',
 			keep_on_fail = true,
 			force = true,
@@ -6752,8 +6752,12 @@ do
 			--CASE: CONDITION IS A PROPERTY WITH MATCHING VALUE(s)
 			else
 				--translating the property into a value to match
-				local val
-				if type(reqProp)== 'function' then
+				local val, numComp
+				if type(reqVal) == 'string' and reqVal:find('[><=]') then
+					numComp, reqVal = reqVal:match('([><=]+)%s-(%d+)')
+					reqVal = tonumber(reqVal)
+					val = proptable[reqProp]
+				elseif type(reqProp)== 'function' then
 					val = reqProp(id)
 				elseif reqProp == 'reload' then
 						local reloadState = spGetUnitWeaponState(id, reqVal, "reloadState")
@@ -6872,9 +6876,9 @@ do
 				else
 					val = proptable[reqProp]
 				end
-				
+
 				-- SUBCASE: ONE PROP VS MULTIPLE VALUES, value is a table eg [!prop] = {v1, v2}, [?prop] = {v1, v2}, ['reload'] = {weapnum1, weapNum2}...
-				if type(reqVal)== 'table' and reqProp ~= 'hasOrder' then 
+				if type(reqVal) == 'table' and reqProp ~= 'hasOrder' then 
 					if reqVal._opti then -- for table of names and the like, we previously transformed indexed table into paired table
 						pass = not not reqVal[val]
 						if subInv then pass = not pass end
@@ -6899,9 +6903,23 @@ do
 
 				-- SUBCASE: ONE PROP VS ONE VALUE
 				else
-					pass = val == reqVal or reqVal == true and val
+					if numComp and val then
+						if numComp == '>' then
+							pass = val >  reqVal
+						elseif numComp == '>=' then
+							pass = val >= reqVal
+						elseif numComp == '<' then
+							pass = val <  reqVal
+						elseif numComp == '<=' then
+							pass = val <= reqVal
+						elseif numComp == '==' then
+							pass = val == reqVal
+						end
+					else
+						pass = val == reqVal or reqVal == true and val
+					end
 					if subInv then pass = not pass end
-					if debugCheck then Echo(' ' .. (subInv and 'subNOT ' or '')..'('..tostring(reqProp)..'== '..tostring(reqVal)..')'..(Or and ' (OR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
+					if debugCheck then Echo(' ' .. (subInv and 'subNOT ' or '')..'('..tostring(reqProp)..' '..(numComp or '==')..' '..tostring(reqVal)..')'..(Or and ' (OR)' or '')..' => '..(pass and 'PASSED' or 'FAILED')..' | my value == '..tostring(val)) end
 				end
 			end
 			-- applying the eventual operators if we're in a recursion (subtable of defs)
