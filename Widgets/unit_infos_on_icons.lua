@@ -39,9 +39,9 @@ local symbolStatus = {
 	list = false,
 	Draw = function() end,
 	-- since the new GetMidY
-	offX = 0,
+	offX = 2,
 	-- offY = -2,
-	offY = -4,
+	offY = -1,
 }
 
 local symbolSelAlly = {
@@ -406,11 +406,12 @@ options.show_status = {
 		showStatus = self.value
 	end,
 	noHotkey = true,
-	children = {'alpha_status', 'show_command_status'},
+	children = {'alpha_status', 'show_command_status', 'show_non_manual_cons'},
 }
 
 options.show_non_manual_cons = {
-	name = 'Show Idle Cons',
+	name = 'Show Tracked non manual Cons',
+	desc = 'Mainly while using Smart Builder',
 	type = 'bool',
 	value = showNonManualCons,
 	OnChange = function(self)
