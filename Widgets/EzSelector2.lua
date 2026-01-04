@@ -3055,7 +3055,7 @@ local hotkeysCombos = {
 		{
 			name = 'Any Riot',
 			method = 'cylinder',
-			keys = {'?SPACE', 3, 'longPress'},
+			keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
 			defs = {class = 'riot'},
 			longPressTime = 0.1,
 			share_radius = 'Raiders',
