@@ -511,7 +511,7 @@ end
 
 local facDefID, facDefIDArray = {}, {}
 for defID, def in pairs(UnitDefs) do
-	if def.isFactory  and def.buildOptions and not def.customParamsdef.isfakefactory then
+	if def.isFactory  and def.buildOptions and not def.customParams.isfakefactory then
 		push(facDefIDArray, defID)
 		facDefID[defID] = true
 	else
