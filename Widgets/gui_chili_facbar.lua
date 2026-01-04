@@ -9,7 +9,7 @@ function widget:GetInfo()
 	author    = "Helwor total rewrite from CarRepairer (converted from jK's Buildbar)",
 	date      = "2010-11-10",
 	license   = "GNU GPL, v2 or later",
-	layer     = 1001,
+	layer     = 999, 
 	enabled   = true,
 	handler   = true,
 	}
@@ -511,7 +511,7 @@ end
 
 local facDefID, facDefIDArray = {}, {}
 for defID, def in pairs(UnitDefs) do
-	if def.isFactory  and def.buildOptions then
+	if def.isFactory  and def.buildOptions and not def.customParamsdef.isfakefactory then
 		push(facDefIDArray, defID)
 		facDefID[defID] = true
 	else
@@ -903,11 +903,6 @@ local function CreateFacControls(fac, i)
 	fac.facButton = facButton
 	fac.qStack    = qStack
 	fac.qStore    = qStore
-	if not UNI_STORE then
-		UNI_STORE = qStore
-	end
-	-- Echo("stack_main, facButton is ", stack_main, facButton)
-
 	local buildList   = fac.buildList
 
 	for _, buildDefID in ipairs(buildList) do
@@ -2025,7 +2020,7 @@ end
 -- ANIMATER
 
 
-function widget:DrawScreenPost()
+function widget:DrawScreen()
 	if not initialized or spIsGUIHidden() then
 		return
 	end
