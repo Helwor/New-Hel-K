@@ -475,6 +475,9 @@ local function GetClosestMetalSpot(x, z) --is used by single mex placement, not 
 	local bestDist = math.huge
 	local bestIndex
 	local spots = WG.metalSpots
+	if not spots then
+		return
+	end
 	for i = 1, #spots do
 		local spot = spots[i]
 		local dx, dz = x - spot.x, z - spot.z
