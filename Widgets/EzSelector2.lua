@@ -1029,7 +1029,7 @@ local hotkeysCombos = {
 						{
 							['?'] = {
 								'isIdle',
-								{'!manual', '!waitManual', '!isFighting'},
+								{'!manual', '!waitManual'},
 								-- {['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
 							},
 						},
@@ -1046,7 +1046,7 @@ local hotkeysCombos = {
 						{
 
 							['?'] = {
-								'manual', 'waitManual','isFighting'
+								'manual', 'waitManual'
 							},
 							-- {
 							-- 	['?'] = {
@@ -4082,6 +4082,7 @@ local possibleKeys = {
 }
 
 local currentCombo = {keys = {}, raw = {}}
+widget.currentCombo = currentCombo
 local ownedCombos = {} -- for cycling translate combo name to combo index
 
 g.hkCombo = false
@@ -8765,14 +8766,14 @@ end
 local dirtyFixUpdate = 1
 function widget:Update(dt)
 	dirtyFixUpdate = dirtyFixUpdate - dt
-	if dirtyFixUpdate == 0 then
+	if dirtyFixUpdate <= 0 then
 		dirtyFixUpdate = 1
 		if currentCombo.keys.AIR or locks.tmpPushed.AIR then
-			if not Spring.GetKeyPressed(KEYSYMS.SPACE) then
+			if not Spring.GetPressedKeys()[KEYSYMS.SPACE] then
+				Echo("DETECTED AIR LOCK BUG",currentCombo.keys.AIR, locks.tmpPushed.AIR, os.clock())
 				locks.tmpPushed.AIR = nil
 				currentCombo.keys.AIR = nil
 				currentCombo.raw[KEYSYMS.SPACE] = nil
-				Echo("DETECTED AIR LOCK BUG", os.clock())
 				Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
 			end
 		end
