@@ -371,7 +371,7 @@ local function dbgStateComment(id, event)
 	return formatColumnInfolog(
 		id, 8,
 		event, 17,
-		Units[id] and '<unit>' or '', 10,
+		Units[id] and Units[id].name or '', 10,
 		INIT and '(init)' or IGNORE_INVALID and '(changed side)' or '' 
 	)   
 	-- return formatColumn(
@@ -1383,7 +1383,8 @@ function widget:UnitLeftLos(id, teamID)
 	end
 	if DESTROYED[id] then
 		return
-	elseif spGetUnitIsDead(id) then -- happens sometimes
+	end
+	if spGetUnitIsDead(id) then -- happens sometimes
 		if Units[id] then
 			Echo('unit', id, 'left LoS but is just dead AND Was registered !')
 			Spring.PlaySoundFile(tickSound, 0.95, 'ui')
@@ -1396,23 +1397,26 @@ function widget:UnitLeftLos(id, teamID)
 		end
 		widget:UnitDestroyed(id, teamID)
 		return
-	elseif not IGNORE_INVALID then --
-		if not spValidUnitID(id) and warns < MAX_WARNS then
-			local unit = Units[id]
-			if unit and unit.name:find('drone') then
-				return
-			end
-			warns = warns + 1
-			if unit then
-				-- FIXME wtf -- seems to happen with drone (at least) systematically now, 
+	end
+	local unit = Units[id]
+	local isDrone = unit and unit.name:find('drone')
+	if not IGNORE_INVALID then --
+		if not spValidUnitID(id) then
+			if isDrone then
+				-- now drone doesnt have anymore radar dot, 
+				--skip
+			elseif warns < MAX_WARNS then
+				warns = warns + 1
+				if unit then
 					Spring.PlaySoundFile(tickSound, 0.95, 'ui')
 					Echo('unit', id, Units[id].name,  'left LoS but is invalid AND Was registered !')
-			else
-				Spring.PlaySoundFile(tickSound, 0.95, 'ui')
-				Echo('unit', id, 'left LoS but is invalid AND WASNT registered !')
+				else
+					Spring.PlaySoundFile(tickSound, 0.95, 'ui')
+					Echo('unit', id, 'left LoS but is invalid AND WASNT registered !')
+				end
+				widget:UnitDestroyed(id, teamID)
+				return
 			end
-			widget:UnitDestroyed(id, teamID)
-			return
 		end
 	end
 
@@ -1423,7 +1427,6 @@ function widget:UnitLeftLos(id, teamID)
 	-- 	return
 	-- 	-- Echo('own allied entered los !',math.round(os.clock()*10)%10)
 	-- end
-	local unit = Units[id]
 	if unit then
 		-- local losState = spGetUnitLosState(id)
 		-- Echo(id,'left los' .. (INIT and ' (init)' or '') .. (losState and losState.radar and '' or ' (not in radar too)') .. (not spValidUnitID(id) and ' INVALID' or ''))
@@ -1441,6 +1444,10 @@ function widget:UnitLeftLos(id, teamID)
 		inSight[id] = nil
 		unit.checkHealth = false
 		unit.lastSeen = currentFrame
+		if isDrone then -- now drone doesnt have anymore radar dot
+			widget:UnitLeftRadar(id, teamID)
+			return
+		end
 		-- if not unit.isStructure then
 		-- 	Echo('verif pos out of los', spGetUnitPosition(id))
 		-- end
@@ -1575,7 +1582,7 @@ function widget:UnitDamaged(id, defID, teamID)
 	elseif spGetUnitIsDead(id) then -- let's try without it -- in some rarer case it's not the last dead registered 
 		-- FIXME: that might be expensive !
 		-- seems like it never happened so far
-		Echo('id',id, 'get damaged after beeing dead but its not the last dead! Was registered ?',Units[id])
+		Echo('id',id, 'get damaged after being dead but its not the last dead! Was registered ?',Units[id])
 		Spring.PlaySoundFile(tickSound, 0.95, 'ui')
 		widget:UnitDestroyed(id, teamID)
 		return
