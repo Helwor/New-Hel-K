@@ -20,6 +20,8 @@ local GetCameraHeight = f.GetCameraHeight
 local manager = {}
 local debugProps = {'id','isAllied','isMine','isEnemy'}
 local filterProps = {}
+WG.maxUnitRadius = 0
+WG.minUnitRadius = 0
 local function Throw(...)
 	Echo(...)
 	error(debug.traceback())
@@ -31,6 +33,7 @@ local isPlaneDefID = {}
 local isFactoryDefID = {}
 local isDefenseDefID = {}
 local isConDefID = {}
+local minRadius, maxRadius = math.huge, 0
 for defID, def in pairs(UnitDefs) do
 	local name = def.name
 	if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or name:find('comm') or name:find('^hero')) then 
@@ -47,7 +50,19 @@ for defID, def in pairs(UnitDefs) do
 	if name:find("turret") or name=='staticarty' or name=='staticheavyarty' or name=='staticantiheavy' then
 		isDefenseDefID[defID] = true
 	end
+
+	local radius = def.radius
+	if maxRadius < radius then
+		maxRadius = radius
+	end
+	if minRadius > radius then
+		minRadius = radius
+	end
 end
+WG.maxUnitRadius = maxRadius
+WG.minUnitRadius = minRadius
+
+
 local setPropWindow, setFilterWindow
 options_path = 'Hel-K/'..widget:GetInfo().name
 
@@ -506,26 +521,27 @@ function manager:DefineUnit(id, defID, unit)
 end
 
 
-local function CreateUnitModel(defID, ud)
-	name = ud.name
-	local moveType = spuGetMoveType(ud) or -1
-	local isTransportable = not (ud.canFly or ud.cantBeTransported)
+local function CreateUnitModel(defID, def)
+	name = def.name
+	local moveType = spuGetMoveType(def) or -1
+	local isTransportable = not (def.canFly or def.cantBeTransported)
 	local heavy
 	if isTransportable then
-		heavy = ud.customParams.requireheavytrans
+		heavy = def.customParams.requireheavytrans
 	end
 	local isUnit = moveType>-1
 
 	local proto= {
 		name                    = name,
-		ud                      = ud,
-		maxHP                   = ud.health,
+		ud                      = def,
+		maxHP                   = def.health,
 		defID                   = defID,
-		cost                    = ud.cost or 0,
+		cost                    = def.cost or 0,
+		radius					= def.radius,
 	} 
 	if isUnit then
 		proto.isUnit				= true
-		proto.isTransport			= ud.isTransport
+		proto.isTransport			= def.isTransport
 		proto.isTransportable		= isTransportable
 		proto.heavy					= heavy
 		local class					= classByName[name] or isConDefID[defID] and 'conunit' or 'unknown' 
@@ -537,7 +553,7 @@ local function CreateUnitModel(defID, ud)
 			if isBomber[name] then
 				proto.isBomber = true
 			end
-		elseif ud.isHoveringAirUnit then
+		elseif def.isHoveringAirUnit then
 			if name == 'athena' then
 				proto.isAthena = true
 			else
@@ -1028,25 +1044,27 @@ do -- debugging
 				else
 					for _,prop_name in pairs(debugProps) do
 						local prop
-						if prop_name:find('%.') then
-							local t_name, key = prop_name:match('([%w_]+)%.([%w_]+)')
-							if t_name and type(unit[t_name]) == 'table' then
-								prop = unit[t_name][tonumber(key) or key]
+						if type(prop_name) == 'string' then
+							if prop_name:find('%.') then
+								local t_name, key = prop_name:match('([%w_]+)%.([%w_]+)')
+								if t_name and type(unit[t_name]) == 'table' then
+									prop = unit[t_name][tonumber(key) or key]
+								end
+							else
+								prop = unit[prop_name]
 							end
-						else
-							prop = unit[prop_name]
-						end
-						if prop then
-							off=off-6
+							if prop then
+								off=off-6
 
-							if type(prop) == 'table' then
-								prop = firstInTable(prop)
+								if type(prop) == 'table' then
+									prop = firstInTable(prop)
+								end
+								local str = (prop_name and prop_name ~= 'name' and prop_name..' ' or '') .. (type(prop)=='boolean' and '' or tostring(prop))
+								-- if prop_name == 'manualOrder' then
+								-- 	prop_name,prop = prop[1],true
+								-- end
+								glText(str, 0, off, 5,'nho')
 							end
-							local str = (prop_name and prop_name ~= 'name' and prop_name..' ' or '') .. (type(prop)=='boolean' and '' or tostring(prop))
-							-- if prop_name == 'manualOrder' then
-							-- 	prop_name,prop = prop[1],true
-							-- end
-							glText(str, 0, off, 5,'nho')
 						end
 					end
 				end
