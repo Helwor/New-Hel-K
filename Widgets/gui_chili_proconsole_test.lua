@@ -25,6 +25,7 @@ include("keysym.lua")
 include("Widgets/COFCTools/ExportUtilities.lua")
 
 local missionMode = Spring.GetModOptions().singleplayercampaignbattleid
+local emotes = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/emotes.lua')
 local f = WG.utilFuncs
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -53,7 +54,6 @@ format syntax:
 
 --]]
 
-local emotes = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/emotes.lua')
 
 local MESSAGE_RULES = {
 	player_to_allies = {
@@ -367,16 +367,9 @@ options = {
 		type = 'table',
 		value = emotes,
 		path = helk_path,
+		default = (function() local t = {}; for k,v in pairs(emotes) do t[k] = v end; return t end)(),
 		action = 'emotes',
-		OnChange = function(self)
-		end,
-		preTreatment = function(t)
-			for k, v in pairs(emotes) do
-				if not t[k] then
-					t[k] = v
-				end
-			end
-		end,
+		noRemove = true, -- keep the hardcoded value
 	},
 	--lblFilter = {name='Filtering', type='label', advanced = false},
 	--lblPointButtons = {name='Point Buttons', type='label', advanced = true},
@@ -1464,6 +1457,51 @@ local function HideInputSpace()
 	end
 end
 
+local DetectLabel
+do
+	local drawClick = 0
+	local drawClickStart = 0
+	function DetectLabel() -- work around to detect labels creation, but if a lot laggy, there might be no update round between click and it may fail
+		if not WG.enteringText then
+			if WG.drawtoolKeyPressed then
+				if drawClick == 0 then
+					local b1, b2, b3 = select(3, Spring.GetMouseState())
+					if b1 and not (b2 or b3) then
+						drawClick = 1
+						drawClickStart = os.clock()
+					end
+				elseif drawClick == 1 then
+					local b1, b2, b3 = select(3, Spring.GetMouseState())
+					if b2 or b3 then
+						drawClick = 0
+					elseif not b1 then
+						drawClick = 2
+					end
+				elseif drawClick == 2 then
+					local b1, b2, b3 = select(3, Spring.GetMouseState())
+					if b1 then
+						-- NOTE: 'the double click delay triggering doesnt care about Spring.GetConfigInt('DoubleClickTime')', seems to be 0.3 sec always
+						-- Echo("trigger is ", os.clock() - drawClickStart < 0.3, os.clock() - drawClickStart, "<", 0.3, os.clock())
+						-- if os.clock() - drawClickStart < Spring.GetConfigInt('DoubleClickTime', 300)/1000 then
+						if os.clock() - drawClickStart < 0.3 then
+							WG.enteringText = true
+							drawClickStart = 0
+							drawClick = 0
+						else
+							drawClick = 1
+							drawClickStart = os.clock()
+						end
+					end
+				end
+			end
+		else
+			drawClickStart = 0
+			drawClick = 0
+		end
+		-- Echo('entering text', WG.enteringText, "drawClick is ", drawClick, drawClickStart)
+	end
+end
+
 local function MakeMessageStack(margin, name)
 	return WG.Chili.StackPanel:New{
 		name = 'message_stack_'..name,
@@ -1605,7 +1643,7 @@ local KEY = WG.KEYCODES
 local unicode = false
 local altPressed = false
 local lastKeyPressed = false
-local function GetUnicode()
+local function UnicodeHandling()
 	local keys = Spring.GetPressedKeys()
 	local curAlt = keys[KEYSYMS.LALT] or keys[KEYSYMS.RALT]
 	-- Echo("curAlt, altPressed is ", curAlt, altPressed)
@@ -1639,6 +1677,7 @@ local function GetUnicode()
 		unicode = false
 	end
 	altPressed = curAlt
+	return unicode
 end
 local emote = false
 
@@ -1679,17 +1718,17 @@ function widget:TextInput(char)
 	end
 end
 
-
+local KP_ENTER, RETURN, ESCAPE = KEYSYMS.KP_ENTER, KEYSYMS.RETURN, KEYSYMS.ESCAPE
 
 function widget:KeyPress(key, modifier, isRepeat, label)
 	-- Echo("Spring.IsUserWriting() is ", Spring.IsUserWriting())
 
 	if not isRepeat then
 	end
-	if key == KEYSYMS.KP_ENTER then
+	if key == KP_ENTER then
 		keypadEnterPressed = true
 	end
-	if (key == KEYSYMS.RETURN) or (key == KEYSYMS.KP_ENTER) then
+	if (key == RETURN) or (key == KP_ENTER) then
 		unicode = false
 		emote = false
 		if firstEnter then
@@ -1709,17 +1748,22 @@ function widget:KeyPress(key, modifier, isRepeat, label)
 		if options.backlogShowWithChatEntry.value then
 			SetBacklogShow(false)
 		end
-		HideInputSpace()
+		HideInputSpace() -- this seems never trigered
 	end
 end
 
 function widget:KeyRelease(key, modifier, label)
 
-	if (key == KEYSYMS.RETURN) or (key == KEYSYMS.KP_ENTER) then
-		if key == KEYSYMS.KP_ENTER and keypadEnterPressed then
+	if (key == RETURN) or (key == KP_ENTER) then
+		if key == KP_ENTER and keypadEnterPressed then
 			keypadEnterPressed = false
 			return
 		end
+		if options.backlogShowWithChatEntry.value then
+			SetBacklogShow(false)
+		end
+		HideInputSpace()
+	elseif key == ESCAPE and WG.enteringText then
 		if options.backlogShowWithChatEntry.value then
 			SetBacklogShow(false)
 		end
@@ -2106,11 +2150,10 @@ local initialSwapTime = 0.2
 local firstSwap = true
 
 
-
-
 function widget:Update(s)
+	DetectLabel()
 	if WG.enteringText then
-		GetUnicode()
+		UnicodeHandling()
 	else
 		unicode = false
 	end
