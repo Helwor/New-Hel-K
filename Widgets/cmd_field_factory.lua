@@ -113,8 +113,8 @@ local rX = 7/11 -- relative position in the UI
 local rY = 7/10  
 
 local vsx, vsy = Spring.Orig.GetViewSizes()
-local invX = vsx * rX
-local invY = vsy * rY
+local invX = screenWidth * rX
+local invY = screenHeight * rY
 local invite, invited, warned = false, false, false
 local fieldIcon = 'LuaUI/Images/commands/Bold/fac_select.png'
 local offsetY = 0
@@ -476,7 +476,7 @@ local function DrawInvite()
 	end
 	if field_tweak_win.dragging then -- no OnDragging callin
 		invX, invY = field_tweak_win.x, field_tweak_win.y
-		rX, rY = invX / vsx, invY / vsy
+		rX, rY = invX / screenWidth, invY / screenHeight
 	end
 
 	glPushMatrix()
@@ -543,9 +543,6 @@ end
 
 function widget:MousePress(x,y,button)
 	if optionsWindow then
-		if WG.uiScale and WG.uiScale ~= 1 then
-			x, y = x/WG.uiScale, y/WG.uiScale
-		end
 		if not Chili.Screen0:IsAbove(x,y) then
 			optionsWindow:Dispose()
 			optionsWindow = false
@@ -559,7 +556,10 @@ function widget:MousePress(x,y,button)
 		end
 	else
 		if button == 1 and invite then
-			y = vsy - y
+			if WG.uiScale and WG.uiScale ~= 1 then
+				x, y = x/WG.uiScale, y/WG.uiScale
+			end
+			y = screenHeight - y
 			if  x > invX and x < invX + invSize
 			and y > invY and y < invY + invSize
 			then
@@ -688,7 +688,7 @@ end
 function widget:SetConfigData(data)
 	if data.rX then
 		rX, rY = data.rX, data.rY
-		invX, invY = vsx * rX, vsy * rY
+		invX, invY = screenWidth * rX, screenHeight * rY
 		invSize = data.invSize
 	end
 end
@@ -697,7 +697,7 @@ function widget:ViewResize(x, y)
 	screenWidth = x/WG.uiScale
 	screenHeight = y/WG.uiScale
 	vsx, vsy = x, y
-	invX, invY = rX * vsx, rY * vsy
+	invX, invY = rX * screenWidth, rY * screenHeight
 end
 
 
