@@ -1354,13 +1354,6 @@ function widget:IsAbove(x, y)
 end
 
 function widget:Update(dt)
-
-	if WG.DrawBeforeChili then
-		WG.DrawBeforeChili(widget.DrawScreen)
-	else
-		widgetHandler:UpdateWidgetCallIn("DrawScreen", widget)
-	end
-
 	if showTempOrders then
 		showTempOrders = showTempOrders - Spring.GetLastUpdateSeconds()
 		if showTempOrders < 0 then
@@ -1875,15 +1868,20 @@ function widget:DrawWorld()
 	end
 end
 
-function widget:DrawScreen()
+local function Draw()
 	if tweakMode and not widgetHandler.tweakMode then
 		tweakMode = false
 		fac_preorder_tweak_win:Hide()
 	end
 	FacUI:DrawInvites(tweakMode)
+end
+
+function widget:DrawScreen()
 	if WG.DrawBeforeChili then
-		widgetHandler:RemoveWidgetCallIn('DrawScreen', widget)
+		WG.DrawBeforeChili(Draw)
+		return
 	end
+	Draw()
 end
 
 function widget:TweakDrawScreen()
@@ -1959,7 +1957,6 @@ function widget:Initialize()
 	Screen0 = WG.Chili.Screen0
 	if WG.DrawBeforeChili then 
 		WG.DrawBeforeChili(widget.DrawScreen)
-		widgetHandler:RemoveWidgetCallIn('DrawScreen', widget)
 	end
 	widget:CommandsChanged()
 	IntegralMenu = widgetHandler:FindWidget('Chili Integral Menu')
