@@ -857,7 +857,7 @@ MakeMinimapWindow = function()
 	if (window) then
 		window:Dispose()
 	end
-	Spring.SendCommands('minimap mini 0')
+	Spring.SendCommands('minimap min 0')
 	if options.disableMinimap.value then
 		return
 	end
@@ -992,7 +992,6 @@ MakeMinimapWindow = function()
 		resizable = options.alwaysResizable.value,
 		minimizable = options.minimizable.value,
 		OnDispose = { function(self) 
-			Echo('disposed')
 			-- Spring.SendCommands('minimap min 1')
 		end},
 		tweakDraggable = true,
