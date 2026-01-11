@@ -16,6 +16,7 @@ local Echo = Spring.Echo
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 local screenWidth, screenHeight = Spring.GetViewGeometry()
+
 local playerID = Spring.GetMyPlayerID()
 
 -- option defaults
@@ -158,8 +159,8 @@ end
 local myTeamID
 local myPlayerID = Spring.GetMyPlayerID()
 local vsx, vsy = Spring.Orig.GetViewSizes()
-local invite_x = vsx * ui_relative_x
-local invite_y = vsy * ui_relative_y
+local invite_x = screenWidth * ui_relative_x
+local invite_y = screenHeight * ui_relative_y
 local ui_icon = 'LuaUI/Images/commands/Bold/buildplate.png'
 local offsetY = 0
 
@@ -1100,7 +1101,7 @@ function FacUI:DrawInvites(tweakMode)
 	if tweakMode then
 		if fac_preorder_tweak_win.dragging then -- no OnDragging callin so we check it here
 			invite_x, invite_y = fac_preorder_tweak_win.x, fac_preorder_tweak_win.y
-			ui_relative_x, ui_relative_y = invite_x / vsx, invite_y / vsy
+			ui_relative_x, ui_relative_y = invite_x / screenWidth, invite_y / screenHeight
 			for i, obj in ipairs(self.stack) do
 				obj.invite_x = invite_x - invite_size * (obj.index - 1)
 				obj.invite_y = invite_y
@@ -1136,7 +1137,8 @@ function FacUI:ClickInvite(x, y)
 					end
 				end
 			end
-			local y = vsy - y
+			x, y = x/WG.uiScale, y/WG.uiScale
+			local y = screenHeight - y
 			if  x > obj.invite_x and x < obj.invite_x + invite_size
 			and y > obj.invite_y and y < obj.invite_y + invite_size
 			then
@@ -1364,7 +1366,8 @@ function widget:Update(dt)
 		if fake_command then
 			Spring.SetMouseCursor(fake_command)
 		elseif allow_rightclick and FacUI.hasDevelopped > 0 then
-			if not Screen0.hoveredControl then
+			local x, y = Spring.GetMouseState()
+			if not Screen0:IsAbove(x,y) then
 				local _, cmdID, _, cmdName = spGetActiveCommand()
 				if not cmdID or cmdID >= 0 then
 					Spring.SetMouseCursor("GatherWait")
@@ -1596,9 +1599,6 @@ function widget:MousePress(x, y, button)
 		return true
 	end
 	if FacUI.active then
-		if WG.uiScale and WG.uiScale ~= 1 then
-			x, y = x/WG.uiScale, y/WG.uiScale
-		end
 		if not Screen0:IsAbove(x,y) then
 			if FacUI.hasInvite > 0 and button == 1 and FacUI:ClickInvite(x, y) then
 				return true
@@ -1899,7 +1899,7 @@ end
 function widget:SetConfigData(data)
 	if data.ui_relative_x then
 		ui_relative_x, ui_relative_y = data.ui_relative_x, data.ui_relative_y
-		invite_x, invite_y = vsx * ui_relative_x, vsy * ui_relative_y
+		invite_x, invite_y = screenWidth * ui_relative_x, screenHeight * ui_relative_y
 		invite_size = data.invite_size
 	end
 end
@@ -1908,7 +1908,7 @@ function widget:ViewResize(x, y)
 	screenWidth = x/WG.uiScale
 	screenHeight = y/WG.uiScale
 	vsx, vsy = x, y
-	invite_x, invite_y = ui_relative_x * vsx, ui_relative_y * vsy
+	invite_x, invite_y = ui_relative_x * screenWidth, ui_relative_y * screenHeight
 end
 
 function widget:PlayerChanged(playerID)
@@ -1955,9 +1955,7 @@ function widget:Initialize()
 	PATROL_KEY = Spring.GetKeyCode(WG.crude.GetHotkey("patrol"):lower())
 	MOVE_KEY = Spring.GetKeyCode(WG.crude.GetHotkey("rawmove"):lower())
 	Screen0 = WG.Chili.Screen0
-	if WG.DrawBeforeChili then 
-		WG.DrawBeforeChili(widget.DrawScreen)
-	end
+
 	widget:CommandsChanged()
 	IntegralMenu = widgetHandler:FindWidget('Chili Integral Menu')
 end
