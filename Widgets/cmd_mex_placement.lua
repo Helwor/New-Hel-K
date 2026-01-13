@@ -278,11 +278,11 @@ options = {
 		path = 'Settings/Interface/Building Placement',
 	},
 	automex = {
-		name = 'Right click Mex',
+		name = 'Right Click Mex',
 		type = 'bool',
 		value = autoMex,
 		desc = 'Set Right click on metal spot to Mex Build as default action.',
-		path = commandPath,
+		path = helkpath,
 		OnChange = function(self)
 			autoMex = self.value
 		end,
