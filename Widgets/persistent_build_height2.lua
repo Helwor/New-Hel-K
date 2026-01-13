@@ -2527,11 +2527,16 @@ do
 
 			local addLotus = ctrl and alt and shift
 			if not addLotus and (ctrl or alt or shift or g.autoMex) then -- cancelled because not implemented with featured mexing (variant with solars added)
-				if shift and not (ctrl or alt) then
+				if (shift or cmd == CMD_AREA_MEX) and not (ctrl or alt) then
 					-- let PBH do the leveling if needed
+					if (ctrl or alt) then -- clamp absolute terraform elevation to 20 if user want solar/lotus
+						if abs(placementHeight) > 20 then
+							placementHeight = 20 * (placementHeight < 0 and -1 or 1)
+						end
+					end
 					return
 				else
-					-- let the mex placement handler add 1 or 2 solar
+					-- let the mex placement handler add solars, FIXME: in that case PBH doesnt make elevation
 					local watchForDuplicate = params[4] and params[4] <= 1 -- TODO this cover single mex but we should fix the removing of area mex 
 					if watchForDuplicate and CheckForDuplicateMex(params[1], params[3]) then
 						return true
@@ -2555,6 +2560,7 @@ do
 					return true
 				end
 				cx, cz = spot.x, spot.z
+				
 			end
 			PID = mexDefID
 			p = IdentifyPlacement(mexDefID)
@@ -2563,15 +2569,18 @@ do
 				windp = IdentifyPlacement(windDefID)
 				lotusp = IdentifyPlacement(lotusDefID) 
 			end
-			placementHeight=0
-
-			local tmp={}
+			if (ctrl or alt) then -- clamp absolute terraform elevation to 20 if user want solar/lotus
+				if abs(placementHeight) > 20 then
+					placementHeight = 20 * (placementHeight < 0 and -1 or 1)
+				end
+			end
+			local tmp = {}
 			local n = 0
 			local centerX, centerZ = maxx/2, maxz/2
 			local function GetDirsToCenter(x,z)
 				local dirx,dirz = centerX-x, centerZ-z
 				local biggest = math.max(abs(dirx),abs(dirz))
-				return dirx/biggest, dirz/biggest
+				return dirx / biggest, dirz / biggest
 			end
 			local function ApplyMex(mex)
 				local mx,mz = mex.x,mex.z
@@ -3125,7 +3134,6 @@ local function Process(mx, my, update)
 	if PID == mexDefID then 
 		mex =  spotsPos and WG.GetClosestMetalSpot(px,pz)
 		if mex then px,pz = mex.x, mex.z end
-		update = true
 	end
 
 	if not (mex) then
@@ -3575,7 +3583,6 @@ function widget:MousePress(mx, my, button)
 		elseif meta and not shift then
 			forceResetAcom = true
 		end
-
 		--cons = getcons()
 		--if not shift and PID==mexDefID then spSetActiveCommand(-1) end -- this prevent MexPlacement Handler to trigger
 		if --[[not meta and--]] mustTerraform or movedPlacement[1]>-1 or offmap or myPlatforms.x then-- temporary fix for placement above existing structure, not ideal
