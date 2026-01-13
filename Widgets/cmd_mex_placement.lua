@@ -176,12 +176,15 @@ local placedMexSinceShiftPressed = false
 -- Config
 ------------------------------------------------------------
 
+
+
 local TEXT_SIZE = 16
 local TEXT_CORRECT_Y = 1.25
 
 local PRESS_DRAG_THRESHOLD_SQR = 25^2
 local MINIMAP_DRAW_SIZE = math.max(mapX,mapZ) * 0.0145
 local commandPath = 'Settings/Interface/Commands'
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
 options_path = 'Settings/Interface/Map/Metal Spots'
 options_order = {
 	'drawicons', 'size', 'rounding', 'catlabel', 'area_point_command', 'catlabel_terra', 'wall_low', 'wall_high', 'burry_shallow', 'burry_deep',
@@ -282,7 +285,7 @@ options = {
 		type = 'bool',
 		value = autoMex,
 		desc = 'Set Right click on metal spot to Mex Build as default action.',
-		path = helkpath,
+		path = helk_path,
 		OnChange = function(self)
 			autoMex = self.value
 		end,
@@ -291,7 +294,7 @@ options = {
         name = 'Area Mex triggered with Mex cmd + Alt',
         type = 'bool',
         value = true,
-        path = helkpath,
+        path = helk_path,
         hidden = true,
     },
 
