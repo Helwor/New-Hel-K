@@ -287,11 +287,12 @@ options = {
 			autoMex = self.value
 		end,
 	},
-    altAloneAreaMex = {
+    altAloneAreaMex = { -- not implemented
         name = 'Area Mex triggered with Mex cmd + Alt',
         type = 'bool',
         value = true,
         path = helkpath,
+        hidden = true,
     },
 
 }
