@@ -759,7 +759,7 @@ function FacUI:MakeButton(x, y, defID, def, facDefID, stunned)
 		padding = {0, 0, 0, 0},
 		parent = parent,
 		preserveChildrenOrder = true,
-		tooltip = def and def.humanName or "Cancel",
+		tooltip = def and def.humanName or "Complete Shutdown\nJust click outside the window to close it.",
 		OnClick = {DoClick},
 		backgroundColor = stunned and {0.9,0.4,0.2,1} or nil,
 		focusColor = stunned and {0.9,0.4,0.2,1} or nil,
