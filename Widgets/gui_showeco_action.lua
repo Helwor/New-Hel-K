@@ -99,12 +99,13 @@ end
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 -- Menu Options
-
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
 local drawAlpha = 0.2
+local noEffColor = {1, 0.25, 1, drawAlpha}
 WG.showeco_always_mexes = true -- No OnChange when not changed from the default.
 
 options_path = 'Settings/Interface/Economy Overlay'
-options_order = {'start_with_showeco', 'always_show_mexes', 'mergeCircles', 'drawQueued'}
+options_order = {'start_with_showeco', 'always_show_mexes', 'mergeCircles', 'drawQueued', 'no_eff_color'}
 options = {
 	start_with_showeco = {
 		name = "Start with economy overlay",
@@ -141,6 +142,13 @@ options = {
 		value = true,
 		OnChange = ForceRedraw,
 	},
+	no_eff_color = {
+		name = 'Unconnected Power Color',
+		type = 'colors',
+		value = noEffColor,
+		OnChange = ForceRedraw,
+		path = helk_path,
+	}
 }
 
 -------------------------------------------------------------------------------------
@@ -258,8 +266,13 @@ local function makePylonListVolume(onlyActive, onlyDisabled)
 				glColor(disabledColor)
 				drawGroundCircle(data.x, data.z, data.range)
 			elseif efficiency ~= -1 and not onlyDisabled then
-				local color = GetGridColor(efficiency, drawAlpha)
-				glColor(color)
+				local color
+				if efficiency == 0 then
+					glColor(noEffColor[1], noEffColor[2], noEffColor[3], drawAlpha)
+				else
+					glColor(GetGridColor(efficiency, drawAlpha))
+				end
+				
 				drawGroundCircle(data.x, data.z, data.range)
 			end
 			i = i + 1
