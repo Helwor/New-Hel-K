@@ -130,8 +130,7 @@ local PreSelection_GetUnitUnderCursor = function (onlySelectable, ignoreSelectio
 		WG.drawtoolKeyPressed or
 		WG.MinimapDraggingCamera and aboveMinimap or
 		WG.Chili and WG.Chili.Screen0.hoveredControl or
-		not ignoreSelectionBox and WG.PreSelection_IsSelectionBoxActive() or
-		(WG.Chili and WG.Chili.Screen0:IsAbove(x,y)) then
+		not ignoreSelectionBox and WG.PreSelection_IsSelectionBoxActive() then
 		return
 	end
 	local type, id
@@ -318,7 +317,7 @@ function widget:MousePress(x, y, button)
 	if (button == 1) then
 		if spGetActiveCommand() == 0 then
 			thruMinimap = not WG.MinimapDraggingCamera and spIsAboveMiniMap(x, y)
-			if not (WG.Chili and WG.Chili.Screen0:IsAbove(x,y)) then
+			if not (WG.Chili and WG.Chili.Screen0.hoveredControl) then
 				local _
 				_, start = SafeTraceScreenRay(x, y, true, thruMinimap)
 				holdingForSelection = true

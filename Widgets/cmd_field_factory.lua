@@ -543,7 +543,7 @@ end
 
 function widget:MousePress(x,y,button)
 	if optionsWindow then
-		if not Chili.Screen0:IsAbove(x,y) then
+		if not Chili.Screen0.hoveredControl then
 			optionsWindow:Dispose()
 			optionsWindow = false
 			if invited then

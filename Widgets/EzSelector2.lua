@@ -6335,7 +6335,7 @@ do
 		g.clickTime = osclock()
 		g.onClick = true	-- informing clicking is active for Update
 		-- if spGetActiveCommand()~= 0  then return end
-		if not spIsGUIHidden() and Screen0:IsAbove(mx, my) then
+		if not spIsGUIHidden() and Screen0.hoveredControl then
 			if call then
 				if call.force_finish then
 					FinishCall(not call.brush_order)
@@ -8912,7 +8912,7 @@ do
 		end
 		if Screen0 then
 			local mx, my = spGetMouseState()
-			if Screen0:IsAbove(mx, my) then
+			if Screen0.hoveredControl then
 				return
 			end
 		end
@@ -9633,5 +9633,4 @@ function widget:Shutdown()
 	WG.EzSelecting = false
 end
 f.DebugWidget(widget)
-
 

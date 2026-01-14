@@ -272,7 +272,7 @@ do
 		if not mx then
 			mx, my, lmb = spGetMouseState()
 		end
-		if useMinimap~=false and spIsAboveMiniMap(mx, my) or ignoreUI~=false and (Screen0:IsAbove(mx,my) and lmb) then
+		if useMinimap ~= false and spIsAboveMiniMap(mx, my) or ignoreUI~=false and (Screen0.hoveredControl and lmb) then
 			-- Echo('not clamped A')
 			return mx, my, false
 		end

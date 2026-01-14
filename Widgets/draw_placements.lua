@@ -4162,6 +4162,7 @@ do
 	end
 end
 function PlacementModule:Update()
+
 	local _, PID = sp.GetActiveCommand()
 	if PID then
 		if PID > -1 then
@@ -4806,7 +4807,7 @@ function widget:MousePress(mx, my, button)
 	end
 	if dstatus == 'ready' then
 		if PID == mexDefID and button == 1 and not shift and opt.mexToAreaMex then
-			if not WG.Chili.Screen0:IsAbove(mx, my) then
+			if not WG.Chili.Screen0.hoveredControl then
 				reset(true)
 				sp.SetActiveCommand('areamex')
 				mexToAreaMex = 'back'
@@ -4848,7 +4849,7 @@ function widget:MousePress(mx, my, button)
 			return
 		end
 	end
-	-- if button==1 and WG.Chili.Screen0:IsAbove(mx,my) then
+	-- if button==1 and WG.Chili.Screen0.hoveredControl then
 	-- 	return
 	-- end
 	if button == 1 and PID then
@@ -6181,6 +6182,7 @@ do
 						-- glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, {x+i*(sx+scale*8), z+i*(sz+scale*8), sx, sz}, true)
 					end
 				-- end
+				gl.DepthTest(GL.LEQUAL)
 				gl.DepthTest(false)
 			end
 		end

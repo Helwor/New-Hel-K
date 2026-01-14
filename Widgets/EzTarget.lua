@@ -959,7 +959,7 @@ local function Evaluate(type, id, engineCmd)
 	end
 	-- v.moddedActiveCommand = false
 
-	if outsideSpring or screen0:IsAbove(mx,my) or spIsAboveMiniMap(mx, my) then
+	if outsideSpring or screen0.hoveredControl or spIsAboveMiniMap(mx, my) then
 		reset()
 		upd.updating = false
 		return v.cmdOverride
@@ -1688,7 +1688,7 @@ function widget:Update(dt)
 			return
 		end
 	end
-	if outsideSpring or screen0:IsAbove(mx, my) then
+	if outsideSpring or screen0.hoveredControl then
 		if not lmb  and checkForSelBox then
 			s.acquiredSelect = false
 			checkForSelBox = false
@@ -1786,7 +1786,7 @@ function widget:MousePress(mx,my,button)
 		reset()
 		return
 	end
-	if screen0:IsAbove(mx,my) or button == 2 then
+	if screen0.hoveredControl or button == 2 then
 		reset()
 		return
 	end

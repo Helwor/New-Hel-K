@@ -1092,7 +1092,7 @@ function widget:MousePress(mx, my, button, fake)
 				.. (shift        and ' shift' or '')
 				.. (checkForMeta and ' checkForMeta' or '')
 		else
-			local isAbove = not v.active and (Screen0:IsAbove(mx,my) or not cfg.ignoreMiniMap and spIsAboveMiniMap(mx, my))
+			local isAbove = not v.active and (Screen0.hoveredControl or not cfg.ignoreMiniMap and spIsAboveMiniMap(mx, my))
 			if isAbove then
 				reason = 'isAbove'
 			elseif WG.drawingPlacement then

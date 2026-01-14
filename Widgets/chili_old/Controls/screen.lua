@@ -155,11 +155,11 @@ function Screen:IsAbove(x,y,...)
     self.currentTooltip = activeControl.tooltip
     return true
   end
-
-  y = select(2,Spring.Orig.GetViewSizes()) - y
-  x, y = x/WG.uiScale, y/WG.uiScale
+  -- y = select(2,Spring.Orig.GetViewSizes()) - y
+  -- x = x/WG.uiScale
+  -- y = y/WG.uiScale
+  y = select(2,Spring.GetViewSizes()) - y
   local hoveredControl = inherited.IsAbove(self,x,y,...)
-
   --// tooltip
   if (UnlinkSafe(hoveredControl) ~= UnlinkSafe(self._lastHoveredControl)) then
     if self._lastHoveredControl then

@@ -117,6 +117,7 @@ function hyp_to_side(hyp) -- from hypothenus to side (assuming a square ofc)
 	return (hyp^2 / 2)^0.5
 end
 --
+
 local holder = {}
 local tasks = {}
 local selector, win, scroll
@@ -2254,7 +2255,7 @@ function widget:MousePress(mx, my, button)
 			if selected.pressed then
 				return
 			end
-			if not WG.Chili.Screen0:IsAbove(mx, my) then
+			if not WG.Chili.Screen0.hoveredControl then
 				selected.pressed = 0
 				selected.mx, selected.my = mx, my
 				return true
