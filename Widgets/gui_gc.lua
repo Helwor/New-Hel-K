@@ -128,7 +128,7 @@ end
 local spGetConfigInt = Spring.GetConfigInt
 local spSetConfigInt = Spring.SetConfigInt
 function widget:Initialize()
-	widget:ViewResize(Spring.GetWindowGeometry())
+	widget:ViewResize(Spring.Orig.GetViewSizes())
 
 	if WG.MyZones then
         -- Echo('done')
