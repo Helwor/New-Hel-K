@@ -34,7 +34,7 @@ local MAX_RANGE = 1500
 local MAX_SEL = 10
 local MAX_CIRCLES = 6
 
-local DEBUG_TIME = true
+local DEBUG_TIME = false
 
 local EMPTY_TABLE = {}
 
@@ -195,7 +195,7 @@ options.maxRange = {
 	type = 'number',
 	min = 200, step = 10, max = 4000,
 	value = MAX_RANGE,
-	-- update_on_the_fly = true,
+	update_on_the_fly = true,
 	OnChange = function(self)
 		MAX_RANGE = self.value
 		Reset()
@@ -206,7 +206,7 @@ options.margin = {
 	name = 'Margin',
 	desc = 'How close to reach selected unit we should draw the enemy range',
 	type = 'number',
-	min = 50, step = 10, max = 300,
+	min = 50, step = 10, max = 1000,
 	value = MARGIN,
 	update_on_the_fly = true,
 	OnChange = function(self)
@@ -470,7 +470,7 @@ local function ProcessEnemiesFromPoint(ux,uz, max_range)
 							thisEnemy.verts = WG.CalcBallisticCircleOfUnit(thisEnemy.id)
 						else
 							-- prework is already done
-							thisEnemy.verts = CalcBallisticCircle(x,y,z, thisEnemy.radius, thisEnemy.weaponDef)
+							thisEnemy.verts = (WG.CalcBallisticCircle or CalcBallisticCircle)(x,y,z, thisEnemy.radius, thisEnemy.weaponDef)
 						end
 						lastPoses[enemy] = thisEnemy
 					end
