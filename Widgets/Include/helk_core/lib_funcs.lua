@@ -3107,7 +3107,7 @@ do
 	end
 end
 
-local function charToBytes(char, i) 
+function charToBytes(char, i) 
 	if not i then
 		i = 1
 	end
@@ -6995,35 +6995,37 @@ function table:subtoline(k)
 	end
 	return str:sub(0,-3)
 end
-table.toline = function(T,tocode,maxLength,ndec)
+table.toline = function(T, onlyTrue, tocode, maxLength, ndec)
 	local str=""
 	local len = 0
 	local cnt = 0
 	for k,v in pairs(T) do 
-		local add
-		cnt = cnt+1
-		if type(v) == 'number' and ndec then
-			v = ('%.' .. ndec .. 'f'):format(v)
-		end
-		if tocode then
-			v= t(v)=="string" and '"'..v..'"' or tostring(v)
-			k = t(tonumber(k))=="number" and "["..k.."]" or tostring(k)
-			add = k.."="..v..", "
-		else
-			if k==cnt then
-				add = tostring(v) ..", "
+		if not onlyTrue or v then
+			local add
+			cnt = cnt+1
+			if type(v) == 'number' and ndec then
+				v = ('%.' .. ndec .. 'f'):format(v)
+			end
+			if tocode then
+				v= t(v)=="string" and '"'..v..'"' or tostring(v)
+				k = t(tonumber(k))=="number" and "["..k.."]" or tostring(k)
+				add = k.."="..v..", "
 			else
-				add = "["..tostring(k).."]="..tostring(v)..", "
+				if k==cnt then
+					add = tostring(v) ..", "
+				else
+					add = "["..tostring(k).."]="..tostring(v)..", "
+				end
 			end
-		end
-		if maxLength then
-			local newlen = len + #add
-			if newlen > maxLength then
-				return str .. '...'
+			if maxLength then
+				local newlen = len + #add
+				if newlen > maxLength then
+					return str .. '...'
+				end
+				len = newlen
 			end
-			len = newlen
+			str = str .. add
 		end
-		str = str .. add
 	end
 	return str:sub(0,-3)
 end
@@ -10634,16 +10636,17 @@ do
 			iconSizeByDefID[defID] = ( icontypes[(def.iconType or "default")] ).size or 1.8
 		end
 	end
+
+
 	iconSizeByDefID[0] = icontypes[("default")].size or 1.8
 	
-	function GetIconMidY(defID,y,gy,distFromCam) -- FIXME this is from trial and error and not proper on edge of screen
+	function GetIconMidY(defID, y, gy, distFromCam) -- FIXME this is from trial and error and not proper on edge of screen
 		distFromCam = distFromCam * 2
 		local iconWorldHeight = iconSizeByDefID[defID]  * 22 * (1+ (distFromCam-7000)/10000 )
 		if distFromCam <= 1000 then
 			iconWorldHeight = iconWorldHeight * (0.2 + 0.8 * distFromCam / 1000)
 		end
-
-		if y-gy<iconWorldHeight then
+		if y - gy < iconWorldHeight then
 			-- Echo('y: ' .. y .. ' => ' .. gy + iconWorldHeight)   
 			y = gy + iconWorldHeight
 		end
