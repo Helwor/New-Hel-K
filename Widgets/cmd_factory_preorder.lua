@@ -1367,7 +1367,7 @@ function widget:Update(dt)
 			Spring.SetMouseCursor(fake_command)
 		elseif allow_rightclick and FacUI.hasDevelopped > 0 then
 			local x, y = Spring.GetMouseState()
-			if not Screen0:IsAbove(x,y) then
+			if not Screen0.hoveredControl then
 				local _, cmdID, _, cmdName = spGetActiveCommand()
 				if not cmdID or cmdID >= 0 then
 					Spring.SetMouseCursor("GatherWait")
@@ -1599,11 +1599,10 @@ function widget:MousePress(x, y, button)
 		return true
 	end
 	if FacUI.active then
-		if not Screen0:IsAbove(x,y) then
-			if FacUI.hasInvite > 0 and button == 1 and FacUI:ClickInvite(x, y) then
-				return true
-			elseif FacUI.hasDevelopped > 0 then
-
+		if FacUI.hasInvite > 0 and button == 1 and FacUI:ClickInvite(x, y) then
+			return true
+		elseif FacUI.hasDevelopped > 0 then
+			if not Screen0.hoveredControl then
 				if button == 1 then
 					local moveCmdID
 					local _, cmdID, _, cmdName = spGetActiveCommand()
@@ -1877,10 +1876,10 @@ local function Draw()
 end
 
 function widget:DrawScreen()
-	if WG.DrawBeforeChili then
-		WG.DrawBeforeChili(Draw)
-		return
-	end
+	-- if WG.DrawBeforeChili then
+	-- 	WG.DrawBeforeChili(Draw)
+	-- 	return
+	-- end
 	Draw()
 end
 
