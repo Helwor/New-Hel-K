@@ -474,7 +474,7 @@ end
 local function CheckForCapture(mx,my,button)
 	------------ block the click and check for shift in Update
 	if button == 1 then
-		if capturing and not CAPTURED and not wh.mouseOwner and not Screen0:IsAbove(mx, my) then
+		if capturing and not CAPTURED and not wh.mouseOwner and not Screen0.hoveredControl then
 			local _, aCom = spGetActiveCommand()
 			if aCom and aCom<0 then
 				TIMER = spGetTimer()
@@ -883,7 +883,7 @@ function widget:DrawScreen()
 						v = tostring(v)
 						v = v .. ' WRONG'
 						-- happens when double press with drawin map to make a label, MousePress is not triggered, spGetMouseState is always correct
-						Echo('WE GOT THE MOUSE WRONG ! param: '..(k-2)..':'..mouse[k-2]..' instead of: '..v, math.round(os.clock()))
+						Echo('WE GOT THE MOUSE WRONG ! param: '..(k-2)..':'..tostring(mouse[k-2])..' instead of: '..tostring(v), math.round(os.clock()))
 					end
 				else 
 					v = tostring(v)
@@ -903,7 +903,7 @@ function widget:DrawScreen()
 		end
 		if mouseLocked or verifMouseState or owner or WG.EzSelecting or WG.enteringText or Spring.IsUserWriting() then
 			-- if owner == 'Chili Framework' then
-			--     local above = WG.Chili.Screen0:IsAbove(MouseState[1], MouseState[2])
+			--     local above = WG.Chili.Screen0.hoveredControl
 			--     if above then
 			--         above = WG.Chili.Screen0.hoveredControl
 			--         if above then
