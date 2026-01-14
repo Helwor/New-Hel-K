@@ -146,7 +146,10 @@ options = {
 		name = 'Unconnected Power Color',
 		type = 'colors',
 		value = noEffColor,
-		OnChange = ForceRedraw,
+		OnChange = function(self)
+			noEffColor[1], noEffColor[2], noEffColor[3], noEffColor[4] = unpack(self.value)
+			ForceRedraw()
+		end,
 		path = helk_path,
 	}
 }
@@ -241,6 +244,7 @@ end
 
 function widget:Initialize()
 	InitializeUnits()
+	widget:SelectionChanged(Spring.GetSelectedUnits())
 end
 
 function widget:Shutdown()
