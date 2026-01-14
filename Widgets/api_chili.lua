@@ -99,7 +99,7 @@ CHILI_DIRNAME = DIR .. "chili/"
 
 
 local ezSelectNoUpdate, panningNoUpdate, drawpNoUpdate = true, true, true
-local newUpdateMethod = true
+local newUpdateMethod = false
 -- not really helping
 options_path = 'Tweakings'
 options_order = {
