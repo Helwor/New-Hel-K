@@ -122,8 +122,6 @@ local MENU = {}
 local isMission = Game.modDesc:find("Mission Mutator")
 local isServerHost = Spring.GetModOptions().sendspringiedata and not Spring.IsReplay()
 
-local f = dev and WG.utilFuncs
-
 -- Config file data
 local keybind_dir, keybind_file, defaultkeybinds, defaultkeybind_date, confdata
 do
@@ -674,14 +672,16 @@ local function DirIsEmpty(path, isDevMode, showAdvanced)
 	local dir = pathoptions[path]
 	if dir then
 		for k,v in pairs(dir) do
-			local pathopt, opt = v[1], v[2]
-			
-			local hidden = opt.hidden 
-				or opt.dev and not isDevMode
-				or opt.advanced and not showAdvanced
-				or opt.isDirectoryButton and DirIsEmpty(pathopt:gsub(opt.name .. '$','',1), isDevMode, showAdvanced)
-			if not hidden then
-				return false
+			if type(v) == 'table' then
+				local pathopt, opt = v[1], v[2]
+				
+				local hidden = opt.hidden 
+					or opt.dev and not isDevMode
+					or opt.advanced and not showAdvanced
+					or opt.isDirectoryButton and DirIsEmpty(pathopt:gsub(opt.name .. '$','',1), isDevMode, showAdvanced)
+				if not hidden then
+					return false
+				end
 			end
 		end
 		return true	
