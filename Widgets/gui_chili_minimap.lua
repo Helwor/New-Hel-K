@@ -1249,7 +1249,7 @@ local firstUpdate = 3
 function widget:DrawScreen()
 	if (options.disableMinimap.value or window.hidden or cs.name == "ov") then																		
 		if not hidden then
-			-- gl.ConfigMiniMap(0,0,0,0) --// a phantom map still clickable if this is not present.
+			gl.ConfigMiniMap(0,0,0,0) --// a phantom map still clickable if this is not present.
 			Spring.SendCommands('minimap min 1')
 			lx = 0
 			ly = 0
