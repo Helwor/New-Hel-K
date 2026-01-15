@@ -59,28 +59,33 @@ local glLineStipple         = gl.LineStipple
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+local toggle_method = 'unused'
+
 options_path = 'Settings/Interface/Building Placement'
-options_order = {'ctrl_use'}
-options = {
-	ctrl_use = {
-		name = "Ctrl toggles Factory/Plate",
-		type = 'radioButton',
-		items = { 
-			{key = '0', name = 'Unused', desc = 'When placing a factory or plate, press Ctrl to select whether a factory or construction plate is placed.',},
-			{key = '1', name = 'On Press', desc = 'When placing a factory or plate, press Ctrl to select whether a factory or construction plate is placed.',},
-			{key = '2', name = 'When held', desc = 'When placing a factory or plate, press Ctrl to select whether a factory or construction plate is placed.',},
-		},
-		default = '0',
-		value = '0',
-		noHotkey = true,
-		desc = 'When placing a factory or plate, press Ctrl to select whether a factory or construction plate is placed.',
-		OnChange = function(self)
-			if self.value == '0' then
-				reverse = false
-			end
-		end
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
+options_order = {'toggle_method'}
+options = {}
+options.toggle_method = {
+	name = "Use Alt or Ctrl to Toggle Factory/Plate",
+	type = 'radioButton',
+	items = { 
+		{key = 'unused', name = 'Unused',},
+		{key = 'ctrl_press', name = 'On Ctrl press', desc = 'When placing a factory or plate, press Ctrl briefly to toggle.',},
+		{key = 'ctrl_held', name = 'When Ctrl held', desc = 'When placing a factory or plate, hold Ctrl to toggle.',},
+		{key = 'alt_press', name = 'On Alt press', desc = 'When placing a factory or plate, press Alt briefly to toggle.',},
+		{key = 'alt_held', name = 'When Alt held', desc = 'When placing a factory or plate, hold Alt to toggle.',},
 	},
+	value = toggle_method,
+	noHotkey = true,
+	desc = 'Choose Method to Toggle Plate/Factory',
+	OnChange = function(self)
+		toggle_method = self.value
+		if toggle_method == 'unused' then
+			reverse = false
+		end
+	end,
 }
+
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -517,12 +522,14 @@ function widget:Update()
 			return
 		else
 			-- Echo(unitDefID, unitDefID == buildFactoryDefID and 'build Fac' or unitDefID == buildPlateDefID and 'build Plate', activeCmdOverride and 'Override')	
-			if select(3, spGetMouseState()) then
+			local alt, ctrl, meta, shift = spGetModKeyState()
+			if meta then
 				return
 			end
-			local ctrl,_,shift = select(2,spGetModKeyState())
-			if options.ctrl_use.value == '2' or WG.InitialQueue then
-				reverse = ctrl
+			local tempReverse = toggle_method == 'alt_held' and alt
+				or toggle_method == 'ctrl_held' and ctrl
+			if tempReverse then
+				reverse = alt
 			end
 			-- Echo(plateOfFac[unitDefID] and 'fac' or facOfPlate[unitDefID] and 'plate')
 			if plateOfFac[unitDefID] then
@@ -540,7 +547,7 @@ function widget:Update()
 					-- Echo(Spring.GetActiveCommand())
 				end
 			end
-			if reverse and (options.ctrl_use.value == '2' or WG.InitialQueue) then
+			if tempReverse then
 				reverse = false
 			end
 		end
@@ -558,12 +565,12 @@ function widget:KeyPress(key, mods, isRepeat)
 	if not (buildFactoryDefID and buildPlateDefID) then
 		return
 	end
-
-	if not (options.ctrl_use.value == '1' and (key == KEYSYMS.LCTRL or key == KEYSYMS.RCTRL)) then
-		return
+	if (toggle_method == 'alt_press' and (key == KEYSYMS.LALT or key == KEYSYMS.RALT))
+		or (toggle_method == 'ctrl_press' and (key == KEYSYMS.LCTRL or key == KEYSYMS.RCTRL)) then
+		reverse = not reverse
+		return true
 	end
-	reverse = not reverse
-	return true
+	return
 end
 
 --------------------------------------------------------------------------------
