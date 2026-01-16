@@ -1905,7 +1905,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 	if not zoomin then
 		cs = csbounded
 	end
-	if true or dtcounts.avg>0.025 then -- interpolating when lagging make the zoom get back and forth unconveniently
+	if not options.tiltedzoom.value and  dtcounts.avg > 0.025 then -- interpolating when lagging make the zoom get back and forth unconveniently
 		spSetCameraState(cs, options.smoothness.value)	
 	else
 		OverrideSetCameraStateInterpolate(cs,options.smoothness.value, lockPoint)
