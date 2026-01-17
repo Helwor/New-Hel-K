@@ -52,6 +52,7 @@ local circleList
 local secondPart = 0
 local mouseDistance = 1000
 local extraDrawRange
+local selectionChanged = false
 local sumoSelected = false
 local detrimentSelected = false
 local detrimentUnitID = nil
@@ -68,9 +69,10 @@ local GetMouseState          = Spring.GetMouseState
 local GetUnitPosition        = Spring.GetUnitPosition
 local GetUnitRadius          = Spring.GetUnitRadius
 local TraceScreenRay         = Spring.TraceScreenRay
-local GetMyTeamID			 = Spring.GetMyTeamID
-local GetUnitTeam			 = Spring.GetUnitTeam
-local AreTeamsAllied		 = Spring.AreTeamsAllied
+local GetMyTeamID            = Spring.GetMyTeamID
+local GetUnitTeam            = Spring.GetUnitTeam
+local AreTeamsAllied         = Spring.AreTeamsAllied
+local spGetSelectedUnits     = Spring.GetSelectedUnits
 
 local spGetUnitDefID         = Spring.GetUnitDefID
 
@@ -261,7 +263,7 @@ local function getWeaponInfo(weaponDef, unitDef)
 			retData = {type = "direct", scatter = scatter, range = weaponDef.range}
 		end
 	elseif (weaponType == "AircraftBomb") then
-        retData = {type = "dropped", scatter = scatter, v = unitDef.speed, h = unitDef.cruiseAltitude, salvoSize = weaponDef.salvoSize, salvoDelay = weaponDef.salvoDelay}
+		retData = {type = "dropped", scatter = scatter, v = unitDef.speed, h = unitDef.cruiseAltitude, salvoSize = weaponDef.salvoSize, salvoDelay = weaponDef.salvoDelay}
 	elseif (weaponType == "StarburstLauncher") then
 		if (weaponDef.tracks) then
 			retData = {type = "tracking", range = weaponDef.range}
@@ -299,8 +301,8 @@ local function SetupUnit(unitDef, unitID)
 	end
 
 
-    local weapon1, weapon2, rangeMult
-    local manualfireWeapon = unitDef.customParams.air_manual_fire_weapon and tonumber(unitDef.customParams.air_manual_fire_weapon)
+	local weapon1, weapon2, rangeMult
+	local manualfireWeapon = unitDef.customParams.air_manual_fire_weapon and tonumber(unitDef.customParams.air_manual_fire_weapon)
 
 	if unitID then
 		weapon1 = Spring.GetUnitRulesParam(unitID, "comm_weapon_num_1")
@@ -389,9 +391,9 @@ end
 
 local function UpdateSelection(sel)
 	local maxCost = 0
-    dgunUnitInfo = false
-    aoeUnitInfo = false
-    aoeUnitID = false
+	dgunUnitInfo = false
+	aoeUnitInfo = false
+	aoeUnitID = false
 	sumoSelected = false
 	detrimentSelected = false
 	detrimentUnitID = nil
@@ -420,11 +422,11 @@ local function UpdateSelection(sel)
 			end
 			
 			if (dgunInfo[unitDefID]) then
-                local dgunInfo = unitDgunDefs[unitID] or ((not dynamicComm) and dgunInfo[unitDefID])
-                if dgunInfo then
-                    dgunUnitInfo = dgunUnitInfo or {}
-                    dgunUnitInfo[unitID] = dgunInfo
-                end
+		  local dgunInfo = unitDgunDefs[unitID] or ((not dynamicComm) and dgunInfo[unitDefID])
+		  if dgunInfo then
+			  dgunUnitInfo = dgunUnitInfo or {}
+			  dgunUnitInfo[unitID] = dgunInfo
+		  end
 			end
 
 			if (aoeDefInfo[unitDefID]) then
@@ -872,6 +874,8 @@ function widget:Initialize()
 	end
 	SetupDisplayLists()
 	selectionDefID = WG.selectionDefID or {}
+	selectionChanged = true
+	widget:CommandsChanged()
 end
 
 function widget:Shutdown()
@@ -879,47 +883,50 @@ function widget:Shutdown()
 end
 
 function widget:DrawWorld()
-    mouseDistance = GetMouseDistance() or 1000
+	mouseDistance = GetMouseDistance() or 1000
 
-    local tx, ty, tz, targetIsGround = GetMouseTargetPosition()
-    if (not tx) then
-        return
-    end
-    local _, cmd, _ = GetActiveCommand()
+	local tx, ty, tz, targetIsGround = GetMouseTargetPosition()
+	if (not tx) then
+		return
+	end
+	local moddedImpact = aoeUnitID and WG.moddedMissileImpact and WG.moddedMissileImpact[aoeUnitID]
+	if moddedImpact then
+	 tx, ty, tz = unpack(moddedImpact)
+	end
+	local _, cmd, _ = GetActiveCommand()
+	if extraDrawRange and selUnitID and cmd == CMD_ATTACK then
+		local _,_,_,fx, fy, fz = GetUnitPosition(selUnitID, true)
+		if fx then
+			glColor(1, 0.35, 0.35, 0.75)
+			glLineWidth(1)
 
-    if extraDrawRange and selUnitID and cmd == CMD_ATTACK then
-        local _,_,_,fx, fy, fz = GetUnitPosition(selUnitID, true)
-        if fx then
-            glColor(1, 0.35, 0.35, 0.75)
-            glLineWidth(1)
+			glDrawGroundCircle(fx, fy, fz, extraDrawRange, 50)
+			glColor(1,1,1,1)
+		end
 
-            glDrawGroundCircle(fx, fy, fz, extraDrawRange, 50)
-            glColor(1,1,1,1)
-        end
-
-    end
+	end
 
 
 
-    if (cmd == CMD_JUMP and sumoSelected) then
-        DrawAoE(tx, ty, tz, sumoAoE, sumoEE)
-        return
-    elseif (cmd == CMD_JUMP and detrimentSelected) then
-        local _,_,_,fx, fy, fz = GetUnitPosition(detrimentUnitID, true)
-        DrawAoE(tx, ty, tz, detrimentLandingAoE, detrimentLandingEE)
-        return
-    end
+	if (cmd == CMD_JUMP and sumoSelected) then
+		DrawAoE(tx, ty, tz, sumoAoE, sumoEE)
+		return
+	elseif (cmd == CMD_JUMP and detrimentSelected) then
+		local _,_,_,fx, fy, fz = GetUnitPosition(detrimentUnitID, true)
+		DrawAoE(tx, ty, tz, detrimentLandingAoE, detrimentLandingEE)
+		return
+	end
 
-    if cmd == CMD_ATTACK and aoeUnitID and aoeUnitInfo then
-        drawForUnit(aoeUnitID, tx, ty, tz, targetIsGround, cmd, aoeUnitInfo)
-    end
-    if (cmd == CMD_MANUALFIRE or cmd == CMD_AIR_MANUALFIRE) and dgunUnitInfo then
-        local rangeRingOnly = false
-        for unitID, info in pairs(dgunUnitInfo) do
-            drawForUnit(unitID, tx, ty, tz, targetIsGround, cmd, info, rangeRingOnly)
-            rangeRingOnly = true
-        end
-    end
+	if cmd == CMD_ATTACK and aoeUnitID and aoeUnitInfo then
+		drawForUnit(aoeUnitID, tx, ty, tz, targetIsGround, cmd, aoeUnitInfo)
+	end
+	if (cmd == CMD_MANUALFIRE or cmd == CMD_AIR_MANUALFIRE) and dgunUnitInfo then
+		local rangeRingOnly = false
+		for unitID, info in pairs(dgunUnitInfo) do
+			drawForUnit(unitID, tx, ty, tz, targetIsGround, cmd, info, rangeRingOnly)
+			rangeRingOnly = true
+		end
+	end
 
 end
 
@@ -938,7 +945,14 @@ function widget:UnitDestroyed(unitID)
 end
 
 function widget:SelectionChanged(sel)
-	UpdateSelection(sel)
+	selectionChanged = true
+end
+
+function widget:CommandsChanged()
+	if selectionChanged then
+		selectionChanged = false
+		UpdateSelection(spGetSelectedUnits())
+	end
 end
 
 function widget:Update(dt)
