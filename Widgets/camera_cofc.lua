@@ -212,7 +212,7 @@ options = {
 		name = 'Smoothness',
 		desc = "Controls how smoothly the camera moves.",
 		type = 'number',
-		min = 0.0, max = 0.8, step = 0.1,
+		min = 0.0, max = 0.8, step = 0.01,
 		value = 0.3,
 		-- Applies to the following:
 		-- 	Zoom()
@@ -1609,7 +1609,7 @@ local function ZoomTiltCorrection(cs, zoomin, mouseX,mouseY, gx, gy, gz, storeTa
 
 	local fltMouseX, fltMouseY = 0, 0
 
-	if storeTarget and (mouseMoved or lastZoomin ~= zoomin or not zoomin) then
+	if storeTarget and (mouseMoved or lastZoomin ~= zoomin or not zoomin) and not targetCam.active then
 		lastZoomin = zoomin
 		if gx and not explicitMouseCoords then
 			fltMouseX, fltMouseY = Spring.WorldToScreenCoords(gx, gy, gz)
@@ -1759,7 +1759,7 @@ local function SetCameraTargetBox(minX, minZ, maxX, maxZ, minDist, maxY, smoothn
 	SetCameraTarget(x, y, z, smoothness, useSmoothMeshSetting or false, dist)
 end
 
-function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
+function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	value = value or 1
 	local maxZoomSpeed = options.maxzoomspeed.value
 	local zoomDistFactor = options.zoomdistfactor.value
@@ -1773,6 +1773,9 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 		maxDistY = maxDistY * (mapToScreenFitAlt / mapToScreenFit)
 	end
 	local cs = GetTargetCameraState()
+	if not zoomin and cs.py >= maxDistY then
+		return
+	end
 	-- Echo("zoomin is ", zoomin)
 	--//ZOOMOUT FROM CURSOR, ZOOMIN TO CURSOR//--
 	if	not forceCenter and (
@@ -1833,7 +1836,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 
 		end
 
-		if new_py == new_py then -- ??? it is always true? or is it to prevent +inf/-inf/nan?
+		if new_py == new_py then -- prevent nan
 			local boundedPy = (options.freemode.value and new_py) or min(max(new_py, groundMinimum), maxDistY - 10)
 			cs.px = new_px-- * (boundedPy/math.max(new_py, 0.0001))
 			cs.py = boundedPy
@@ -1853,7 +1856,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 	else
 		--//ZOOMOUT FROM CENTER-SCREEN, ZOOMIN TO CENTER-SCREEN//--
 		local onmap, gx,gy,gz = VirtTraceRay(cx, cy, cs) --This doesn't seem to provide the exact center, thus later bounding
-
+		
 		if gx and not options.freemode.value then
 			--out of map. Bound zooming to within map
 			gx,gz = GetMapBoundedCoords(gx,gz)
@@ -1879,7 +1882,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 		-- else
 		-- 	ls_dist_new = ls_dist + max(min(ls_dist*sp,maxZoomSpeed),-maxZoomSpeed) -- a zoom in that get faster the further away from target (limited to -+2000)
 		-- end
-		ls_dist_new = ls_dist + ls_dist*CalcSpeed(ls_dist,sp,zoomBase,zoomDistFactor,not ignoreLimit and  maxZoomSpeed)
+		ls_dist_new = ls_dist + ls_dist*CalcSpeed(ls_dist,sp,zoomBase,zoomDistFactor,not ignoreLimit and maxZoomSpeed)
 		ls_dist_new = max(ls_dist_new, 20)
 
 		if not options.freemode.value and ls_dist_new > maxDistY - gy then --limit camera distance to maximum distance
@@ -1892,7 +1895,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 		local cstemp = UpdateCam(cs)
 
 		if cstemp and options.tiltedzoom.value then
-			cstemp = ZoomTiltCorrection(cstemp, zoomin, mx,my, gx, gy, gz, true)
+			cstemp = ZoomTiltCorrection(cstemp, zoomin, mx, my, gx, gy, gz, true)
 			cstemp = UpdateCam(cstemp)
 		else
 			lockPoint = {}
@@ -1905,7 +1908,7 @@ function Zoom(zoomin, shift, forceCenter, value,ignoreLimit)
 	if not zoomin then
 		cs = csbounded
 	end
-	if not options.tiltedzoom.value and  dtcounts.avg > 0.025 then -- interpolating when lagging make the zoom get back and forth unconveniently
+	if false and not options.tiltedzoom.value and  dtcounts.avg > 0.025 then -- interpolating when lagging make the zoom get back and forth unconveniently
 		spSetCameraState(cs, options.smoothness.value)	
 	else
 		OverrideSetCameraStateInterpolate(cs,options.smoothness.value, lockPoint)
