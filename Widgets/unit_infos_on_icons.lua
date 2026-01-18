@@ -1,7 +1,7 @@
 
 local ver = 0.1
--- require -HasViewChanged.lua
--- require UtilsFunc.lua
+-- require api_has_view_changed.lua
+-- require lib_funcs
 -- can use command_tracker.lua
 -- can use modified vanilla gui_epic_penu.lua
 function widget:GetInfo()
@@ -21,102 +21,93 @@ local myTeamID, myPlayerID
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
--- '×' char 215
+-- '*' char 42
+-- '«' char 171
 -- '°' char 176
 -- '›' char 184
 -- '»' char 187
--- '«' char 171
+-- '×' char 215
 -- 'Ø' char 216
 -- 'ø' char 248
 -- '´' char 180
 -- '®' char 174
 -- '¤' char 164
 -- '·' char 183
-
+-- 
 
 local symbolStatus = {
-	str = '*',
+	str = string.char(42), -- *
 	list = false,
 	Draw = function() end,
-	-- since the new GetMidY
 	offX = 2,
-	-- offY = -2,
 	offY = -1,
 }
 
 local symbolSelAlly = {
-	-- str = string.char(176), -- '°'
-	str = '*', -- '*' need -4 y to be centered
+	-- str = string.char(215), -- ×
+	str = string.char(42), -- *
 	list = false,
 	Draw = function() end,
-	-- since the new GetMidY
-	offX = 0,
-	offY = -1,
+	offX = -1,
+	offY = 0,
 }
 local symbolHealth = {
 	str = 'o',
 	list = false,
 	Draw = function() end,
-	-- since the new GetMidY
 	offX = 1,
 	offY = 0,
 }
 
+local symbolPrio = {
+	str = string.char(187), -- »
+	list = false,
+	Draw = function() end,
+	offX = 3,
+	offY = -2,
+}
 local RADAR_TIMEOUT = 30 * 12 -- 
 
 
 ----------------------
 
 local colors = {
-	 white          = {   1,    1,    1,    1 },
-	 black          = {   0,    0,    0,    1 },
-	 grey           = { 0.5,  0.5,  0.5,    1 },
-	 lightgrey      = { 0.75,0.75, 0.75,    1 },
-	 red            = {   1, 0.25, 0.25,    1 },
-	 darkred        = { 0.8,    0,    0,    1 },
-	 lightred       = {   1,  0.6,  0.6,    1 },
-	 magenta        = {   1, 0.25,  0.3,    1 },
-	 rose           = {   1,  0.6,  0.6,    1 },
-	 bloodyorange   = {   1, 0.45,    0,    1 },
-	 orange         = {   1,  0.7,    0,    1 },
-	 copper         = {   1,  0.6,  0.4,    1 },
-	 darkgreen      = {   0,  0.6,    0,    1 },
-	 green          = {   0,    1,    0,    1 },
-	 lightgreen     = { 0.7,    1,  0.7,    1 },
-	 teal			= {   0,    1,    1,    1 },
-	 darkenedgreen  = { 0.4,    0.8,  0.4,  1 },
-	 blue           = { 0.3, 0.35,    1,    1 },
-	 fade_blue      = {   0,  0.7,  0.7,  0.6 },
-	 paleblue       = { 0.6,  0.6,    1,    1 },
-	 tainted_blue   = { 0.5,    1,    1,    1 },
-	 turquoise      = { 0.3,  0.7,    1,    1 },
-	 lightblue      = { 0.7,  0.7,    1,    1 },
-	 cyan           = { 0.3,    1,    1,    1 },
-	 ice            = {0.55,    1,    1,    1 },
-	 lime           = { 0.5,    1,    0,    1 },
-	 yellow         = {   1,    1,  0.3,    1 },
-	 ocre           = { 0.7,  0.5,  0.3,    1 },
-	 brown          = { 0.9, 0.75,  0.3,    1 },
-	 purple         = { 0.9,    0,  0.7,    1 },
-	 hardviolet     = {   1, 0.25,    1,    1 },
-	 violet         = {   1,  0.4,    1,    1 },
-	 paleviolet     = {   1,  0.7,    1,    1 },
-	 whiteviolet    = {   1, 0.85,    1,    1 },
-	 nocolor        = {   0,    0,    0,    0 },
+	white          = {   1,    1,    1,    1 },
+	black          = {   0,    0,    0,    1 },
+	grey           = { 0.5,  0.5,  0.5,    1 },
+	lightgrey      = { 0.75,0.75, 0.75,    1 },
+	red            = {   1, 0.25, 0.25,    1 },
+	darkred        = { 0.8,    0,    0,    1 },
+	lightred       = {   1,  0.6,  0.6,    1 },
+	magenta        = {   1, 0.25,  0.3,    1 },
+	rose           = {   1,  0.6,  0.6,    1 },
+	bloodyorange   = {   1, 0.45,    0,    1 },
+	orange         = {   1,  0.7,    0,    1 },
+	copper         = {   1,  0.6,  0.4,    1 },
+	darkgreen      = {   0,  0.6,    0,    1 },
+	green          = {   0,    1,    0,    1 },
+	lightgreen     = { 0.7,    1,  0.7,    1 },
+	teal           = {   0,    1,    1,    1 },
+	darkenedgreen  = { 0.4,    0.8,  0.4,  1 },
+	blue           = { 0.3, 0.35,    1,    1 },
+	fade_blue      = {   0,  0.7,  0.7,  0.6 },
+	paleblue       = { 0.6,  0.6,    1,    1 },
+	tainted_blue   = { 0.5,    1,    1,    1 },
+	turquoise      = { 0.3,  0.7,    1,    1 },
+	lightblue      = { 0.7,  0.7,    1,    1 },
+	cyan           = { 0.3,    1,    1,    1 },
+	ice            = {0.55,    1,    1,    1 },
+	lime           = { 0.5,    1,    0,    1 },
+	yellow         = {   1,    1,  0.3,    1 },
+	ocre           = { 0.7,  0.5,  0.3,    1 },
+	brown          = { 0.9, 0.75,  0.3,    1 },
+	purple         = { 0.9,    0,  0.7,    1 },
+	hardviolet     = {   1, 0.25,    1,    1 },
+	violet         = {   1,  0.4,    1,    1 },
+	paleviolet     = {   1,  0.7,    1,    1 },
+	whiteviolet    = {   1, 0.85,    1,    1 },
+	nocolor        = {   0,    0,    0,    0 },
 }
--- local colorsByStr = {
--- 	[strHealth] = {
--- 		[colors.red] = true,
--- 		[colors.orange] = true,
--- 		[colors.white] = true,
--- 	},
--- 	[strSelAlly] = {
--- 		[colors.white] = true
--- 	}
-
--- }
-
-
 
 
 local CreateWindowTableEditer
@@ -127,31 +118,33 @@ end
 
 local airpadDefID = {}
 do
-    local airpadDefs = VFS.Include("LuaRules/Configs/airpad_defs.lua", nil, VFS.GAME)
-    for defID in pairs(airpadDefs) do
-        airpadDefID[defID] = true
-    end
+	local airpadDefs = VFS.Include("LuaRules/Configs/airpad_defs.lua", nil, VFS.GAME)
+	for defID in pairs(airpadDefs) do
+		airpadDefID[defID] = true
+	end
 end
 local ignoreUnitDefID = {
 	[UnitDefNames['terraunit'].id ] = true,
 	[UnitDefNames['wolverine_mine'].id] = true,
 	[UnitDefNames['shieldscout'].id] = true,
 }
+local canBuildDefID = {}
+local lowCostDefID = {}
 for defID, def in pairs(UnitDefs) do
 	if def.name:match('drone') then
 		ignoreUnitDefID[defID] = true
 	end
-end
-
-local lowCostDefID = {}
-for defID, def in pairs(UnitDefs) do
 	if def.cost < 50 then
 		lowCostDefID[defID] = true
+	end
+	if def.buildSpeed ~= 0 then
+		canBuildDefID[defID] = true
 	end
 end
 
 
-local useList
+
+local useGlobalList
 local currentFrame = Spring.GetGameFrame()
 -- local normalScale = 1366*768
 -- local scale = 1
@@ -177,22 +170,25 @@ WG.lastStatus = lastStatus
 local inRadar = WG.inRadar or {}
 WG.inRadar = inRadar
 local problems = {}
-
+local delayAllyPoses = {}
 local lastView -- save some redundant work
 local cx, cy, cz = 0, 0, 0 -- current camera position
 
 -- default options value
-local onlyOnIcons = false
+local onlyOnIcons = true
 local showAllySelected = true
 local showHealth = true
 local showStatus = true
 local showNonManualCons = true
 local showCommandStatus = false
-local showCloaked = true
+local showPrio = true
+local showCloaked = false
 local alphaStatus = 1
 local alphaAlly = 1
 local alphaHealth = 1
+local alphaPrio = 1
 local allyOnTop = true
+local useFinePos = true
 local debugMissingUnits = false
 
 local debugChoice = 'none'
@@ -204,23 +200,6 @@ local tryFont = false
 local currentTryFont = 1
 --
 
-
-
--- local colorsByStr = {
--- 	[strHealth] = {
--- 		[colors.red] = true,
--- 		[colors.orange] = true,
--- 		[colors.white] = true,
--- 	},
--- 	[strSelAlly] = {
--- 		[colors.white] = true
--- 	}
-
--- }
-
-
-
-
 options_path = 'Hel-K/' .. widget:GetInfo().name
 -- local hotkeys_path = 'Hotkeys/Construction'
 
@@ -230,6 +209,7 @@ options_order = {
 	-- 'testColors',
 	-- 'dummy',
 	'only_on_icons',
+	'fine_pos',
 
 	'show_ally',
 	'ally_on_top',
@@ -243,13 +223,14 @@ options_order = {
 	'show_command_status',
 	'alpha_status',
 
+	'show_prio',
+	'alpha_prio',
+
 	'show_cloaked',
-	-- 'lbl_alpha',
 
 	'debugChoice',
-	'setCustomProp',
-	'tryFont',
 	'currentTryFont',
+	'setCustomProp',
 	'dbgMissingUnits',
 }
 options = {}
@@ -323,9 +304,19 @@ options.only_on_icons = {
 	noHotkey = true,
 }
 
+options.fine_pos = {
+	name = 'Refine Pos',
+	type = 'bool',
+	desc = "Take the icon size, fov and distance from Cam into consideration for finer position on the icon\nCheck for performance...",
+	value = useFinePos,
+	OnChange = function(self)
+		useFinePos = self.value
+	end,
+	noHotkey = true,
+}
 
 options.show_ally = {
-	name = 'Draw Selected Allied units',
+	name = 'Draw Selected Allied Units',
 	type = 'bool',
 	value = showAllySelected,
 	OnChange = function(self)
@@ -362,7 +353,7 @@ options.alpha_ally = {
 
 
 options.show_health = {
-	name = 'Draw Health indicator',
+	name = 'Draw Health Indicator',
 	type = 'bool',
 	value = showHealth,
 	OnChange = function(self)
@@ -389,15 +380,6 @@ options.alpha_health = {
 	parents 		= {'show_health'},
 }
 
-
-
-
-
--- options.lbl_alpha = {
--- 	name = 'Transparency',
--- 	type ='Label'
--- }
-
 options.show_status = {
 	name = "Draw Unit's Status",
 	type = 'bool',
@@ -411,7 +393,7 @@ options.show_status = {
 
 options.show_non_manual_cons = {
 	name = 'Show Tracked non manual Cons',
-	desc = 'Mainly while using Smart Builder',
+	desc = 'Mainly useful while using Smart Builder',
 	type = 'bool',
 	value = showNonManualCons,
 	OnChange = function(self)
@@ -442,8 +424,8 @@ options.alpha_status = {
 	step            = 0.05,
 	update_on_the_fly = true,
 	OnChange        = function(self)
-						alphaStatus = self.value
-					end,
+		alphaStatus = self.value
+	end,
 	noHotkey = true,
 	parents 		= {'show_status'},
 }
@@ -458,6 +440,31 @@ options.show_cloaked = {
 	noHotkey = true,
 }
 
+options.show_prio = {
+	name = 'Show Builder High Prio',
+	type = 'bool',
+	value = showPrio,
+	OnChange = function(self)
+		showPrio = self.value
+	end,
+	noHotkey = true,
+	children = {'alpha_prio'},
+}
+
+options.alpha_prio = {
+	name            = '	..transparency',
+	type            = 'number',
+	value           = alphaPrio,
+	min             = 0,
+	max             = 1,
+	step            = 0.05,
+	update_on_the_fly = true,
+	OnChange        = function(self)
+		alphaPrio = self.value
+	end,
+	noHotkey = true,
+	parents 		= {'show_prio'},
+}
 
 -- options.lbl_debug = {
 -- 	type = 'label',
@@ -494,42 +501,13 @@ options.debugChoice = {
 		{key = 'none', 			name='None'},
 		{key = 'inSight',		name='inSight'},
 		{key = 'alledgiance',	name='Alledgiance'},
+		{key = 'all',			name='Show All Symbols'},
+		{key = 'try',			name='Try Font', desc = 'Use key PLUS and MINUS (or use the slider below)\nCycle through available characters that will be shown on ally selected units (better do that when speccing),\nConsole debug (F8) will tell the char code to use (not all char codes are available and some will be just empty string)'},
 		{key = 'custom', 		name='Custom'},
 	},
 	OnChange = function(self)
 		debugChoice =  self.value
-		if debugChoice ~= 'none' then
-			lastStatus = {}
-		end
-	end,
-	noHotkey = true,
-}
-
-local setPropWindow
-options.setCustomProp = {
-	name = 'Debug Custom Property',
-	type = 'button',
-	value = false,
-	OnChange = function(self)
-		if setPropWindow and not setPropWindow.disposed then
-			setPropWindow:Dispose()
-			setPropWindow = nil
-		else
-			setPropWindow = CreateWindowTableEditer(debugCustomProps, 'debugCustomProps')
-		end
-	end,
-	action = 'setpropicon',
-}
-
-
-options.tryFont = {
-	name = 'Try Font',
-	desc = 'Use key PLUS and MINUS (or use the slider below)\nCycle through available characters that will be shown on ally selected units (better do that when speccing),\nConsole debug (F8) will tell the char code to use (not all char codes are available and some will be just empty string)',
-	type = 'bool',
-	value = tryFont,
-	children = {'currentTryFont', 'alpha_ally'},
-	OnChange = function(self)
-		tryFont = self.value
+		tryFont = debugChoice == 'try'
 		if tryFont then
 			widgetHandler:UpdateWidgetCallIn('KeyPress',widget)
 			if symbolSelAlly.list then
@@ -551,23 +529,46 @@ options.tryFont = {
 			end
 			widgetHandler:RemoveWidgetCallIn('KeyPress',widget)
 		end
+		if debugChoice ~= 'none' then
+			lastStatus = {}
+		end
 	end,
 	noHotkey = true,
 }
+
+local setPropWindow
+options.setCustomProp = {
+	name = 'Debug Custom Property',
+	desc = '/setpropicon for rapid access',
+	type = 'button',
+	value = false,
+	OnChange = function(self)
+		if setPropWindow and not setPropWindow.disposed then
+			setPropWindow:Dispose()
+			setPropWindow = nil
+		else
+			setPropWindow = CreateWindowTableEditer(debugCustomProps, 'debugCustomProps')
+		end
+	end,
+	action = 'setpropicon',
+}
+
+
 options.currentTryFont = {
-	name = '	..current tried char code',
+	name = 'Current tried char code',
 	type = 'number',
 	min = 1, step = 1, max = 255,
 	value = currentTryFont,
-	parents = {'tryFont'},
 	update_on_the_fly = true,
+
+	desc = 'If you choose to Try a Font in Debug Choice, select the character here',
 	tooltipFunction = function(self)
 		local str = string.char(self.value)
 		return str .. ' char code: ' .. self.value
 	end,
 	OnChange = function(self)
 		currentTryFont = self.value
-		if options.tryFont.value then
+		if options.debugChoice.value == 'try' then
 			if symbolSelAlly.list then
 				gl.DeleteList(symbolSelAlly.list)
 				symbolSelAlly.list = GetListCentered(string.char(currentTryFont))
@@ -582,15 +583,15 @@ options.currentTryFont = {
 }
 options.dbgMissingUnits = {
 	name = 'Debug Missing Units',
+	desc = "Console debugging for missing units  of api_unit_handler",
 	type = 'bool',
 	value = debugMissingUnits,
 	OnChange = function(self)
 		debugMissingUnits = self.value
-	end
+	end,
+	dev = true,
 }
--- for k,opt in pairs(options) do
--- 	opt:OnChange()
--- end
+
 local options = options
 local debugging = true -- need UtilsFunc.lua
 local f = debugging and WG.utilFuncs
@@ -707,58 +708,50 @@ local blinkcolor = {
 -- end
 
 
-
-local GetUnitPos = function(id, threshold)
-    local unit = Units[id]
-    if not unit then
-    	return
-    end
-    local pos = unit.pos
-    local _
-    if not unit.isStructure and currentFrame > pos.frame + threshold then
-        _, _, _, pos[1], pos[2], pos[3] = spGetUnitPosition(id,true)
-        pos.frame = currentFrame
-    end
-    return  pos[1], pos[2], pos[3]
-end
 function widget:GameFrame(f)
 	currentFrame = f
 end
-local function ApplyColor(id, statusColor, healthColor, alphaStatus, alphaHealth, defID, blink)
+
+local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioColor, alphaStatus, alphaHealth, alphaPrio)
 	local unit = Units[id]
 	if not unit then
 		return
 	end
-	if not (healthColor or statusColor) then
+	if not (healthColor or statusColor or prioColor) then
 		return
 	end
+
 	local _,_,_,x,y,z = unit:GetPos(1,true)
 	if not x then
 		return
 	end
 	-- Echo("defID is ", defID, id)
-	local isIcon = VisibleIcons[id] or not inSight[id]
-	if isIcon then
-		local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
-		local gy = spGetGroundHeight(x,z)
-		y =	GetIconMidY(defID or 0, y, gy, distFromCam)
+	if useFinePos then
+		local isIcon = VisibleIcons[id] or not inSight[id]
+		if isIcon then
+			local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+			distFromCam = distFromCam * fov / 45 
+			local gy = spGetGroundHeight(x,z)
+			y =	GetIconMidY(defID or 0, y, gy, distFromCam)
+		end
 	end
 	local mx,my = spWorldToScreenCoords(x,y,z)
 	if healthColor then
 		symbolHealth:Draw(mx, my, healthColor, alphaHealth)
 	end
 	if statusColor then
-		local statusColor = blink and blinkcolor[statusColor] or statusColor
+		statusColor = blink and blinkcolor[statusColor] or statusColor
 		symbolStatus:Draw(mx, my, statusColor, alphaStatus)
+	end
+	if prioColor then
+		symbolPrio:Draw(mx, my, prioColor, alphaPrio)
 	end
 
 end
 
-local enable3 = false -- debugging to see 3 different state at a time on any unit
-
-local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
+local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullview, fov)
 	-- if spIsUnitVisible(id) and (not onlyOnIcons or spIsUnitIcon(id)) then
-		local statusColor, healthColor, allySelColor, allyDelayDraw
+		local statusColor, healthColor, prioColor, allySelColor
 		local alphaStatus = alphaStatus
 		
 		-- local x,y,z = unit:GetPos(0, true)
@@ -798,6 +791,13 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 				healthColor = unit.isMine and lightblue or unit.isAllied and blue or unit.isEnemy and orange
 			elseif debugChoice == 'inSight' then
 				healthColor = white
+			elseif debugChoice == 'all' then
+				healthColor = orange
+				statusColor = b_ice
+				allySelColor = white
+				prioColor = green
+			elseif debugChoice == 'try' then
+				allySelColor = white
 			end
 		else
 			local health = unit.health
@@ -808,26 +808,23 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 			local hp,maxhp,paraDmg,bp
 			if health then
 				hp,maxhp, paraDmg,bp = health[1], health[2], health[3], health[5]
-				-- if not maxhp then
-				-- 	Echo('no max hp for unit ',unit.defID and UnitDefs[unit.defID].name,unpack(health))
-				-- 	return
-				-- end
 				paralyzed = paraDmg > maxhp
-				-- health.frame = currentFrame
 				health = hp/(maxhp*bp)
-
 			end
 			-- if unit.isKnown then statusColor = violet
 			-- end
 			-- local builder = bp<1 and Units[unit.builtBy]
+			if showPrio and defID and canBuildDefID[defID] then
+				prioColor = spGetUnitRulesParam(id, "buildpriority") == 2 and green
+			end
 			if showStatus then
 				statusColor = 
-					bp and bp>=0 and (
-							bp<0.8 and grey
-							or bp<1 and lightgreen
+					bp and bp >= 0 and (
+							bp < 0.8 and grey
+							or bp < 1 and lightgreen
 						)
-					or (paralyzed or enable3) and b_ice
-					or disarmUnits[id]~=nil and b_whiteviolet
+					or (paralyzed or enable4) and b_ice
+					or disarmUnits[id] ~= nil and b_whiteviolet
 					-- or builder and not builder.isFactory and white
 					or showCommandStatus and unit.tracked and (
 							unit.movingBack and brown
@@ -836,7 +833,7 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 							or unit.autoguard and darkenedgreen
 							or unit.manual and (
 									unit.building and red
-									or unit.actualCmd==90 and hardviolet
+									or unit.actualCmd == 90 and hardviolet
 									or orange
 								)
 							or unit.isFighting and turquoise
@@ -845,15 +842,14 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 							or unit.cmd and green
 						)
 					or showNonManualCons and unit.tracked and (
-							unit.isCon and not (unit.manual or unit.waitManual or unit.isFighting) and blue
+							unit.isCon and not (unit.manual or unit.waitManual) and blue
 						)
-
 				if not statusColor then
 					if unit.isJumper then
 						local jumpReload = unit.isJumper and unit.isMine and spGetUnitRulesParam(id,'jumpReload')
 						if jumpReload then
-							statusColor = jumpReload>=1 and darkenedgreen
-								  or jumpReload>=0.8 and lime
+							statusColor = jumpReload >= 1 and darkenedgreen
+								  or jumpReload >= 0.8 and lime
 						end
 					elseif showCloaked and unit.isCloaked then
 					  alphaStatus = 0.7
@@ -873,64 +869,59 @@ local function Treat(id,defID,allySelUnits,unit, blink, anyDebug)
 				end
 			end
 			if showHealth then
-				healthColor = health and (health<0.3 and red or (enable3 or health<0.6) and orange)
+				healthColor = health and (health < 0.3 and red or health < 0.6 and orange)
 			end
-			if showAllySelected or tryFont then
-				if allyOnTop then
-					allyDelayDraw = enable3 or allySelUnits[id]
-				else
-					allySelColor = (enable3 or allySelUnits[id]) and white
-				end
+			if showAllySelected and allySelUnits[id] then
+				allySelColor = white
 			end
-
 		end
 
-		if healthColor or statusColor or allySelColor or allyDelayDraw then
+		if healthColor or statusColor or allySelColor or prioColor then
 			local _,_,_,x,y,z = unit:GetPos(1)
 			if x then
-				local isIcon = onlyOnIcons or VisibleIcons[id]
-				if isIcon then
-					-- LOOK UnitDrawer.cpp LINE 420
-					local gy = spGetGroundHeight(x,z)
-					local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
-					GetIconMidY(defID or 0, y, gy, distFromCam)
+				if useFinePos then
+					local isIcon = onlyOnIcons or VisibleIcons[id]
+					if isIcon then
+						-- LOOK UnitDrawer.cpp LINE 420
+						local gy = spGetGroundHeight(x,z)
+						local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+						distFromCam = distFromCam * fov / 45
+						y = GetIconMidY(defID or 0, y, gy, distFromCam)
+					end
 				end
 
-				if not anyDebug and (statusColor or healthColor) then
+				if not anyDebug and fullview~=1 and (statusColor or healthColor or prioColor) then
 					local ls = lastStatus[id]
 					if not ls then
-						lastStatus[id] = {statusColor, healthColor, alphaStatus, alphaHealth, defID}
+						lastStatus[id] = {defID, statusColor, healthColor, prioColor, alphaStatus, alphaHealth, alphaPrio}
 					else
-						ls[1], ls[2] = statusColor, healthColor
-						ls[3], ls[4] = alphaStatus, alphaHealth
+						ls[2], ls[3], ls[4] = statusColor, healthColor, prioColor
+						ls[5], ls[6], ls[7] = alphaStatus, alphaHealth, alphaPrio
 					end
 				end
 				local mx,my = spWorldToScreenCoords(x,y,z)
 				if healthColor then
-
 					symbolHealth:Draw(mx, my, healthColor, alphaHealth)
 				end
 				if statusColor then
 					local statusColor = blink and blinkcolor[statusColor] or statusColor
 					symbolStatus:Draw(mx,my, statusColor, alphaStatus)
-					-- local x2,y2,z2 = Spring.GetUnitPosition(id)
-					-- local mx2, my2 = spWorldToScreenCoords(x2,y2,z2)
-					-- symbolStatus:Draw(mx2,my2, colors.orange, alphaStatus)
+				end
+				if prioColor then
+					symbolPrio:Draw(mx,my, prioColor, alphaPrio)
 				end
 				if allySelColor then
-					symbolSelAlly:Draw(mx,my, allySelColor, alphaAlly)
-				elseif allyDelayDraw then
-					return {mx,my}
+					if allyOnTop then
+						delayAllyPoses[{mx,my}] = true
+					else
+						symbolSelAlly:Draw(mx,my, allySelColor, alphaAlly)
+					end
 				end
 			end
 		else
 			lastStatus[id] = nil
 		end
-
-		return 
-
-	-- end
-
+	return 
 end
 
 function widget:GameOver()
@@ -982,7 +973,9 @@ local GlobalDraw = function()
 	local size = table.size(subjects)
 	local avoidLowCost = size > 300
 	cx, cy, cz = unpack(Cam.pos)
-	local delayAllyPoses = {}
+	if allyOnTop then
+		delayAllyPoses = {}
+	end
 
 	local anyDebug = debugChoice ~= 'none'
 	for id in pairs(subjects) do
@@ -995,27 +988,26 @@ local GlobalDraw = function()
 			local defID = unit.defID
 			local valid = anyDebug or not (avoidLowCost and lowCostDefID[defID] or ignoreUnitDefID[defID])
 			if valid then
-				local allyPos = Treat(id,defID,allySelUnits, unit, blink, anyDebug)
-				if allyPos then
-					delayAllyPoses[allyPos] = true
-				end
+				ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, Cam.fullview, Cam.fov)
 			end
 		end
 	end
-	for pos in pairs(delayAllyPoses) do
-		symbolSelAlly:Draw(pos[1],pos[2], white, alphaAlly)
+	if allyOnTop then
+		for pos in pairs(delayAllyPoses) do
+			symbolSelAlly:Draw(pos[1],pos[2], white, alphaAlly)
+		end
 	end
-
 
 	-- Echo("table.size(inRadar) is ", table.size(inRadar))
 	-- show last seen unit's symbol and color for a few sec ocne they gone out of view
-	if not debugInSight and Cam.fullview~=1 then
+	if debugChoice ~= "Insight" and Cam.fullview~=1 then
+		local fov = Cam.fov
 		for id, t in pairs(inRadar) do
 			if t.toframe < currentFrame then
 				inRadar[id] = nil
 				lastStatus[id] = nil
 			else
-				ApplyColor(id, t[1], t[2], t[3], t[4], t[5], blink)
+				ApplyColor(id, blink, fov, t[1], t[2], t[3], t[4], t[5], t[6], t[7])
 			end
 		end
 	end
@@ -1139,109 +1131,55 @@ function WidgetInitNotify(w,name,preloading)
 end
 
 function widget:Initialize()
+	Cam = WG.Cam
+	if not Cam then
+		Echo(widget:GetInfo().name .. " requires api_has_view_changed.lua")
+		widgetHandler:RemoveWidget(widget)
+		return
+	end
 	NewView = WG.NewView
 	Visibles = WG.Visibles and WG.Visibles.anyMap
 	VisibleIcons = WG.Visibles and WG.Visibles.iconsMap
 	GetIconMidY = WG.GetIconMidY
-	Cam = WG.Cam
 	inSight = Cam.inSight
 	disarmUnits = WG.disarmUnits or {}
 	myTeamID, myPlayerID = Spring.GetMyTeamID(), Spring.GetMyPlayerID()
-	if not Cam then
-		Echo(widget:GetInfo().name .. " requires HasViewChanged.")
-		widgetHandler:RemoveWidget(widget)
-		return
-	end
 
-	-- if WG.UnitsIDCard then
-	-- 	Units = WG.UnitsIDCard.units
-	-- 	Echo(widget:GetInfo().name .. ' use UnitsIDCard.')
-	-- elseif Cam and Cam.Units then
-	-- 	Units = Cam.Units
-	-- 	Echo(widget:GetInfo().name .. ' use Cam.Units.')
-	-- end
 	Units = Cam.Units
 	widget:ViewResize(Spring.GetViewGeometry())
 	-- local font = gl.LoadFont("FreeSansBold.otf", 12, 3, 3)
 	if WG.MyFont then
+		-- list work with own fontHandler (2 times faster) then 50% even faster using global list if view don't change
 		fontHandler = WG.MyFont -- it's a copy of mod_font.lua as widget, a parallel fontHandler that  doesn't reset the cache over time since there's no update
-		useList = true -- list work with own fontHandler (2 times faster) then 50% even faster using global list if view don't change move
+		GetListCentered = glCallList and WG.MyFont.GetListCentered
 	end
 	UseFont = fontHandler.UseFont
 	UseFont(monobold)
 	TextDrawCentered = fontHandler.DrawCentered
-	useList = true
-	if useList and glCallList then
+	useGlobalList = glCallList
 
-		GetListCentered = WG.MyFont.GetListCentered
 
-		symbolStatus.list = GetListCentered(symbolStatus.str)
-		symbolStatus.Draw = function(self, mx,my,color)
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			glPushMatrix()
-			glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY + 0.5) , 0)
-			glCallList(self.list)
-			glPopMatrix()
+	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio}) do
+		if GetListCentered then
+			obj.list = GetListCentered(obj.str)
+			obj.Draw = function(self, mx,my,color)
+				glColor(color[1], color[2], color[3], alpha or color[4])
+				glPushMatrix()
+				glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5) , 0)
+				glCallList(self.list)
+				glPopMatrix()
+			end
+		else
+			obj.Draw = function(self, mx,my, color, alpha)
+				glColor(color[1], color[2], color[3], alpha or color[4])
+				TextDrawCentered(self.str, floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5))
+			end
 		end
-
-		symbolSelAlly.list = GetListCentered(symbolSelAlly.str)
-		symbolSelAlly.Draw = function(self, mx,my,color, alphaStatus)
-
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			glPushMatrix()
-			glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY + 0.5) , 0)
-			glCallList(self.list)
-			glPopMatrix()
-		end
-
-		symbolHealth.list = GetListCentered(symbolHealth.str)
-		symbolHealth.Draw = function(self, mx,my,color, alphaStatus)
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			glPushMatrix()
-			glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY + 0.5) , 0)
-			glCallList(self.list)
-			glPopMatrix()
-		end
-
-
-		globalList = glCreateList(GlobalDraw)
-
-		-- for color,t in pairs(lists) do
-		-- 	-- t[strSel] = glCreateList(
-		-- 	-- 	function()
-		-- 	-- 		glColor(color)
-		-- 	-- 		TextDrawCentered(strSel, 0, 0)
-		-- 	-- 	end
-		-- 	-- )
-		-- 	-- t[strHealth] = glCreateList(
-		-- 	-- 	function()
-		-- 	-- 		glColor(color)
-		-- 	-- 		TextDrawCentered(strHealth, 0, 0)
-		-- 	-- 	end
-		-- 	-- )
-		-- 	t[strSel] = strSelList
-		-- 	if colorsByStr[strHealth][color] then
-		-- 		t[strHealth] = strHealthList
-		-- 	end
-		-- 	if colorsByStr[strSelAlly][color] then
-		-- 		t[strSelAlly] = strSelAllyList
-		-- 	end
-		-- end
-	else
-		symbolStatus.Draw = function(self, mx,my, color, alphaStatus)
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			TextDrawCentered(self.str, mx, my)
-		end
-		symbolSelAlly.Draw = function(self, mx,my, color, alphaStatus)
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			TextDrawCentered(self.str, mx, my)
-		end
-		symbolHealth.Draw = function(self, mx,my, color, alphaStatus)
-			glColor(color[1], color[2], color[3], alphaStatus or color[4])
-			TextDrawCentered(self.str, mx, my)
-		end
-
 	end
+	if useGlobalList then
+		globalList = glCreateList(GlobalDraw)
+	end
+
 	widgetHandler.actionHandler:AddAction( -- we cannot set the action through epic menu option or it won't switch as desired
 		widget,'showpropicon',
 		function()
@@ -1271,37 +1209,30 @@ function widget:Shutdown()
 		glDeleteList(globalList)
 	end
 	widgetHandler.actionHandler:RemoveAction(widget,'showpropicon')
-  -- 	for color, t in pairs(lists) do
-		-- for str, list in pairs(t) do
-	 --  		glDeleteList(list)
-		-- end
-  -- 	end
-  	if symbolStatus.list then
-  		glDeleteList(symbolStatus.list)
-  	end
-  	if symbolSelAlly.list then
-  		glDeleteList(symbolSelAlly.list)
-  	end
-  	if symbolHealth.list then
-  		glDeleteList(symbolHealth.list)
-  	end
+
+	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio}) do
+		if obj.list then
+			glDeleteList(obj.list)
+			obj.list = nil
+		end
+	end
 end
 
 function widget:SetConfigData(data)
-    if data.debugCustomProps then
-    	for k,v in pairs(debugCustomProps) do
-    		debugCustomProps[k] = nil
-    	end
-    	for k,v in pairs(data.debugCustomProps) do
-    		debugCustomProps[k] = v
-    	end
-    end
+	if data.debugCustomProps then
+		for k,v in pairs(debugCustomProps) do
+			debugCustomProps[k] = nil
+		end
+		for k,v in pairs(data.debugCustomProps) do
+			debugCustomProps[k] = v
+		end
+	end
 end
 function widget:GetConfigData()
 	return {debugCustomProps = debugCustomProps}
 end
 
 
-if debugging then
+if f then
 	f.DebugWidget(widget)
 end
