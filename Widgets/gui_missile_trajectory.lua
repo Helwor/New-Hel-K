@@ -65,25 +65,41 @@ local sin = math.sin
 local diag = math.diag
 local pi = math.pi
 
-local function DrawStraightToGround(x, y, z, goalx, goaly, goalz)
-	-- Vecteur vers la cible
+local function DrawStraightToGround(x, y, z, goalx, goaly, goalz, alreadyFoundGround)
 	local dx, dy, dz = goalx - x, goaly - y, goalz - z
 	local distance = diag(dx, dy, dz)
 	if distance == 0 then return end
-	
-	dx, dy, dz = dx/distance, dy/distance, dz/distance
-	local numChecks = math.min(50, math.floor(distance / 50))
-	local step = distance / numChecks
-	
-	local stepx, stepy, stepz = step * dx, step * dy, step * dz
 
+	dx, dy, dz = dx/distance, dy/distance, dz/distance
+	local div = alreadyFoundGround and 15 or 60
+	local numChecks = math.min(div, math.floor(distance / div))
+	local step = distance / numChecks
+	local stepx, stepy, stepz = step * dx, step * dy, step * dz
+	local lastx, lasty, lastz = x, y, z
 	for i = 1, numChecks do
-		x, y, z = x + stepx, y + stepy, z + stepz
-		if spGetGroundHeight(x, z) > y then
+		if i == numChecks then
+			-- fix precision of the last point, to avoid sometime the calculated point not getting into ground while the goal point is actually is
+			-- not doing that can result in crash, as the loop is supposed to find ground at the end during the last recursion when ground has been found
+			x, y, z = goalx, goaly, goalz
+		else
+			x, y, z = x + stepx, y + stepy, z + stepz
+		end
+		if spGetGroundHeight(x, z) > y-10 then -- arbitrary -10 to consider width of the missile
+			if alreadyFoundGround then
+				return x, y, z -- give the final more precise position where the trajectory enter ground
+			else
+				-- Echo('find ground at ' .. i .. '/' .. numChecks, 'distance from goal', (numChecks - i) * step)
+				x, y, z = DrawStraightToGround(lastx, lasty, lastz, x, y, z, true)
+			end
 			glVertex(x, y, z)
 			moddedImpact = {x, y, z}
 			return
 		end
+		if distance > 10000 and not alreadyFoundGround and i > 1 and (numChecks - i) * step < 6000 then
+			-- refine smaller steps for the last ~3500 elmos (especially useful for long distance nuke)
+			return DrawStraightToGround(x, y, z, goalx, goaly, goalz)
+		end
+		lastx, lasty, lastz = x, y, z
 	end
 	glVertex(goalx, goaly, goalz)
 end
@@ -189,14 +205,14 @@ end
 function widget:CommandsChanged()
 	if selectionChanged then
 		selectionChanged = false
+		local selDefID = WG.selectionDefID or spGetSelectedUnitsSorted()
 		allowedCmd = {}
-		selectedRockets = spGetSelectedUnitsSorted()
-		for defID, units in pairs(selectedRockets) do
+		selectedRockets = {}
+		for defID, units in pairs(selDefID) do
 			local def = missileDefs[defID]
-			if not def then
-				selectedRockets[defID] = nil
-			else
+			if def then
 				allowedCmd[def.cmd] = true
+				selectedRockets[defID] = units
 			end
 		end
 	end
