@@ -15,7 +15,7 @@ lockMode = {
 
 local beginCam = {px=nil,py=0,pz=0,rx=0,ry=0,rz=0,fov=0,time=0}
 local deltaEnd = {px=nil,py=0,pz=0,rx=0,ry=0,rz=0,fov=0,time=0}
-local targetCam = {px=0,py=0,pz=0,rx=0,ry=0,rz=0,dx=0,dy=0,dz=0,fov=0,name="",active=false}
+targetCam = {px=0,py=0,pz=0,rx=0,ry=0,rz=0,dx=0,dy=0,dz=0,fov=0,name="",active=false}
 local lockTarget = nil
 
 MWIDTH, MHEIGHT = Game.mapSizeX, Game.mapSizeZ
@@ -223,7 +223,7 @@ function OverrideSetCameraStateInterpolate(cs,smoothness, lockPoint)
 	-- lockWorldTarget = worldTarget
 	-- lockScreenTarget = screenTarget
 	
-
+	-- Echo('OVERRIDE',f.GetCalledLine())
 	lockTarget = nil
 	Interpolate()
 	beginCam.time = spGetTimer()
@@ -296,6 +296,7 @@ end
 
 --All algorithm is from "Spring/rts/game/CameraHandler.cpp"
 function Interpolate()
+	-- Echo(f.GetCalledLine())
 	if not (targetCam.active) then return end
 
 	local lapsedTime = spDiffTimers(spGetTimer(),beginCam.time);
