@@ -10,6 +10,9 @@ function widget:GetInfo()
 	}
 end
 
+local myPlayerID = Spring.GetMyPlayerID()
+local isSpec = false
+
 local END_FADE_TIME = 12
 local START_FADE_TIME = 8
 
@@ -71,7 +74,7 @@ local points = IterableMap.New()
 function widget:MissileFired(proID, proOwnerID, weaponDefID, impactX, impactY, impactZ, impactFrame, targetID)
 	local currentFrame = Spring.GetGameFrame()
 	impactFrame = math.max(currentFrame + 5, impactFrame)
-	if WG.moddedMissileImpact and WG.moddedMissileImpact[proOwnerID] then
+	if not isSpec and WG.moddedMissileImpact and WG.moddedMissileImpact[proOwnerID] then
 		impactX, impactY, impactZ = unpack(WG.moddedMissileImpact[proOwnerID])
 	end
 	IterableMap.Add(points, proID, {
@@ -157,4 +160,16 @@ function widget:DrawWorldPreUnit()
 	end
 	local curFrame = Spring.GetGameFrame()
 	IterableMap.Apply(points, DrawPoint, curFrame)
+end
+
+
+
+function widget:PlayerChanged(playerID)
+	if playerID ~= myPlayerID then
+		isSpec = Spring.GetSpectatingState()
+	end
+end
+
+function widget:Initialize()
+	isSpec = Spring.GetSpectatingState()
 end
