@@ -38,7 +38,6 @@ include("keysym.lua")
 -- VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
 
-
 ----
 --CONFIG
 ----
@@ -688,7 +687,7 @@ local clock 	= os.clock
 
 
 
-local PBH, plate_placer
+local PBH, PBS, plate_placer
 
 local EMPTY_TABLE = {}
 --[[
@@ -4695,9 +4694,9 @@ function widget:MouseWheel(up,value) -- verify behaviour of keypress on spacing 
 			end
 		end
 	elseif shift and Drawing and PID then
-		--if PBS then Echo("CHK") return PBS.MouseWheel(_,up,value) end
-		--local block=drawEnabled and not up--[[checking if not buildspacing mousewheel--]]
-		return ChangeSpacing(value)
+		if (PBS and PBS.options.wheel_spacing and PBS.options.wheel_spacing.value) then
+			return ChangeSpacing(value)
+		end
 	end
 end
 
@@ -5020,6 +5019,8 @@ function WidgetInitNotify (w, name, preloading)
 				end
 			end
 		end
+	elseif name == 'Persistent Build Spacing' then
+		PBS = w
 	end
 
 end
@@ -5030,6 +5031,8 @@ function WidgetRemoveNotify(w, name, preloading)
 		plate_placer = nil
 	elseif name == 'Selection Modkeys' then
 		switchSM = function() end
+	elseif name == 'Persistent Build Spacing' then
+		PBS = nil
 	end
 end
 
@@ -6437,6 +6440,7 @@ function widget:Initialize()
 		switchSM = function() end
 	end
 	PBH = widgetHandler:FindWidget('Persistent Build Height 2')
+	PBS = widgetHandler:FindWidget('Persistent Build Spacing')
 	widget._Update = widget.Update
 	widget.Update = widget.AfterInit
 	widgetHandler:UpdateWidgetCallIn('GameFrame',widget)
