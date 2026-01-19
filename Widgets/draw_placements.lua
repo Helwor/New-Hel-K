@@ -235,8 +235,8 @@ local g = {
 
 }
 local initialized = false
-
 local useMinimap = false
+local ToggleDraw
 
 
 
@@ -320,6 +320,17 @@ options.showrail = {
 		opt.showRail = self.value
 	end,
 }
+
+options.toggledraw = {
+	name = 'Toggle Draw',
+	desc = 'Define Hotkey to be used when you want to toggle Draw Mode for the current build option.',
+	type = 'button',
+	hotkey = 'Shift+Alt+D',
+	OnChange = function(self)
+		ToggleDraw()
+	end
+}
+
 
 ------ Paint Farm
 
@@ -4366,6 +4377,22 @@ local UpdateRail = function()
 	end
 end
 
+function ToggleDraw()
+	if PID then 
+		noDraw[PID] = not noDraw[PID]
+	end
+	Drawing = not noDraw[PID]
+	-- WG.drawingPlacement=Drawing
+
+	reset()
+	drawEnabled = false
+	if leftClick then 
+		sp.SetActiveCommand(-1)
+		dstatus = 'held'
+	end
+end
+
+
 function widget:Update()
 	if dstatus == 'erasing' then
 		-- EraseOverlap()
@@ -4761,21 +4788,6 @@ function widget:KeyPress(key, mods,isRepeat)
 	if Drawing and PID and shift then
 		GoStraight(alt)
 	end
-	if alt and shift and key == 100 then -- Alt+Shift+D to toggle Drawing for tis particular build
-		if PID then 
-			noDraw[PID] = not noDraw[PID]
-		end
-		Drawing = not noDraw[PID]
-		-- WG.drawingPlacement=Drawing
-
-		reset()
-		drawEnabled = false
-		if leftClick then 
-			sp.SetActiveCommand(-1)
-			dstatus = 'held'
-		end
-	end
-
 	-- if Drawing then 
 	-- 	return true
 	-- end
