@@ -4656,7 +4656,9 @@ end
 
 local function ChangeSpacing(value)
 	if Drawing then
-		p:UpdateSpacing(value)
+		if p:UpdateSpacing(value) then
+			Init()
+		end
 		return true
 	end
 	return false
@@ -6509,7 +6511,9 @@ function widget:Shutdown()
 	end
 	-- Spring.SetBuildSpacing = sp.SetBuildSpacing
 end
-f.DebugWidget(widget)
 
+if f then
+	f.DebugWidget(widget)
+end
 
 
