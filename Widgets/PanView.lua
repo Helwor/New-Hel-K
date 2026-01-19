@@ -94,12 +94,11 @@ end
 
 local mapSizeX,mapSizeZ = Game.mapSizeX,Game.mapSizeZ
 local cs = Spring.GetCameraState()
-
 --
 -- NOTE: the real height will change the size of world on screen depending on the FOV
 
 local cfg = { -- default option values
-	MAX_TOP_ALTITUDE = max(mapSizeX, mapSizeZ) * 5/3,
+	MAX_TOP_ALTITUDE = math.min(30000, max(mapSizeX, mapSizeZ) * 5/3),
 	MAX_MIN_ZOOM_BACK_RATIO = 0.95,
 	maxTACam = max(mapSizeX, mapSizeZ) * 5/3, -- this give the max possible altitude for TA cam -- unfortunately very low FOV will not allow to see all the map with TA cam
 -- INGAME CONFIG
