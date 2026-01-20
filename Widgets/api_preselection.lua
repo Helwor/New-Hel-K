@@ -50,12 +50,14 @@ local math_atan2            = math.atan2
 local math_pi               = math.pi
 local math_min              = math.min
 local math_max              = math.max
+local math_diag             = math.diag
 local spIsUnitSelected      = Spring.IsUnitSelected
 local spTraceScreenRay      = Spring.TraceScreenRay
 local spGetMouseState       = Spring.GetMouseState
 local spIsAboveMiniMap      = Spring.IsAboveMiniMap
 local spWorldToScreenCoords = Spring.WorldToScreenCoords
 local spValidUnitID			= Spring.ValidUnitID
+local spGetSelectionBox     = Spring.GetSelectionBox
 
 local start
 local screenStartX, screenStartY = 0, 0
@@ -172,20 +174,46 @@ local PreSelection_GetUnitUnderCursor = function (onlySelectable, ignoreSelectio
 	-- 	end
 	-- end
 end
+local GetSelectionBoxDragThreshold
+do
+	local spGetConfigInt = Spring.GetConfigInt
+	-- create a cache updated by the garbage collector cycle
+	local cache = setmetatable({},
+		{
+			__mode = 'k',
+			__index = function(self, key)
+				local _, threshold = next(self)
+				if not threshold then
+					threshold = spGetConfigInt('MouseDragSelectionThreshold', 0)
+					rawset(self, {}, threshold)
+				end
+				return threshold
+			end
+		}
+	)
+	function GetSelectionBoxDragThreshold()
+		return cache.th -- the name of key called doesnt matter 
+	end
+end
+-- local PreSelection_IsSelectionBoxActive = function (thresholdMatters)
+-- 	local x, y, lmb = spGetMouseState()
+-- 	if not lmb then
+-- 		return false
+-- 	end
+-- 	local _, here = SafeTraceScreenRay(x, y, true, thruMinimap)
+-- 	if lmb and not cannotSelect and holdingForSelection then
+-- 		-- and not (thresholdMatters or here[1] == start[1] and here[2] == start[2] and here[3] == start[3]) then
+-- 		if math_diag(x - screenStartX, y - screenStartY) >= GetSelectionBoxDragThreshold() then -- even this is not good enough, the engine is measuring the travel of the mouse, not thedistance between start and current mouse
+-- 			return true
+-- 		end
+-- 	end
+-- 	return false
+-- end
 
 local PreSelection_IsSelectionBoxActive = function (thresholdMatters)
-	local x, y, lmb = spGetMouseState()
-	if not lmb then
-		return false
-	end
-	local _, here = SafeTraceScreenRay(x, y, true, thruMinimap)
-	if lmb and not cannotSelect and holdingForSelection and
-		not (thresholdMatters or here[1] == start[1] and here[2] == start[2] and here[3] == start[3]) then
-
-		return true
-	end
-	return false
+	return spGetSelectionBox()
 end
+
 local PreSelection_GetUnitsInSelectionBox = function ()
 	-- Echo('get units in sel box',math.round(os.clock()),spGetBoxSelectionByEngine())
 

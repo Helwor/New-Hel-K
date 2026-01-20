@@ -105,6 +105,7 @@ local buildMexDefID = -UnitDefNames['staticmex'].id
 local checkForSelBox = os.clock()
 
 WG.EzTarget = WG.EzTarget or {}
+
 local shared = WG.EzTarget
 
 
@@ -151,7 +152,6 @@ local UnitDefs = UnitDefs
 local maxUnits = Game.maxUnits
 
 options_path = 'Hel-K/' .. widget:GetInfo().name
-
 
 
 ------------- DEBUG CONFIG
@@ -209,27 +209,12 @@ local transportDefID = {
 
 local lobsterDefID = UnitDefNames['amphlaunch'].id
 
-
-
-
--- local iconSizeDefID = {}
--- for defID,def in ipairs(UnitDefs) do
---     if def.name == 'shieldbomb' then
---         iconSizeDefID[defID] = 1.8
---     else
---         iconSizeDefID[defID] = ( icontypes[(def.iconType or "default")] or icontypes["default"] ).size or 1.8
---     end
--- end
-
-
-
 local defIDCanAttack = {}
 for defID,def in ipairs(UnitDefs) do
 	if def.canAttack then
 		defIDCanAttack[defID]=true
 	end
 end
-
 
 local airpadDefID = {}
 do
@@ -276,11 +261,7 @@ local teal = {unpack(COLORS.teal)}
 
 
 -- same as gui_selection_modkeys.lua
-local toleranceTime = Spring.GetConfigInt('DoubleClickTime', 230) * 0.001 -- no event to notify us if this changes but not really a big deal
-toleranceTime = toleranceTime + 0.0230 -- fudge for Update 
--- MY OWN TOLERANCE
-toleranceTime = 0.230
---
+local toleranceTime = Spring.GetConfigInt('DoubleClickTime', 300) * 0.001 -- no event to notify us if this changes but not really a big deal
 
 -- CONFIG -- 
 
@@ -332,6 +313,9 @@ local opt = {
 	forceAttack = true,
 
 	showDot = true,
+
+	dragSelectionThreshold = Spring.GetConfigInt('SelectionDragThreshold', 0),
+	doubleClickTime = Spring.GetConfigInt('DoubleClickTime', 300),
 }
 
 
@@ -345,6 +329,9 @@ options_order = {
 	'ezTargetThreshold',
 	'showDot',
 	-- 'noSelHelperShift', -- unuseful ?
+
+	'dragSelectionThreshold',
+	'doubleClickTime',
 
 	'shiftLClickSetTarget',
 	'allowQueueing',
@@ -419,6 +406,34 @@ options.showDot = {
 		opt[self.key] = self.value
 	end,
 }
+
+options.doubleClickTime = {
+	name = "Double Click Speed (ms)",
+	type = 'number',
+	value = opt.doubleClickTime,
+	min = 150, max = 400, step = 5,
+	noHotkey = true,
+	OnChange = function (self)
+		Spring.SetConfigInt("DoubleClickTime", self.value)
+		toleranceTime = self.value * 0.001
+		opt[self.key] = self.value -- unused
+	end
+}
+
+options.dragSelectionThreshold = {
+	name = "Selection Drag Threshold",
+	desc = "Distance of the mouse before it trigger the Box Selection",
+	type = 'number',
+	value = opt.dragSelectionThreshold,
+	min = 0, max = 300, step = 1,
+	noHotkey = true,
+	OnChange = function (self)
+		Spring.SetConfigInt("MouseDragSelectionThreshold", self.value)
+		opt[self.key] = self.value -- unused
+	end
+}
+
+
 -- options.noSelHelperShift = {
 --     name = 'No Help Select with Shift',
 --     value = opt.noSelHelperShift,
@@ -790,6 +805,7 @@ s.selBoxActive = false
 
 s.clickTime = 0
 s.modCtrl = false
+s.doubleClick = false
 s.selectionChanged = false
 
 
@@ -1540,6 +1556,9 @@ UpdateSelection = function(sel,newsel)
 	if s.modCtrl then
 		selects = GetVisibleUnits(s.acquiredSelect)
 		ignore = shift and s.acquiredSelect -- in the double click, user selected or unselected the pointed unit, we don't take it into account
+		if s.doubleClick then
+			s.modCtrl, s.doubleClick = false, false
+		end
 	else
 		-- if s.defaultSelect == s.acquiredSelect then
 		--     return
@@ -1641,7 +1660,6 @@ end
 
 
 function widget:Update(dt)
-
 	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
 	local realMousePress = lmb or mmb or rmb
 	if v.mousePressed and not realMousePress then
@@ -1665,8 +1683,6 @@ function widget:Update(dt)
 	if WG.panning or (WG.EzSelecting and not select(3, spGetModKeyState())) or WG.drawingPlacement then 
 		s.acquiredSelect = false
 		checkForSelBox = false
-
-
 		reset()
 		return
 	end
@@ -1677,7 +1693,6 @@ function widget:Update(dt)
 		s.acquiredSelect = s.moddedSelect
 		captureDuringClick = false
 	end
-
 	-- Echo("checkForSelBox in Update is ", checkForSelBox)
 	if not lmb and checkForSelBox then
 		checkForSelBox = false
@@ -1697,8 +1712,7 @@ function widget:Update(dt)
 		return
 	end
 	-- WG.PreSelection_IsSelectionBoxActive()
-	s.selBoxActive = checkForSelBox and WG.PreSelection_IsSelectionBoxActive()
-
+	s.selBoxActive = checkForSelBox and WG.PreSelection_IsSelectionBoxActive and WG.PreSelection_IsSelectionBoxActive()
 	if s.acquiredSelect then
 		if s.selBoxActive then
 			-- Echo("( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5 is ", ( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5)
@@ -1714,7 +1728,7 @@ function widget:Update(dt)
 				if not v.ignorePress then
 					-- Echo("s.defaultSelect,s.acquiredSelect is ", s.defaultSelect,s.acquiredSelect)
 					-- Echo('Update Selection in UPDATE')
-					local newsel = UpdateSelection(sel,spGetSelectedUnits())
+					local newsel = UpdateSelection(sel, spGetSelectedUnits())
 					if newsel then
 						spSelectUnitArray(newsel)
 					end
@@ -1759,9 +1773,9 @@ function widget:Update(dt)
 	end
 	-- v.moddedTarget = selContext.hasValidAttacker and (opt.ezTarget or Debug.EZ()) and EzTarget()
 	-- Echo(" owner: "..(wh.mouseOwner and wh.mouseOwner:GetInfo().name or 'none'))
-end
+end 
 
-function widget:MousePress(mx,my,button) 
+function widget:MousePress(mx, my, button)
 	-- Echo('mouse press', button)
 	-- local t = {}
 	-- for i = 1, 2500000 do
@@ -1794,6 +1808,7 @@ function widget:MousePress(mx,my,button)
 		mx,my = v.clamped[1], v.clamped[2]
 	end
 	local activeCommand,_,_, namecom = spGetActiveCommand()
+
 	-- Echo("v.moddedActiveCommand is ", v.moddedActiveCommand, namecom)
 	-- Echo("namecom, v.moddedActiveCommand is ", namecom, v.moddedActiveCommand)
 	if namecom and namecom == v.moddedActiveCommand then
@@ -1825,7 +1840,7 @@ function widget:MousePress(mx,my,button)
 	s.acquiredSelect = false
 
 	local alt, ctrl, meta, shift = spGetModKeyState()
-	if button==1 then
+	if button == 1 then
 		checkForSelBox  = os.clock()
 		-- Echo('button click', s.moddedSelect, s.defaultSelect)
 		-- s.acquiredSelect = s.moddedSelect or s.defaultSelect
@@ -1876,10 +1891,11 @@ function widget:MousePress(mx,my,button)
 		-- Echo("s.moddedSelect or s.defaultSelect is ", s.moddedSelect, s.defaultSelect)
 		local time = os.clock()
 		local sameSelect = s.acquiredSelect and not sel[2] and s.acquiredSelect == sel[1]
-		local doubleClick = time-s.clickTime <= toleranceTime
+		local doubleClick = time - s.clickTime <= toleranceTime
 
-		-- Echo('doubleClick',doubleClick," : ", toleranceTime, time-s.clickTime, time-s.clickTime <= toleranceTime)
+		-- Echo('doubleClick',doubleClick," : ", toleranceTime, time-s.clickTime, time-s.clickTime <= toleranceTime, s.acquiredSelect)
 		s.modCtrl = ctrl or doubleClick and sel[1] and not sel[2]--and sameSelect
+		s.doubleClick = doubleClick
 		s.clickTime = time
 		s.last_click_mx, s.last_click_my = mx,my
 		return
