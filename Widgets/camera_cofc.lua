@@ -3,14 +3,14 @@
 
 function widget:GetInfo()
   return {
-    name      = "Combo Overhead/Free Camera (experimental)", -- FIXME: long-ass name overlaps Alt+F11 checkbox, but changing it would ruin settings
-    desc      = "v0.138 Camera featuring 6 actions",
-    author    = "CarRepairer, msafwan",
-    date      = "2011-03-16", --2014-Sept-25
-    license   = "GNU GPL, v2 or later",
-    layer     = 1002,
+	name      = "Combo Overhead/Free Camera (experimental)", -- FIXME: long-ass name overlaps Alt+F11 checkbox, but changing it would ruin settings
+	desc      = "v0.138 Camera featuring 6 actions",
+	author    = "CarRepairer, msafwan",
+	date      = "2011-03-16", --2014-Sept-25
+	license   = "GNU GPL, v2 or later",
+	layer     = 1002,
 	handler   = true,
-    enabled   = false,
+	enabled   = false,
   }
 end
 local Echo = Spring.Echo
@@ -79,6 +79,7 @@ options_order = {
 	'zoomoutfactor',
 	'zoomout',
 	'drifttocenter',
+	'driftmul',
 	'invertzoom',
 	'invertalt',
 	'tiltedzoom',
@@ -232,11 +233,11 @@ options = {
 		type = 'number',
 		min = 0.5, max = 3, step = 0.01,
 		value = mapToScreenFit,
-        tooltipFunction = function(self)
-        	-- FIX EPIC MENU it doesn't show 2 digits when above 1
-            return ('%d%%'):format(self.value*100)
+		tooltipFunction = function(self)
+			-- FIX EPIC MENU it doesn't show 2 digits when above 1
+			return ('%d%%'):format(self.value*100)
 
-        end,
+		end,
 		OnChange = function(self)
 
 			-- local oldPy = Spring.GetCameraState().py
@@ -257,10 +258,10 @@ options = {
 		type = 'number',
 		min = 0.5, max = 3, step = 0.01,
 		value = mapToScreenFitAlt,
-        tooltipFunction = function(self)
-        	-- FIX EPIC MENU it doesn't show 2 digits when above 1
-            return ('%d%%'):format(self.value*100)
-        end,
+		tooltipFunction = function(self)
+			-- FIX EPIC MENU it doesn't show 2 digits when above 1
+			return ('%d%%'):format(self.value*100)
+		end,
 		OnChange = function(self)
 
 			-- local oldPy = Spring.GetCameraState().py
@@ -382,10 +383,17 @@ Complete Overhead/Free Camera has six actions:
 	},
 	drifttocenter = {
 		name = 'Drift zoom target to center',
-		desc = 'Moves object under cursor to screen center. Only works when zooming to cursor.',
+		desc = 'Moves ground point under cursor to screen center. Only works when zooming to cursor.',
 		type = 'bool',
 		value = true,
 		noHotkey = true,
+		path = zoomPath,
+	},
+	driftmul = {
+		name = 'Drift Multiplier',
+		type = 'number',
+		value = 3,
+		min = 1, max = 15, step = 0.01,
 		path = zoomPath,
 	},
 	tiltedzoom = {
@@ -636,7 +644,7 @@ Complete Overhead/Free Camera has six actions:
 		name = "Reset Camera",
 		desc = "Reset the camera position and orientation. Map a hotkey or use <Ctrl> + <Alt> + <Middleclick>",
 		type = 'button',
-        -- OnChange defined later
+		-- OnChange defined later
 		path=miscPath,
 	},
 	freemode = {
@@ -739,7 +747,7 @@ Complete Overhead/Free Camera has six actions:
 		name = "Activate Trackmode",
 		desc = "Track the selected unit (mouse midclick to exit mode)",
 		type = 'button',
-        hotkey = {key='t', mod='alt+'},
+		hotkey = {key='t', mod='alt+'},
 		path = cameraFollowPath,
 		OnChange = function(self)
 			if thirdperson_trackunit then --turn off 3rd person tracking if it is.
@@ -790,7 +798,7 @@ Complete Overhead/Free Camera has six actions:
 	},
 	
 
-    thirdpersontrack = {
+	thirdpersontrack = {
 		name = "Enter 3rd Person Trackmode",
 		desc = "3rd Person track the selected unit (mouse midclick to exit mode). Press arrow key to jump to nearby units, or move mouse to edge of screen to jump to current unit selection (will exit mode if no selection).",
 		type = 'button',
@@ -813,7 +821,7 @@ Complete Overhead/Free Camera has six actions:
 				Spring.SendCommands('viewfree')
 				thirdperson_trackunit = false
 			end
-        end,
+		end,
 	},
 
 
@@ -971,8 +979,8 @@ local function explode(div,str)
   local pos,arr = 0,{}
   -- for each divider found
   for st,sp in function() return string.find(str,div,pos,true) end do
-    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-    pos = sp + 1 -- Jump past current divider
+	table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
+	pos = sp + 1 -- Jump past current divider
   end
   table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
   return arr
@@ -1131,7 +1139,7 @@ SetFOV = function(fov)
 	if cs.name == "free" then
 		OverrideSetCameraStateInterpolate(cs,options.smoothness.value)
 	else
-	  	spSetCameraState(cs,0)
+		spSetCameraState(cs,0)
 	end
 end
 
@@ -1201,8 +1209,8 @@ local function explode(div,str)
   local pos,arr = 0,{}
   -- for each divider found
   for st,sp in function() return string.find(str,div,pos,true) end do
-    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-    pos = sp + 1 -- Jump past current divider
+	table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
+	pos = sp + 1 -- Jump past current divider
   end
   table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
   return arr
@@ -1535,16 +1543,16 @@ local function GetZoomTiltAngle(gx, gz, cs, zoomin, rayDist)
 		--[[
 		--FOR REFERENCE
 		--plot of "sqrt(skyProportion) * (-2 * HALFPI / 3) - HALFPI / 3"
-		         O - - - - - - - - - - - - - - - - ->1 +skyProportion
-		     -18 |
-		         |x
-		     -36 | x
-		         |    x
-		     -54 |        x
-		         |            x
-		     -72 |                  x
-		         |                         x
-		     -90 v -cam angle                       x
+				 O - - - - - - - - - - - - - - - - ->1 +skyProportion
+			 -18 |
+				 |x
+			 -36 | x
+				 |    x
+			 -54 |        x
+				 |            x
+			 -72 |                  x
+				 |                         x
+			 -90 v -cam angle                       x
 		--]]
 	local groundHeight = groundMin --GetMapBoundedGroundHeight(gx, gz) + groundBufferZone
 	local skyProportion = math.min(math.max((cs.py - groundHeight)/((maxDistY - topDownBufferZone) - groundHeight), 0.0), 1.0)
@@ -1643,8 +1651,9 @@ end
 
 local function DriftToCenter(cs, gx, gy, gz, mx, my)
 	if options.drifttocenter.value then
-		mx = mx + (mx - vsx/2)/(vsx/2) * horizAspectCorrectionFactor * centerDriftFactor --Seems to produce the same apparent size on centered object independent of FOV
-		my = my + (my - vsy/2)/(vsy/2) * vertAspectCorrectionFactor * centerDriftFactor
+		local driftmul = options.driftmul.value
+		mx = mx + (mx - vsx/2)/(vsx/2) * horizAspectCorrectionFactor * centerDriftFactor * driftmul --Seems to produce the same apparent size on centered object independent of FOV
+		my = my + (my - vsy/2)/(vsy/2) * vertAspectCorrectionFactor * centerDriftFactor * driftmul
 		local dirx, diry, dirz = Spring.GetPixelDir(mx, vsy - my)
 		local distanceFactor = 0
 		if diry ~= 0 then
@@ -1764,9 +1773,9 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	local maxZoomSpeed = options.maxzoomspeed.value
 	local zoomDistFactor = options.zoomdistfactor.value
 	local zoomBase = options.zoombase.value
-    if options.invertzoom.value then
-        zoomin = not zoomin
-    end
+	if options.invertzoom.value then
+		zoomin = not zoomin
+	end
 	local maxDistY = maxDistY
 	if spGetModKeyState() then -- if alt pressed
 		-- Echo('max dist:',maxDistY,'=>',maxDistY * (mapToScreenFitAlt / mapToScreenFit))
@@ -1776,19 +1785,18 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	if not zoomin and cs.py >= maxDistY then
 		return
 	end
-	-- Echo("zoomin is ", zoomin)
 	--//ZOOMOUT FROM CURSOR, ZOOMIN TO CURSOR//--
 	if	not forceCenter and (
-            zoomin and options.zoomin.value == 'toCursor'
-            or not zoomin and options.zoomout.value == 'fromCursor'
-        )
+			zoomin and options.zoomin.value == 'toCursor'
+			or not zoomin and options.zoomout.value == 'fromCursor'
+		)
 	then
 		local onmap, gx,gy,gz = VirtTraceRay(mx, my, cs)
-
 		if gx then
-			gx,gz = DriftToCenter(cs, gx, gy, gz, mx, my)
+			-- Echo(gx, gz,'drift )>', DriftToCenter(cs, gx, gy, gz, mx, my))
+			gx, gz = DriftToCenter(cs, gx, gy, gz, mx, my)
 			if not options.freemode.value then
-				gx,gz = GetMapBoundedCoords(gx,gz)
+				gx, gz = GetMapBoundedCoords(gx, gz)
 			end
 		end
 		local dist
@@ -1932,13 +1940,13 @@ function Altitude(up, s)
 	local dy = py * (up and 1 or -1) * (s and 0.3 or 0.1)
 	local new_py = py + dy
 	if not options.freemode.value then
-        if new_py < spGetGroundHeight(cs.px, cs.pz)+5  then
-            new_py = spGetGroundHeight(cs.px, cs.pz)+5
-        elseif new_py > maxDistY then
-            new_py = maxDistY
-        end
+		if new_py < spGetGroundHeight(cs.px, cs.pz)+5  then
+			new_py = spGetGroundHeight(cs.px, cs.pz)+5
+		elseif new_py > maxDistY then
+			new_py = maxDistY
+		end
 	end
-    cs.py = new_py
+	cs.py = new_py
 	cs = ApplyCenterBounds(cs)
 
 	lastMouseX = nil
@@ -2076,10 +2084,10 @@ local function AutoZoomInOutToCursor() --options.followautozoom (auto zoom camer
 		end
 		local cs = GetTargetCameraState()
 		ls_have = false --unlock lockspot
-        SetLockSpot2(cs) --set lockspot
-        if not ls_have then
-            return
-        end
+		SetLockSpot2(cs) --set lockspot
+		if not ls_have then
+			return
+		end
 		local sp = (zoomin and -1*options.followzoominspeed.value or options.followzoomoutspeed.value)
 		local deltaDist = max(abs(ls_dist - abs(options.followzoommaxdist.value+options.followzoommindist.value)/2),10) --distance to midpoint
 		local ls_dist_new = ls_dist + deltaDist*sp --zoom step: distance-to-midpoint multiplied by a zooming-multiplier
@@ -2189,10 +2197,10 @@ local function RotateCamera(x, y, rdx, rdy, smooth, lock, tilt, alt)
 			cs.rx = max_rx
 		end
 
-        -- [[
-        if trackmode then --rotate world instead of camera during trackmode (during tracking unit)
-            lock = true --lock camera to lockspot while rotating
-            ls_have = false
+		-- [[
+		if trackmode then --rotate world instead of camera during trackmode (during tracking unit)
+			lock = true --lock camera to lockspot while rotating
+			ls_have = false
 			-- SetLockSpot2(cs) --set lockspot to middle of screen
 			local selUnits = spGetSelectedUnits()
 			if selUnits and selUnits[1] then
@@ -2213,7 +2221,7 @@ local function RotateCamera(x, y, rdx, rdy, smooth, lock, tilt, alt)
 					end
 				end
 			end
-        end
+		end
 		--]]
 		if lock and (ls_onmap or options.freemode.value) then --if have lock (ls_have ==true) and is either onmap or freemode (offmap) then update camera properties.
 			local cstemp = UpdateCam(cs)
@@ -2325,7 +2333,7 @@ local function Tilt(s, dir)
 	if not ls_have then
 		return
 	end
-    local dir = dir * (options.inverttilt.value and -1 or 1)
+	local dir = dir * (options.inverttilt.value and -1 or 1)
 
 
 	local speed = dir * (s and 30 or 10)
@@ -2401,7 +2409,7 @@ local function ScrollCam(cs, mxm, mym, smoothlevel)
 	if csnew then
 		if not options.freemode.value then csnew.py = min(csnew.py, maxDistY) end --Ensure camera never goes higher than maxY
 		csnew = ApplyCenterBounds(csnew) --Should be done since cs.py changes, but stops camera movement southwards. TODO: Investigate this.
-    -- spSetCameraState(csnew, smoothlevel)
+	-- spSetCameraState(csnew, smoothlevel)
 	OverrideSetCameraStateInterpolate(csnew,smoothlevel)
   end
 
@@ -2783,7 +2791,7 @@ function widget:MousePress(x, y, button) --called once when pressed, not repeate
 		return true
 	end
 	--overview_mode = false
-    --if fpsmode then return end
+	--if fpsmode then return end
 	if lockspringscroll then
 		lockspringscroll = false
 		return true
@@ -2899,7 +2907,7 @@ function widget:MouseRelease(x, y, button)
 end
 
 function widget:MouseWheel(wheelUp, value)
-    if fpsmode then return end
+	if fpsmode then return end
 	local alt,ctrl,m,shift = spGetModKeyState()
 
 	shift = shift and not options.disableshift.value
@@ -3074,7 +3082,7 @@ local screenFrame = 0
 local frame=0
 function widget:DrawScreen()
 	SetSkyBufferProportion()
-  	hideCursor = false
+	hideCursor = false
 	if not cx then return end
 
 	local x, y
@@ -3121,7 +3129,7 @@ function widget:DrawScreen()
 		glAlphaTest(GL_GREATER, 0)
 
 		-- if not (springscroll and not lockspringscroll) then
-		    -- hideCursor = true
+			-- hideCursor = true
 		-- end
 		if smoothscroll then
 			local icon_size2 = icon_size
