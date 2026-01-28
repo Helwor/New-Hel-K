@@ -9,7 +9,7 @@ function widget:GetInfo()
 		date      = 'August, 2020',
     	license   = 'GNU GPL, v2 or later',
 		layer     = -11, -- now again just before EzTarget-- now just after EzTarget, formerly just before EzTarget, formerly 1000, 
-		enabled   = true,
+		enabled   = false,
 		handler   = true,
 	}
 end
@@ -2422,13 +2422,27 @@ local hotkeysCombos = {
 		},
 
 		{
-			name = 'Defenses',
+			name = 'Defenses / CT / Newtons',
 			method = 'cylinder',
 			keys = {'?AIR', 'A', 'doubleTap'},
 			force = true,
-			defs = {name = {'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp'}},
+			defs = {
+				name = {
+					'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp', 
+					'turretimpulse', 'staticcon', 'striderhub',
+				}
+
+			},
+			groups = {
+				{name = 'turretimpulse'},
+				{name = {'staticcon', 'striderhub'}},
+				{name = {'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp'}},
+			},
+			switch_time = 1,
+			-- switch_on_identical = true,
+			anyBP = true,
 			hasStructure = true,
-			set_active_command = 0,
+			set_active_command = 'Attack',
 			color = {0.5, 0.9, 0.5, 1},
 			fading = 1,
 		},
@@ -2978,27 +2992,41 @@ local hotkeysCombos = {
 
 		{
 			name = 'Riot',
-		method = 'cylinder',
-		-- defs = {class = 'riot'},
-		-- prefer = {{name = 'striderdante'}, {'isGS'}},
-		groups = {
-			{name = 'striderdante'},
-			{class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}, '!isGS'},
-			{class = 'riot', name = {'jumpblackhole'}},
-			{class = 'riot', 'isGS'},
+			method = 'cylinder',
+			-- defs = {class = 'riot'},
+			-- prefer = {{name = 'striderdante'}, {'isGS'}},
+			groups = {
+				{name = 'striderdante'},
+				{class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}, '!isGS'},
+				{class = 'riot', name = {'jumpblackhole'}},
+				{class = 'riot', 'isGS'},
+			},
+			switch_time = 1,
+			force = true,
+			-- , call_on_fail = 'Alt Riot'
+			-- , byType = 'defID'
+			-- , byType = 'family'
+			from_cursor = true,
+			keys = {'?SPACE', 3, --[['?doubleTap'--]]},
+			share_radius = 'Raiders',
+			color = {1, 0.7, 0.7, 1},
+			fading = 1
 		},
-		switch_time = 1,
-		force = true,
-		-- , call_on_fail = 'Alt Riot'
-		-- , byType = 'defID'
-		-- , byType = 'family'
+
+		{name = 'Alt Riot',
+		method = 'cylinder',
 		from_cursor = true,
-		keys = {'?SPACE', 3, --[['?doubleTap'--]]},
-		share_radius = 'Raiders',
+		-- keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
+		defs = {class = 'riot'},
+		pref_use_prev = true,
+		only_prev_types = true,
+		byType = 'defID',
+		previous_time = 0.5,
+		share_radius = 'Riot',
+		doubleTap_time = 0.5,
+		force = true,
 		color = {1, 0.7, 0.7, 1},
 		fading = 1},
-
-
 
 		-- {name = 'Alt Riot',
 		-- method = 'cylinder',
@@ -3026,45 +3054,45 @@ local hotkeysCombos = {
 		-- fading = 1},
 
 
-		{
-			name = 'Slow/Fast Riot',
-			method = 'cylinder',
-			keys = {'?SPACE', 3, 'doubleTap'},
-			defs = {'!isGS', class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}},
-			groups = { -- groups find the first matching group closest of cursor
-				{
-					-- ['!name'] = {'spideremp', 'amphimpulse', 'jumpblackhole'},
-					['d:speed'] = '>65',
-				},
-				{
-					['d:speed'] = '<=65',
-					-- ['!name'] = {'spiderriot', 'amphriot', 'jumpblackhole'},
-				}
-			},
-			-- different_units = true,
-			-- switch_groups = 1,
-			force = true,
-			share_radius = 'Raiders',
-			color = {1, 0.8, 0.8, 1},
-			fading = 1,
-		},
+		-- {
+		-- 	name = 'Slow/Fast Riot',
+		-- 	method = 'cylinder',
+		-- 	keys = {'?SPACE', 3, 'doubleTap'},
+		-- 	defs = {'!isGS', class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}},
+		-- 	groups = { -- groups find the first matching group closest of cursor
+		-- 		{
+		-- 			-- ['!name'] = {'spideremp', 'amphimpulse', 'jumpblackhole'},
+		-- 			['d:speed'] = '>65',
+		-- 		},
+		-- 		{
+		-- 			['d:speed'] = '<=65',
+		-- 			-- ['!name'] = {'spiderriot', 'amphriot', 'jumpblackhole'},
+		-- 		}
+		-- 	},
+		-- 	-- different_units = true,
+		-- 	-- switch_groups = 1,
+		-- 	force = true,
+		-- 	share_radius = 'Raiders',
+		-- 	color = {1, 0.8, 0.8, 1},
+		-- 	fading = 1,
+		-- },
 
 
 
 
-		{
-			name = 'Any Riot',
-			method = 'cylinder',
-			keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
-			defs = {class = 'riot'},
-			longPressTime = 0.1,
-			share_radius = 'Raiders',
-			add_last_acquired = true,
-			keep_on_fail = true,
-			force = true,
-			color = {0.5, 0.7, 0.7, 1},
-			fading = 1,
-		},
+		-- {
+		-- 	name = 'Any Riot',
+		-- 	method = 'cylinder',
+		-- 	keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
+		-- 	defs = {class = 'riot'},
+		-- 	longPressTime = 0.1,
+		-- 	share_radius = 'Raiders',
+		-- 	add_last_acquired = true,
+		-- 	keep_on_fail = true,
+		-- 	force = true,
+		-- 	color = {0.5, 0.7, 0.7, 1},
+		-- 	fading = 1,
+		-- },
 
 
 		-- {name = 'One Riot',
@@ -4913,7 +4941,7 @@ local function FinishCall(selecting)
 	---------------
 	--- extra calls
 	if success and last.call.force_finish then
-		widget:CommandsChanged()
+		widget:CommandsChanged(true)
 		local selAPI = widgetHandler:FindWidget('Selection API')
 		if selAPI then
 			selAPI:CommandsChanged() -- update immediately the WG.selectionDefID
@@ -9244,7 +9272,7 @@ end
 
 
 	function widget:CommandsChanged(force)
-		if not selectionChanged then
+		if not (force or selectionChanged) then
 			return
 		end
 		selectionChanged = false
