@@ -841,7 +841,7 @@ local function Compare(ac, bc)
 	if a.isSpec ~= b.isSpec then
 		return not a.isSpec
 	elseif a.isSpec and b.isSpec and not b.isMe then
-		if a.isWaiting~=b.isWaiting then
+		if a.isWaiting ~= b.isWaiting then
 			return b.isWaiting 
 		end
 	end
@@ -851,7 +851,7 @@ local function Compare(ac, bc)
 	end
 
 
-	if a.isAiTeam ~= b.isAiTeam then
+	if not a.isAiTeam ~= not b.isAiTeam then
 		return not a.isAiTeam
 	elseif a.isAiTeam then
 		return a.teamID < b.teamID
@@ -901,7 +901,6 @@ local function SortEntries()
 	if not playerlistWindow then
 		return
 	end
-	
 	table.sort(listControls, Compare)
 	
 	local toTop = options.alignToTop.value
@@ -1317,7 +1316,7 @@ function widget:ReceiveUserInfo(info, simulated)
 			-- end
 
 			-- Echo('got playerID: ' .. playerID,'country?',country,info.country)
-			UpdatePlayer(playerID, info,newPlayer)
+			UpdatePlayer(playerID, info, newPlayer)
 			break
 		end
 	end
@@ -1352,3 +1351,6 @@ end
 --function widget:Shutdown()
 --	Spring.SendCommands("info 1")
 --end
+if f then
+	f.DebugWidget(widget)
+end
