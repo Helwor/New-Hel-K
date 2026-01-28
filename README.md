@@ -23,3 +23,10 @@ Once you copied/updated the files:
 non-end user widget, if you're unsure, better not disable it (Read Description).
 
 - join #hel-k room in lobby to discuss about hel-k and get in touch when new files are updated
+
+
+Warning: 
+
+- if you play some mods or watch old replays, hel-k may crash the UI or work bad. In such case, you can rename the 
+
+LuaUI/Widgets directory temporarily to disable every widgets of mine, then do /luaui reload ingame.
