@@ -371,7 +371,13 @@ local buttons = {
 }
 
 -- main
-
+local function copy(t)
+	local c = {}
+	for k,v in pairs(t) do
+		c[k] = v
+	end
+	return c
+end
 local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatment, extraButton) -- ideally should be implemented in Chili
 	if not AddAutoEmptyBox then
 		CreateAutoEmptyBoxMethod()
@@ -411,7 +417,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 			button.right = right
 			button.y = 25
 			button.width = width + 14
-			local button = WG.Chili.Button:New(button)
+			local button = WG.Chili.Button:New(copy(button))
 			table.insert(children, button)
 
 			right = right + width + 12
