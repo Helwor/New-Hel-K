@@ -14,14 +14,8 @@ function widget:GetInfo()
 	}
 end
 local useCtrlGroup = false -- in options
-local useMyFilter = false -- set true to preserve only some macros, fill up the table below with their name
-local MacroFilterIn = { 
-	-- example with all macros related to SPACE + T for getting transport/auto transporting
-	'Call Transports',
-	'Get LOADING Transports',
-	'Get LOADED Transports',
-	'Get ANY Transports'
-}
+
+local allowedMacros, macroKeys = {}, {}
 
 local Units -- attached to WG.UnitsIDCard or WG.Cam.Units in Initialize CallIn
 
@@ -630,1864 +624,1762 @@ local HKCombos = {length = 0, byName = {}}
 	---------------------------------------------------------------
 	--- MACRO SETTING
 	---------------------------------------------------------------
+
 local hotkeysCombos = {
-		-- TODO: implement XOR and maybe XNOT operator
-		-- TODO: implement group 
-		---- example of doubleTap of key use that allows one to select all cons on single tap of 'X' or 'C' or only idle cons on doubleTap with those same keys
-		-- here single tap:
-		--[[
-			{
-				name = 'Cons (prefer Idle)',
-		method = 'cylinder', 
-		keys = {'SPACE', '?AIR'}, -- 
-		defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena'}},
-		prefer = {defs = {'isIdle', '!isComm'}}, -- syntaxe: prefer is what it means: it will filter out the found units after checking if at least one match the prefer conditions
-		keep_on_fail = true,
-		color = {0, 1, 0.9,	0.8	},
-		fading = 0.6,
-		}, 
-		--]]
-
-
-
-		--- DEBUG SHORTCUTS -- not used anymore
-			-- {
-			-- 	name = 'Debug Check Requirements',
-			-- 	option_name = 'checkReq',
-			-- 	keys = {'LCTRL', 'LALT', 'R', '?AIR'}, -- 
-			-- 	color = {0.9, 0.9, 0.3, 1},
-			-- 	fading = 0.8,
-			-- },
-			-- --
-			-- {
-			-- 	name = 'Debug Current Combo',
-			-- 	option_name = 'currentCombo',
-			-- 	keys = {'LCTRL', 'LALT', 'O', '?AIR'}, -- 
-			-- 	color = {0.9, 0.9, 1.0, 1},
-			-- 	fading = 0.8,
-			-- },
-			-- --
-			-- {
-			-- 	name = 'Debug Show Names',
-			-- 	option_name = 'showNames',
-			-- 	keys = {'LCTRL', 'LALT', 'N', '?AIR'}, -- 
-			-- 	color = {0.4, 0.9, 1.0, 1},
-			-- 	fading = 0.8,
-			-- },
-			-- --
-			-- {
-			-- 	name = 'Debug Previous',
-			-- 	option_name = 'previous',
-			-- 	keys = {'LCTRL', 'LALT', 'P', '?AIR'}, -- 
-			-- 	color = {0.9, 0.5, 1.0, 1},
-			-- 	fading = 0.8,
-			-- },
-			--
-
-		--------------------
-		--- AUTO TRANSPORT
-			-- cascading combos, pushing L will order closest transport to pick up selected units, then , ordering them to load the currently selected units, they will follow the selected unit goal location (if any) to unload them
-			-- if second call for getting the loaded transport fail, it will run a third call to get any transports 
-				--[[{name = 'Get Transports',
-					method = 'all', 
-					from_cursor = true,
-					keys = {'L', '?AIR'}, -- 
-					defs = {
-						name = {'gunshiptrans', 'gunshipheavytrans'}
-					},
-					set_active_command = CMD_LOADUNITS_SELECTED, -- set active command to autoload selected units on finish 
-					prefer = {'!isTransporting'},
-					on_press = true,
-					shift = true,
-					force = true, --
-					second_call = 'Get LOADED Transports',
-					color = {0, 1, 0.5,	0.8	},
-					fading = 0.6,
-					},
-					-- chaining the macro below
-					
-					{
-						name = 'Get LOADED Transports', -- this is directly triggered by the macro above
-					method = 'cylinder', 
-					from_cursor = true,
-					keys = {}, -- 
-					defs = {
-						
-						name = {'gunshiptrans', 'gunshipheavytrans'}
-					},
-					prefer = {['?'] = {'isTransporting', ['order'] = CMD.LOAD_UNITS}, },
-					force = true,
-					on_press = true,
-					call_on_fail = 'Get ANY Transports', -- call this if nothing got selected
-					color = {0, 1, 0.5,	0.8	},
-					fading = 0.6,
-					},
-
-					{
-						name = 'Get ANY Transports',
-					method = 'cylinder', 
-					from_cursor = true,
-					keys = {'SPACE', 'L', '?AIR'}, -- 
-					defs = {
-						name = {'gunshiptrans', 'gunshipheavytrans'}
-					},
-					force = true,
-					color = {0, 1, 0.5,	0.8	},
-					fading = 0.6,
-					},
-				--]]
-
-					---- abandoned,  this is not good enough, instead
-					-- {name = 'Jump', 
-					-- method = 'on_selection', 
-					-- from_cursor = true,
-					-- keys = {'?SPACE', '?LCTRL', '?LSHIFT', 'LALT'}, -- 
-					-- set_active_command = 'Jump', -- set active command to autoload selected units on finish 
-					-- on_press = true,
-					-- call_on_success = 'Un-Jump',
-					-- no_select = true,
-					-- hide = true,
-					-- color = {0, 1, 0.5,	0.8	},
-					-- fading = 0.6},
-
-					-- {name = 'Un-Jump',
-					-- method = 'on_selection', 
-					-- set_active_command = 0, -- set active command to autoload selected units on finish 
-					-- force = true,
-					-- force_finish = true, -- finish the call even if it should have been just terminated
-					-- hide = true,
-					-- color = {0, 1, 0.5,	0.8	},
-					-- fading = 0.6},
-
-					-------------
-
-					{
-						name = 'Call Transports',
-						method = 'set_command', 
-						-- from_cursor = true,
-						keys = {'SPACE', '?AIR', 'T'}, -- 
-						-- defs = {
-						-- 	name = {'gunshiptrans', 'gunshipheavytrans'}
-						-- 	, '!isTransporting', ['!order'] = CMD.LOAD_UNITS
-						-- },
-						-- defs = {},
-						set_active_command = CMD_LOADUNITS_SELECTED, -- set active command to autoload selected units on finish 
-						-- prefer = {'!isTransporting'},
-						on_press = true,
-						shift = true,
-						force = true, --
-						call_on_success = 'Get LOADING Transports',
-						call_on_fail = 'Get LOADED Transports',
-						color = {0, 1, 0.5,	0.8	},
-						fading = 0.6,
-					},
-
-
-					-- chaining the macro below
-					{
-						name = 'Get LOADING Transports', -- this is directly triggered by the macro above
-						method = 'all', 
-						on_delay = 0.4,
-						-- from_cursor = true,
-						keys = {}, -- 
-						defs = {
-							-- ['?'] = {'isTransporting', ['order'] = CMD.LOAD_UNITS},
-							name = {'gunshiptrans', 'gunshipheavytrans'},
-							'!isTransporting', ['order'] = CMD.LOAD_UNITS
-						},
-						force = true,
-						-- on_press = true,
-						-- onrelease = true,
-						-- continue = true,
-						-- keep_on_fail = true,
-						-- call_on_fail = 'Get LOADED Transports', -- call this if nothing got selected
-						color = {0, 1, 0.5,	0.8	},
-						fading = 0.6,
-					},
-
-
-					{
-						name = 'Get LOADED Transports', -- this is directly triggered by the macro above
-						method = 'cylinder', 
-						-- on_delay = 0.5,
-						-- from_cursor = true,
-						keys = {}, -- 
-						defs = {
-							-- ['?'] = {'isTransporting', ['order'] = CMD.LOAD_UNITS},
-							name = {'gunshiptrans', 'gunshipheavytrans'}, 'isTransporting'
-						},
-						force = true,
-						-- on_press = true,
-						-- onrelease = true,
-						-- continue = true,
-						-- keep_on_fail = true,
-
-						call_on_fail = 'Get ANY Transports', -- call this if nothing got selected
-						color = {0, 1, 0.5,	0.8	},
-						fading = 0.6,
-					},
-
-
-					{
-						name = 'Get ANY Transports',
-						method = 'cylinder', 
-						from_cursor = true,
-						on_press = true,
-						keys = {'SPACE', 'L', '?AIR'}, -- 
-						defs = {
-							name = {'gunshiptrans', 'gunshipheavytrans'}
-						},
-						force = true,
-						keep_on_fail = true,
-						share_radius = 'Get LOADED Transports',
-						color = {0, 1, 0.5,	0.8	},
-						fading = 0.6,
-					},
-
-					{
-						name = 'Set Retreat',
-						method = 'set_command', 
-						keys = {'SPACE', '?AIR', 'G'}, -- 
-						defs = {
-							name = {'gunshiptrans', 'gunshipheavytrans'}
-							, '!isTransporting', ['!order'] = CMD.LOAD_UNITS
-						},
-						set_active_command = 'sethaven', -- set active command to autoload selected units on finish 
-						on_press = true,
-						force = true, --
-						color = {0, 1, 0.5,	0.8	},
-						fading = 0.6,
-					},
-
-		----------------
-		----- CONS -----
-		----------------
-
-			{
-				name = 'COM OR CON',
-				method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-				-- keys = {'?AIR', 'SPACE'},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-				defs = {['?'] = {'isComm', class = 'conunit'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-				share_radius = 'Cons (Idle)',
-				isTmpLock = 'AIR',
-				byType = 'defID',
-				from_cursor = true,
-				color = {0, 0.8, 0.9,	0.8	},
-				fading = 0.6,
-			},
-
-			-- {name = 'COM',
-			-- method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-			-- keys = {'E', 'longPress', '?AIR'},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-			-- defs = {'isComm'}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-			-- share_radius = 'Cons (Idle)',
-			-- force = true,
-			-- longPressTime = 0.2,
-			-- color = {0, 0.8, 0.9,	0.8	},
-			-- fading = 0.6,
-			-- },
-
-			-- {name = 'COM',
-			-- method = 'all', -- 'cylinder': units in radius around the mouse cursor 
-			-- from_cursor = true,
-			-- want = 1,
-			-- keys = {'E', 'doubleTap', '?AIR'},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-			-- defs = {'isComm'}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-			-- -- share_radius = 'Cons (Idle)',
-			-- force = true,
-			-- longPressTime = 0.2,
-			-- color = {0, 0.8, 0.9,	0.8	},
-			-- fading = 0.6},
-
-
-
-
-
-			---- Set of 3 successive calls for getting com / funnel / cons with the SPACE bar, one calling the other on certain conditions
-
-			{
-				name = 'Com / Funnel',
-				method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-				-- on_press = true,
-				keys = {'?AIR', 'SPACE'}, -- 
-				isTmpLock = 'AIR', -- this combo also trigger the temporary toggle on the lock AIR
-				-- ignore_from_sel = true,
-				fail_on_identical = true,
-				from_cursor = true,
-				defs = {['?'] = {'isComm', name = 'striderfunnelweb'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-				keep_on_fail = true,
-				no_force = true, -- don't block the key when call is triggered
-				need_zero_command = true, -- ignore the call if a command is active
-				byType = 'defID',
-				call_on_fail = 'Cons (Idle)',
-				try_on_success = 'Cons (Idle)',
-				try_takeover_conditions = function(call, acquired) --
-					if call.time_length < 0.3 then
-						local curId, tryId = acquired[1], g.acquired[1]
-						if not (tryId and curId and spValidUnitID(tryId) and spValidUnitID(curId)) then
-							return false
-						end
-						if last.sel and identical(currentSel, g.acquired) then
-							return false
-						end
-						local tux, tuy, tuz = spGetUnitPosition(tryId)
-						local cux, cuy, cuz = spGetUnitPosition(curId)
-						-- Echo("id, curId is ", id, curId)
-						local mx, my, mz = unpack(call.mouseStart)
-						local tryUdist = ((tux-mx)^2 + (tuz-mz)^2) ^0.5
-						local curUdist = ((cux-mx)^2 + (cuz-mz)^2) ^0.5
-						if tryUdist < curUdist * 0.75 then
-							return true
-						end
-					end
-				end,
-				share_radius = 'Cons (Idle)',
-				-- force = true,
-				color = {0, 0.8, 0.9,	0.8	},
-				fading = 0.6,
-			},
-
-
-			-- {name = 'Add Idle Cons',
-			-- method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-			-- keys = {'?AIR', 'SPACE', 'TAB', '?doubleTap', '?spam'},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-			-- defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-			-- share_radius = 'Cons (Idle)',
-			-- shared_switch = 'Cons (Idle)',
-			-- shift = true,
-			-- force = true,
-			-- color = {0, 0.8, 0.9,	0.8	},
-			-- fading = 0.6},
-
-
-			{
-				name = 'Cons (Idle)',
-				method = 'cylinder', 
-				-- keys = {'?AIR', 'SPACE', 'doubleTap'},
-				-- from_cursor = true,
-				isTmpLock = 'AIR',
-				call_on_fail = 'Any Con',
-
-				defs = {
-					['?'] = {class = 'conunit', 'isAthena'},
-					['p:cloakerRadius'] = {0, 'nil'},
-				},
-
-				-- shift_on_defs = {
-				-- 	['?'] = {class = 'conunit', 'isAthena', 'isComm'},
-				-- },
-				doubleTap_time = 0.55,
-				-- switch = {
-				-- 	 {'isUnit', 'isIdle', ['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
-				-- 	, {'isUnit', '!isIdle', ['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
-				-- },
-				--------------------------------------
-				-- BYTYPE AND PREVIOUS SYSTEM
-				-- alternate between defIDs with the 'previous' system, intelligently repick a different type  if available, in the middle of a call, and remember types that have been selected within .previous_time (default 5 sec)
-				-- previous system also care on a per unit basis
-				-- indeed, with 'want' when wanting a restricted number of units, it will then cycle through types AND avoid previously selected units
-				-- byType can be 'defID', 'class' or 'family', it is not possible to combine them (I don't see a useful case of mixing 'class' + 'family' )
-				-- byType = 'defID',	
-
-				-- switch = {
-				-- 	{'isComm', '!waitManual', ['?'] = { ['p:facplop'] = 1, '!manual' } }
-				-- 	-- , {'isIdle'}
-				-- 	-- , {'autoguard'}
-				-- 	-- , { ['!p:cloak_shield'] = 2, ['?'] = {   {['order'] = {CMD.GUARD}, '!manual'}, 'isIdle', ['order'] = {CMD_RAW_MOVE} }   }
-				-- 	, {['?'] = {class = 'conunit', 'isAthena'}, '!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual', '!building'   }
-				-- 	, {['?'] = {class = 'conunit', 'isAthena'}, ['!p:cloak_shield'] = 2, '!manual', '!waitManual'   }
-				-- 	-- , {'!isComm', ['!p:cloak_shield'] = 2, '!waitManual', ['?'] = {  '!manual', ['?order'] = {CMD_RAW_MOVE, CMD.RECLAIM} }   }
-				-- 	-- , {['!p:cloak_shield'] = 2, ['?'] = { }      }  
-				-- 	-- , {['d:isGroundUnit'] = true, 'isIdle'}
-				-- 	-- , {['d:isGroundUnit'] = false, 'isIdle'}
-				-- 	-- , {'!isIdle', '!manual', '!waitManual'}
-				-- 	-- , {['?'] = {class = 'conunit', 'isComm', 'isAthena'}, '!isIdle'}
-				-- 	, {['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
-				-- },
-				-- shift_on_same_last_call = true,
-				switch_time = 1,
-				add_last_call_pool = true,
-				add_last_call_pool_if = 'Com / Funnel',
-				-- previous_time = 1,
-				-- reset_previous_on_reset_switch = true,
-				-- use_prev = true,
-				-- no_pick_in_prev = true,
-				-- from_cursor = true,
-				switch = { 
-					-- HOW GROUPS WORKS: units closest of cursor are multichecked against the differents defs in group,
-					-- whichever def is the first matching become the filter that will be used on the rest of the units
-
-					-- {'isComm'},
-					-- {name = 'striderfunnelweb'},
-
-
-					-- {['?'] = {'isIdle', {'!manual'}, {order = CMD_RAW_MOVE, ['!order'] = 'moveFar'}}},
-					-- {'!manual'},
-					-- -- no cons ordered manually
-					-- {['?'] = {  '!manual', ['?order'] = {'moveFar', CMD.RECLAIM} }   },
-					-- {},
-						{
-							['?'] = {
-								'isIdle',
-								{'!manual', '!waitManual'},
-								-- {['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
-							},
-						},
-						-- {},
-						-- {
-						-- 	order = 'building', ['?'] = {'manual', 'waitManual'}
-						-- },
-						-- {
-						-- 	hasOrder = 'building'
-						-- }
-						-- {
-						-- 	['?'] = {'manual', 'waitManual'}, '!building'
-						-- },
-						{
-
-							['?'] = {
-								'manual', 'waitManual'
-							},
-							-- {
-							-- 	['?'] = {
-							-- 		['!order'] = CMD_RAW_MOVE,	order = 'moveFar'
-							-- 	}
-							-- }
-						},
-
-
-
-					-- {['hasOrder'] = {'building', CMD.GUARD}},
-					-- cons
-
-					-- {'isComm', '!waitManual', ['?'] = { ['p:facplop'] = 1, '!manual', ['!hasOrder'] = 'building' } }
-					-- , {'isIdle'}
-					-- , {'autoguard'}
-					-- , { ['!p:cloak_shield'] = 2, ['?'] = {   {['order'] = {CMD.GUARD}, '!manual'}, 'isIdle', ['order'] = {CMD_RAW_MOVE} }   }
-					-- , {'!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual', '!building'   }
-					-- , {'!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual'  }
-
-					-- , {['!p:cloak_shield'] = 2, ['?'] = { }      }  
-					-- , {['d:isGroundUnit'] = true, 'isIdle'}
-					-- , {['d:isGroundUnit'] = false, 'isIdle'}
-					-- , {'!isIdle', '!manual', '!waitManual'}
-					-- , {'!isIdle'}
-				},
-
-				switch_groups = 1, -- delay when repeating that macro will use the next group 
-				-- current_to_prev = true, -- merge current sel in prev -- not working well
-
-				-- keep_on_fail: it is what it means, it will keep the previous selection if nothing has been found during the call of the macro
-				keep_on_fail = true,
-				-- ignore_from_sel = true,
-
-				switch_on_identical = true, -- switch on identical but also the first matching switch is kept
-				-- fail_on_identical = true,
-				-- typeOrder = {
-				-- 	'unknown'
-				-- },
-				-- byType = 'moveType',
-
-
-				-- byType = 'class',
-				-- pref_use_prev = true,
-				-- previous_time = 0.8,
-				-- ignore_from_sel = true,
-
-
-
-				-- only_prevTypes = true,
-				-- from_cursor = true,
-				color = {0, 1, 0.9,	0.8	},
-				fading = 0.1,
-			},
-
-			-- {name = 'One con (idle)',
-			-- method = 'on_acquired',
-			-- keys = {'SPACE', '?AIR', 'longPress', 'mouseStill'},
-			-- from_cursor = true,
-			-- want = 1,
-			-- -- on_press = true,
-			-- color = {0.5, 0.9, 0.5, 1},
-			-- fading = 1},
-
-
-
-			--get all cons on  double tap of the same key:
-			{
-				name = 'All Cons',
-				method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-				keys = {'?AIR', 'SPACE', 'doubleTap', 'fastDoubleTap', '?spam'},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-				defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena', name = 'striderfunnelweb'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-				share_radius = 'Cons (Idle)',
-				-- longPressTime = 0.1,
-				isTmpLock = 'AIR',
-				fastDoubleTap_time = 0.33,
-				force = true,
-				color = {0, 0.8, 0.9,	0.8	},
-				fading = 0.6
-			},
-
-
-			{
-				name = 'Any Con',
-				method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-				defs = {
-					['?'] = {
-						class = 'conunit',
-						'isComm',
-						'isAthena',
-						name = 'striderfunnelweb',
-
-					},
-				}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
-				share_radius = 'Cons (Idle)',
-				-- keep_on_fail = true,
-				-- ifSecondary = {keep_on_fail = true},
-				isTmpLock = 'AIR',
-				keep_on_identical = true,
-				color = {0, 0.8, 0.9,	0.8	},
-				fading = 0.6
-			},
-			--[[{name = 'Com',
-				method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
-				keys = {'SPACE', '?AIR', 'longPress', ?mouseStill},	 --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
-				defs = {'isComm'}, 
-				keep_on_fail = true,
-				color = {0, 0.8, 0.9,	0.8	},
-				fading = 0.6
-				},
-			--]]
-
-
-		--syntaxe: 'aboveN', 'underN', 'equalN'(more ore less 10%) for expressing health% requirement
-		--
-		----
-
-		-----------------
-		-- MIXED UNITS --
-		-----------------
-
-			{
-				name = 'Ground Army / GS / ships',
-				method = 'cylinder',
-				keys = {'N_1', 2}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
-				force_finish = true,
-				no_key_order = true,
-				-- add units matching those definitions if at least one unit have met the main definition
-				add = {name = {'shieldshield', 'amphlaunch'}}, 
-				-- backup definitions if no units matching main defs are found yet
-				default = {name = {'shieldshield', 'amphlaunch'}},
-				-- defs = {['?'] = {'!isTransport', '!isTransported'}},
-				-- defs = {'!isTransport', '!isTransported', ['?'] = {['!name'] = 'cloakaa', {name = 'cloakaa', ['!fireState'] = 0}}   },
-				defs = {
-					['!name'] = {'gunshiptrans', 'gunshipheavytrans', 'wolverine_mine'},
-					['?'] = {['!name'] = 'cloakaa', {name = 'cloakaa', ['!fireState'] = 0}}   
-				},
-				-- defs = {
-				-- 	   -- SYNTAXE: OPERATORS NOT and OR 
-				-- 	   '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
-				-- 	   -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
-				-- 	   -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
-				-- 	   -- ['?'] is OR operator, one match in the subtable is enough ,
-				-- 	   -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
-				-- 	   -- in the example below, it literally means we don't want conunit unless it is a funnelweb
-				-- 	   ['?'] = {		['!class'] = 'conunit', name = {'striderfunnelweb'}  	}
-				-- 	   -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
-				-- 	   -- here we don't want units having those names
-				-- 	  , ['!name'] = {'spidercrabe', 'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'spiderscout', 'spiderantiheavy'}
-					   
-				-- 	   -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
-				-- 	   -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
-				-- 	   -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
-				-- },
-				-- prefer = {['!family'] = 'gunship', ['?'] = {['!class'] = 'raider', name = 'jumpraid'}},
-				groups = {
-					-- switch definitions until one is matching immediately, if none, the loop will stop once all defs have been tested
-					-- the starting switch is incremented at each new call
-					{
-						XAND = { -- XAND accept to add hover or amph if some ships has been found
-							family = {'hover', 'amph'}, ['!class'] = {'conunit', 'raider'}
-						},
-						family = 'ship', ['!class'] = {'conunit', 'raider'}
-					},
-					{
-					   -- SYNTAXE: OPERATORS NOT and OR 
-					   -- XAND = {['?'] = {name = {'shieldshield', 'amphlaunch'}, family = 'ship' } }, -- adding shield if we found something
-					   	
-					   	['!family'] = {'gunship', 'ship', 'plane'}, -- '!' means NOT
-					   	'!isAthena',
-					   	'!isComm',
-						-- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
-						-- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
-						-- ['?'] is OR operator, one match in the subtable is enough ,
-						-- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
-						-- in the example below, it literally means we don't want conunit unless it is a funnelweb
-
-						['?'] = {  ['!class'] = {'conunit', 'raider'}, name = 'striderfunnelweb'  	},
-						-- , ['?!'] = {'isComm', '!isIdle'} -- not is comm unless it is idle
-						-- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
-						-- subtable means (A AND B) in those cases
-						-- here we don't want units having those names
-						['!name'] = {
-							'vehsupport', 'shieldshield', 'amphlaunch', 'amphsupport', 'tankarty', 'tankheavyarty',
-							'heavyarty', 'spidercrabe', 'cloakbomb', 'shieldbomb', 'jumpbomb', 'amphbomb', 'chicken_dodo',
-							'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante', 'cloakheavyraid',
-							'hoverarty', 'amphtele', 'vehheavyarty', 'cloaksnipe', 'jumparty', 'cloakjammer', 'cloakary', 'striderarty',
-
-						}
-						  
-						-- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
-						-- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
-						-- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
-					},
-					{
-						-- XAND = {name = 'shieldshield'},
-						['family'] = 'gunship', ['!class'] = {'conunit', 'raider'}, ['!name'] = 'gunshipbomb'
-					}
-					-- ,
-
-					-- {
-					-- 	XAND = {class = 'raider', ['!name'] = {'spiderscout'}},
-					-- 	'isUnit', name = 'shieldshield'
-					-- }
-
-				},
-				switch_time = 0.4,
-				call_on_fail = 'Shields with raiders',
-				-- call_on_fail = 'Shields with raiders',
-				color = {1.0, 0.9, 0.9, 0.8},
-				fading = 0.6
-			},
-
-
-
-
-			{
-				name = 'Shields with raiders',
-				method = 'cylinder',
-				keys = {'N_1', 4}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
-				
-				no_key_order = true,
-				-- finish_current_call = true,
-				groups = {
-					{
-						['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
-							{
-								name = 'jumpskirm',
-							},
-							{
-								name = 'jumpraid',
-							},
-
-						},
-					},
-					{
-						['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
-							{
-								name = {'shieldshield', 'shieldassault', 'shieldcon'}
-							},
-							{
-								class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
-							},
-
-						},
-					},
-
-				},
-
-				-- defs = {
-				-- 	['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
-				-- 		{
-				-- 			name = {'shieldshield', 'shieldassault', 'shieldcon'}
-				-- 		},
-				-- 		{
-				-- 			class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
-				-- 		},
-
-				-- 	},
-
-				-- },
-				-- shift = true,
-
-
- 			 	share_radius = 'Ground Army / GS / ships',
-				call_on_fail = 'Shields', 
-				ignore_on_fail = true,
-				-- ifSecondary = {no_force = true, keep_on_fail = true,}, 
-				color = {1.0, 0.9, 0.9, 0.8},
-				fading = 0.6
-			},
-
-
-
-
-
-			{
-				name = 'Army with raiders', -- not handy, never used
-				method = 'cylinder',
-				keys = {'N_1', 2, 'doubleTap'}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
-				shift = true,
-
-				defs = {
-					   -- SYNTAXE: OPERATORS NOT and OR 
-					   '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
-					   -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
-					   -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
-					   -- ['?'] is OR operator, one match in the subtable is enough ,
-					   -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
-					   -- in the example below, it literally means we don't want conunit unless it is a funnelweb
-					   class = 'raider',
-					   -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
-					   -- here we don't want units having those names
-						['!name'] = {'spiderscout', 'shieldscout'},
-					   
-					   -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
-					   -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
-					   -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
-				},
-				share_radius = 'Ground Army / GS / ships',
-				color = {1.0, 0.9, 0.9, 0.8},
-				fading = 0.6
-			},
-			-- 	{name = 'Army with raiders',
-			-- 	method = 'cylinder',
-			-- 	keys = {'N_1', 2, 'doubleTap'}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
-				
-
-			-- 	defs = {
-			-- 		   -- SYNTAXE: OPERATORS NOT and OR 
-			-- 		   '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
-			-- 		   -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
-			-- 		   -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
-			-- 		   -- ['?'] is OR operator, one match in the subtable is enough ,
-			-- 		   -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
-			-- 		   -- in the example below, it literally means we don't want conunit unless it is a funnelweb
-			-- 		   ['?'] = {		['!class'] = 'conunit', name = 'striderfunnelweb'  	}
-			-- 		   -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
-			-- 		   -- here we don't want units having those names
-			-- 		  , ['!name'] = {'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'gunshipbomb', 'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante'}
-					   
-			-- 		   -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
-			-- 		   -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
-			-- 		   -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
-			-- 	},
-			-- 	prefer = { {['!family'] = 'ship'}, {['!family'] = 'gunship'} },
-			-- 	-- in the example above, we prefer not having gunship nor raiders in the selection, unless there is nothing else matching the above criteria
-
-			-- 	color = {1.0, 0.9, 0.9, 0.8},
-			-- fading = 0.6
-			-- },
-
-
-
-			--[[{name = 'Army with cons',
-					method = 'cylinder',
-					--note: longPress is inclusive and woke (aswell as 'longClick'), it does not invalidate a combo unless there is one with the same keys + the 'longPress' tag as this one does. 															///// J/k, I hate liberals.
-					-- with longPress, you can set 'mouseStill' or '?mouseStill' wether you require the mouse to stay still once the key is pushed or don't care
-					keys = {1, 2, 'LClick'},
-					
-
-					defs = {'isUnit', ['!family'] = 'plane',
-						   -- syntaxe: ['?'] is OR operator, one match in the subtable is enough , '!' before a requirement means NOT
-						   -- note: you can also use ['!'] and ['?!'] as key for subtables for their respective operation ['?!'] = {A, B} will means NOT A OR NOT B
-						   -- in this example, it literally means we don't want conunit unless it is a funnelweb
-						  ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticshield', 'staticradar', 'staticjammer', 'spiderscout', }},
-					--syntaxe: '!' to prohibit certain units
-					--syntaxe: 'aboveN', 'underN', 'equalN'(more ore less 10%) for expressing health% requirement
-					prefer = {['!family'] = 'gunship'},
-					color = {1.0, 0.9, 0.9, 0.8},
-					fading = 0.6
-			}, --]]
-
-			-- {name = 'Ground Combat without Cloaker',
-			-- 		method = 'cylinder',
-			--		no_key_order = true,
-			-- 		keys = {'N_1', 'N_2'},
-			-- 		defs = {
-			-- 			'isUnit', '!isComm'
-			-- 			, ['!family'] = {'plane', 'ship', 'gunship'}
-			-- 			, ['!class'] = {'conunit', 'raider'}
-			-- 			, ['!name'] = {'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'cloakjammer', 'striderantiheavy', 'spiderantiheavy', 'striderdante'}},
-			-- 		color = {1.0, 0.9, 0.9, 0.8},
-			--		fading = 0.6
-			-- },
-			
-
-
-			{
-				name = 'Army and Cons', -- not handy / never used
-				method = 'cylinder',
-
-				keys = {'N_1', 'N_2', 'LClick', '?doubleLClick'},
-				defs = {'!isComm', ['!family'] = 'plane', 'isUnit', ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticradar', 'striderdante', 'cloakheavyraid'}},
-				force = true,
- 			 	share_radius = 'Ground Army / GS / ships',
-				color = {1.0, 0.9, 0.9, 0.8},
-				fading = 0.6,
-				},
-
-			{
-				name = 'Ground Combat slow',
-				method = 'cylinder',
-				keys = {'SPACE', 'N_1', 2, '?AIR'},
-				defs = {'isUnit', '!isComm'
-					, ['!family'] = 'plane', 'isUnit'
-					, ['!class'] = {'conunit', 'raider'}
-					, ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticradar', 'staticjammer', 'striderantiheavy', 'spiderantiheavy', 'striderdante'}},
-				color = {1.0, 0.9, 0.9, 0.8},
-				fading = 0.6
-			},
-
-
-		------------------
-		-- CYCLE
-		-- Possibility to Cycle through different Macros under the same combination
-			-- {name = 'Roaming',
-			--  method = 'cycle',
-			-- keys = {'LALT', 'N_2', '?AIR', '?doubleTap', '?spam'},
-			-- time = 5, -- cycle can reset overtime if wanted
-			-- cycle = {'Halt', 'Roaming MIN', 'Roaming MAX'}}, -- name the different macros beeing part of the cycle
-
-			-- -----BRUSH ORDER IN CYCLE
-			-- -- brush_order: sending command on wanted units without selecting them
-			-- -- with the cycle method, we shall not set any keys for the following macros
-			-- {name = 'Halt',
-			-- method = 'cylinder',
-			-- defs = {'isUnit'},
-			-- brush_order = {[CMD.MOVE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-			-- keep_on_fail = true, -- keep the previous selection
-			-- color = {0.8, 0.6, 0.0, 0.9  }, fading = 0.6},
-
-			-- {name = 'Roaming MIN', -- this name will be shown on screen
-			-- method = 'cylinder',
-			-- defs = {'isUnit'},
-			-- brush_order = {[CMD.MOVE_STATE] = {1, 0}},
-			-- keep_on_fail = true, -- keeping previously selected units as we don't want selecting anything with this macrto, just apply some orders
-			-- color = {0.0, 1.0, 1, 0.9  }, fading = 0.6},
-
-			-- {name = 'Roaming MAX',
-			-- method = 'cylinder',
-			-- defs = {'isUnit'},
-			-- brush_order = {[CMD.MOVE_STATE] = {2, 0}},
-			-- keep_on_fail = true,
-			-- color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6},
-		------------------------------
-		-----------------------------
-			{
-				name = 'Gather Wait',
-				method = 'on_selection',
-				keys = {'E', '?AIR', 'doubleTap', '?spam'},
-				force = true,
-				defs = {'isUnit'},
-				on_press = true,
-				OnSuccessFunc = function() 
-					Spring.GiveOrder(CMD.GATHERWAIT, {}, {shift = true})  
-					WG.noises.PlayResponse(false, currentSel[1])
-					return true
-				end, -- CMD and param given directly to units covered by the method, without selecting them 
-				color = {0.8, 0.8, 0.0, 0.9  },
-				fading = 0.6,
-			},
-
-			-- brush hold fire on already acquired units, or fire at will if they are all already held
-			{
-				name = 'Hold Fire',
-				method = 'on_selection',
-				keys = {'LALT', 'N_2', '?AIR', '?doubleTap', '?spam'},
-				force = true,
-				defs = {['fireState'] = {1, 2}, ['d:canAttack'] = true},
-				hasStructure = true,
-				on_press = true,
-				brush_order = {[CMD.FIRE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them 
-				call_on_fail = 'Fire At Will', -- if no unit got fire at will unless it cannot attack, this call will be considered failed and then jumping to Fire At Will macro
-				color = {0.8, 0.6, 0.0, 0.9  },
-				fading = 0.6,
-			},
-
-
-			{
-				name = 'Fire At Will',
-				method = 'on_selection',
-				brush_order = {[CMD.FIRE_STATE] = {2, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				force = true,
-				hasStructure = true,
-				color = {0.8, 0.6, 0.5, 0.9  },
-				fading = 0.6,
-			},
-
-			-- same with move state
-			{
-				name = 'Hold Position',
-				method = 'on_selection',
-				keys = {'LALT', 'UNKNOWN', '?AIR', '?doubleTap', '?spam'},
-				force = true,
-				defs = {['!moveState'] = 0--[[, ['d:canAttack'] = true--]]},
-				on_press = true,
-				brush_order = {[CMD.MOVE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them 
-				second_call = 'AI OFF',
-
-				call_on_fail = 'Maneuver', -- if no unit got fire at will unless it cannot attack, this call will be considered failed and then jumping to Fire At Will macro
-				color = {0.8, 0.6, 0.0, 0.9  },
-				fading = 0.6,
-			},
-
-
-			{
-				name = 'Maneuver',
-				method = 'on_selection',
-				brush_order = {[CMD.MOVE_STATE] = {1, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				force = true,
-				second_call = 'AI ON',
-				color = {0.8, 0.6, 0.5, 0.9  },
-				fading = 0.6,
-			},
-
-			{
-				name = 'Roam',
-				method = 'on_selection',
-				keys = {'UNKNOWN', '?AIR', 'doubleTap', '?spam'},
-
-				brush_order = {[CMD.MOVE_STATE] = {2, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				force = true,
-				-- second_call = 'AIR', -- FIXME I removed the AIR lock, bc unused but if we put it back, this combo need to be fixed as it trigger the air lock
-				color = {0.1, 0.6, 0.5, 0.9  },
-				fading = 0.6,
-			},
-
-			{
-				name = 'AI OFF',
-				method = 'on_selection',
-				defs = {['!name'] = 'vehraid'},
-				brush_order = {[customCmds.UNIT_AI] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				force = true,
-				color = {0.8, 0.6, 0.5, 0.9  },
-				fading = 0.6,
-			},
-
-			{
-				name = 'AI ON',
-				method = 'on_selection',
-				brush_order = {[customCmds.UNIT_AI] = {1, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				force = true,
-				color = {0.8, 0.6, 0.5, 0.9  },
-				fading = 0.6,
-			},
-
-
-		--[[
-			{
-				name = 'Fire State',
-				 method = 'cycle',
-				keys = {'LALT', 'N_3', '?AIR', '?doubleTap'},
-				time = 5, -- cycle can reset overtime if wanted
-				cycle = {'Stop Fire', 'Riposte', 'Fire At Will'}
-			},
-
-			-----BRUSH ORDER IN CYCLE
-			-- brush_order: sending command on wanted units without selecting them
-			-- with the cycle method, we shall not set any keys for the following macros
-			{
-				name = 'Stop Fire',
-				method = 'cylinder',
-				defs = {},
-				brush_order = {[CMD.FIRE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
-				keep_on_fail = true, -- keep the previous selection
-				color = {0.8, 0.6, 0.0, 0.9  }, fading = 0.6,
-			},
-
-			{
-				name = 'Riposte', 
-				method = 'cylinder',
-				defs = {},
-				brush_order = {[CMD.FIRE_STATE] = {1, 0}},
-				keep_on_fail = true,
-				color = {0.0, 1.0, 1, 0.9  }, fading = 0.6,
-			},
-
-			{
-				name = 'Fire At Will',
-				method = 'cylinder',
-				defs = {},
-				brush_order = {[CMD.FIRE_STATE] = {2, 0}},
-				keep_on_fail = true,
-				color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6,
-			},
-		--]]
-		------------------------------
-		------------------------------
-
-
-		-----------
-		---- SNIPER
-		-----------
-			{
-				name = 'One Sniper',  -- select one sniper and cycle through each of them on each trigger
-				method = 'cylinder',
-				defs = {name = {'cloaksnipe', 'spiderantiheavy', 'amphlaunch', 'hoverarty', 'jumpblackhole'}}, 
-				
-				-- syntaxe : !: values in the table must not be true
-				-- syntaxe: ['reload'] = {weapnumber1, weapnumber2...} or ['reload'] = weapnumber  for the weapon(s) to be reloaded
-				keys = {'N_3', 'LClick'},
-				-- prefer = { {['reload'] = 1}},
-				want = 1, -- can specify the number you want to select, will cycle through valid units
-				previous_time = 0.5,
-				from_cursor = true, -- close of cursor
-				force = true
-			},
-
-			{
-				name = 'Snipers', -- select all on double click
-				method = 'cylinder',
-				-- defs = {name = {'cloaksnipe', 'amphlaunch', 'hoverarty', 'jumpblackhole'}},
-				--params = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}},
-				-- syntaxe : !: values in the table must not be true
-				default = {name = 'cloaksnipe'},
-				share_radius = 'One Sniper',
-				same_units = true,
-				force = true,
-				call_on_fail = 'One Sniper',
-				shift = true,
-				keys = {'N_3', 'LClick', 'doubleLClick', '?spam'}
-			},
-
-			----------- Lobs
-			{
-				name = 'Lob',
-				method = 'cylinder',
-				keys = {'LALT', 'E'},
-
-				from_cursor = true,
-				defs = {
-					'isUnit',
-					name = 'amphlaunch',
-				},
-				prefer = {
-					['reload'] = 1
-				},
-				want = 1,
-				force = true,
-				disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
-								  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
-				-- continue = true, --reset future selection at each update round
-				
-				color = {0.9, 0.9, 0.1, 1},
-				fading = 0.8,
-			},
-
-			{
-				name = 'All Lobs' ,
-				method = 'cylinder',
-				keys = {'LALT', 'E', '?doubleTap', 'longPress'},
-
-				from_cursor = true,
-				defs = {
-					'isUnit',
-					name = 'amphlaunch',
-				},
-				force = true,
-				longPressTime = 0.15,
-				disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
-								  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
-				--continue = true, --reset future selection at each update round
-				share_radius = 'Lob',
-				color = {0.9, 0.9, 0.1, 1},
-				fading = 0.8,
-			},
-
-
-
-			{
-				name = 'One More Lob', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
-				method = 'cylinder',
-				keys = {'LALT', 'E', 'doubleTap'},
-				from_cursor = true,
-				defs = {
-					'isUnit',
-					name = 'amphlaunch',
-					['reload'] = 1,
-				},
-				want = 1,
-				shift = true,
-				force = true,
-				disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
-								  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
-				--continue = true, --reset future selection at each update round
-				
-				color = {0.9, 0.9, 0.1, 1},
-				fading = 0.8,
-			},
-
-		--------------
-		---- ANTI SUB 
-		--------------
-
-			-- {name = 'Sub / AntiSub', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
-			-- method = 'cylinder',
-			-- switch = {
-			-- 	{name = 'shiptorpraider'},
-			-- 	{name = 'subraider'},
-			-- },
-			-- switch_time = 1,
-			-- force = true,
-			-- disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
-			-- 				  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
-			-- --continue = true, --reset future selection at each update round
-			-- share_radius = 'One Bomb',
-			-- color = {0.9, 0.9, 0.1, 1},
-			-- fading = 0.8},
-
-
-			{
-				name = 'Sub', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
-				method = 'cylinder',
-				defs = {
-					{name = 'subraider'},
-				},
-				force = true,
-				disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
-								  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
-				--continue = true, --reset future selection at each update round
-				share_radius = 'One Bomb',
-				color = {0.9, 0.9, 0.1, 1},
-				fading = 0.8,
-			},
-
-
-		---------------------
-		---- CLOAKED ROACHES
-		---------------------
-		-- same fashion a bit more sophisticated to work with cloaked roaches strategy:
-
-
-		-- 1+LClick : select one bomb that is not already attacking, close from the cursor
+	-- TODO: implement XOR and maybe XNOT operator
+	-- TODO: implement group 
+	---- example of doubleTap of key use that allows one to select all cons on single tap of 'X' or 'C' or only idle cons on doubleTap with those same keys
+	-- here single tap:
+	--[[
 		{
-			name = 'One Bomb', 
-			method = 'cylinder',
-			keys = {'?AIR', 'N_1', 'LClick'},
-			byType = 'defID', -- alternate between defid if they differ
-			defs = {
-				['?'] = {
-					name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
-					-- { name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
-				}
-			},
+			name = 'Cons (prefer Idle)',
+	method = 'cylinder', 
+	keys = {'SPACE', '?AIR'}, -- 
+	defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena'}},
+	prefer = {defs = {'isIdle', '!isComm'}}, -- syntaxe: prefer is what it means: it will filter out the found units after checking if at least one match the prefer conditions
+	keep_on_fail = true,
+	color = {0, 1, 0.9, 0.8 },
+	fading = 0.6,
+	}, 
+	--]]
 
-			-- keys = {'?SPACE', 'N_1', 'LClick'},
-			-- prefer = {{['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}}, -- preferably not fighting
-			want = 1, -- can specify the number you want to select, will cycle through valid units
-			force = true,
-			from_cursor = true, -- get the closest of cursor
-			on_press = true,
-			previous_time = DOUBLETAP_THRESHOLD,
-			disable_SM = true,
-			call_on_fail = 'Sub'}, -- call this macro if nothing found
-			
-			-- 1+double LClick: add more and more bombs as long as you spam clicks
+	------------
+	--- AUTO TRANSPORT
+	------------
+
+	
+	-- cascading combos, pushing L will order closest transport to pick up selected units, then , ordering them to load the currently selected units, they will follow the selected unit goal location (if any) to unload them
+	-- if second call for getting the loaded transport fail, it will run a third call to get any transports 
+	{
+		name = 'Call Transports',
+		method = 'set_command', 
+		-- from_cursor = true,
+		keys = {'SPACE', '?AIR', 'T'}, -- 
+		-- defs = {
+		--  name = {'gunshiptrans', 'gunshipheavytrans'}
+		--  , '!isTransporting', ['!order'] = CMD.LOAD_UNITS
+		-- },
+		-- defs = {},
+		set_active_command = CMD_LOADUNITS_SELECTED, -- set active command to autoload selected units on finish 
+		-- prefer = {'!isTransporting'},
+		on_press = true,
+		shift = true,
+		force = true, --
+		call_on_success = 'Get LOADING Transports',
+		call_on_fail = 'Get LOADED Transports',
+		color = {0, 1, 0.5, 0.8 },
+		fading = 0.6,
+	},
+
+
+	-- chaining the macro below
+	{
+		name = 'Get LOADING Transports', -- this is directly triggered by the macro above
+		method = 'all', 
+		on_delay = 0.4,
+		-- from_cursor = true,
+		keys = {}, -- 
+		defs = {
+			-- ['?'] = {'isTransporting', ['order'] = CMD.LOAD_UNITS},
+			name = {'gunshiptrans', 'gunshipheavytrans'},
+			'!isTransporting', ['order'] = CMD.LOAD_UNITS
+		},
+		force = true,
+		-- on_press = true,
+		-- onrelease = true,
+		-- continue = true,
+		-- keep_on_fail = true,
+		-- call_on_fail = 'Get LOADED Transports', -- call this if nothing got selected
+		color = {0, 1, 0.5, 0.8 },
+		fading = 0.6,
+	},
+
+
+	{
+		name = 'Get LOADED Transports', -- this is directly triggered by the macro above
+		method = 'cylinder', 
+		-- on_delay = 0.5,
+		-- from_cursor = true,
+		keys = {}, -- 
+		defs = {
+			-- ['?'] = {'isTransporting', ['order'] = CMD.LOAD_UNITS},
+			name = {'gunshiptrans', 'gunshipheavytrans'}, 'isTransporting'
+		},
+		force = true,
+		-- on_press = true,
+		-- onrelease = true,
+		-- continue = true,
+		-- keep_on_fail = true,
+
+		call_on_fail = 'Get ANY Transports', -- call this if nothing got selected
+		color = {0, 1, 0.5, 0.8 },
+		fading = 0.6,
+	},
+
+
+	{
+		name = 'Get ANY Transports',
+		method = 'cylinder', 
+		from_cursor = true,
+		on_press = true,
+		keys = {'SPACE', 'L', '?AIR'}, -- 
+		defs = {
+			name = {'gunshiptrans', 'gunshipheavytrans'}
+		},
+		force = true,
+		keep_on_fail = true,
+		share_radius = 'Get LOADED Transports',
+		color = {0, 1, 0.5, 0.8 },
+		fading = 0.6,
+	},
+
+	{
+		name = 'Set Retreat',
+		method = 'set_command', 
+		keys = {'SPACE', '?AIR', 'G'}, -- 
+		defs = {
+			name = {'gunshiptrans', 'gunshipheavytrans'}
+			, '!isTransporting', ['!order'] = CMD.LOAD_UNITS
+		},
+		set_active_command = 'sethaven', -- set active command to autoload selected units on finish 
+		on_press = true,
+		force = true, --
+		color = {0, 1, 0.5, 0.8 },
+		fading = 0.6,
+	},
+
+	----------------
+	----- CONS -----
+	----------------
+
+	{
+		name = 'COM OR CON',
+		method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+		-- keys = {'?AIR', 'SPACE'},     --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+		defs = {['?'] = {'isComm', class = 'conunit'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+		share_radius = 'Cons (Idle)',
+		isTmpLock = 'AIR',
+		byType = 'defID',
+		from_cursor = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6,
+	},
+
+	-- {name = 'COM',
+	-- method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+	-- keys = {'E', 'longPress', '?AIR'},    --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+	-- defs = {'isComm'}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+	-- share_radius = 'Cons (Idle)',
+	-- force = true,
+	-- longPressTime = 0.2,
+	-- color = {0, 0.8, 0.9,    0.8 },
+	-- fading = 0.6,
+	-- },
+
+	-- {name = 'COM',
+	-- method = 'all', -- 'cylinder': units in radius around the mouse cursor 
+	-- from_cursor = true,
+	-- want = 1,
+	-- keys = {'E', 'doubleTap', '?AIR'},    --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+	-- defs = {'isComm'}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+	-- -- share_radius = 'Cons (Idle)',
+	-- force = true,
+	-- longPressTime = 0.2,
+	-- color = {0, 0.8, 0.9,    0.8 },
+	-- fading = 0.6},
+
+
+
+
+
+	---- Set of 3 successive calls for getting com / funnel / cons with the SPACE bar, one calling the other on certain conditions
+
+	{
+		name = 'Com / Funnel',
+		method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+		-- on_press = true,
+		keys = {'?AIR', 'SPACE'}, -- 
+		isTmpLock = 'AIR', -- this combo also trigger the temporary toggle on the lock AIR
+		-- ignore_from_sel = true,
+		fail_on_identical = true,
+		from_cursor = true,
+		defs = {['?'] = {'isComm', name = 'striderfunnelweb'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+		keep_on_fail = true,
+		no_force = true, -- don't block the key when call is triggered
+		need_zero_command = true, -- ignore the call if a command is active
+		byType = 'defID',
+		call_on_fail = 'Cons (Idle)',
+		try_on_success = 'Cons (Idle)',
+		try_takeover_conditions = function(call, acquired) --
+			if call.time_length < 0.3 then
+				local curId, tryId = acquired[1], g.acquired[1]
+				if not (tryId and curId and spValidUnitID(tryId) and spValidUnitID(curId)) then
+					return false
+				end
+				if last.sel and identical(currentSel, g.acquired) then
+					return false
+				end
+				local tux, tuy, tuz = spGetUnitPosition(tryId)
+				local cux, cuy, cuz = spGetUnitPosition(curId)
+				-- Echo("id, curId is ", id, curId)
+				local mx, my, mz = unpack(call.mouseStart)
+				local tryUdist = ((tux-mx)^2 + (tuz-mz)^2) ^0.5
+				local curUdist = ((cux-mx)^2 + (cuz-mz)^2) ^0.5
+				if tryUdist < curUdist * 0.75 then
+					return true
+				end
+			end
+		end,
+		share_radius = 'Cons (Idle)',
+		-- force = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6,
+	},
+
+
+	-- {name = 'Add Idle Cons',
+	-- method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+	-- keys = {'?AIR', 'SPACE', 'TAB', '?doubleTap', '?spam'},   --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+	-- defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+	-- share_radius = 'Cons (Idle)',
+	-- shared_switch = 'Cons (Idle)',
+	-- shift = true,
+	-- force = true,
+	-- color = {0, 0.8, 0.9,    0.8 },
+	-- fading = 0.6},
+
+
+	{
+		name = 'Cons (Idle)',
+		method = 'cylinder', 
+		-- keys = {'?AIR', 'SPACE', 'doubleTap'},
+		-- from_cursor = true,
+		isTmpLock = 'AIR',
+		call_on_fail = 'Any Con',
+
+		defs = {
+			['?'] = {class = 'conunit', 'isAthena'},
+			['p:cloakerRadius'] = {0, 'nil'},
+		},
+
+		-- shift_on_defs = {
+		--  ['?'] = {class = 'conunit', 'isAthena', 'isComm'},
+		-- },
+		doubleTap_time = 0.55,
+		-- switch = {
+		--   {'isUnit', 'isIdle', ['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
+		--  , {'isUnit', '!isIdle', ['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
+		-- },
+		--------------------------------------
+		-- BYTYPE AND PREVIOUS SYSTEM
+		-- alternate between defIDs with the 'previous' system, intelligently repick a different type  if available, in the middle of a call, and remember types that have been selected within .previous_time (default 5 sec)
+		-- previous system also care on a per unit basis
+		-- indeed, with 'want' when wanting a restricted number of units, it will then cycle through types AND avoid previously selected units
+		-- byType can be 'defID', 'class' or 'family', it is not possible to combine them (I don't see a useful case of mixing 'class' + 'family' )
+		-- byType = 'defID',    
+
+		-- switch = {
+		--  {'isComm', '!waitManual', ['?'] = { ['p:facplop'] = 1, '!manual' } }
+		--  -- , {'isIdle'}
+		--  -- , {'autoguard'}
+		--  -- , { ['!p:cloak_shield'] = 2, ['?'] = {   {['order'] = {CMD.GUARD}, '!manual'}, 'isIdle', ['order'] = {CMD_RAW_MOVE} }   }
+		--  , {['?'] = {class = 'conunit', 'isAthena'}, '!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual', '!building'   }
+		--  , {['?'] = {class = 'conunit', 'isAthena'}, ['!p:cloak_shield'] = 2, '!manual', '!waitManual'   }
+		--  -- , {'!isComm', ['!p:cloak_shield'] = 2, '!waitManual', ['?'] = {  '!manual', ['?order'] = {CMD_RAW_MOVE, CMD.RECLAIM} }   }
+		--  -- , {['!p:cloak_shield'] = 2, ['?'] = { }      }  
+		--  -- , {['d:isGroundUnit'] = true, 'isIdle'}
+		--  -- , {['d:isGroundUnit'] = false, 'isIdle'}
+		--  -- , {'!isIdle', '!manual', '!waitManual'}
+		--  -- , {['?'] = {class = 'conunit', 'isComm', 'isAthena'}, '!isIdle'}
+		--  , {['?'] = {class = 'conunit', 'isComm', 'isAthena'}}
+		-- },
+		-- shift_on_same_last_call = true,
+		switch_time = 1,
+		add_last_call_pool = true,
+		add_last_call_pool_if = 'Com / Funnel',
+		-- previous_time = 1,
+		-- reset_previous_on_reset_switch = true,
+		-- use_prev = true,
+		-- no_pick_in_prev = true,
+		-- from_cursor = true,
+		switch = { 
+			-- HOW GROUPS WORKS: units closest of cursor are multichecked against the differents defs in group,
+			-- whichever def is the first matching become the filter that will be used on the rest of the units
+
+			-- {'isComm'},
+			-- {name = 'striderfunnelweb'},
+
+
+			-- {['?'] = {'isIdle', {'!manual'}, {order = CMD_RAW_MOVE, ['!order'] = 'moveFar'}}},
+			-- {'!manual'},
+			-- -- no cons ordered manually
+			-- {['?'] = {  '!manual', ['?order'] = {'moveFar', CMD.RECLAIM} }   },
+			-- {},
+				{
+					['?'] = {
+						'isIdle',
+						{'!manual', '!waitManual'},
+						-- {['order'] = CMD_RAW_MOVE, ['!order'] = 'moveFar'}
+					},
+				},
+				-- {},
+				-- {
+				--  order = 'building', ['?'] = {'manual', 'waitManual'}
+				-- },
+				-- {
+				--  hasOrder = 'building'
+				-- }
+				-- {
+				--  ['?'] = {'manual', 'waitManual'}, '!building'
+				-- },
+				{
+
+					['?'] = {
+						'manual', 'waitManual'
+					},
+					-- {
+					--  ['?'] = {
+					--      ['!order'] = CMD_RAW_MOVE,  order = 'moveFar'
+					--  }
+					-- }
+				},
+
+
+
+			-- {['hasOrder'] = {'building', CMD.GUARD}},
+			-- cons
+
+			-- {'isComm', '!waitManual', ['?'] = { ['p:facplop'] = 1, '!manual', ['!hasOrder'] = 'building' } }
+			-- , {'isIdle'}
+			-- , {'autoguard'}
+			-- , { ['!p:cloak_shield'] = 2, ['?'] = {   {['order'] = {CMD.GUARD}, '!manual'}, 'isIdle', ['order'] = {CMD_RAW_MOVE} }   }
+			-- , {'!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual', '!building'   }
+			-- , {'!isComm', ['!p:cloak_shield'] = 2, '!manual', '!waitManual'  }
+
+			-- , {['!p:cloak_shield'] = 2, ['?'] = { }      }  
+			-- , {['d:isGroundUnit'] = true, 'isIdle'}
+			-- , {['d:isGroundUnit'] = false, 'isIdle'}
+			-- , {'!isIdle', '!manual', '!waitManual'}
+			-- , {'!isIdle'}
+		},
+
+		switch_groups = 1, -- delay when repeating that macro will use the next group 
+		-- current_to_prev = true, -- merge current sel in prev -- not working well
+
+		-- keep_on_fail: it is what it means, it will keep the previous selection if nothing has been found during the call of the macro
+		keep_on_fail = true,
+		-- ignore_from_sel = true,
+
+		switch_on_identical = true, -- switch on identical but also the first matching switch is kept
+		-- fail_on_identical = true,
+		-- typeOrder = {
+		--  'unknown'
+		-- },
+		-- byType = 'moveType',
+
+
+		-- byType = 'class',
+		-- pref_use_prev = true,
+		-- previous_time = 0.8,
+		-- ignore_from_sel = true,
+
+
+
+		-- only_prevTypes = true,
+		-- from_cursor = true,
+		color = {0, 1, 0.9, 0.8 },
+		fading = 0.1,
+	},
+
+	-- {name = 'One con (idle)',
+	-- method = 'on_acquired',
+	-- keys = {'SPACE', '?AIR', 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- want = 1,
+	-- -- on_press = true,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
+
+
+
+	--get all cons on  double tap of the same key:
+	{
+		name = 'All Cons',
+		method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+		keys = {'?AIR', 'SPACE', 'doubleTap', 'fastDoubleTap', '?spam'},     --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+		defs = {['?'] = {class = 'conunit', 'isComm', 'isAthena', name = 'striderfunnelweb'}}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+		share_radius = 'Cons (Idle)',
+		-- longPressTime = 0.1,
+		isTmpLock = 'AIR',
+		fastDoubleTap_time = 0.33,
+		force = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6
+	},
+
+
+	{
+		name = 'Any Con',
+		method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+		defs = {
+			['?'] = {
+				class = 'conunit',
+				'isComm',
+				'isAthena',
+				name = 'striderfunnelweb',
+
+			},
+		}, -- syntaxe: ['?'] = {} means only one condition in the table of '?' have to be fulfilled
+		share_radius = 'Cons (Idle)',
+		-- keep_on_fail = true,
+		-- ifSecondary = {keep_on_fail = true},
+		isTmpLock = 'AIR',
+		keep_on_identical = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6
+	},
+	--[[{name = 'Com',
+		method = 'cylinder', -- 'cylinder': units in radius around the mouse cursor 
+		keys = {'SPACE', '?AIR', 'longPress', ?mouseStill},  --syntaxe: '?AIR', as combination must be exact for it to work, '?' will be used to make the key/mod optional, in this case: ?AIR means having the AIR lock beeing active or not doesnt matter
+		defs = {'isComm'}, 
+		keep_on_fail = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6
+		},
+	--]]
+
+
+	--syntaxe: 'aboveN', 'underN', 'equalN'(more ore less 10%) for expressing health% requirement
+	--
+	----
+
+	-----------------
+	-- MIXED UNITS --
+	-----------------
+
+	{
+		name = 'Ground Army / GS / ships',
+		method = 'cylinder',
+		keys = {'N_1', 2}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		force_finish = true,
+		no_key_order = true,
+		-- add units matching those definitions if at least one unit have met the main definition
+		add = {name = {'shieldshield', 'amphlaunch'}}, 
+		-- backup definitions if no units matching main defs are found yet
+		default = {name = {'shieldshield', 'amphlaunch'}},
+		-- defs = {['?'] = {'!isTransport', '!isTransported'}},
+		-- defs = {'!isTransport', '!isTransported', ['?'] = {['!name'] = 'cloakaa', {name = 'cloakaa', ['!fireState'] = 0}}   },
+		defs = {
+			['!name'] = {'gunshiptrans', 'gunshipheavytrans', 'wolverine_mine'},
+			['?'] = {['!name'] = 'cloakaa', {name = 'cloakaa', ['!fireState'] = 0}}   
+		},
+		-- defs = {
+		--     -- SYNTAXE: OPERATORS NOT and OR 
+		--     '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
+		--     -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
+		--     -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
+		--     -- ['?'] is OR operator, one match in the subtable is enough ,
+		--     -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
+		--     -- in the example below, it literally means we don't want conunit unless it is a funnelweb
+		--     ['?'] = {        ['!class'] = 'conunit', name = {'striderfunnelweb'}     }
+		--     -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
+		--     -- here we don't want units having those names
+		--    , ['!name'] = {'spidercrabe', 'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'spiderscout', 'spiderantiheavy'}
+			   
+		--     -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
+		--     -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
+		--     -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
+		-- },
+		-- prefer = {['!family'] = 'gunship', ['?'] = {['!class'] = 'raider', name = 'jumpraid'}},
+		groups = {
+			-- switch definitions until one is matching immediately, if none, the loop will stop once all defs have been tested
+			-- the starting switch is incremented at each new call
 			{
-				name = '+1 Bomb', 
-			method = 'cylinder',
-
-			must_have = {
-				['?'] = {
-					name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
-					-- { name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
-				}
+				XAND = { -- XAND accept to add hover or amph if some ships has been found
+					family = {'hover', 'amph'}, ['!class'] = {'conunit', 'raider'}
+				},
+				family = 'ship', ['!class'] = {'conunit', 'raider'}
 			},
-			keys = {'?AIR', 'N_1', 'LClick', 'doubleLClick', '?spam'},
-			-- prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
-			shift = true, -- don't deselected the previous selection which will be bombs in this case
-			want = '5%',
-			force = true,
-			from_cursor = true,
-			same_units = true,
-			same_transported_state = true,
-			same_transporting_state = true,
-			share_radius = 'One Bomb',
-			disable_SM = true,
-			call_on_fail = 'One Bomb',
-			shared_prev = 'One Bomb',
-		}, -- use same 'previous' table as the cited macro
+			{
+			   -- SYNTAXE: OPERATORS NOT and OR 
+			   -- XAND = {['?'] = {name = {'shieldshield', 'amphlaunch'}, family = 'ship' } }, -- adding shield if we found something
+				
+				['!family'] = {'gunship', 'ship', 'plane'}, -- '!' means NOT
+				'!isAthena',
+				'!isComm',
+				-- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
+				-- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
+				-- ['?'] is OR operator, one match in the subtable is enough ,
+				-- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
+				-- in the example below, it literally means we don't want conunit unless it is a funnelweb
+
+				['?'] = {  ['!class'] = {'conunit', 'raider'}, name = 'striderfunnelweb'    },
+				-- , ['?!'] = {'isComm', '!isIdle'} -- not is comm unless it is idle
+				-- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
+				-- subtable means (A AND B) in those cases
+				-- here we don't want units having those names
+				['!name'] = {
+					'vehsupport', 'shieldshield', 'amphlaunch', 'amphsupport', 'tankarty', 'tankheavyarty',
+					'heavyarty', 'spidercrabe', 'cloakbomb', 'shieldbomb', 'jumpbomb', 'amphbomb', 'chicken_dodo',
+					'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante', 'cloakheavyraid',
+					'hoverarty', 'amphtele', 'vehheavyarty', 'cloaksnipe', 'jumparty', 'cloakjammer', 'cloakary', 'striderarty',
+
+				}
+				  
+				-- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
+				-- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
+				-- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
+			},
+			{
+				-- XAND = {name = 'shieldshield'},
+				['family'] = 'gunship', ['!class'] = {'conunit', 'raider'}, ['!name'] = 'gunshipbomb'
+			}
+			-- ,
+
+			-- {
+			--  XAND = {class = 'raider', ['!name'] = {'spiderscout'}},
+			--  'isUnit', name = 'shieldshield'
+			-- }
+
+		},
+		switch_time = 0.4,
+		call_on_fail = 'Shields with raiders',
+		-- call_on_fail = 'Shields with raiders',
+		color = {1.0, 0.9, 0.9, 0.8},
+		fading = 0.6
+	},
 
 
+
+
+	{
+		name = 'Shields with raiders',
+		method = 'cylinder',
+		keys = {'N_1', 4}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		
+		no_key_order = true,
+		-- finish_current_call = true,
+		groups = {
+			{
+				['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
+					{
+						name = 'jumpskirm',
+					},
+					{
+						name = 'jumpraid',
+					},
+
+				},
+			},
+			{
+				['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
+					{
+						name = {'shieldshield', 'shieldassault', 'shieldcon'}
+					},
+					{
+						class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
+					},
+
+				},
+			},
+
+		},
+
+		-- defs = {
+		--  ['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
+		--      {
+		--          name = {'shieldshield', 'shieldassault', 'shieldcon'}
+		--      },
+		--      {
+		--          class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
+		--      },
+
+		--  },
+
+		-- },
+		-- shift = true,
+
+
+		share_radius = 'Ground Army / GS / ships',
+		call_on_fail = 'Shields', 
+		ignore_on_fail = true,
+		-- ifSecondary = {no_force = true, keep_on_fail = true,}, 
+		color = {1.0, 0.9, 0.9, 0.8},
+		fading = 0.6
+	},
+
+
+
+
+
+	{
+		name = 'Army with raiders', -- not handy, never used
+		method = 'cylinder',
+		keys = {'N_1', 2, 'doubleTap'}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		shift = true,
+
+		defs = {
+			   -- SYNTAXE: OPERATORS NOT and OR 
+			   '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
+			   -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
+			   -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
+			   -- ['?'] is OR operator, one match in the subtable is enough ,
+			   -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
+			   -- in the example below, it literally means we don't want conunit unless it is a funnelweb
+			   class = 'raider',
+			   -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
+			   -- here we don't want units having those names
+				['!name'] = {'spiderscout', 'shieldscout'},
+			   
+			   -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
+			   -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
+			   -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
+		},
+		share_radius = 'Ground Army / GS / ships',
+		color = {1.0, 0.9, 0.9, 0.8},
+		fading = 0.6
+	},
+	--  {name = 'Army with raiders',
+	--  method = 'cylinder',
+	--  keys = {'N_1', 2, 'doubleTap'}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		
+
+	--  defs = {
+	--         -- SYNTAXE: OPERATORS NOT and OR 
+	--         '!isComm', 'isUnit', '!isAthena', ['!family'] = 'plane', -- '!' means NOT
+	--         -- operators can be used before a required property ([!prop] = A, [!prop] = {A, B} as below) or before a required condition-value (!c:isComm as above)
+	--         -- operators can also be used alone as key to negate or OR the elements of its paired subtable (as below)
+	--         -- ['?'] is OR operator, one match in the subtable is enough ,
+	--         -- logically you cannot use '?' in key without a subtable as value, that wouldnt make sense
+	--         -- in the example below, it literally means we don't want conunit unless it is a funnelweb
+	--         ['?'] = {        ['!class'] = 'conunit', name = 'striderfunnelweb'   }
+	--         -- note: both operator can be mixed together, ['?!'] = {A, B} will means NOT A OR NOT B
+	--         -- here we don't want units having those names
+	--        , ['!name'] = {'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'gunshipbomb', 'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante'}
+			   
+	--         -- you can also OR or OR+NOT subsets(subtables of requirements), logically NOTing multiple subsets without OR doesnt make sense
+	--         -- for the sake of visibility and simplicity, you don't need to specify ['?'] = {subest1, subset2}, it will be implictly assumed
+	--         -- , instead {subest1, subest2} is enough, see the macro 'One Commando' for an example
+	--  },
+	--  prefer = { {['!family'] = 'ship'}, {['!family'] = 'gunship'} },
+	--  -- in the example above, we prefer not having gunship nor raiders in the selection, unless there is nothing else matching the above criteria
+
+	--  color = {1.0, 0.9, 0.9, 0.8},
+	-- fading = 0.6
+	-- },
+
+
+
+	--[[{name = 'Army with cons',
+			method = 'cylinder',
+			--note: longPress is inclusive and woke (aswell as 'longClick'), it does not invalidate a combo unless there is one with the same keys + the 'longPress' tag as this one does.                                                          ///// J/k, I hate liberals.
+			-- with longPress, you can set 'mouseStill' or '?mouseStill' wether you require the mouse to stay still once the key is pushed or don't care
+			keys = {1, 2, 'LClick'},
+			
+
+			defs = {'isUnit', ['!family'] = 'plane',
+				   -- syntaxe: ['?'] is OR operator, one match in the subtable is enough , '!' before a requirement means NOT
+				   -- note: you can also use ['!'] and ['?!'] as key for subtables for their respective operation ['?!'] = {A, B} will means NOT A OR NOT B
+				   -- in this example, it literally means we don't want conunit unless it is a funnelweb
+				  ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticshield', 'staticradar', 'staticjammer', 'spiderscout', }},
+			--syntaxe: '!' to prohibit certain units
+			--syntaxe: 'aboveN', 'underN', 'equalN'(more ore less 10%) for expressing health% requirement
+			prefer = {['!family'] = 'gunship'},
+			color = {1.0, 0.9, 0.9, 0.8},
+			fading = 0.6
+	}, --]]
+
+	-- {name = 'Ground Combat without Cloaker',
+	--      method = 'cylinder',
+	--      no_key_order = true,
+	--      keys = {'N_1', 'N_2'},
+	--      defs = {
+	--          'isUnit', '!isComm'
+	--          , ['!family'] = {'plane', 'ship', 'gunship'}
+	--          , ['!class'] = {'conunit', 'raider'}
+	--          , ['!name'] = {'cloakbomb', 'shieldbomb', 'jumpbomb', 'chicken_dodo', 'cloakjammer', 'striderantiheavy', 'spiderantiheavy', 'striderdante'}},
+	--      color = {1.0, 0.9, 0.9, 0.8},
+	--      fading = 0.6
+	-- },
+			
+
+
+	{
+		name = 'Army and Cons', -- not handy / never used
+		method = 'cylinder',
+
+		keys = {'N_1', 'N_2', 'LClick', '?doubleLClick'},
+		defs = {'!isComm', ['!family'] = 'plane', 'isUnit', ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticradar', 'striderdante', 'cloakheavyraid'}},
+		force = true,
+		share_radius = 'Ground Army / GS / ships',
+		color = {1.0, 0.9, 0.9, 0.8},
+		fading = 0.6,
+		},
+
+	{
+		name = 'Ground Combat slow',
+		method = 'cylinder',
+		keys = {'SPACE', 'N_1', 2, '?AIR'},
+		defs = {'isUnit', '!isComm'
+			, ['!family'] = 'plane', 'isUnit'
+			, ['!class'] = {'conunit', 'raider'}
+			, ['!name'] = {'cloakbomb', 'shieldbomb', 'chicken_dodo', 'staticradar', 'staticjammer', 'striderantiheavy', 'spiderantiheavy', 'striderdante'}},
+		color = {1.0, 0.9, 0.9, 0.8},
+		fading = 0.6
+	},
+
+
+	------------------
+	-- CYCLE
+	-- Possibility to Cycle through different Macros under the same combination
+		-- {name = 'Roaming',
+		--  method = 'cycle',
+		-- keys = {'LALT', 'N_2', '?AIR', '?doubleTap', '?spam'},
+		-- time = 5, -- cycle can reset overtime if wanted
+		-- cycle = {'Halt', 'Roaming MIN', 'Roaming MAX'}}, -- name the different macros beeing part of the cycle
+
+		-- -----BRUSH ORDER IN CYCLE
+		-- -- brush_order: sending command on wanted units without selecting them
+		-- -- with the cycle method, we shall not set any keys for the following macros
+		-- {name = 'Halt',
+		-- method = 'cylinder',
+		-- defs = {'isUnit'},
+		-- brush_order = {[CMD.MOVE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		-- keep_on_fail = true, -- keep the previous selection
+		-- color = {0.8, 0.6, 0.0, 0.9  }, fading = 0.6},
+
+		-- {name = 'Roaming MIN', -- this name will be shown on screen
+		-- method = 'cylinder',
+		-- defs = {'isUnit'},
+		-- brush_order = {[CMD.MOVE_STATE] = {1, 0}},
+		-- keep_on_fail = true, -- keeping previously selected units as we don't want selecting anything with this macrto, just apply some orders
+		-- color = {0.0, 1.0, 1, 0.9  }, fading = 0.6},
+
+		-- {name = 'Roaming MAX',
+		-- method = 'cylinder',
+		-- defs = {'isUnit'},
+		-- brush_order = {[CMD.MOVE_STATE] = {2, 0}},
+		-- keep_on_fail = true,
+		-- color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6},
+	------------------------------
+	-----------------------------
+	{
+		name = 'Gather Wait',
+		method = 'on_selection',
+		keys = {'E', '?AIR', 'doubleTap', '?spam'},
+		force = true,
+		defs = {'isUnit'},
+		on_press = true,
+		OnSuccessFunc = function() 
+			Spring.GiveOrder(CMD.GATHERWAIT, {}, {shift = true})  
+			WG.noises.PlayResponse(false, currentSel[1])
+			return true
+		end, -- CMD and param given directly to units covered by the method, without selecting them 
+		color = {0.8, 0.8, 0.0, 0.9  },
+		fading = 0.6,
+	},
+
+	-- brush hold fire on already acquired units, or fire at will if they are all already held
+	{
+		name = 'Hold Fire',
+		method = 'on_selection',
+		keys = {'LALT', 'N_2', '?AIR', '?doubleTap', '?spam'},
+		force = true,
+		defs = {['fireState'] = {1, 2}, ['d:canAttack'] = true},
+		hasStructure = true,
+		on_press = true,
+		brush_order = {[CMD.FIRE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them 
+		call_on_fail = 'Fire At Will', -- if no unit got fire at will unless it cannot attack, this call will be considered failed and then jumping to Fire At Will macro
+		color = {0.8, 0.6, 0.0, 0.9  },
+		fading = 0.6,
+	},
+
+
+	{
+		name = 'Fire At Will',
+		method = 'on_selection',
+		brush_order = {[CMD.FIRE_STATE] = {2, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		force = true,
+		hasStructure = true,
+		color = {0.8, 0.6, 0.5, 0.9  },
+		fading = 0.6,
+	},
+
+	-- same with move state
+	{
+		name = 'Hold Position',
+		method = 'on_selection',
+		keys = {'LALT', 'UNKNOWN', '?AIR', '?doubleTap', '?spam'},
+		force = true,
+		defs = {['!moveState'] = 0--[[, ['d:canAttack'] = true--]]},
+		on_press = true,
+		brush_order = {[CMD.MOVE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them 
+		second_call = 'AI OFF',
+
+		call_on_fail = 'Maneuver', -- if no unit got fire at will unless it cannot attack, this call will be considered failed and then jumping to Fire At Will macro
+		color = {0.8, 0.6, 0.0, 0.9  },
+		fading = 0.6,
+	},
+
+
+	{
+		name = 'Maneuver',
+		method = 'on_selection',
+		brush_order = {[CMD.MOVE_STATE] = {1, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		force = true,
+		second_call = 'AI ON',
+		color = {0.8, 0.6, 0.5, 0.9  },
+		fading = 0.6,
+	},
+
+	{
+		name = 'Roam',
+		method = 'on_selection',
+		keys = {'UNKNOWN', '?AIR', 'doubleTap', '?spam'},
+
+		brush_order = {[CMD.MOVE_STATE] = {2, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		force = true,
+		-- second_call = 'AIR', -- FIXME I removed the AIR lock, bc unused but if we put it back, this combo need to be fixed as it trigger the air lock
+		color = {0.1, 0.6, 0.5, 0.9  },
+		fading = 0.6,
+	},
+
+	{
+		name = 'AI OFF',
+		method = 'on_selection',
+		defs = {['!name'] = 'vehraid'},
+		brush_order = {[customCmds.UNIT_AI] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		force = true,
+		color = {0.8, 0.6, 0.5, 0.9  },
+		fading = 0.6,
+	},
+
+	{
+		name = 'AI ON',
+		method = 'on_selection',
+		brush_order = {[customCmds.UNIT_AI] = {1, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		force = true,
+		color = {0.8, 0.6, 0.5, 0.9  },
+		fading = 0.6,
+	},
+
+
+	--[[
+	{
+		name = 'Fire State',
+		 method = 'cycle',
+		keys = {'LALT', 'N_3', '?AIR', '?doubleTap'},
+		time = 5, -- cycle can reset overtime if wanted
+		cycle = {'Stop Fire', 'Riposte', 'Fire At Will'}
+	},
+
+	-----BRUSH ORDER IN CYCLE
+	-- brush_order: sending command on wanted units without selecting them
+	-- with the cycle method, we shall not set any keys for the following macros
+	{
+		name = 'Stop Fire',
+		method = 'cylinder',
+		defs = {},
+		brush_order = {[CMD.FIRE_STATE] = {0, 0}}, -- CMD and param given directly to units covered by the method, without selecting them
+		keep_on_fail = true, -- keep the previous selection
+		color = {0.8, 0.6, 0.0, 0.9  }, fading = 0.6,
+	},
+
+	{
+		name = 'Riposte', 
+		method = 'cylinder',
+		defs = {},
+		brush_order = {[CMD.FIRE_STATE] = {1, 0}},
+		keep_on_fail = true,
+		color = {0.0, 1.0, 1, 0.9  }, fading = 0.6,
+	},
+
+	{
+		name = 'Fire At Will',
+		method = 'cylinder',
+		defs = {},
+		brush_order = {[CMD.FIRE_STATE] = {2, 0}},
+		keep_on_fail = true,
+		color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6,
+	},
+	--]]
+	------------------------------
+	------------------------------
+
+
+	-----------
+	---- SNIPER
+	-----------
+	{
+		name = 'One Sniper',  -- select one sniper and cycle through each of them on each trigger
+		method = 'cylinder',
+		defs = {name = {'cloaksnipe', 'spiderantiheavy', 'amphlaunch', 'hoverarty', 'jumpblackhole'}}, 
+		
+		-- syntaxe : !: values in the table must not be true
+		-- syntaxe: ['reload'] = {weapnumber1, weapnumber2...} or ['reload'] = weapnumber  for the weapon(s) to be reloaded
+		keys = {'N_3', 'LClick'},
+		-- prefer = { {['reload'] = 1}},
+		want = 1, -- can specify the number you want to select, will cycle through valid units
+		previous_time = 0.5,
+		from_cursor = true, -- close of cursor
+		force = true
+	},
+
+	{
+		name = 'Snipers', -- select all on double click
+		method = 'cylinder',
+		-- defs = {name = {'cloaksnipe', 'amphlaunch', 'hoverarty', 'jumpblackhole'}},
+		--params = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}},
+		-- syntaxe : !: values in the table must not be true
+		default = {name = 'cloaksnipe'},
+		share_radius = 'One Sniper',
+		same_units = true,
+		force = true,
+		call_on_fail = 'One Sniper',
+		shift = true,
+		keys = {'N_3', 'LClick', 'doubleLClick', '?spam'}
+	},
+
+	-----------
+	---- LOBS
+	-----------
+	{
+		name = 'Lob',
+		method = 'cylinder',
+		keys = {'LALT', 'E'},
+
+		from_cursor = true,
+		defs = {
+			'isUnit',
+			name = 'amphlaunch',
+		},
+		prefer = {
+			['reload'] = 1
+		},
+		want = 1,
+		force = true,
+		disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
+						  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
+		-- continue = true, --reset future selection at each update round
+		
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'All Lobs' ,
+		method = 'cylinder',
+		keys = {'LALT', 'E', '?doubleTap', 'longPress'},
+
+		from_cursor = true,
+		defs = {
+			'isUnit',
+			name = 'amphlaunch',
+		},
+		force = true,
+		longPressTime = 0.15,
+		disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
+						  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
+		--continue = true, --reset future selection at each update round
+		share_radius = 'Lob',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+
+
+	{
+		name = 'One More Lob', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
+		method = 'cylinder',
+		keys = {'LALT', 'E', 'doubleTap'},
+		from_cursor = true,
+		defs = {
+			'isUnit',
+			name = 'amphlaunch',
+			['reload'] = 1,
+		},
+		want = 1,
+		shift = true,
+		force = true,
+		disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
+						  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
+		--continue = true, --reset future selection at each update round
+		
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	--------------
+	---- ANTI SUB 
+	--------------
+
+	-- {name = 'Sub / AntiSub', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
+	-- method = 'cylinder',
+	-- switch = {
+	--  {name = 'shiptorpraider'},
+	--  {name = 'subraider'},
+	-- },
+	-- switch_time = 1,
+	-- force = true,
+	-- disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
+	--                -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
+	-- --continue = true, --reset future selection at each update round
+	-- share_radius = 'One Bomb',
+	-- color = {0.9, 0.9, 0.1, 1},
+	-- fading = 0.8},
+
+
+	{
+		name = 'Sub', -- this doesn't have keys because it is a fall back call of 'One Bomb' below
+		method = 'cylinder',
+		defs = {
+			{name = 'subraider'},
+		},
+		force = true,
+		disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
+						  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
+		--continue = true, --reset future selection at each update round
+		share_radius = 'One Bomb',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+
+	---------------------
+	---- CLOAKED ROACHES
+	---------------------
+	-- same fashion a bit more sophisticated to work with cloaked roaches strategy:
+
+
+	-- 1+LClick : select one bomb that is not already attacking, close from the cursor
+	{
+		name = 'One Bomb', 
+		method = 'cylinder',
+		keys = {'?AIR', 'N_1', 'LClick'},
+		byType = 'defID', -- alternate between defid if they differ
+		defs = {
+			['?'] = {
+				name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
+				-- { name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
+			}
+		},
+
+		-- keys = {'?SPACE', 'N_1', 'LClick'},
+		-- prefer = {{['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}}, -- preferably not fighting
+		want = 1, -- can specify the number you want to select, will cycle through valid units
+		force = true,
+		from_cursor = true, -- get the closest of cursor
+		on_press = true,
+		previous_time = DOUBLETAP_THRESHOLD,
+		disable_SM = true,
+		call_on_fail = 'Sub'}, -- call this macro if nothing found
+		
 		-- 1+double LClick: add more and more bombs as long as you spam clicks
 		{
-			name = 'all Bombs', 
-			method = 'cylinder',
-			must_have = { -- 
-				['?'] = {
-					name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'jumpbomb', 'gunshipbomb', 'chicken_dodo'},
-					{ name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
-				}
+			name = '+1 Bomb', 
+		method = 'cylinder',
+
+		must_have = {
+			['?'] = {
+				name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
+				-- { name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
+			}
+		},
+		keys = {'?AIR', 'N_1', 'LClick', 'doubleLClick', '?spam'},
+		-- prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
+		shift = true, -- don't deselected the previous selection which will be bombs in this case
+		want = '5%',
+		force = true,
+		from_cursor = true,
+		same_units = true,
+		same_transported_state = true,
+		same_transporting_state = true,
+		share_radius = 'One Bomb',
+		disable_SM = true,
+		call_on_fail = 'One Bomb',
+		shared_prev = 'One Bomb',
+	}, -- use same 'previous' table as the cited macro
+
+
+	-- 1+double LClick: add more and more bombs as long as you spam clicks
+	{
+		name = 'all Bombs', 
+		method = 'cylinder',
+		must_have = { -- 
+			['?'] = {
+				name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'jumpbomb', 'gunshipbomb', 'chicken_dodo'},
+				{ name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
+			}
+		},
+		keys = {'?AIR', 'N_1', 'LClick', 'longClick', '?doubleLClick', '?spam'},
+		prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
+		force = true,
+		same_units = true,
+		add_last_acquired = true,
+		share_radius = 'One Bomb',
+		longPressTime = 0.085   ,
+	}, -- use same 'previous' table as the cited macro
+
+
+	-- 1+RClick: get a group of jammer + bombs, if no bomb found, we pick any units under area cloak, except for fleas
+
+
+	----------------
+	--- CLOAKED STUFF
+	----------------
+
+	{   
+		name = 'Cloaker',
+		method = 'cylinder',
+		from_cursor = true,
+		keys = {'?AIR', 'N_1', 'RClick', '?doubleRClick'},
+		defs = {    ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
+		prefer = {'isUnit'},
+		force = true,
+		on_press = true,
+		want = 1,
+		call_on_success = 'Cloaked Group',
+		call_on_fail = 'Set Cloaker',
+		hasStructure = true,
+		no_prev = true,
+		keep_on_fail = true,
+		-- radius = 300,
+		-- previous_time = 0.2,
+		share_radius = 'Ground Army / GS / ships',
+		ignore_on_fail = true,
+	},
+
+	{
+		name = 'More Cloakers',
+		method = 'cylinder',
+		add_last_acquired = true,
+		-- , from_cursor = true
+		must_have = {   ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
+		keys = {'?AIR', 'N_1', 'RClick', 'longClick', '?doubleRClick'},
+		defs = {    ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
+		prefer = {'isUnit'},
+		force = true,
+		-- on_press = true,
+		call_on_success = 'Cloaked Group',
+
+		-- call_on_fail = 'Set Cloaker',
+		no_prev = true,
+		-- previous_time = 0.2,
+		-- shift = true,
+		-- remove_from_sel = true,
+		longPressTime = 0.15,
+		hasStructure = true,
+		share_radius = 'Ground Army / GS / ships',
+	},
+
+	{
+		name = 'Cloaker Alone',
+		method = 'cylinder',
+		from_cursor = true,
+		keys = {'?AIR', 'N_1', 'RClick', 'longClick', '?doubleRClick', 'mouseStill'},
+		defs = {    ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
+		prefer = {'isUnit'},
+		force = true,
+		on_press = true,
+		want = 1,
+		-- previous_time = 0.2,
+		-- shared_prev = 'Cloaker',
+		share_radius = 'Shields',
+		hasStructure = true,
+		no_prev = true,
+		longPressTime = 0.1,
+	},
+
+	-- {name = 'Cloaker Alone',
+	-- method = 'cylinder',
+	-- keys = {'?AIR', 'N_1', 'RClick', 'doubleRClick'},
+	-- defs = { ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
+	-- prefer = {'isUnit'},
+	-- force = true,
+	-- hasStructure = true,
+	-- -- previous_time = 0.2,
+	-- -- shared_prev = 'Cloaker',
+	-- no_prev = true,
+	-- share_radius = 'Shields',
+	-- },
+
+
+	{
+		name = 'Cloaked Group',
+		method = 'around_last_acquired',
+		add_last_acquired = true,
+		-- pos_from_selected = true,
+		on_press = true,
+		default = {},
+		defs = {
+			['p:cloakerRadius'] = {0, 'nil'},
+			['p:areacloaked'] = 1,
+		},
+		switch = {  -- # any non attacking bomb and cloaker
+			{  
+				-- XAND = {name = 'cloakaa', ['fireState'] = 0 }
+				-- ,
+				-- ['!class'] = {'conunit'},
+					-- bombs that are not attacking
+				name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
+				-- ['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT} ,
 			},
-			keys = {'?AIR', 'N_1', 'LClick', 'longClick', '?doubleLClick', '?spam'},
-			prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
-			force = true,
-			same_units = true,
-			add_last_acquired = true,
-			share_radius = 'One Bomb',
-			longPressTime = 0.085	,
-		}, -- use same 'previous' table as the cited macro
-
-
-		-- 1+RClick: get a group of jammer + bombs, if no bomb found, we pick any units under area cloak, except for fleas
-
-
-		-------------------------
-		---- Cloaked Stuff system
-
-
-		{	
-			name = 'Cloaker',
-			method = 'cylinder',
-			from_cursor = true,
-			keys = {'?AIR', 'N_1', 'RClick', '?doubleRClick'},
-			defs = {	['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
-			prefer = {'isUnit'},
-			force = true,
-			on_press = true,
-			want = 1,
-			call_on_success = 'Cloaked Group',
-			call_on_fail = 'Set Cloaker',
-			hasStructure = true,
-			no_prev = true,
-			keep_on_fail = true,
-			-- radius = 300,
-			-- previous_time = 0.2,
-			share_radius = 'Ground Army / GS / ships',
-			ignore_on_fail = true,
-		},
-
-		{
-			name = 'More Cloakers',
-			method = 'cylinder',
-			add_last_acquired = true,
-			-- , from_cursor = true
-			must_have = {	['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
-			keys = {'?AIR', 'N_1', 'RClick', 'longClick', '?doubleRClick'},
-			defs = {	['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
-			prefer = {'isUnit'},
-			force = true,
-			-- on_press = true,
-			call_on_success = 'Cloaked Group',
-
-			-- call_on_fail = 'Set Cloaker',
-			no_prev = true,
-			-- previous_time = 0.2,
-			-- shift = true,
-			-- remove_from_sel = true,
-			longPressTime = 0.15,
-			hasStructure = true,
-			share_radius = 'Ground Army / GS / ships',
-		},
-
-		{
-			name = 'Cloaker Alone',
-			method = 'cylinder',
-			from_cursor = true,
-			keys = {'?AIR', 'N_1', 'RClick', 'longClick', '?doubleRClick', 'mouseStill'},
-			defs = {	['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
-			prefer = {'isUnit'},
-			force = true,
-			on_press = true,
-			want = 1,
-			-- previous_time = 0.2,
-			-- shared_prev = 'Cloaker',
-			share_radius = 'Shields',
-			hasStructure = true,
-			no_prev = true,
-			longPressTime = 0.1,
-		},
-
-		-- {name = 'Cloaker Alone',
-		-- method = 'cylinder',
-		-- keys = {'?AIR', 'N_1', 'RClick', 'doubleRClick'},
-		-- defs = {	['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
-		-- prefer = {'isUnit'},
-		-- force = true,
-		-- hasStructure = true,
-		-- -- previous_time = 0.2,
-		-- -- shared_prev = 'Cloaker',
-		-- no_prev = true,
-		-- share_radius = 'Shields',
-		-- },
-
-
-		{
-			name = 'Cloaked Group',
-			method = 'around_last_acquired',
-			add_last_acquired = true,
-			-- pos_from_selected = true,
-			on_press = true,
-			default = {},
-			defs = {
-				['p:cloakerRadius'] = {0, 'nil'},
-				['p:areacloaked'] = 1,
-			},
-			switch = {	-- # any non attacking bomb and cloaker
-				{  
-					-- XAND = {name = 'cloakaa', ['fireState'] = 0 }
-					-- ,
-					-- ['!class'] = {'conunit'},
-						-- bombs that are not attacking
-					name = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo'},
-					-- ['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT} ,
+				-- lobster
+			{  
+				XAND = {
+					['p:areacloaked'] = 1,
+					name = 'hoverdepthcharge'
 				},
-					-- lobster
-				{  
-					XAND = {
-						['p:areacloaked'] = 1,
-						name = 'hoverdepthcharge'
-					},
-					['!class'] = {'conunit', 'skirm'},
-					{ name = 'amphlaunch' },
-				},
-				-- {
-				-- -- #2 any non con/bomb/raider unit under cloak
-				-- 	XAND = {name = 'cloakaa', ['fireState'] = 0 },
-				-- 	-- ,
-				-- 	'!isPlane', '!isComm',
-				-- 	['!class'] = {'raider', 'conunit', 'skirm', 'arty'},
-				-- 	['!name'] = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo', 'cloaksnipe', 'cloakheavyraid', 'striderantiheavy', 'spiderantiheavy', 'spidercrabe'},
-				-- },
-
-				{
-					XAND = {class = 'riot'},
-					name = {'hoverarty'}
-				},
-				{
-				-- #2 alternate, with no #1
-					XAND = {name = 'cloakaa', ['fireState'] = 0 },
-					-- ,
-					'!isPlane', '!isComm',
-					['!class'] = {'conunit', 'skirm', 'arty'},
-					['!name'] = {'cloaksnipe', 'cloakheavyraid', 'striderantiheavy', 'spiderantiheavy', 'spidercrabe'},
-				},
-				-- -- #3 raiders only, no fleas
-				-- {
-				-- 	['XAND'] = {
-				-- 		['p:areacloaked'] = 1,
-				-- 		name = 'hoverdepthcharge'
-				-- 	},
-				-- 	-- ,
-				-- 	'!isPlane', '!isComm',
-				-- 	class = {'raider'},
-				-- 	['!name'] = 'spiderscout',
-				-- },
-
-				-- {
-				-- 	'nothing' -- not correctly implemented
-				-- }
+				['!class'] = {'conunit', 'skirm'},
+				{ name = 'amphlaunch' },
 			},
-			shift = true,
-			radius = 500,
-			fixed_radius = true,
-
-			switch_time = 0.3,
-		},
-
-		-----------------------------
-		-----------------------------
-
-		{
-			name = 'Cloak Off', -- Pick a deactivated cloaker and activate it if we didnt find activated one
-			method = 'on_selection',
-			keys = {'?AIR', 'LALT', 1, '?RClick'},
-			defs = {'isUnit', ['?'] = { ['p:cloak_shield'] = {2}} },
-			on_press = true,
-			give_order = {[CMD_CLOAK_SHIELD] = {0, 0}}, -- activate the cloak shield, activate the cloak jammer if any
-			force = true,
-			keep_on_fail = true,
-			call_on_fail = 'Cloak On',
-			hasStructure = true,
-		-- same_units = true,
-		}, -- use same 'previous' table as the cited macro
-
-		{
-			name = 'Cloak On', -- Pick a deactivated cloaker and activate it if we didnt find activated one
-			method = 'on_selection',
-			defs = {['?'] = { ['?p:cloak_shield'] = {0, 1}, {['?p:cloak_shield'] = 2, [spGetUnitIsActive] = false }} },
-			on_press = true,
-			brush_order = {[CMD_CLOAK_SHIELD] = {1, 0}, [CMD_WANT_ONOFF] = {1, 0}}, -- activate the cloak shield, activate the cloak jammer if any
-			force = true,
-			keep_on_fail = true,
-			call_on_fail = 'Switch Impulse',
-			hasStructure = true,
-		}, 
-
-
-		{
-			name = 'Switch Impulse', -- 
-			method = 'on_selection',
-			defs = {'isImpulse'},
-			no_select = true,
-			on_press = true,
-			force = true,
-			hasStructure = true,
-			OnSuccessFunc = SwitchImpulse,
-			call_on_fail = "Switch Fly State",
-		}, 
-
-		{
-			name = 'Switch Fly State', -- 
-			method = 'on_selection',
-			defs = {['?'] = {'isPlane', 'isGS', 'isAthena'}},
-			no_select = true,
-			on_press = true,
-			force = true,
-			OnSuccessFunc = SwitchFlyIdleMode, 
-		}, 
-
-
-		{
-			name = 'High Prio', -- 
-			keys = {'?AIR', 'LALT', 3},
-			method = 'on_selection',
-			defs = {'d:canRepair', ['!p:buildpriority'] = 2 },
-			on_press = true,
-			brush_order = {[customCmds.PRIORITY] = {2, 0}},
-			force = true,
-			keep_on_fail = true,
-			call_on_fail = 'Normal Prio',
-			hasStructure = true,
-		},
-
-		{
-			name = 'Normal Prio', -- 
-			method = 'on_selection',
-			defs = {'d:canRepair', ['!p:buildpriority'] = 1 },
-			on_press = true,
-			brush_order = {[customCmds.PRIORITY] = {1, 0}},
-			force = true,
-			keep_on_fail = true,
-			hasStructure = true,
-			call_on_fail = 'Misc High',
-		},
-
-		{
-			name = 'Misc High' ,
-			method = 'on_selection',
-			defs = { ['p:miscpriority'] = {1, 0} },
-			on_press = true,
-			brush_order = {[customCmds.MISC_PRIORITY] = {2, 0}},
-			force = true,
-			keep_on_fail = true,
-			hasStructure = true,
-			call_on_fail = 'Misc Normal',
-		}, 
-
-		{
-			name = 'Misc Normal',
-			method = 'on_selection',
-			defs = { ['p:miscpriority'] = {2, 0} },
-			on_press = true,
-			brush_order = {[customCmds.MISC_PRIORITY] = {1, 0}},
-			force = true,
-			keep_on_fail = true,
-			hasStructure = true,
-		}, 
-
-
-		-- {
-		-- 	name = 'Morph',
-		-- 	method = 'on_selection',
-		-- 	keys = {'?AIR', 'LCTRL', 'doubleTap'},
-		-- 	defs = {  },
-		-- 	on_press = true,
-		-- 	brush_order = {[customCmds.MORPH] = {EMPTY_TABLE, 0}} ,
-		-- 	force = true,
-		-- 	keep_on_fail = true,
-		-- 	hasStructure = true,
-		-- 	doubleTap_time = 0.33,
-		-- },
-
-
-		{
-			name = 'Set Cloaker', -- Pick a deactivated cloaker and activate it if we didnt find activated one
-			method = 'cylinder',
-			from_cursor = true,
-			defs = {
-				['?'] = {
-					['?p:cloak_shield'] = {0, 1},
-					{['?p:cloak_shield'] = 2, [spGetUnitIsActive] = false },
-					-- NOTE: 0 is when cloak shield is fully disabled, 1 is when cloak shield is getting disabled BY USER
-					--, 2 is when it is at max or augmenting
-					-- if cloak jammer is getting stunned while cloak shield is on, the cloak_shield state is still 2 even though it is getting disabled non user action
-					-- the cloak shield for cloak jammer is depending on ON OFF state and cloak shield state, but the shield state report 2 even if jammer is OFF
-					-- so we check also for if the unit is active
-				}
-			},
-			prefer = {'isUnit'},
-			on_press = true,
-			-- call_on_success = 'Cloaked Group',
-			-- ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-
-			give_order = {[CMD_CLOAK_SHIELD] = {1, 0}, [CMD_WANT_ONOFF] = {1, 0}}, -- activate the cloak shield, activate the cloak jammer if any
-			want = 1,
-			force = true,
-			keep_on_fail = true,
-			hasStructure = true,
-			-- same_units = true,
-			-- call_on_fail = "Shields",
-			ignore_on_fail = true,
-			call_on_fail = 'Shields with raiders',
-
-			share_radius = 'Cloaker',
-			shared_prev = 'Cloaker',
-		}, -- use same 'previous' table as the cited macro
-
-
-
-
-
-		------------
-		-- COMMANDO
-		------------
-		-- select commandos in radius with 3+Right click
-		-- long click will select all commandos
-		-- multiple click will select one more same type commando, preferably unloaded
-		-- except for scythes, when all will be selected in radius at once at second click
-		-- {name = 'One Commando', -- stealth and close combat units
-		-- 	method = 'cylinder',
-		-- 	force_finish = true,
-		-- 	keys = {'?SPACE', '?AIR', 'N_3', 'RClick'},
-		-- 	from_cursor = true,
-		-- 	-- NOTE: to fasten search, precise a broader boolean category ('isUnit' here) as first index to avoid the four OR statements check on useless structures
-		-- 	defs = {'isUnit', name = {'cloakheavyraid', 'striderscorpion', 'striderantiheavy', 'spiderantiheavy'}},
-		-- 	prefer = {	{['?'] = { -- Note: this is not with priority in contrary to the Cons (idle) macro (no different subsets), thanks to byType = defID, it will alternate through unit type, but it will not pick any unloaded
-		-- 								{name = 'striderscorpion', ['reload'] = 3},
-		-- 								{name = 'spiderantiheavy'--[[, ['reload'] = 1--]]},
-		-- 								name = {'cloakheavyraid', 'striderantiheavy'},
-		-- 				}},
-		-- 			{'isUnit'}
-		-- 	},
-		-- 	byType = 'defID', -- alternate between defIDs
-		-- 	-- typeOrder = 'byClosest',
-
-		-- 	selname = true, -- show the unit name instead of the macro name
-		-- 	want = 1,
-		-- 	pref_use_prev = true,
-		-- 	previous_time = 0.5,
-		-- 	color = {0.6, 0.9, 0.85, 0.99},
-		-- fading = 0.5
-		-- },
-		{
-			name = 'One Commando', -- stealth and close combat units
-			method = 'cylinder',
-			force_finish = true,
-			keys = {'?SPACE', '?AIR', 'N_3', 'RClick'},
-			from_cursor = true,
-			-- NOTE: to fasten search, precise a broader boolean category ('isUnit' here) as first index to avoid the four OR statements check on useless structures
-			groups = {
-				{
-					name = 'cloakheavyraid'},
-				{
-					name = 'striderscorpion'},
-				{
-					name = 'striderantiheavy'},
-				{
-					name = 'spiderantiheavy'},
-			},
-			
-			-- typeOrder = 'byClosest',
-
-			selname = true, -- show the unit name instead of the macro name
-			on_press = true,
-			want = 1,
-			pref_use_prev = true,
-			previous_time = 0.5,
-			color = {0.6, 0.9, 0.85, 0.99},
-			fading = 0.5
-		},
-
-		{
-			name = 'More Commando(s)', 
-			method = 'cylinder',
-			keys = {'?AIR', '?SPACE', 'N_3', 'RClick', 'doubleRClick', '?spam'},
-			from_cursor = true,
-			defs = { name = {'cloakheavyraid', 'striderscorpion', 'striderantiheavy', 'spiderantiheavy'}},
-			-- prefer = {	{['?'] = { -- Note: this is not with priority in contrary to the Cons (idle) macro (no different subsets), thanks to byType = defID, it will alternate through unit type, but it will not pick any unloaded
-			-- 							{name = 'striderscorpion', ['reload'] = 3},
-			-- 							{name = 'spiderantiheavy', ['reload'] = 1},
-			-- 							name = {'cloakheavyraid', 'striderantiheavy'},
-			-- 			}},
-			-- 		{'isUnit'}
+			-- {
+			-- -- #2 any non con/bomb/raider unit under cloak
+			--  XAND = {name = 'cloakaa', ['fireState'] = 0 },
+			--  -- ,
+			--  '!isPlane', '!isComm',
+			--  ['!class'] = {'raider', 'conunit', 'skirm', 'arty'},
+			--  ['!name'] = {'shieldbomb', 'cloakbomb', 'amphbomb', 'gunshipbomb', 'jumpbomb', 'chicken_dodo', 'cloaksnipe', 'cloakheavyraid', 'striderantiheavy', 'spiderantiheavy', 'spidercrabe'},
 			-- },
-			same_units = true, -- picking same units name as current selection, if we have something in the selection
 
-			ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-			shift = true,
-			want = 1,
-			wantIf = {[{name = 'cloakheavyraid'}] = '30%'}, -- want only one if the name is not 'cloakheavyraid' ('Scythe') if that's so, pick 30%
-			shared_prev = 'One Commando', -- same previous system as 'One Commando' macro so we don't pick the same that were picked there
-			color = {0.2, 0.5, 1, 0.99},
-			fading = 0.5,
-			share_radius = 'One Commando',
+			{
+				XAND = {class = 'riot'},
+				name = {'hoverarty'}
+			},
+			{
+			-- #2 alternate, with no #1
+				XAND = {name = 'cloakaa', ['fireState'] = 0 },
+				-- ,
+				'!isPlane', '!isComm',
+				['!class'] = {'conunit', 'skirm', 'arty'},
+				['!name'] = {'cloaksnipe', 'cloakheavyraid', 'striderantiheavy', 'spiderantiheavy', 'spidercrabe'},
+			},
+			-- -- #3 raiders only, no fleas
+			-- {
+			--  ['XAND'] = {
+			--      ['p:areacloaked'] = 1,
+			--      name = 'hoverdepthcharge'
+			--  },
+			--  -- ,
+			--  '!isPlane', '!isComm',
+			--  class = {'raider'},
+			--  ['!name'] = 'spiderscout',
+			-- },
+
+			-- {
+			--  'nothing' -- not correctly implemented
+			-- }
 		},
+		shift = true,
+		radius = 500,
+		fixed_radius = true,
+
+		switch_time = 0.3,
+	},
+
+	-----------------------------
+	-----------------------------
+
+	{
+		name = 'Cloak Off', -- Pick a deactivated cloaker and activate it if we didnt find activated one
+		method = 'on_selection',
+		keys = {'?AIR', 'LALT', 1, '?RClick'},
+		defs = {'isUnit', ['?'] = { ['p:cloak_shield'] = {2}} },
+		on_press = true,
+		give_order = {[CMD_CLOAK_SHIELD] = {0, 0}}, -- activate the cloak shield, activate the cloak jammer if any
+		force = true,
+		keep_on_fail = true,
+		call_on_fail = 'Cloak On',
+		hasStructure = true,
+	-- same_units = true,
+	}, -- use same 'previous' table as the cited macro
+
+	{
+		name = 'Cloak On', -- Pick a deactivated cloaker and activate it if we didnt find activated one
+		method = 'on_selection',
+		defs = {['?'] = { ['?p:cloak_shield'] = {0, 1}, {['?p:cloak_shield'] = 2, [spGetUnitIsActive] = false }} },
+		on_press = true,
+		brush_order = {[CMD_CLOAK_SHIELD] = {1, 0}, [CMD_WANT_ONOFF] = {1, 0}}, -- activate the cloak shield, activate the cloak jammer if any
+		force = true,
+		keep_on_fail = true,
+		call_on_fail = 'Switch Impulse',
+		hasStructure = true,
+	}, 
 
 
-		{
-			name = 'All Commandos', 
-			method = 'cylinder',
-			keys = {'?SPACE', '?AIR', 'N_3', 'RClick', 'longClick', '?doubleRClick', '?spam'},
-			-- defs = {'isUnit'},
-			-- on_press = true,
-			longPressTime = 0.1, -- longPress is evaluated true within that time
-			color = {0.2, 0.5, 1, 0.99},
-			fading = 0.5,
-			-- force_finish = true, -- achieve 'One Commando' call before starting this one
-			same_units = true,
-			share_radius = 'One Commando',
+	{
+		name = 'Switch Impulse', -- 
+		method = 'on_selection',
+		defs = {'isImpulse'},
+		no_select = true,
+		on_press = true,
+		force = true,
+		hasStructure = true,
+		OnSuccessFunc = SwitchImpulse,
+		call_on_fail = "Switch Fly State",
+	}, 
+
+	{
+		name = 'Switch Fly State', -- 
+		method = 'on_selection',
+		defs = {['?'] = {'isPlane', 'isGS', 'isAthena'}},
+		no_select = true,
+		on_press = true,
+		force = true,
+		OnSuccessFunc = SwitchFlyIdleMode, 
+	}, 
+
+
+	{
+		name = 'High Prio', -- 
+		keys = {'?AIR', 'LALT', 3},
+		method = 'on_selection',
+		defs = {'d:canRepair', ['!p:buildpriority'] = 2 },
+		on_press = true,
+		brush_order = {[customCmds.PRIORITY] = {2, 0}},
+		force = true,
+		keep_on_fail = true,
+		call_on_fail = 'Normal Prio',
+		hasStructure = true,
+	},
+
+	{
+		name = 'Normal Prio', -- 
+		method = 'on_selection',
+		defs = {'d:canRepair', ['!p:buildpriority'] = 1 },
+		on_press = true,
+		brush_order = {[customCmds.PRIORITY] = {1, 0}},
+		force = true,
+		keep_on_fail = true,
+		hasStructure = true,
+		call_on_fail = 'Misc High',
+	},
+
+	{
+		name = 'Misc High' ,
+		method = 'on_selection',
+		defs = { ['p:miscpriority'] = {1, 0} },
+		on_press = true,
+		brush_order = {[customCmds.MISC_PRIORITY] = {2, 0}},
+		force = true,
+		keep_on_fail = true,
+		hasStructure = true,
+		call_on_fail = 'Misc Normal',
+	}, 
+
+	{
+		name = 'Misc Normal',
+		method = 'on_selection',
+		defs = { ['p:miscpriority'] = {2, 0} },
+		on_press = true,
+		brush_order = {[customCmds.MISC_PRIORITY] = {1, 0}},
+		force = true,
+		keep_on_fail = true,
+		hasStructure = true,
+	}, 
+
+
+	-- {
+	--  name = 'Morph',
+	--  method = 'on_selection',
+	--  keys = {'?AIR', 'LCTRL', 'doubleTap'},
+	--  defs = {  },
+	--  on_press = true,
+	--  brush_order = {[customCmds.MORPH] = {EMPTY_TABLE, 0}} ,
+	--  force = true,
+	--  keep_on_fail = true,
+	--  hasStructure = true,
+	--  doubleTap_time = 0.33,
+	-- },
+
+
+	{
+		name = 'Set Cloaker', -- Pick a deactivated cloaker and activate it if we didnt find activated one
+		method = 'cylinder',
+		from_cursor = true,
+		defs = {
+			['?'] = {
+				['?p:cloak_shield'] = {0, 1},
+				{['?p:cloak_shield'] = 2, [spGetUnitIsActive] = false },
+				-- NOTE: 0 is when cloak shield is fully disabled, 1 is when cloak shield is getting disabled BY USER
+				--, 2 is when it is at max or augmenting
+				-- if cloak jammer is getting stunned while cloak shield is on, the cloak_shield state is still 2 even though it is getting disabled non user action
+				-- the cloak shield for cloak jammer is depending on ON OFF state and cloak shield state, but the shield state report 2 even if jammer is OFF
+				-- so we check also for if the unit is active
+			}
 		},
-		--[[{name = 'More Commando(s)', 
-			method = 'cylinder',
-			keys = {'N_3', 'RClick', 'doubleRClick', '?spam', '?AIR, ?SPACE'},
-			from_cursor = true,
-			same_units = true, -- picking same units name as current selection
+		prefer = {'isUnit'},
+		on_press = true,
+		-- call_on_success = 'Cloaked Group',
+		-- ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
 
-			ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-			shift = true,
-			want = 1,
-			selname = true, -- show the unit name instead of the macro name
-			shared_prev = 'One Commando',
-			color = {0.2, 0.5, 1, 0.99},
-			fading = 0.5,
-		}, --]]
+		give_order = {[CMD_CLOAK_SHIELD] = {1, 0}, [CMD_WANT_ONOFF] = {1, 0}}, -- activate the cloak shield, activate the cloak jammer if any
+		want = 1,
+		force = true,
+		keep_on_fail = true,
+		hasStructure = true,
+		-- same_units = true,
+		-- call_on_fail = "Shields",
+		ignore_on_fail = true,
+		call_on_fail = 'Shields with raiders',
+
+		share_radius = 'Cloaker',
+		shared_prev = 'Cloaker',
+	}, -- use same 'previous' table as the cited macro
+
+
+
+
+
+	------------
+	-- COMMANDO
+	------------
+	-- select commandos in radius with 3+Right click
+	-- long click will select all commandos
+	-- multiple click will select one more same type commando, preferably unloaded
+	-- except for scythes, when all will be selected in radius at once at second click
+	-- {name = 'One Commando', -- stealth and close combat units
+	--  method = 'cylinder',
+	--  force_finish = true,
+	--  keys = {'?SPACE', '?AIR', 'N_3', 'RClick'},
+	--  from_cursor = true,
+	--  -- NOTE: to fasten search, precise a broader boolean category ('isUnit' here) as first index to avoid the four OR statements check on useless structures
+	--  defs = {'isUnit', name = {'cloakheavyraid', 'striderscorpion', 'striderantiheavy', 'spiderantiheavy'}},
+	--  prefer = {  {['?'] = { -- Note: this is not with priority in contrary to the Cons (idle) macro (no different subsets), thanks to byType = defID, it will alternate through unit type, but it will not pick any unloaded
+	--                              {name = 'striderscorpion', ['reload'] = 3},
+	--                              {name = 'spiderantiheavy'--[[, ['reload'] = 1--]]},
+	--                              name = {'cloakheavyraid', 'striderantiheavy'},
+	--              }},
+	--          {'isUnit'}
+	--  },
+	--  byType = 'defID', -- alternate between defIDs
+	--  -- typeOrder = 'byClosest',
+
+	--  selname = true, -- show the unit name instead of the macro name
+	--  want = 1,
+	--  pref_use_prev = true,
+	--  previous_time = 0.5,
+	--  color = {0.6, 0.9, 0.85, 0.99},
+	-- fading = 0.5
+	-- },
+	{
+		name = 'One Commando', -- stealth and close combat units
+		method = 'cylinder',
+		force_finish = true,
+		keys = {'?SPACE', '?AIR', 'N_3', 'RClick'},
+		from_cursor = true,
+		-- NOTE: to fasten search, precise a broader boolean category ('isUnit' here) as first index to avoid the four OR statements check on useless structures
+		groups = {
+			{
+				name = 'cloakheavyraid'},
+			{
+				name = 'striderscorpion'},
+			{
+				name = 'striderantiheavy'},
+			{
+				name = 'spiderantiheavy'},
+		},
+		
+		-- typeOrder = 'byClosest',
+
+		selname = true, -- show the unit name instead of the macro name
+		on_press = true,
+		want = 1,
+		pref_use_prev = true,
+		previous_time = 0.5,
+		color = {0.6, 0.9, 0.85, 0.99},
+		fading = 0.5
+	},
+
+	{
+		name = 'More Commando(s)', 
+		method = 'cylinder',
+		keys = {'?AIR', '?SPACE', 'N_3', 'RClick', 'doubleRClick', '?spam'},
+		from_cursor = true,
+		defs = { name = {'cloakheavyraid', 'striderscorpion', 'striderantiheavy', 'spiderantiheavy'}},
+		-- prefer = {   {['?'] = { -- Note: this is not with priority in contrary to the Cons (idle) macro (no different subsets), thanks to byType = defID, it will alternate through unit type, but it will not pick any unloaded
+		--                          {name = 'striderscorpion', ['reload'] = 3},
+		--                          {name = 'spiderantiheavy', ['reload'] = 1},
+		--                          name = {'cloakheavyraid', 'striderantiheavy'},
+		--          }},
+		--      {'isUnit'}
+		-- },
+		same_units = true, -- picking same units name as current selection, if we have something in the selection
+
+		ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
+		shift = true,
+		want = 1,
+		wantIf = {[{name = 'cloakheavyraid'}] = '30%'}, -- want only one if the name is not 'cloakheavyraid' ('Scythe') if that's so, pick 30%
+		shared_prev = 'One Commando', -- same previous system as 'One Commando' macro so we don't pick the same that were picked there
+		color = {0.2, 0.5, 1, 0.99},
+		fading = 0.5,
+		share_radius = 'One Commando',
+	},
+
+
+	{
+		name = 'All Commandos', 
+		method = 'cylinder',
+		keys = {'?SPACE', '?AIR', 'N_3', 'RClick', 'longClick', '?doubleRClick', '?spam'},
+		-- defs = {'isUnit'},
+		-- on_press = true,
+		longPressTime = 0.1, -- longPress is evaluated true within that time
+		color = {0.2, 0.5, 1, 0.99},
+		fading = 0.5,
+		-- force_finish = true, -- achieve 'One Commando' call before starting this one
+		same_units = true,
+		share_radius = 'One Commando',
+	},
+	--[[{name = 'More Commando(s)', 
+		method = 'cylinder',
+		keys = {'N_3', 'RClick', 'doubleRClick', '?spam', '?AIR, ?SPACE'},
+		from_cursor = true,
+		same_units = true, -- picking same units name as current selection
+
+		ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
+		shift = true,
+		want = 1,
+		selname = true, -- show the unit name instead of the macro name
+		shared_prev = 'One Commando',
+		color = {0.2, 0.5, 1, 0.99},
+		fading = 0.5,
+	}, --]]
 
 	------------
 	-- STRIDER
 	------------
-		-- {name = 'One Strider', -- pick any non commando strider close of the cursor with SPACE + E, the more you spam the more you got, or long press to get them all at once
-		-- 	method = 'cylinder',
-		-- 	keys = {'?AIR', 'SPACE', 'E', 'doubleTap'},
-		-- 	defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}},
-		-- 	byType = 'defID',
-		-- 	from_cursor = true,
-		-- 	force = true,
-		-- 	want = 1,
-		-- 	previous_time = 1,
-		-- 	color = {0.2, 0.5, 1, 0.99},
-		--  fading = 0.5,
-		-- },
+	-- {name = 'One Strider', -- pick any non commando strider close of the cursor with SPACE + E, the more you spam the more you got, or long press to get them all at once
+	--  method = 'cylinder',
+	--  keys = {'?AIR', 'SPACE', 'E', 'doubleTap'},
+	--  defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}},
+	--  byType = 'defID',
+	--  from_cursor = true,
+	--  force = true,
+	--  want = 1,
+	--  previous_time = 1,
+	--  color = {0.2, 0.5, 1, 0.99},
+	--  fading = 0.5,
+	-- },
 
-		-- {name = 'One More Strider', -- 
-		-- 	method = 'cylinder',
-		-- 	keys = {'?AIR', 'SPACE', 'E', 'doubleTap', 'spam'},
-		-- 	defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}},
-		-- 	same_units = true,
-		-- 	from_cursor = true,
-		-- 	force = true,
-		-- 	want = 1,
-		-- 	shift = true,
-		-- 	shared_prev = 'One Strider',
-		-- 	color = {0.2, 0.5, 1, 0.99},
-		--  fading = 0.5,
-		-- },
+	-- {name = 'One More Strider', -- 
+	--  method = 'cylinder',
+	--  keys = {'?AIR', 'SPACE', 'E', 'doubleTap', 'spam'},
+	--  defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}},
+	--  same_units = true,
+	--  from_cursor = true,
+	--  force = true,
+	--  want = 1,
+	--  shift = true,
+	--  shared_prev = 'One Strider',
+	--  color = {0.2, 0.5, 1, 0.99},
+	--  fading = 0.5,
+	-- },
 
-		-- {name = 'All Striders', -- 
-		-- 	method = 'cylinder'
-		-- 	, keys = {'?SPACE', 'AIR', 'E', 'longPress'}
-		-- 	, defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}}
-		-- 	, force = true
-		-- 	, longPressTime = 0.2
-		-- 	, color = {0.2, 0.5, 1, 0.99},
-		-- fading = 0.5,
-		-- },
+	-- {name = 'All Striders', -- 
+	--  method = 'cylinder'
+	--  , keys = {'?SPACE', 'AIR', 'E', 'longPress'}
+	--  , defs = {'isUnit', ['family'] = 'strider', ['!name'] = {'striderscorpion', 'striderantiheavy'}}
+	--  , force = true
+	--  , longPressTime = 0.2
+	--  , color = {0.2, 0.5, 1, 0.99},
+	-- fading = 0.5,
+	-- },
 
-		------------
-		-- PALADIN
-		------------
-		{
-			name = 'One Paladin',
-			method = 'cylinder',
-			keys = {'?SPACE', '?AIR', 4, 'LClick'},
-			from_cursor = true,
-			defs = {name = {'striderbantha', 'striderdetriment'}},
-			ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-			prefer = {{['reload'] = 3}, {'isUnit'}},
-			force = true,
-			previous_time = 1.5, -- forget the prev faster
-			want = 1,
-			share_radius = 'Assault',
-			color = {0.2, 0.5, 0.85, 0.99},
-			fading = 0.5,
+	------------
+	-- PALADIN
+	------------
+	{
+		name = 'One Paladin',
+		method = 'cylinder',
+		keys = {'?SPACE', '?AIR', 4, 'LClick'},
+		from_cursor = true,
+		defs = {name = {'striderbantha', 'striderdetriment'}},
+		ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
+		prefer = {{['reload'] = 3}, {'isUnit'}},
+		force = true,
+		previous_time = 1.5, -- forget the prev faster
+		want = 1,
+		share_radius = 'Assault',
+		color = {0.2, 0.5, 0.85, 0.99},
+		fading = 0.5,
+	},
+
+
+	{
+		name = 'One More Paladin',
+		method = 'cylinder',
+		keys = {'?SPACE', '?AIR', 4, 'LClick', 'doubleLClick', '?spam'},
+		defs = {name = 'striderbantha'},
+		from_cursor = true,
+		ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
+		prefer = {{['reload'] = 3}, {'isUnit'}},
+		shift = true,
+		want = 1,
+		force = true,
+		shared_prev = 'One Paladin',
+		share_radius = 'Assault',
+		color = {0.2, 0.5, 1, 0.99},
+		fading = 0.5,
+	},
+
+	{
+		name = 'Paladins', 
+		method = 'cylinder',
+		keys = {'?SPACE', '?AIR', 4, 'RClick', '?doubleRClick'},
+		defs = {name = {'striderbantha', 'striderdetriment'}},
+		force = true,
+		share_radius = 'Assault',
+		color = {0.2, 0.5, 0.85, 0.99},
+		fading = 0.5,
+	},
+
+
+	-------------
+	---- FACTORY
+	-------------
+	-- simple Tab tap cycle to next factory, long press select all factories of the last selected type
+	-- with SPACE toggle it will select the air factory(ies)
+	{
+		name = 'Factory',
+		method = 'all',
+		from_cursor = true,
+		defs = {'!isUnit', ['!name'] = {'staticrearm', 'staticmissilesilo'}, ['?'] = {'isFactory', 'isFakeFac', name = {'striderhub', 'arena_hq'}}},
+		-- prefer = {['!family'] = 'gunship'}
+		anyBP = true, -- can be selected under the default 80% bp
+		byType = 'family',
+		keys = {'TAB'--[[, '?doubleTap'--]], '?spam'},
+		want = 1, -- can specify the number you want to select, will cycle through valid units
+		-- , byType = 'defID'
+		-- , pref_use_prev = true
+		selname = true, -- show the unit name as title of the macro
+		on_press = true,
+		previous_time = 1.3,
+		hasStructure = true,
+		force = true, -- force the hotkey
+	}, 
+
+	{
+		name = 'Same Factories',
+		method = 'all',
+		anyBP = true, -- can be selected under the default 80% bp
+		same_units = true,
+		defs = {'!isUnit', ['!name'] = {'staticrearm', 'staticmissilesilo'}, ['?'] = {'isFactory', name = 'striderhub'}},
+		keys = {'TAB', 'doubleTap', '?spam'},
+		-- want = 1, -- can specify the number you want to select, will cycle through valid units
+		-- byType = 'defID',
+		on_press = true,
+		hasStructure = true,
+		force = true, -- force the hotkey
+	},
+
+
+	{
+		name = 'Air Factory',
+		method = 'all',
+		defs = {name = {'factoryplane', 'plateplane'}},
+		anyBP = true, -- can be selected under the default 80% bp
+		-- keys = {'?SPACE', 'AIR', 'TAB', '?doubleTap', '?spam'}, -- disabled
+		prefer = {name = 'factoryplane'},
+		want = 1, -- can specify the number you want to select, will cycle through valid units
+		selname = true, -- show the unit name as title of the macro
+		on_press = true,
+		hasStructure = true,
+		force = true,
+	},
+
+	-- {name = 'Same Factories'
+	-- , method = 'all'
+	-- , defs = {'isFactory'}
+	-- , keys = {'?SPACE', 'AIR', 'TAB', '?doubleTap', '?spam', 'longPress', '?mouseStill'}
+	-- , same_units = true
+	-- , selname = true -- show the unit name as title of the macro
+	-- , on_press = true
+	-- , force = true}, -- force the hotkey
+
+	----
+
+	------------------
+	{
+		name = 'Super Weapons',
+		method = 'all',
+		keys = {'?AIR', 'T', 'doubleTap'},
+		force = true,
+		defs = {'isSpecialWeapon', ['!name'] = {'staticmissilesilo'}},
+		byType = 'defID',
+		hasStructure = true,
+		
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 1,
+	},
+
+	{
+		name = 'Defenses / CT / Newtons',
+		method = 'cylinder',
+		keys = {'?AIR', 'A', 'doubleTap'},
+		force = true,
+		defs = {
+			name = {
+				'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp', 
+				'turretimpulse', 'staticcon', 'striderhub',
+			}
+
 		},
-
-
-		{
-			name = 'One More Paladin',
-			method = 'cylinder',
-			keys = {'?SPACE', '?AIR', 4, 'LClick', 'doubleLClick', '?spam'},
-			defs = {name = 'striderbantha'},
-			from_cursor = true,
-			ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-			prefer = {{['reload'] = 3}, {'isUnit'}},
-			shift = true,
-			want = 1,
-			force = true,
-			shared_prev = 'One Paladin',
-			share_radius = 'Assault',
-			color = {0.2, 0.5, 1, 0.99},
-			fading = 0.5,
+		groups = {
+			{name = 'turretimpulse'},
+			{name = {'staticcon', 'striderhub'}},
+			{name = {'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp'}},
 		},
+		switch_time = 1,
+		-- switch_on_identical = true,
+		anyBP = true,
+		hasStructure = true,
+		set_active_command = 'Attack',
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 1,
+	},
+	-------------------------------------
+	-- LOCKED TOGGLE and TEMPORARY TOGGLE
+	-- (LOCKED TOGGLE DOESNT HAVE KEY ANYMORE)
+	-- toggles are interpreted as modifiers that expand the use of same keys for different macros
+	-- toggle lock work as a persistent modifier like CapsLock while tmp toggle work as the shift key
+	-- you can attach to it one or more temporary toggle to switch them  temporarily
 
-		{
-			name = 'Paladins', 
-			method = 'cylinder',
-			keys = {'?SPACE', '?AIR', 4, 'RClick', '?doubleRClick'},
-			defs = {name = {'striderbantha', 'striderdetriment'}},
-			force = true,
-			share_radius = 'Assault',
-			color = {0.2, 0.5, 0.85, 0.99},
-			fading = 0.5,
-		},
+	-- with both those toggle and the macros corresponding in here you can either manage air units permanently or ground units permanently
+	-- and switching to the other type temporarily with the temporary toggle activated by the key space here.
+	-- example: you are commanding ground unit but you want to quickly call your unloaded bombers then come back to ground
+	-- or example: you are the air player but you need to control some ground units from time to time
 
-
-		-------------
-		---- FACTORY
-		-------------
-		-- simple Tab tap cycle to next factory, long press select all factories of the last selected type
-		-- with SPACE toggle it will select the air factory(ies)
-		{
-			name = 'Factory',
-			method = 'all',
-			from_cursor = true,
-			defs = {'!isUnit', ['!name'] = {'staticrearm', 'staticmissilesilo'}, ['?'] = {'isFactory', 'isFakeFac', name = {'striderhub', 'arena_hq'}}},
-			-- prefer = {['!family'] = 'gunship'}
-			anyBP = true, -- can be selected under the default 80% bp
-			byType = 'family',
-			keys = {'TAB'--[[, '?doubleTap'--]], '?spam'},
-			want = 1, -- can specify the number you want to select, will cycle through valid units
-			-- , byType = 'defID'
-			-- , pref_use_prev = true
-			selname = true, -- show the unit name as title of the macro
-			on_press = true,
-			previous_time = 1.3,
-			hasStructure = true,
-			force = true, -- force the hotkey
-		}, 
-
-		{
-			name = 'Same Factories',
-			method = 'all',
-			anyBP = true, -- can be selected under the default 80% bp
-			same_units = true,
-			defs = {'!isUnit', ['!name'] = {'staticrearm', 'staticmissilesilo'}, ['?'] = {'isFactory', name = 'striderhub'}},
-			keys = {'TAB', 'doubleTap', '?spam'},
-			-- want = 1, -- can specify the number you want to select, will cycle through valid units
-			-- byType = 'defID',
-			on_press = true,
-			hasStructure = true,
-			force = true, -- force the hotkey
-		},
-
-
-		{
-			name = 'Air Factory',
-			method = 'all',
-			defs = {name = {'factoryplane', 'plateplane'}},
-			anyBP = true, -- can be selected under the default 80% bp
-			-- keys = {'?SPACE', 'AIR', 'TAB', '?doubleTap', '?spam'}, -- disabled
-			prefer = {name = 'factoryplane'},
-			want = 1, -- can specify the number you want to select, will cycle through valid units
-			selname = true, -- show the unit name as title of the macro
-			on_press = true,
-			hasStructure = true,
-			force = true,
-		},
-
-		-- {name = 'Same Factories'
-		-- , method = 'all'
-		-- , defs = {'isFactory'}
-		-- , keys = {'?SPACE', 'AIR', 'TAB', '?doubleTap', '?spam', 'longPress', '?mouseStill'}
-		-- , same_units = true
-		-- , selname = true -- show the unit name as title of the macro
-		-- , on_press = true
-		-- , force = true}, -- force the hotkey
-
-		----
-
-		------------------
-		{
-			name = 'Super Weapons',
-			method = 'all',
-			keys = {'?AIR', 'T', 'doubleTap'},
-			force = true,
-			defs = {'isSpecialWeapon', ['!name'] = {'staticmissilesilo'}},
-			byType = 'defID',
-			hasStructure = true,
-			
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 1,
-		},
-
-		{
-			name = 'Defenses / CT / Newtons',
-			method = 'cylinder',
-			keys = {'?AIR', 'A', 'doubleTap'},
-			force = true,
-			defs = {
-				name = {
-					'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp', 
-					'turretimpulse', 'staticcon', 'striderhub',
-				}
-
-			},
-			groups = {
-				{name = 'turretimpulse'},
-				{name = {'staticcon', 'striderhub'}},
-				{name = {'turretlaser', 'turretgauss', 'turretmissile', 'turretheavy', 'turretheavylaser', 'turretantiheavy', 'staticarty', 'turrettorp'}},
-			},
-			switch_time = 1,
-			-- switch_on_identical = true,
-			anyBP = true,
-			hasStructure = true,
-			set_active_command = 'Attack',
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 1,
-		},
-		-------------------------------------
-		-- LOCKED TOGGLE and TEMPORARY TOGGLE
-		-- toggles are interpreted as modifiers that expand the use of same keys for different macros
-		-- toggle lock work as a persistent modifier like CapsLock while tmp toggle work as the shift key
-		-- you can attach to it one or more temporary toggle to switch them  temporarily
-
-		-- with both those toggle and the macros corresponding in here you can either manage air units permanently or ground units permanently
-		-- and switching to the other type temporarily with the temporary toggle activated by the key space here.
-		-- example: you are commanding ground unit but you want to quickly call your unloaded bombers then come back to ground
-		-- or example: you are the air player but you need to control some ground units from time to time
-
-		-- example of lock toggle 
-		{
-			name = 'AIR', -- the name given here will then be interpreted as a key that has been pressed
-			method = 'toggleLock', --special syntax of method to indicate this is a permanent toggle
-			-- removed the hotkey I don't use it, and I use Roam instead with same key 
-			-- keys = {'?AIR', 'UNKNOWN'}, --(UNKNOWN key is for my '²' key interpreted by KEYSIM) 
-			draw_pos = {0, resY-88}, -- you can specify size and position or it will stack them on default in the top left 
-			size = 25,
-			on_press = true,
-			color = {1.0, 0.9, 0.85, 0.99},
-			fading = 0.5, -- fading from alpha 0.99 to 0.5
-		},
-		-- TEMPORARY TOGGLE: same as toggle lock except that it switch only when key is pressed, then it revert
-		-- NOW THE TEMPORARY TOGGLE IS USED ALSO ALONG WITH Cons selection
-		-- the name AIR beeing the same as the toggle lock name above, it will switch on to off, or off to on temporarily until key is released
-		-- if you only want temporary toggle just make a fake lock with no keys and give tmpToggle the same name
-		-- {name = 'AIR',
-		--  method = 'tmpToggle',
-		--  keys = {'?AIR', 'space'},
-		--  --removekey = true, -- uncomment if you want the key that trigger the toggle to not get registered
-		-- },
-		{
-			name = 'AIR',
-			method = 'tmpToggle',
-			-- on_press = true,
-			keys = {'?AIR', {'LClick', 'RClick'}, 'SPACE', '?doubleTap'}, -- 
-			-- ignore_from_sel = true,
-			-- force = true,
-			color = {0, 0.8, 0.9,	0.8	},
-			fading = 0.6,
-		},
+	-- example of lock toggle 
+	{
+		name = 'AIR', -- the name given here will then be interpreted as a key that has been pressed
+		method = 'toggleLock', --special syntax of method to indicate this is a permanent toggle
+		-- removed the hotkey I don't use it, and I use Roam instead with same key 
+		-- keys = {'?AIR', 'UNKNOWN'}, --(UNKNOWN key is for my '²' key interpreted by KEYSIM) 
+		draw_pos = {0, resY-88}, -- you can specify size and position or it will stack them on default in the top left 
+		size = 25,
+		on_press = true,
+		color = {1.0, 0.9, 0.85, 0.99},
+		fading = 0.5, -- fading from alpha 0.99 to 0.5
+	},
+	-- TEMPORARY TOGGLE: same as toggle lock except that it switch only when key is pressed, then it revert
+	-- NOW THE TEMPORARY TOGGLE IS USED ALSO ALONG WITH Cons selection
+	-- the name AIR beeing the same as the toggle lock name above, it will switch on to off, or off to on temporarily until key is released
+	-- if you only want temporary toggle just make a fake lock with no keys and give tmpToggle the same name
+	-- {name = 'AIR',
+	--  method = 'tmpToggle',
+	--  keys = {'?AIR', 'space'},
+	--  --removekey = true, -- uncomment if you want the key that trigger the toggle to not get registered
+	-- },
+	{
+		name = 'AIR',
+		method = 'tmpToggle',
+		-- on_press = true,
+		keys = {'?AIR', {'LClick', 'RClick'}, 'SPACE', '?doubleTap'}, -- 
+		-- ignore_from_sel = true,
+		-- force = true,
+		color = {0, 0.8, 0.9,   0.8 },
+		fading = 0.6,
+	},
 
 
 	-- additional syntax keys in subtable, keys = {{'N_1', N_2}, ALT}  means ALT + (N_1 OR N_2) match
@@ -2496,524 +2388,463 @@ local hotkeysCombos = {
 	--------------------
 	--- ON SELECTION ---
 	--------------------
-		-- select half of selection by doubleTapping Z
-		-- {name = 'Half', -- to display a % sign you have to escape it with another percent sign
-		-- method = 'on_selection', -- apply research on the previous selection
-		-- keys = {'?AIR', "Z", 'doubleTap', '?spam'},
-		-- OnCallFunc = function() if IM then IM:KeyPress(KEYSYMS.Z, MODS_FALSE, false) end end,
-		-- force = true,
-		-- hasStructure = true,
-		-- want ="50%", -- selecting 50% of valid units caught
-		-- -- force = true, -- force the combo, override an hotkey from regular game hotkeys
-		-- -- set_active_command =-1, -- get out of factory table in case we were having cons in hand
-		-- color = {0.9, 0.9, 0.1, 1},
-		-- fading = 0.8},
-
-
-		{
-			name = 'Blueprint', 
-			method = 'on_selection', 
-			keys = {'?AIR', "Z", 'doubleTap'},
-			force = true,
-			OnSuccessFunc = function()
-			-- cancel the tab we're in
-				if IM then -- upon success, send an ESCAPE key press event to Integral Menu for it reset the tabs back
-					IM:KeyPress(KEYSYMS.ESCAPE, MODS_FALSE, false)
-					return true
-				end
-			end,
-
-			-- force = true, -- force the combo, override an hotkey from regular game hotkeys
-			set_active_command = 'build_field_unit',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-
-		-- {name = 'One',
-		-- method = 'on_selection', -- 
-		-- keys = {'?AIR', "Z", 'doubleTap', '?spam', 'longPress', '?mouseStill'},
-		-- want ="1", 
-		-- hasStructure = true,
-		-- force = true, -- force the combo, override an hotkey from regular game hotkeys
-		-- -- set_active_command =-1,
-		-- color = {0.9, 0.9, 0.1, 1},
-		-- fading = 0.8},
-
-		-- {name = 'One more',
-		-- method = 'on_selection', -- 
-		-- keys = {'?SPACE', 'AIR', "Z", 'doubleTap', 'spam', },
-		-- want ="1", 
-		-- shift = true,
-		-- same_units = true,
-		-- --force = true, -- force the combo, override an hotkey from regular game hotkeys
-		-- color = {0.9, 0.9, 0.1, 1},
-		-- fading = 0.8},
-
-
-			
-	-- RETREAT LOW HP UNITS ONLY --
-		-- Keep unit from selection that have more than 50/70/95% (singleTap, doubleTap, tripleTap) hp with a press of space +  R and return wounded units to where they were registered by UnitsIDCard
-		{
-			name = 'Return under 50%%',
-			method = 'on_selection',
-			keys = {'?AIR', 'SPACE', 'R', '?RClick'}, -- RClick can be pressed when ordering moving at the same time
-			defs = {'under50%'},
-			keep_on_fail = true,
-			no_key_order = true,
-			force = true,
-			brush_order = {'return'}, -- that special order will send the unit to a position close where the closest caretaker is or where it's been created/registered by UnitsIDCard
-			mark_unit = {no_select = osclock},
-			second_call = 'Keep Above 50%%',
-			unique_second_call = true,
-			call_on_empty_selection = 'Set Retreat Zone',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'Set Retreat Zone',
-			keys = {'?AIR', 'R', 'doubleTap'},
-			method = 'set_command',
-			-- defs = {'nothing'},
-			force = true,
-			on_press = true,
-			set_active_command = 'sethaven', 
-			color = {0.9, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-
-
-
-		{
-			name = 'Keep Above 50%%',
-			method = 'on_selection',
-			defs = {'above50%'},
-			on_press = true,
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-		----------------
-		{
-			name = 'Return under 70%%',
-			method = 'on_selection',
-			keys = {'?AIR', 'SPACE', 'R', 'doubleTap'},
-			defs = {'under70%'},
-			keep_on_fail = true,
-			brush_order = {'return'},
-			second_call = 'Keep Above 70%%',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'Keep Above 70%%',
-			method = 'on_selection',
-			defs = {'above70%'},
-			on_press = true,
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-		----------------
-		----------------
-		{
-			name = 'Return under 95%%',
-			method = 'on_selection',
-			keys = {'SPACE', '?AIR', 'R', 'doubleTap', 'spam'},
-			defs = {'under95%'},
-			keep_on_fail = true,
-			brush_order = {'return'}, 
-			second_call = 'Keep Above 95%%',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'Keep Above 95%%',
-			method = 'on_selection',
-			defs = {'above95%'},
-			on_press = true,
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-		-------------------------------------------------------------------------
-		-------------------------------------------------------------------------
-
-		--------------------
-		------ ESCORT ------
-		--------------------
-	-- TODO reimplement Guarding
-	-- Select Escort with a doubleTap of key, or the escorted with a doubleTap held longer
-	-- {name = 'Guards',
-	-- method = 'cylinder',
-	-- keys = {'G', 'doubleTap', '?spam'},
-	-- defs = {'isGuarding'},
+	-- select half of selection by doubleTapping Z
+	-- {name = 'Half', -- to display a % sign you have to escape it with another percent sign
+	-- method = 'on_selection', -- apply research on the previous selection
+	-- keys = {'?AIR', "Z", 'doubleTap', '?spam'},
+	-- OnCallFunc = function() if IM then IM:KeyPress(KEYSYMS.Z, MODS_FALSE, false) end end,
 	-- force = true,
-	-- continue = true,
-	-- color = {0.1, 0.9, 0.9, 1},
+	-- hasStructure = true,
+	-- want ="50%", -- selecting 50% of valid units caught
+	-- -- force = true, -- force the combo, override an hotkey from regular game hotkeys
+	-- -- set_active_command =-1, -- get out of factory table in case we were having cons in hand
+	-- color = {0.9, 0.9, 0.1, 1},
 	-- fading = 0.8},
 
-	-- {name = 'Guarded',
-	-- method = 'cylinder',
-	-- keys = {'G', 'doubleTap', '?spam', 'longPress', '?mouseStill'},
-	-- lockedRepeat = true, -- if longPress is part of the combo and you don't want the combo itself to get repeated, just triggered once
-	-- 				   -- so lockedrepeat will be interpreted as a long press, 
-	-- force = true, -- will override regular hotkey bound and eventually reset active command
-	-- continue = true,
-	-- defs = {'isGuarded'},
+	----------
+	--- BLUEPRINT
+	----------
+
+	{
+		name = 'Blueprint', 
+		method = 'on_selection', 
+		keys = {'?AIR', "Z", 'doubleTap'},
+		force = true,
+		OnSuccessFunc = function()
+		-- cancel the tab we're in
+			if IM then -- upon success, send an ESCAPE key press event to Integral Menu for it reset the tabs back
+				IM:KeyPress(KEYSYMS.ESCAPE, MODS_FALSE, false)
+				return true
+			end
+		end,
+
+		-- force = true, -- force the combo, override an hotkey from regular game hotkeys
+		set_active_command = 'build_field_unit',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+
+	-- {name = 'One',
+	-- method = 'on_selection', -- 
+	-- keys = {'?AIR', "Z", 'doubleTap', '?spam', 'longPress', '?mouseStill'},
+	-- want ="1", 
+	-- hasStructure = true,
+	-- force = true, -- force the combo, override an hotkey from regular game hotkeys
+	-- -- set_active_command =-1,
+	-- color = {0.9, 0.9, 0.1, 1},
+	-- fading = 0.8},
+
+	-- {name = 'One more',
+	-- method = 'on_selection', -- 
+	-- keys = {'?SPACE', 'AIR', "Z", 'doubleTap', 'spam', },
+	-- want ="1", 
+	-- shift = true,
+	-- same_units = true,
+	-- --force = true, -- force the combo, override an hotkey from regular game hotkeys
 	-- color = {0.9, 0.9, 0.1, 1},
 	-- fading = 0.8},
 
 
+	-------------		
+	-- RETREAT LOW HP UNITS ONLY
+	-------------
+	-- Keep unit from selection that have more than 50/70/95% (singleTap, doubleTap, tripleTap) hp with a press of space +  R and return wounded units to where they were registered by UnitsIDCard
+	{
+		name = 'Return under 50%%',
+		method = 'on_selection',
+		keys = {'?AIR', 'SPACE', 'R', '?RClick'}, -- RClick can be pressed when ordering moving at the same time
+		defs = {'under50%'},
+		keep_on_fail = true,
+		no_key_order = true,
+		force = true,
+		brush_order = {'return'}, -- that special order will send the unit to a position close where the closest caretaker is or where it's been created/registered by UnitsIDCard
+		mark_unit = {no_select = osclock},
+		second_call = 'Keep Above 50%%',
+		unique_second_call = true,
+		call_on_empty_selection = 'Set Retreat Zone',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'Set Retreat Zone',
+		keys = {'?AIR', 'R', 'doubleTap'},
+		method = 'set_command',
+		-- defs = {'nothing'},
+		force = true,
+		on_press = true,
+		set_active_command = 'sethaven', 
+		color = {0.9, 0.9, 0.5, 1},
+		fading = 0.8,
+	},
+
+
+
+	{
+		name = 'Keep Above 50%%',
+		method = 'on_selection',
+		defs = {'above50%'},
+		on_press = true,
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	----------------
+	{
+		name = 'Return under 70%%',
+		method = 'on_selection',
+		keys = {'?AIR', 'SPACE', 'R', 'doubleTap'},
+		defs = {'under70%'},
+		keep_on_fail = true,
+		brush_order = {'return'},
+		second_call = 'Keep Above 70%%',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'Keep Above 70%%',
+		method = 'on_selection',
+		defs = {'above70%'},
+		on_press = true,
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+	----------------
+	----------------
+	{
+		name = 'Return under 95%%',
+		method = 'on_selection',
+		keys = {'SPACE', '?AIR', 'R', 'doubleTap', 'spam'},
+		defs = {'under95%'},
+		keep_on_fail = true,
+		brush_order = {'return'}, 
+		second_call = 'Keep Above 95%%',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'Keep Above 95%%',
+		method = 'on_selection',
+		defs = {'above95%'},
+		on_press = true,
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	-------------------------------------------------------------------------
+	-------------------------------------------------------------------------
+
 	-----------------------------
-	-- UNIT class SELECTIONS -- pretty much an enhancement of the usual control groups that can have more refined params
 	-----------------------------
+	-- UNIT CLASS SELECTIONS
+	-----------------------------
+	-----------------------------
+	-- pretty much an enhancement of the usual control groups that can have more refined params
 
-	----- RAIDER ------
 
-		{
-			name = 'Raiders', -- 
-			method = 'cylinder',
-			keys = {'?SPACE', 'N_1'},
-			-- defs = { 
-			-- 	['?'] = {
-			-- 		class = 'raider',
-			-- 		name = 'amphbomb',
-			-- 	}
-			-- },
-			defs = {
-				['?'] = {class = 'raider', name = 'amphbomb'},
-			},
-			default = {family = {'spider', 'jump'}},
-			-- default = {['?'] = {family = 'spider', name = 'shieldscout'}},
+	---------------------
+	-- RAIDERS
+	---------------------
 
-			-- prefer = {['!name'] = {--[['jumpscout', --]]'spiderscout', 'shieldscout'}},
-			-- prefer = {['!name'] = {'shieldscout'}},
-			-- from_cursor = true,
-			-- pref_use_prev = true,
-			-- avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
-			-- previous_time = 0.5,
-			-- only_prevTypes = true,
-			groups = {
-				{family = {'cloak', 'veh', 'hover', 'chicken'}},
-				{family = {'tank', 'shield', 'amph'}, ['!name'] = {'shieldscout'}},
-				{family = {'gunship'}},
-				{family = 'jump', ['!name'] = 'jumpscout'},
-				{family = {'hover'}},
-				{family = {'ship'}},
-
-			},
-
-			-- byType = 'family',
-			-- typeOrder = {
-			-- 	'cloak',
-			-- 	'shield',
-			-- 	'gunship',
-			-- },
-			selname = true,
-			force = true,
-			-- fail_on_identical = true,
-			-- call_on_fail = 'Alt Raiders',
-			-- retry_on_identical = true,
-			ifSecondary = {on_press = true}, -- apply those prop if that call is not the main call
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
+	{
+		name = 'Raiders', -- 
+		method = 'cylinder',
+		keys = {'?SPACE', 'N_1'},
+		-- defs = { 
+		--  ['?'] = {
+		--      class = 'raider',
+		--      name = 'amphbomb',
+		--  }
+		-- },
+		defs = {
+			['?'] = {class = 'raider', name = 'amphbomb'},
 		},
+		default = {family = {'spider', 'jump'}},
+		-- default = {['?'] = {family = 'spider', name = 'shieldscout'}},
 
-
-		-- {name = 'Scouts',
-		-- defs = {['!name'] = {--[['jumpscout', --]]'spiderscout', 'shieldscout'}},
+		-- prefer = {['!name'] = {--[['jumpscout', --]]'spiderscout', 'shieldscout'}},
+		-- prefer = {['!name'] = {'shieldscout'}},
 		-- from_cursor = true,
-		-- }
+		-- pref_use_prev = true,
+		-- avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
+		-- previous_time = 0.5,
+		-- only_prevTypes = true,
+		groups = {
+			{family = {'cloak', 'veh', 'hover', 'chicken'}},
+			{family = {'tank', 'shield', 'amph'}, ['!name'] = {'shieldscout'}},
+			{family = {'gunship'}},
+			{family = 'jump', ['!name'] = 'jumpscout'},
+			{family = {'hover'}},
+			{family = {'ship'}},
 
-
-		{
-			name = 'Alt Raiders',
-			method = 'cylinder',
-			keys = {'?SPACE', 'N_1', 'doubleTap', '?spam'},
-			-- defs = {class = 'raider'},
-			-- prefer = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', --[['gunshipemp', 'vehraid', 'vehscout'--]]}},
-			defs = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', 'vehscout', 'tankraid'}},
-			call_on_only_defs = {
-				[ {name = {'vehscout', 'tankraid', 'gunshipemp'}} ] = 'Scorcher / Dart'
-			},
-			byType = 'defID',
-			from_cursor = true,
-			keep_on_fail = true,
-
-
-			only_prevTypes = true,
-			force = true,
-			-- pref_use_prev = true,
-			-- avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
-			previous_time = 1,
-			selname = true,
-			doubleTap_time = 0.2,
-			--continue = true, --reset future selection at each update round
-			-- call_on_fail = 'Raiders',
-			share_radius = 'Raiders',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
 		},
 
-		-- {name = 'Alt Raiders',
-		-- method = 'cylinder',
-		-- keys = {'?SPACE', 'N_1', 'doubleTap'},
-		-- call_on_only_defs = {
-		-- 	[ {name = {'vehscout', 'vehraid'}} ] = 'Scorcher / Dart'
+		-- byType = 'family',
+		-- typeOrder = {
+		--  'cloak',
+		--  'shield',
+		--  'gunship',
 		-- },
+		selname = true,
+		force = true,
+		-- fail_on_identical = true,
+		-- call_on_fail = 'Alt Raiders',
+		-- retry_on_identical = true,
+		ifSecondary = {on_press = true}, -- apply those prop if that call is not the main call
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+
+	-- {name = 'Scouts',
+	-- defs = {['!name'] = {--[['jumpscout', --]]'spiderscout', 'shieldscout'}},
+	-- from_cursor = true,
+	-- }
+
+
+	{
+		name = 'Alt Raiders',
+		method = 'cylinder',
+		keys = {'?SPACE', 'N_1', 'doubleTap', '?spam'},
+		-- defs = {class = 'raider'},
+		-- prefer = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', --[['gunshipemp', 'vehraid', 'vehscout'--]]}},
+		defs = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', 'vehscout', 'tankraid'}},
+		call_on_only_defs = {
+			[ {name = {'vehscout', 'tankraid', 'gunshipemp'}} ] = 'Scorcher / Dart'
+		},
+		byType = 'defID',
+		from_cursor = true,
+		keep_on_fail = true,
+
+
+		only_prevTypes = true,
+		force = true,
+		-- pref_use_prev = true,
+		-- avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
+		previous_time = 1,
+		selname = true,
+		doubleTap_time = 0.2,
+		--continue = true, --reset future selection at each update round
+		-- call_on_fail = 'Raiders',
+		share_radius = 'Raiders',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'Scorcher / Dart', -- no key, called immediately by Alt Raiders if defs are matching
+		method = 'cylinder',
+		-- on_press = true,
+		-- add_last_call_pool = true,
+		-- add_last_call_pool_if = 'Raiders',
+		groups = {
+			{name = {'vehscout', 'tankraid'}},
+			{name = {'vehraid', 'tankheavyraid'}},
+			{name = {'gunshipraid', 'gunshipemp'}},
+		},
 		-- switch = {
-		-- 	{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehscout', 'tankraid'}},
-		-- 	{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehraid', 'tankheavyraid'}},
+		--  {name = 'vehscout'},
+		--  {name = 'vehraid'},
 		-- },
-		-- keep_on_fail = true,
+		-- switch_time = 1,
+		share_radius = 'Raiders',
+		--continue = true, --reset future selection at each update round 
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	--[[
+		{
+			name = 'All Raiders',
+		method = 'all',
+		--on_press = true, -- will be executed on press instead of release, immediate selection and immediate end of call
+		keys = {'N_1', 'doubleTap', '?spam', '?SPACE'},
+		defs = {class = 'raider'},
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+		},
+	--]]
+
+	--[[ OLD
+		{name = 'Raiders',
+		method = 'cylinder',
+		keys = {'?SPACE', 'N_1'},
+		defs = {class = 'raider'},
+		prefer = {['!name'] = {'jumpscout', 'spiderscout', 'shieldscout'}},
+		byType = 'family',
+		typeOrder = {
+			'cloak',
+			'shield',
+			'gunship',
+		},
+		only_prevTypes = true,
+		force = true,
+		pref_use_prev = true,
+		avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
+		-- fail_on_identical = true,
+		call_on_fail = 'Alt Raiders',
+		retry_on_identical = true,
+		previous_time = 0.85,
+		ifSecondary = {on_press = true}, -- apply those prop if that call is not the main call
+		color = {0.9, 0.9, 0.1, 1},
+	 fading = 0.8},
+
+		{name = 'Alt Raiders',
+		method = 'cylinder',
+		keys = {'?SPACE', 'N_1', 'doubleTap'},
+		call_on_only_defs = {
+			[ {name = {'vehscout', 'vehraid'}} ] = 'Scorcher / Dart'
+		},
+		switch = {
+			{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehscout', 'tankraid'}},
+			{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehraid', 'tankheavyraid'}},
+		},
+		keep_on_fail = true,
+		switch_time = 1,
+		doubleTap_time = 0.35,
+		--continue = true, --reset future selection at each update round
+		call_on_fail = 'Raiders',
+		share_radius = 'Raiders',
+		color = {0.9, 0.9, 0.1, 1},
+	 fading = 0.8},
+	--]]
+
+	---------------------
+	-- SKIRM
+	---------------------
+
+	{
+		name = 'Skirms',
+		method = 'cylinder',
+		keys = {'?SPACE', 2},
+		defs = {
+			['?'] = {
+				class = 'skirm',
+				name = 'jumpblackhole'
+			}
+		},
+		groups = {
+			{family = 'ship'},
+			{family = 'veh'},
+			{family = 'hover'},
+			{family = 'gunship'},
+			{family = 'spider'},
+			-- {name = 'jumpblackhole'},
+			{class = 'skirm' , ['!name'] = 'shieldfelon', ['!family'] = {'ship', 'veh', 'hover', 'gunship', 'spider'} },
+			{
+				name = {'shieldfelon', 'spiderskirm', 'shieldskirm', 'jumpskirm', 'cloakskirm', 'amphfloater'}},
+			-- {name = 'shieldfelon'},
+		},
+		wantIf = {[{name = 'jumpblackhole'}] = 1},
+		force = true,
+		-- byType = 'defID',
+		share_radius = 'Raiders',
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 1,
+	},
+
+	{
+		name = 'Alt Skirms',
+		method = 'cylinder',
+		-- keys = {'?SPACE', 'N_2', 'doubleTap'},
+		groups = {
+			{
+				name = 'shieldfelon'},
+			{
+				name = 'shieldskrim'},
+		},
+		keep_on_fail = true,
 		-- switch_time = 1,
 		-- doubleTap_time = 0.35,
-		-- --continue = true, --reset future selection at each update round
-		-- call_on_fail = 'Raiders',
-		-- share_radius = 'Raiders',
-		-- color = {0.9, 0.9, 0.1, 1},
-		-- fading = 0.8},
+		--continue = true, --reset future selection at each update round
+		-- call_on_fail = 'Skirms',
+		share_radius = 'Raiders',
+		color = {0.9, 0.9, 0.1, 1},
+		fading = 0.8,
+	},
+
+	-- {name = 'One Skirm',
+	-- method = 'on_acquired',
+	-- keys = {'?SPACE', 2, 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- want = 1,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
 
 
-		{
-			name = 'Scorcher / Dart', -- no key, called immediately by Alt Raiders if defs are matching
-			method = 'cylinder',
-			-- on_press = true,
-			-- add_last_call_pool = true,
-			-- add_last_call_pool_if = 'Raiders',
-			groups = {
-				{name = {'vehscout', 'tankraid'}},
-				{name = {'vehraid', 'tankheavyraid'}},
-				{name = {'gunshipraid', 'gunshipemp'}},
-			},
-			-- switch = {
-			-- 	{name = 'vehscout'},
-			-- 	{name = 'vehraid'},
-			-- },
-			-- switch_time = 1,
-			share_radius = 'Raiders',
-			--continue = true, --reset future selection at each update round 
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
+	-- {name = 'One Skirm',
+	-- method = 'on_acquired',
+	-- keys = {'?SPACE', 2, 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- want = 1,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
+
+
+	-- {name = 'all skirm',
+	-- method = 'all',
+	-- keys = {'?SPACE', 'N_2', 'doubleTap', '?spam'},                      
+	-- defs = {class = 'skirm'},
+	-- on_press = true,
+	-- color = {0.7, 0.7, 0, 0.6},
+	-- fading = 1},
+
+	-- {name = 'All Skirms',
+	-- method = 'cylinder',
+	-- keys = {'?SPACE', 2, 'doubleTap'},
+	-- switch = {{class = 'skirm', ['!family'] = 'gunship'}, {class = 'skirm'}},
+	-- switch_time = 1,
+	-- force = true,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
+
+	-- OLD
+	-- 	{name = 'Skirms',
+	-- 	method = 'cylinder',
+	-- 	keys = {'?SPACE', 2},
+	-- 	switch = {
+	-- 	 {name = {'jumpskirm', 'jumpblackhole'}},
+	-- 	 {class = 'skirm', ['!family'] = 'gunship', ['!name'] = 'jumpskirm'},
+	-- 	 {class = 'skirm'},
+	-- 	},
+	-- 	switch_time = 1,
+	-- 	force = true,
+	-- 	-- byType = 'defID',
+	-- 	color = {0.5, 0.9, 0.5, 1},
+	-- 	fading = 1},
+	
+	----------
+	--- RIOT
+	----------
+
+	{
+		name = 'Riot',
+		method = 'cylinder',
+		-- defs = {class = 'riot'},
+		-- prefer = {{name = 'striderdante'}, {'isGS'}},
+		groups = {
+			{name = 'striderdante'},
+			{class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}, '!isGS'},
+			{class = 'riot', name = {'jumpblackhole'}},
+			{class = 'riot', 'isGS'},
 		},
+		switch_time = 1,
+		force = true,
+		-- , call_on_fail = 'Alt Riot'
+		-- , byType = 'defID'
+		-- , byType = 'family'
+		from_cursor = true,
+		keys = {'?SPACE', 3, --[['?doubleTap'--]]},
+		share_radius = 'Raiders',
+		color = {1, 0.7, 0.7, 1},
+		fading = 1
+	},
 
-
-
-		-- {name = 'One Alt Raider',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 'N_1', 'doubleTap', 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-
-
-		--[[
-			{
-				name = 'All Raiders',
-			method = 'all',
-			--on_press = true, -- will be executed on press instead of release, immediate selection and immediate end of call
-			keys = {'N_1', 'doubleTap', '?spam', '?SPACE'},
-			defs = {class = 'raider'},
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-			},
-		--]]
-
-		--[[ OLD
-				{name = 'Raiders',
-				method = 'cylinder',
-				keys = {'?SPACE', 'N_1'},
-				defs = {class = 'raider'},
-				prefer = {['!name'] = {'jumpscout', 'spiderscout', 'shieldscout'}},
-				byType = 'family',
-				typeOrder = {
-					'cloak',
-					'shield',
-					'gunship',
-				},
-				only_prevTypes = true,
-				force = true,
-				pref_use_prev = true,
-				avoid_non_pref = true, -- if prefered is in prev, pick it over a non prefered
-				-- fail_on_identical = true,
-				call_on_fail = 'Alt Raiders',
-				retry_on_identical = true,
-				previous_time = 0.85,
-				ifSecondary = {on_press = true}, -- apply those prop if that call is not the main call
-				color = {0.9, 0.9, 0.1, 1},
-			 fading = 0.8},
-
-				{name = 'Alt Raiders',
-				method = 'cylinder',
-				keys = {'?SPACE', 'N_1', 'doubleTap'},
-				call_on_only_defs = {
-					[ {name = {'vehscout', 'vehraid'}} ] = 'Scorcher / Dart'
-				},
-				switch = {
-					{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehscout', 'tankraid'}},
-					{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehraid', 'tankheavyraid'}},
-				},
-				keep_on_fail = true,
-				switch_time = 1,
-				doubleTap_time = 0.35,
-				--continue = true, --reset future selection at each update round
-				call_on_fail = 'Raiders',
-				share_radius = 'Raiders',
-				color = {0.9, 0.9, 0.1, 1},
-			 fading = 0.8},
-		--]]
-
-
-
-		-- {
-		-- 	name = 'Scouts', -- 
-		-- 	method = 'cylinder',
-		-- 	keys = {'?SPACE', 'UNKNOWN'},
-		-- 	defs = {
-		-- 		['?'] = {'isScout', name = 'amphbomb'},
-		-- 	},
-		-- },
-
-
-
-	------ SKIRM -------
-		-- {name = 'All Skirms',
-		-- method = 'cylinder',
-		-- keys = {'?SPACE', 2, 'doubleTap'},
-		-- switch = {{class = 'skirm', ['!family'] = 'gunship'}, {class = 'skirm'}},
-		-- switch_time = 1,
-		-- force = true,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-
-		-- OLD
-			-- {name = 'Skirms',
-			-- method = 'cylinder',
-			-- keys = {'?SPACE', 2},
-			-- switch = {
-			-- 	{name = {'jumpskirm', 'jumpblackhole'}},
-			-- 	{class = 'skirm', ['!family'] = 'gunship', ['!name'] = 'jumpskirm'},
-			-- 	{class = 'skirm'},
-			-- },
-			-- switch_time = 1,
-			-- force = true,
-			-- -- byType = 'defID',
-			-- color = {0.5, 0.9, 0.5, 1},
-			-- fading = 1},
-		--
-
-		{
-			name = 'Skirms',
-			method = 'cylinder',
-			keys = {'?SPACE', 2},
-			defs = {
-				['?'] = {
-					class = 'skirm',
-					name = 'jumpblackhole'
-				}
-			},
-			groups = {
-				{family = 'ship'},
-				{family = 'veh'},
-				{family = 'hover'},
-				{family = 'gunship'},
-				{family = 'spider'},
-				-- {name = 'jumpblackhole'},
-				{class = 'skirm' , ['!name'] = 'shieldfelon', ['!family'] = {'ship', 'veh', 'hover', 'gunship', 'spider'} },
-				{
-					name = {'shieldfelon', 'spiderskirm', 'shieldskirm', 'jumpskirm', 'cloakskirm', 'amphfloater'}},
-				-- {name = 'shieldfelon'},
-			},
-			wantIf = {[{name = 'jumpblackhole'}] = 1},
-			force = true,
-			-- byType = 'defID',
-			share_radius = 'Raiders',
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 1,
-		},
-
-
-
-
-		-- {name = 'One Skirm',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 2, 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-
-
-		-- {name = 'One Skirm',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 2, 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-
-
-		-- {name = 'all skirm',
-		-- method = 'all',
-		-- keys = {'?SPACE', 'N_2', 'doubleTap', '?spam'},						
-		-- defs = {class = 'skirm'},
-		-- on_press = true,
-		-- color = {0.7, 0.7, 0, 0.6},
-		-- fading = 1},
-
-
-
-
-		{
-			name = 'Alt Skirms',
-			method = 'cylinder',
-			-- keys = {'?SPACE', 'N_2', 'doubleTap'},
-			groups = {
-				{
-					name = 'shieldfelon'},
-				{
-					name = 'shieldskrim'},
-			},
-			keep_on_fail = true,
-			-- switch_time = 1,
-			-- doubleTap_time = 0.35,
-			--continue = true, --reset future selection at each update round
-			-- call_on_fail = 'Skirms',
-			share_radius = 'Raiders',
-			color = {0.9, 0.9, 0.1, 1},
-			fading = 0.8,
-		},
-
-	------ RIOT -------
-
-		{
-			name = 'Riot',
-			method = 'cylinder',
-			-- defs = {class = 'riot'},
-			-- prefer = {{name = 'striderdante'}, {'isGS'}},
-			groups = {
-				{name = 'striderdante'},
-				{class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}, '!isGS'},
-				{class = 'riot', name = {'jumpblackhole'}},
-				{class = 'riot', 'isGS'},
-			},
-			switch_time = 1,
-			force = true,
-			-- , call_on_fail = 'Alt Riot'
-			-- , byType = 'defID'
-			-- , byType = 'family'
-			from_cursor = true,
-			keys = {'?SPACE', 3, --[['?doubleTap'--]]},
-			share_radius = 'Raiders',
-			color = {1, 0.7, 0.7, 1},
-			fading = 1
-		},
-
-		{name = 'Alt Riot',
+	{
+		name = 'Alt Riot',
 		method = 'cylinder',
 		from_cursor = true,
 		-- keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
@@ -3026,553 +2857,489 @@ local hotkeysCombos = {
 		doubleTap_time = 0.5,
 		force = true,
 		color = {1, 0.7, 0.7, 1},
-		fading = 1},
+		fading = 1
+	},
 
-		-- {name = 'Alt Riot',
-		-- method = 'cylinder',
-		-- keys = {'?SPACE', 3, 'doubleTap'},
-		-- defs = {class = 'riot', name = {'spiderriot', 'jumpblackhole'}},
-		-- share_radius = 'Riot',
-		-- force = true,
-		-- color = {1, 0.7, 0.7, 1},
-		-- fading = 1},
+	-- {name = 'Alt Riot',
+	-- method = 'cylinder',
+	-- keys = {'?SPACE', 3, 'doubleTap'},
+	-- defs = {class = 'riot', name = {'spiderriot', 'jumpblackhole'}},
+	-- share_radius = 'Riot',
+	-- force = true,
+	-- color = {1, 0.7, 0.7, 1},
+	-- fading = 1},
 
-		-- {name = 'Alt Riot',
-		-- method = 'cylinder',
-		-- from_cursor = true,
-		-- -- keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
-		-- defs = {class = 'riot'},
-		-- prefer = {name = 'jumpblackhole'},
-		-- pref_use_prev = true,
-		-- only_prev_types = true,
-		-- byType = 'defID',
-		-- previous_time = 0.5,
-		-- share_radius = 'Riot',
-		-- doubleTap_time = 0.5,
-		-- force = true,
-		-- color = {1, 0.7, 0.7, 1},
-		-- fading = 1},
-
-
-		-- {
-		-- 	name = 'Slow/Fast Riot',
-		-- 	method = 'cylinder',
-		-- 	keys = {'?SPACE', 3, 'doubleTap'},
-		-- 	defs = {'!isGS', class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}},
-		-- 	groups = { -- groups find the first matching group closest of cursor
-		-- 		{
-		-- 			-- ['!name'] = {'spideremp', 'amphimpulse', 'jumpblackhole'},
-		-- 			['d:speed'] = '>65',
-		-- 		},
-		-- 		{
-		-- 			['d:speed'] = '<=65',
-		-- 			-- ['!name'] = {'spiderriot', 'amphriot', 'jumpblackhole'},
-		-- 		}
-		-- 	},
-		-- 	-- different_units = true,
-		-- 	-- switch_groups = 1,
-		-- 	force = true,
-		-- 	share_radius = 'Raiders',
-		-- 	color = {1, 0.8, 0.8, 1},
-		-- 	fading = 1,
-		-- },
+	-- {name = 'Alt Riot',
+	-- method = 'cylinder',
+	-- from_cursor = true,
+	-- -- keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
+	-- defs = {class = 'riot'},
+	-- prefer = {name = 'jumpblackhole'},
+	-- pref_use_prev = true,
+	-- only_prev_types = true,
+	-- byType = 'defID',
+	-- previous_time = 0.5,
+	-- share_radius = 'Riot',
+	-- doubleTap_time = 0.5,
+	-- force = true,
+	-- color = {1, 0.7, 0.7, 1},
+	-- fading = 1},
 
 
+	-- {
+	--  name = 'Slow/Fast Riot',
+	--  method = 'cylinder',
+	--  keys = {'?SPACE', 3, 'doubleTap'},
+	--  defs = {'!isGS', class = 'riot', ['!name'] = {'striderdante', 'jumpblackhole'}},
+	--  groups = { -- groups find the first matching group closest of cursor
+	--      {
+	--          -- ['!name'] = {'spideremp', 'amphimpulse', 'jumpblackhole'},
+	--          ['d:speed'] = '>65',
+	--      },
+	--      {
+	--          ['d:speed'] = '<=65',
+	--          -- ['!name'] = {'spiderriot', 'amphriot', 'jumpblackhole'},
+	--      }
+	--  },
+	--  -- different_units = true,
+	--  -- switch_groups = 1,
+	--  force = true,
+	--  share_radius = 'Raiders',
+	--  color = {1, 0.8, 0.8, 1},
+	--  fading = 1,
+	-- },
+
+	-- {
+	--  name = 'Any Riot',
+	--  method = 'cylinder',
+	--  keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
+	--  defs = {class = 'riot'},
+	--  longPressTime = 0.1,
+	--  share_radius = 'Raiders',
+	--  add_last_acquired = true,
+	--  keep_on_fail = true,
+	--  force = true,
+	--  color = {0.5, 0.7, 0.7, 1},
+	--  fading = 1,
+	-- },
 
 
-		-- {
-		-- 	name = 'Any Riot',
-		-- 	method = 'cylinder',
-		-- 	keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
-		-- 	defs = {class = 'riot'},
-		-- 	longPressTime = 0.1,
-		-- 	share_radius = 'Raiders',
-		-- 	add_last_acquired = true,
-		-- 	keep_on_fail = true,
-		-- 	force = true,
-		-- 	color = {0.5, 0.7, 0.7, 1},
-		-- 	fading = 1,
-		-- },
+	-- {name = 'One Riot',
+	-- method = 'on_acquired',
+	-- keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- want = 1,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
 
+	----------
+	--- ASSAULT
+	----------
 
-		-- {name = 'One Riot',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 3, 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-
-
-	------ ASSAULT -------
- 
-
-
-
-		{
-			name = 'Assault',
-			method = 'cylinder',
-			keys = {'?SPACE', 4},
-			defs = {class = 'assault', '!isPlane'},
-			groups = {
-				{
-					'isGS'
-				},
-				{
-					name = 'jumpsumo',
-				},
-				{
-					'!isGS', ['!name'] = {'striderbantha', 'jumpsumo'},
-				}
-				,
-				{
-					name = 'hoverassault',
-				}
+	{
+		name = 'Assault',
+		method = 'cylinder',
+		keys = {'?SPACE', 4},
+		defs = {class = 'assault', '!isPlane'},
+		groups = {
+			{
+				'isGS'
 			},
-			-- different_units = true,
-			switch_groups = 1,
-			force = true,
-			color = {1, 0.8, 0.8, 1},
-			fading = 1,
+			{
+				name = 'jumpsumo',
+			},
+			{
+				'!isGS', ['!name'] = {'striderbantha', 'jumpsumo'},
+			}
+			,
+			{
+				name = 'hoverassault',
+			}
 		},
-
-		-- {name = 'Assault (bis)',
-		-- method = 'cylinder',
-		-- keys = {'?SPACE', 4, 'longPress'},
-
-		-- switch = {
-		-- 	{
-		-- 		name = 'jumpsumo'
-		-- 	},
-		-- 	{
-		-- 		class = 'assault', ['!name'] = {'striderbantha', 'jumpsumo'}
-		-- 	}
-		-- 	,
-		-- 	{
-		-- 		class = 'assault', name = 'hoverassault'
-		-- 	}
-		-- },
 		-- different_units = true,
-		-- force = true,
+		switch_groups = 1,
+		force = true,
+		color = {1, 0.8, 0.8, 1},
+		fading = 1,
+	},
 
-		-- switch_time = 0.8,
-		-- shared_switch = 'Assault',
-		-- shared_prev = 'Assault',
-		-- color = {1, 0.8, 0.8, 1},
-		-- fading = 1},
+	-- {name = 'Assault (bis)',
+	-- method = 'cylinder',
+	-- keys = {'?SPACE', 4, 'longPress'},
+
+	-- switch = {
+	--  {
+	--      name = 'jumpsumo'
+	--  },
+	--  {
+	--      class = 'assault', ['!name'] = {'striderbantha', 'jumpsumo'}
+	--  }
+	--  ,
+	--  {
+	--      class = 'assault', name = 'hoverassault'
+	--  }
+	-- },
+	-- different_units = true,
+	-- force = true,
+
+	-- switch_time = 0.8,
+	-- shared_switch = 'Assault',
+	-- shared_prev = 'Assault',
+	-- color = {1, 0.8, 0.8, 1},
+	-- fading = 1},
 
 
-		-- {name = 'One Assault',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 4, 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- defs = {class = 'assault'},
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
-	------ ARTY -------
+	-- {name = 'One Assault',
+	-- method = 'on_acquired',
+	-- keys = {'?SPACE', 4, 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- defs = {class = 'assault'},
+	-- want = 1,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
 
-		{
-			name = 'Arty',
-			method = 'cylinder',
-			keys = {'?SPACE', 4, 'doubleTap', 'fastDoubleTap', '?spam'},	
-			fastDoubleTap_time = 0.22,
-			byType = 'defID',
-			from_cursor = true,
-			share_radius = 'Assault',
-			defs = {
-				class = 'arty'
-			},
-			color = {0.2, 0.2, 0.6, 1},
-			fading = 0.8,
+	----------
+	--- ARTY
+	----------
+
+	{
+		name = 'Arty',
+		method = 'cylinder',
+		keys = {'?SPACE', 4, 'doubleTap', 'fastDoubleTap', '?spam'},    
+		fastDoubleTap_time = 0.22,
+		byType = 'defID',
+		from_cursor = true,
+		share_radius = 'Assault',
+		defs = {
+			class = 'arty'
 		},
+		color = {0.2, 0.2, 0.6, 1},
+		fading = 0.8,
+	},
 
-		{
-			name = 'arty',
-			method = 'cylinder',
-			keys = {'?SPACE', 5},
-			byType = 'defID',
-			defs = {class = 'arty'},
-			share_radius = 'Assault',
-			color = {0.2, 0.2, 0.6, 1},
-			fading = 1,
-		},
+	{
+		name = 'arty',
+		method = 'cylinder',
+		keys = {'?SPACE', 5},
+		byType = 'defID',
+		defs = {class = 'arty'},
+		share_radius = 'Assault',
+		color = {0.2, 0.2, 0.6, 1},
+		fading = 1,
+	},
 
-		-- {name = 'One Arty',
-		-- method = 'on_acquired',
-		-- keys = {'?SPACE', 5, 'longPress', 'mouseStill'},
-		-- from_cursor = true,
-		-- want = 1,
-		-- color = {0.5, 0.9, 0.5, 1},
-		-- fading = 1},
+	-- {name = 'One Arty',
+	-- method = 'on_acquired',
+	-- keys = {'?SPACE', 5, 'longPress', 'mouseStill'},
+	-- from_cursor = true,
+	-- want = 1,
+	-- color = {0.5, 0.9, 0.5, 1},
+	-- fading = 1},
 
-		-- {name = 'all arty',
-		-- method = 'all',
-		-- on_press = true, 
-		-- keys = {'?SPACE', 5, 'doubleTap', '?spam'},
-		-- defs = {class = 'arty'},
-		-- color = {0.2, 0.2, 0.6, 1},
-		-- fading = 1},
+	-- {name = 'all arty',
+	-- method = 'all',
+	-- on_press = true, 
+	-- keys = {'?SPACE', 5, 'doubleTap', '?spam'},
+	-- defs = {class = 'arty'},
+	-- color = {0.2, 0.2, 0.6, 1},
+	-- fading = 1},
 
-	------ AA -------
+	----------
+	--- AA
+	----------
+	-- 2+LClick : pick up a cloaky aa to go scout, put it on hold fire
+	{
+		name = 'Scout', 
+		method = 'cylinder',
+		from_cursor = true,
+		defs = {name = 'cloakaa', ['fireState'] = 0},
+		keys = {'?SPACE', 'N_2', 'LClick'},
+		want = 1, -- specify the number we want to select, will cycle through valid units
+		from_cursor = true,
+		on_press = true,
+		-- prefer = {{['fireState'] = 0}, {'isUnit'}}, -- prefer one on hold fire if possible
+		previous_time = 1.5,
+		call_on_fail = 'Set Scout', -- setting a scout if no available in the radius
+		share_radius = 'Set Scout',
+	},
 
-		-- 2+LClick : pick up a cloaky aa to go scout, put it on hold fire
-		{
-			name = 'Scout', 
-			method = 'cylinder',
-			from_cursor = true,
-			defs = {name = 'cloakaa', ['fireState'] = 0},
-			keys = {'?SPACE', 'N_2', 'LClick'},
-			want = 1, -- specify the number we want to select, will cycle through valid units
-			from_cursor = true,
-			on_press = true,
-			-- prefer = {{['fireState'] = 0}, {'isUnit'}}, -- prefer one on hold fire if possible
-			previous_time = 1.5,
-			call_on_fail = 'Set Scout', -- setting a scout if no available in the radius
-			share_radius = 'Set Scout',
-		},
-
-		{
-			name = 'Set Scout', -- Pick up an non hold-fire cloakaa closest to the cursor and put it on hold fire
-			method = 'cylinder',
-			from_cursor = true,
-			defs = {name = 'cloakaa', ['!fireState'] = 0},
-			on_press = true,
-			-- ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
-
-			give_order = {[CMD.FIRE_STATE] = {0, 0}}, -- put it on hold fire
-			want = 1,
-			force = true,
-			keep_on_fail = true,
-			disable_SM = true,
-			shared_prev = 'Scout',  -- use same 'previous' table as the cited macro
-		},
-		------------
-		-- Set up more scouts by spamming lClick
-		{
-			name = 'Set +1 Scout',
+	{
+		name = 'Set Scout', -- Pick up an non hold-fire cloakaa closest to the cursor and put it on hold fire
 		method = 'cylinder',
 		from_cursor = true,
 		defs = {name = 'cloakaa', ['!fireState'] = 0},
-		keys = {'?SPACE', 'N_2', 'LClick', 'doubleLClick'},
+		on_press = true,
 		-- ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
 
 		give_order = {[CMD.FIRE_STATE] = {0, 0}}, -- put it on hold fire
-		-- shift = true, -- don't deselected the previous selection 
 		want = 1,
 		force = true,
-		on_press = true,
 		keep_on_fail = true,
 		disable_SM = true,
-		share_radius = 'Set Scout',
-		shared_prev = 'Set Scout', }, -- use same 'previous' table as the cited macro
-		------------
-		-- Pick up all scouts on long double click with 2
-		{
-			name = 'Get All Scouts',
-			method = 'cylinder',
-			from_cursor = true,
-			defs = {name = 'cloakaa', ['fireState'] = 0},
-			keys = {'?SPACE', 'N_2', 'LClick', 'longClick'},
-			force = true,
-			share_radius = 'Set Scout',
-			-- on_press = true,
-		}, 
-
-
-		{
-			name = 'Non Scout AA', -- pick up any AA except the cloaky AA on hold-fire (preventing to picking scouts along)
-			method = 'cylinder',
-			keys = {'?SPACE', 'N_2', 'doubleTap', '?spam'},						
-			-- defs = { class = 'aaunit', ['?'] = {['!fireState'] = 0, ['!name'] = 'cloakaa'} },
-			defs = { class = 'aaunit'},
-			groups = {
-				{family = 'gunship'},
-				{['!family'] = 'gunship'},
-			},
-			prefer = {['!fireState'] = 0},
-			call_on_fail = 'Alt Skirms',
-			color = {0.2, 0.2, 0.6, 1},
-			fading = 1
-		},
-
-		{
-			name = 'all AA', -- pick up all AA and put them back with fire ON
-			method = 'cylinder',
-			-- keys = {'?SPACE', 'N_2', 'doubleTap', 'spam'},						
-			keys = {'?SPACE', 'N_2', 'doubleTap', 'longPress', 'mouseStill'},
-			longPressTime = 0.1,
-			share_radius = 'Non Scout AA',
-			defs = { class = 'aaunit' },
-			give_order = {[CMD.FIRE_STATE] = {2, 0}},
-			add_last_acquired = true,
-			color = {0.6, 0.3, 0.7, 1},
-			fading = 1,
-
-		},
-
-	------ SPECIAL -------
-
-		{
-			name = 'Special',
-			method = 'cylinder',
-			keys = {'?AIR', 'SPACE', 'E'},						
-			-- defs = {		
-			-- 	-- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
-			-- 		  --, name = 'amphlaunch'
-			-- 	name = {'vehcapture', 'amphtele'}
-			-- },
-			groups = {
-				{name = 'vehcapture'},
-				{name = 'amphtele'},
-				-- {name = 'bomberstrike', ['!p:noammo'] = {1, 2}},
-			},
-			-- on_press = true,
-			-- keep_on_fail = true,
-			call_on_fail = 'Loaded Bomber Strike',
-			-- call_on_success = 'More Special',
-			call_on_only_defs = {
-				-- [{name = 'bomberstrike', ['!p:noammo'] = {1, 2}}] = 'Loaded Bomber Strike', 
-				[{name = {'vehcapture', 'amphtele'}}] = 'More Special',
-			},
-			set_active_command =-1, -- remove the reclaim active command that might have been activated
-			force = true,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'Loaded Bomber Strike',
-			method = 'all',
-			-- keys = {'?AIR', 'SPACE', 'E'},						
-			defs = {		
-			-- 	-- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
-			-- 		  --, name = 'amphlaunch'
-				name = {'bomberstrike'}, ['!p:noammo'] = {1, 2},
-			},
-
-			-- keep_on_fail = true,
-			-- force = true,
-			color = {0.5, 0.9, 0.8, 1},
-			fading = 0.8,
-		},
-
-
-		{
-			name = 'More Special',
+		shared_prev = 'Scout',  -- use same 'previous' table as the cited macro
+	},
+	------------
+	-- Set up more scouts by spamming lClick
+	{
+		name = 'Set +1 Scout',
 		method = 'cylinder',
+		from_cursor = true,
+		defs = {name = 'cloakaa', ['!fireState'] = 0},
+		keys = {'?SPACE', 'N_2', 'LClick', 'doubleLClick'
+	},
+	-- ignore_from_sel = true, -- remove from possible units those that are already selected, this to prevent priority2 to get overriden by units already selected
+
+	give_order = {[CMD.FIRE_STATE] = {0, 0}}, -- put it on hold fire
+	-- shift = true, -- don't deselected the previous selection 
+	want = 1,
+	force = true,
+	on_press = true,
+	keep_on_fail = true,
+	disable_SM = true,
+	share_radius = 'Set Scout',
+	shared_prev = 'Set Scout', }, -- use same 'previous' table as the cited macro
+	------------
+	-- Pick up all scouts on long double click with 2
+	{
+		name = 'Get All Scouts',
+		method = 'cylinder',
+		from_cursor = true,
+		defs = {name = 'cloakaa', ['fireState'] = 0},
+		keys = {'?SPACE', 'N_2', 'LClick', 'longClick'},
+		force = true,
+		share_radius = 'Set Scout',
+		-- on_press = true,
+	}, 
+
+
+	{
+		name = 'Non Scout AA', -- pick up any AA except the cloaky AA on hold-fire (preventing to picking scouts along)
+		method = 'cylinder',
+		keys = {'?SPACE', 'N_2', 'doubleTap', '?spam'},                     
+		-- defs = { class = 'aaunit', ['?'] = {['!fireState'] = 0, ['!name'] = 'cloakaa'} },
+		defs = { class = 'aaunit'},
+		groups = {
+			{family = 'gunship'},
+			{['!family'] = 'gunship'},
+		},
+		prefer = {['!fireState'] = 0},
+		call_on_fail = 'Alt Skirms',
+		color = {0.2, 0.2, 0.6, 1},
+		fading = 1
+	},
+
+	{
+		name = 'all AA', -- pick up all AA and put them back with fire ON
+		method = 'cylinder',
+		-- keys = {'?SPACE', 'N_2', 'doubleTap', 'spam'},                       
+		keys = {'?SPACE', 'N_2', 'doubleTap', 'longPress', 'mouseStill'},
+		longPressTime = 0.1,
+		share_radius = 'Non Scout AA',
+		defs = { class = 'aaunit' },
+		give_order = {[CMD.FIRE_STATE] = {2, 0}},
+		add_last_acquired = true,
+		color = {0.6, 0.3, 0.7, 1},
+		fading = 1,
+
+	},
+
+	---------------------
+	-- SPECIAL
+	---------------------
+
+	{
+		name = 'Special',
+		method = 'cylinder',
+		keys = {'?AIR', 'SPACE', 'E'},                      
+		-- defs = {     
+		--  -- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
+		--        --, name = 'amphlaunch'
+		--  name = {'vehcapture', 'amphtele'}
+		-- },
 		groups = {
 			{name = 'vehcapture'},
 			{name = 'amphtele'},
+			-- {name = 'bomberstrike', ['!p:noammo'] = {1, 2}},
 		},
-		-- add_last_acquired = true, 
-		share_radius = 'Special',
-		high_lock_call = true,
+		-- on_press = true,
+		-- keep_on_fail = true,
+		call_on_fail = 'Loaded Bomber Strike',
+		-- call_on_success = 'More Special',
+		call_on_only_defs = {
+			-- [{name = 'bomberstrike', ['!p:noammo'] = {1, 2}}] = 'Loaded Bomber Strike', 
+			[{name = {'vehcapture', 'amphtele'}}] = 'More Special',
+		},
+		set_active_command =-1, -- remove the reclaim active command that might have been activated
+		force = true,
 		color = {0.5, 0.9, 0.5, 1},
 		fading = 0.8,
-		},
+	},
 
-		{
-			name = 'Loaded Bomber Strike',
-		method = 'all',
-		-- keys = {'?AIR', 'SPACE', 'E'},						
-		defs = {		
-		-- 	-- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
-		-- 		  --, name = 'amphlaunch'
-			name = {'bomberstrike'}, ['!p:noammo'] = {1, 2},
-		},
 
-		-- keep_on_fail = true,
-		-- force = true,
-		color = {0.5, 0.9, 0.8, 1},
+
+	{
+		name = 'More Special',
+		method = 'cylinder',
+		groups = {
+		{name = 'vehcapture'},
+		{name = 'amphtele'},
+	},
+	-- add_last_acquired = true, 
+	share_radius = 'Special',
+	high_lock_call = true,
+	color = {0.5, 0.9, 0.5, 1},
+	fading = 0.8,
+	},
+
+	{
+		name = 'Shields',
+		method = 'cylinder',
+		keys = {'?AIR', '2', 'RClick'},                     
+		defs = {name = 'shieldshield'},
+		share_radius = 'Ground Army / GS / ships',
+		keep_on_fail = true,
+		color = {0.5, 0.9, 0.5, 1},
 		fading = 0.8,
-		},
+		ignore_on_fail = true,
+	},
+
+	---------------------------------------------------
+	---------------------------------------------------
+	----------------------- AIR -----------------------
+	---------------------------------------------------
+	---------------------------------------------------
+
+	{
+		name = 'Swifts ',
+		method = 'all',
+		keys = {'AIR', '?SPACE', 1},
+		-- on_press = true,
+		defs = {name = {'planefighter', 'chicken_pigeon'}},
+		-- no_key_order = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'Swifts Around',
+		method = 'cylinder',
+		keys = {'AIR', '?SPACE', 1, 'longPress', '?mouseStill'},
+		-- on_press = true,
+		longPressTime = 0.1,
+		-- radius = 1000,
+		defs = {name = {'planefighter', 'chicken_pigeon'}},
+		-- no_key_order = true,
+		keep_on_fail = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
 
 
+	-----------------
+	-- BOMBER CONTROL
+	-----------------
 
-		{
-			name = 'Loaded Bomber Strike Around',
-			method = 'cylinder', 
+	-- while AIR lock active: -- !!AIR LOCK has been deactivated, not so precious, allow the key UNKNOWN to be used for something else
+	-- tapping '3' will pick up all loaded bombers, then tapping again '3' repetively will reduce the number of bombers selected
+	-- holding '3' long enough will select all bombers
+	-- bombers are selected on press and from anywhere
 
-			keys = {'SPACE', '?AIR', 'E', 'longPress'--[[, '?mouseStill'--]]},	
-
-			-- keys combination can be anything, even non-mods key together
-			defs = {name = 'bomberstrike', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
-			--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
-			longPressTime = 0.2,
-
-
-			color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6, -- color and optional fading, here: opacity will go from 0.9 to 0.6
-		},
-
-		{
-			name = 'All Bomber Strike',
-			method = 'all', 
-
-			keys = {'SPACE', '?AIR', 'E', 'doubleTap', 'longPress'--[[, '?mouseStill'--]]},	
-
-			-- keys combination can be anything, even non-mods key together
-			defs = {name = 'bomberstrike'}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
-			--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
-			longPressTime = 0.2,
-
-
-			color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6
-		}, -- color and optional fading, here: opacity will go from 0.9 to 0.6
-
-
-		{
-			name = 'Shields',
-			method = 'cylinder',
-			keys = {'?AIR', '2', 'RClick'},						
-			defs = {name = 'shieldshield'},
-			share_radius = 'Ground Army / GS / ships',
-			keep_on_fail = true,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-			ignore_on_fail = true,
-		},
-
-
-
-
-		---------------------------------------------------
-		---------------------------------------------------
-		----------------------- AIR -----------------------
-		---------------------------------------------------
-		---------------------------------------------------
-
-		{
-			name = 'Swifts ',
-			method = 'all',
-			keys = {'AIR', '?SPACE', 1},
-			-- on_press = true,
-			defs = {name = {'planefighter', 'chicken_pigeon'}},
-			-- no_key_order = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'Swifts Around',
-			method = 'cylinder',
-			keys = {'AIR', '?SPACE', 1, 'longPress', '?mouseStill'},
-			-- on_press = true,
-			longPressTime = 0.1,
-			-- radius = 1000,
-			defs = {name = {'planefighter', 'chicken_pigeon'}},
-			-- no_key_order = true,
-			keep_on_fail = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
-		},
-
-
-		-----------------
-		-- BOMBER CONTROL
-		-----------------
-
-		-- while AIR lock active: -- !!AIR LOCK has been deactivated, not so precious, allow the key UNKNOWN to be used for something else
-		-- tapping '3' will pick up all loaded bombers, then tapping again '3' repetively will reduce the number of bombers selected
-		-- holding '3' long enough will select all bombers
-		-- bombers are selected on press and from anywhere
-
-		{
-			name = 'Loaded Bombers',
+	{
+		name = 'Loaded Bombers',
 		method = 'all', -- all units
-		keys = {'?SPACE', 'AIR', 'N_3'},	-- key and mods combination
+		keys = {'?SPACE', 'AIR', 'N_3'},    -- key and mods combination
 		on_press = true, -- select on press and stop the call
 		-- keys combination can be anything, even non-mods key together
 		defs = {name = 'bomberprec', ['!p:noammo'] = {1, 2}, --[['isIdle', --]] --[[, ['!order'] = CMD.ATTACK--]]}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
 		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
 		color = {0.0, 1.0, 0.0, 0.9  }, -- color and optional fading, here: opacity will go from 0.9 to 0.6
-		fading = 0.6,			-- if not mentioned, color will be randomized but fixed by name, method and position in the table
+		fading = 0.6,           -- if not mentioned, color will be randomized but fixed by name, method and position in the table
 								-- can also set pos and size for 'all' , 'onscreen' and 'toggleLock' methods
 								-- note: display can be deactivated with hide = true
 								-- will fade from 0.99 alpha to the float number given
-		},
-		{
-			name = 'Loaded Bombers Around',
-			method = 'cylinder', 
-			keys = {'?SPACE', 'AIR', 'N_3', 'longPress', '?mouseStill'},	
-			-- keys combination can be anything, even non-mods key together
-			defs = {name = 'bomberprec', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
-			--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
-			longPressTime = 0.2,
+	},
+	{
+		name = 'Loaded Bombers Around',
+		method = 'cylinder', 
+		keys = {'?SPACE', 'AIR', 'N_3', 'longPress', '?mouseStill'},    
+		-- keys combination can be anything, even non-mods key together
+		defs = {name = 'bomberprec', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
+		longPressTime = 0.2,
 
-			color = {0.0, 1.0, 0.0, 0.9  },
-			fading = 0.6,
-		},
-
-
-		-- {name = 'Loaded Bombers',
-		-- method = 'all', 
-		-- keys = {'?SPACE', 'AIR', 'N_3', 'longPress', '?mouseStill'},	
-		-- -- radius = 1000,
-		-- defs = {name = 'bomberprec', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
-		-- longPressTime = 0.2,
-		-- color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6,},
+		color = {0.0, 1.0, 0.0, 0.9  },
+		fading = 0.6,
+	},
 
 
-
-		-- {name = 'Less loaded Bombers',
-		-- method = 'on_selection',
-		-- keys = {'?SPACE', 'AIR', 'N_3', 'doubleTap', '?spam'},
-		-- on_press = true,
-		-- want = '85%',
-		-- --want =-1,
-		-- force = true,
-		-- color = {1.0, 0.0, 1.0, 0.8},
-		-- fading = 0.8},
-
-		{
-			name = 'All Bombers',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_3', 'doubleTap'}, 
-			defs = {name = {'bomberprec', 'bomberstrike'}},
-			on_press = true,
-			ignore_no_select = true,
-			color = {1.0, 0.0, 1.0, 0.8},
-			fading = 0.8,
-		},
+	-- {name = 'Loaded Bombers',
+	-- method = 'all', 
+	-- keys = {'?SPACE', 'AIR', 'N_3', 'longPress', '?mouseStill'}, 
+	-- -- radius = 1000,
+	-- defs = {name = 'bomberprec', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+	-- longPressTime = 0.2,
+	-- color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6,},
 
 
-		-- same with napalms
-		{
-			name = 'Loaded Napalms',
-			method = 'all', -- all units
-			keys = {'?SPACE', 'AIR', 'N_4'},	-- key and mods combination
-			on_press = true, -- select on press and stop the call
-			-- keys combination can be anything, even non-mods key together
-			defs = {
-				['?'] = {
-					name = 'chicken_roc',
-					{name = 'bomberriot', ['!p:noammo'] = {1, 2}--[[, 'isIdle', --]] --[[['!order'] = CMD.ATTACK--]]},
-				},
+
+	-- {name = 'Less loaded Bombers',
+	-- method = 'on_selection',
+	-- keys = {'?SPACE', 'AIR', 'N_3', 'doubleTap', '?spam'},
+	-- on_press = true,
+	-- want = '85%',
+	-- --want =-1,
+	-- force = true,
+	-- color = {1.0, 0.0, 1.0, 0.8},
+	-- fading = 0.8},
+
+	{
+		name = 'All Bombers',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_3', 'doubleTap'}, 
+		defs = {name = {'bomberprec', 'bomberstrike'}},
+		on_press = true,
+		ignore_no_select = true,
+		color = {1.0, 0.0, 1.0, 0.8},
+		fading = 0.8,
+	},
+
+
+	-- same with napalms
+	{
+		name = 'Loaded Napalms',
+		method = 'all', -- all units
+		keys = {'?SPACE', 'AIR', 'N_4'},    -- key and mods combination
+		on_press = true, -- select on press and stop the call
+		-- keys combination can be anything, even non-mods key together
+		defs = {
+			['?'] = {
+				name = 'chicken_roc',
+				{name = 'bomberriot', ['!p:noammo'] = {1, 2}--[[, 'isIdle', --]] --[[['!order'] = CMD.ATTACK--]]},
 			},
-			color = {0.0, 1.0, 0.0, 0.9  },
-			fading = 0.6,
 		},
+		color = {0.0, 1.0, 0.0, 0.9  },
+		fading = 0.6,
+	},
 
-		{
-			name = 'Loaded Napalms Around',
-			method = 'cylinder', 
-			keys = {'?SPACE', 'AIR', 'N_4', 'longPress', '?mouseStill'},	
-			radius = 1000,
-			defs = {
-				['?'] = {
-					name = 'chicken_roc',
-					{name = 'bomberriot', ['!p:noammo'] = {1, 2}},
-				},
+	{
+		name = 'Loaded Napalms Around',
+		method = 'cylinder', 
+		keys = {'?SPACE', 'AIR', 'N_4', 'longPress', '?mouseStill'},    
+		radius = 1000,
+		defs = {
+			['?'] = {
+				name = 'chicken_roc',
+				{name = 'bomberriot', ['!p:noammo'] = {1, 2}},
 			},
-			longPressTime = 0.2, -- how long a long press will be considered prior to trigger this macro
-			color = {0.5, 1.0, 0.0, 0.9  },
-			fading = 0.6,
 		},
+		longPressTime = 0.2, -- how long a long press will be considered prior to trigger this macro
+		color = {0.5, 1.0, 0.0, 0.9  },
+		fading = 0.6,
+	},
 
 		-- {name = 'Loaded Napalms',
 		-- method = 'all', 
-		-- keys = {'?SPACE', 'AIR', 'N_4', 'longPress', '?mouseStill'},	
+		-- keys = {'?SPACE', 'AIR', 'N_4', 'longPress', '?mouseStill'}, 
 		-- defs = {name = 'bomberriot', ['!p:noammo'] = {1, 2}},
 		-- longPressTime = 0.2,
 		-- color = {0.5, 1.0, 0.0, 0.9  }, fading = 0.6,},
@@ -3589,350 +3356,444 @@ local hotkeysCombos = {
 		},
 		-----
 
-		-----------------
-		-- LIKHO CONTROL
-		-----------------
+	-----------------
+	-- LIKHO CONTROL
+	-----------------
 
-		-- while AIR lock is active :
-		-- tapping '5' will pickup the closest loaded likho from the cursor, then spamming 5 will pickup one more at each tap
-		-- if '5' is held long enough, all likhos will be selected if '5' was tapped only once before, else it will selected all loaded likhos
-		-- 
+	-- while AIR lock is active :
+	-- tapping '5' will pickup the closest loaded likho from the cursor, then spamming 5 will pickup one more at each tap
+	-- if '5' is held long enough, all likhos will be selected if '5' was tapped only once before, else it will selected all loaded likhos
+	-- 
+
+	{
+		name = 'One Likho',
+		method = 'all',
+		keys = {'?SPACE', 'N_5', 'AIR'},
+		on_press = true,
+		defs = {name = 'bomberheavy', ['!p:noammo'] = {1, 2}},
+		want = 1,
+		previous_time = 0.01, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
+		from_cursor = true,
+		no_key_order = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'One More Likho',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_5', 'doubleTap', '?spam'},
+		defs = {--[[name = {'bomberheavy', 'bomberassault'}, --]]['!p:noammo'] = {1, 2}},
+		same_units = true, -->>
+		want = 1,
+		previous_time = 0.5, -- forget previous selection faster, default is 5 second
+		on_press = true,
+		from_cursor = true,
+		shift = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'All Loaded Likhos',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_5', 'doubleTap', 'longPress', '?spam', '?mouseStill'},
+		defs = {['!p:noammo'] = {1, 2}},
+		same_units = true,
+		on_press = true,
+		longPressTime = 0.15,
+		color = {1.0, 0.0, 0.5, 0.8},
+		fading = 0.6,
+	},
+
+	{
+		name = 'All Likhos',
+		method = 'all',
+		keys = {'?SPACE', 'N_5', 'AIR', 'longPress', '?mouseStill'},
+		defs = {name = {'bomberheavy', 'bomberassault'}},
+		on_press = true,
+		longPressTime = 0.2,
+
+		color = {1.0, 0.0, 0.5, 0.8},
+		fading = 0.6,
+	},
 
 
-		{
-			name = 'One Likho',
-			method = 'all',
-			keys = {'?SPACE', 'N_5', 'AIR'},
-			on_press = true,
-			defs = {name = 'bomberheavy', ['!p:noammo'] = {1, 2}},
-			want = 1,
-			previous_time = 0.01, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
-			from_cursor = true,
-			no_key_order = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
+	---------------------
+	-- ODINS
+	---------------------
+	{
+		name = 'One Odin',
+		method = 'all',
+		keys = {'?SPACE', 'N_6', 'AIR'},
+		on_press = true,
+		defs = {name = 'bomberassault', ['!p:noammo'] = {1, 2}},
+		want = 1,
+		previous_time = 0.01, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
+		from_cursor = true,
+		no_key_order = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'One More Odin',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_6', 'doubleTap', '?spam'},
+		defs = {--[[[name = 'bomberassault', --]]['!p:noammo'] = {1, 2}},
+		same_units = true, -->>
+		want = 1,
+		previous_time = 0.5, -- forget previous selection faster, default is 5 second
+		on_press = true,
+		from_cursor = true,
+		shift = true,
+		color = {0.9, 0.9, 0.3, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'All Loaded Odins',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_6', 'doubleTap', 'longPress', '?spam', '?mouseStill'},
+		defs = {['!p:noammo'] = {1, 2}},
+		same_units = true,
+		on_press = true,
+		longPressTime = 0.2,
+		color = {1.0, 0.0, 0.5, 0.8},
+		fading = 0.6,
+	},
+
+	{
+		name = 'All Odins',
+		method = 'all',
+		keys = {'?SPACE', 'N_6', 'AIR', 'longPress', '?mouseStill'},
+		defs = {name = 'bomberassault'},
+		on_press = true,
+		longPressTime = 0.2,
+
+		color = {1.0, 0.0, 0.5, 0.8},
+		fading = 0.6,
+	},
+	---------------------
+	-- RAPTORS
+	---------------------
+	{
+		name = 'Raptors',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 2}, -- means the AIR toggle must be on, and  as SPACE can be used to temporary active the AIR lock, it might be on, so we put it optionally in the combo
+		defs = {name = 'planeheavyfighter'},
+		on_press = true,
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 0.8,
+	},
+	{
+		name = 'Raptors Around',
+		method = 'cylinder', 
+		keys = {'?SPACE', 'AIR', 'N_2', 'longPress', '?mouseStill'},    
+		radius = 1000,
+		defs = {name = 'planeheavyfighter'},
+		longPressTime = 0.2, -- how long a long press will be considered prior to trigger this macro
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 1,
+	},
+	---------------------
+	-- RADAR PLANES CONTROL
+	---------------------
+	-- while AIR lock active, tapping '2' twice will pick up the closest radar plane available, spamming 2 will add more and more radar planes,
+	-- tapping '2' twice then wait will pick all the radar planes
+		
+	{
+		name = 'Owl',
+		method = 'all',
+		keys = {'AIR', '?SPACE', 2, 'doubleTap'},                       
+		defs = {name = {'planescout', 'planelightscout'}},
+		from_cursor = true,
+		want = 1,
+		on_press = true,
+		previous_time = 0.6,
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'All Owls',
+		method = 'all',
+		keys = {'AIR', '?SPACE', 2, 'doubleTap', 'longPress', '?mouseStill'},                       
+		-- defs = {name = {'planescout', 'planelightscout'}},
+		same_units = true,
+		from_cursor = true,
+		-- want = 1,
+		on_press = true,
+		longPressTime = 0.2,
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'More Owls',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 2, 'doubleTap', 'spam'},                       
+		-- defs = {name = {'planescout', 'planelightscout'}},
+		same_units = true,
+		from_cursor = true,
+		want = 1,
+		on_press = true,
+		shift = true,
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 0.8,
+	},
+
+	------------------------------------------
+	--- STILETTO slightly different mechanism -- same '1' key than swift but we use doubleTap for it, can select more and more by spamming the key
+	--- select the closests of cursor and must be reloaded (reload detection unfortunately fail in the mid-to-end of the firing salvo)
+	--- longpress after a double tap will select all existing stilettos
+	{
+		name = 'One Stiletto',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_1', 'doubleTap'},
+		defs = {name = 'bomberdisarm', ['!p:noammo'] = {1, 2}--[[, ['reload'] = {1}--]]},
+		want = 1,
+		previous_time = 0.30, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
+		on_press = true, 
+		from_cursor = true,
+		color = {0.8, 0.8, 0.8, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'More Stilettos',
+		method = 'all',
+		keys = {'?SPACE', 'AIR', 'N_1', 'doubleTap', 'spam'},
+		defs = {name = 'bomberdisarm', ['!p:noammo'] = {1, 2}--[[, ['reload'] = {1}--]]},
+		want = 1,
+		previous_time = 0.25, -- forget previous selection faster, default is 5 second
+		on_press = true,
+		from_cursor = true,
+		shift = true,
+		color = {0.8, 0.8, 0.8, 1},
+		fading = 0.8,
+	},
+
+	{
+		name = 'all Stilettos',
+		method = 'all',
+		keys = {'AIR', '?SPACE', 'N_1', 'doubleTap', '?spam', 'longPress', '?mouseStill'},                      
+		defs = {name = 'bomberdisarm'},
+		color = {1, 1, 1, 1},
+		fading = 0.8,
+	},
+
+	-------------
+	--- MAGPIES
+	-------------
+
+	{
+		-- NO KEYS BECAUSE CALLED WHEN MACRO 'Special' FAIL
+		name = 'Loaded Bomber Strike',
+		method = 'all',
+		-- keys = {'?AIR', 'SPACE', 'E'}, 
+		defs = {        
+		--  -- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
+		--        --, name = 'amphlaunch'
+			name = {'bomberstrike'}, ['!p:noammo'] = {1, 2},
 		},
 
-		{
-			name = 'One More Likho',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_5', 'doubleTap', '?spam'},
-			defs = {--[[name = {'bomberheavy', 'bomberassault'}, --]]['!p:noammo'] = {1, 2}},
-			same_units = true, -->>
-			want = 1,
-			previous_time = 0.5, -- forget previous selection faster, default is 5 second
-			on_press = true,
-			from_cursor = true,
-			shift = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
-		},
+		-- keep_on_fail = true,
+		-- force = true,
+		color = {0.5, 0.9, 0.8, 1},
+		fading = 0.8,
+	},
 
-		{
-			name = 'All Loaded Likhos',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_5', 'doubleTap', 'longPress', '?spam', '?mouseStill'},
-			defs = {['!p:noammo'] = {1, 2}},
-			same_units = true,
-			on_press = true,
-			longPressTime = 0.15,
-			color = {1.0, 0.0, 0.5, 0.8},
-			fading = 0.6,
-		},
+	{
+		name = 'Loaded Bomber Strike Around',
+		method = 'cylinder', 
 
-		{
-			name = 'All Likhos',
-			method = 'all',
-			keys = {'?SPACE', 'N_5', 'AIR', 'longPress', '?mouseStill'},
-			defs = {name = {'bomberheavy', 'bomberassault'}},
-			on_press = true,
-			longPressTime = 0.2,
+		keys = {'SPACE', '?AIR', 'E', 'longPress'--[[, '?mouseStill'--]]},  
 
-			color = {1.0, 0.0, 0.5, 0.8},
-			fading = 0.6,
-		},
+		-- keys combination can be anything, even non-mods key together
+		defs = {name = 'bomberstrike', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
+		longPressTime = 0.2,
 
 
+		color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6, -- color and optional fading, here: opacity will go from 0.9 to 0.6
+	},
 
-		{
-			name = 'One Odin',
-			method = 'all',
-			keys = {'?SPACE', 'N_6', 'AIR'},
-			on_press = true,
-			defs = {name = 'bomberassault', ['!p:noammo'] = {1, 2}},
-			want = 1,
-			previous_time = 0.01, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
-			from_cursor = true,
-			no_key_order = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
-		},
+	{
+		name = 'All Bomber Strike',
+		method = 'all', 
 
-		{
-			name = 'One More Odin',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_6', 'doubleTap', '?spam'},
-			defs = {--[[[name = 'bomberassault', --]]['!p:noammo'] = {1, 2}},
-			same_units = true, -->>
-			want = 1,
-			previous_time = 0.5, -- forget previous selection faster, default is 5 second
-			on_press = true,
-			from_cursor = true,
-			shift = true,
-			color = {0.9, 0.9, 0.3, 1},
-			fading = 0.8,
-		},
+		keys = {'SPACE', '?AIR', 'E', 'doubleTap', 'longPress'--[[, '?mouseStill'--]]}, 
 
-		{
-			name = 'All Loaded Odins',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_6', 'doubleTap', 'longPress', '?spam', '?mouseStill'},
-			defs = {['!p:noammo'] = {1, 2}},
-			same_units = true,
-			on_press = true,
-			longPressTime = 0.2,
-			color = {1.0, 0.0, 0.5, 0.8},
-			fading = 0.6,
-		},
-
-		{
-			name = 'All Odins',
-			method = 'all',
-			keys = {'?SPACE', 'N_6', 'AIR', 'longPress', '?mouseStill'},
-			defs = {name = 'bomberassault'},
-			on_press = true,
-			longPressTime = 0.2,
-
-			color = {1.0, 0.0, 0.5, 0.8},
-			fading = 0.6,
-		},
+		-- keys combination can be anything, even non-mods key together
+		defs = {name = 'bomberstrike'}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
+		longPressTime = 0.2,
 
 
+		color = {0.0, 1.0, 0.0, 0.9  }, fading = 0.6
+	}, -- color and optional fading, here: opacity will go from 0.9 to 0.6
 
 
-
-		{
-			name = 'Raptors',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 2}, -- means the AIR toggle must be on, and  as SPACE can be used to temporary active the AIR lock, it might be on, so we put it optionally in the combo
-			defs = {name = 'planeheavyfighter'},
-			on_press = true,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-		{
-			name = 'Raptors Around',
-			method = 'cylinder', 
-			keys = {'?SPACE', 'AIR', 'N_2', 'longPress', '?mouseStill'},	
-			radius = 1000,
-			defs = {name = 'planeheavyfighter'},
-			longPressTime = 0.2, -- how long a long press will be considered prior to trigger this macro
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 1,
-		},
-		---------------------
-		-- RADAR PLANES CONTROL
-		---------------------
-		-- while AIR lock active, tapping '2' twice will pick up the closest radar plane available, spamming 2 will add more and more radar planes,
-		-- tapping '2' twice then wait will pick all the radar planes
-			
-		{
-			name = 'Owl',
-			method = 'all',
-			keys = {'AIR', '?SPACE', 2, 'doubleTap'},						
-			defs = {name = {'planescout', 'planelightscout'}},
-			from_cursor = true,
-			want = 1,
-			on_press = true,
-			previous_time = 0.6,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'All Owls',
-			method = 'all',
-			keys = {'AIR', '?SPACE', 2, 'doubleTap', 'longPress', '?mouseStill'},						
-			-- defs = {name = {'planescout', 'planelightscout'}},
-			same_units = true,
-			from_cursor = true,
-			-- want = 1,
-			on_press = true,
-			longPressTime = 0.2,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'More Owls',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 2, 'doubleTap', 'spam'},						
-			-- defs = {name = {'planescout', 'planelightscout'}},
-			same_units = true,
-			from_cursor = true,
-			want = 1,
-			on_press = true,
-			shift = true,
-			color = {0.5, 0.9, 0.5, 1},
-			fading = 0.8,
-		},
-
-		-------------------------
-		-------------------------
+	-------------------------------
+	----- TACTICAL MISSILES -------
+	-------------------------------
 
 
-		------------------------------------------
-		--- STILETTO slightly different mechanism -- same '1' key than swift but we use doubleTap for it, can select more and more by spamming the key
-		--- select the closests of cursor and must be reloaded (reload detection unfortunately fail in the mid-to-end of the firing salvo)
-		--- longpress after a double tap will select all existing stilettos
-		{
-			name = 'One Stiletto',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_1', 'doubleTap'},
-			defs = {name = 'bomberdisarm', ['!p:noammo'] = {1, 2}--[[, ['reload'] = {1}--]]},
-			want = 1,
-			previous_time = 0.30, -- forget previous selection faster, default is 5 second -- TODO make [previous] cancellable instead
-			on_press = true, 
-			from_cursor = true,
-			color = {0.8, 0.8, 0.8, 1},
-			fading = 0.8,
-		},
+	-- CLOSEST MISSILE LAUNCHER
+	{
+		name = 'close Tac Stuff',
+		method = 'all',
+		keys = {'?AIR', 'A', 'Z'},
+		force = true,
+		from_cursor = true,             
+		defs = {name = {'staticmissilesilo', 'subtacmissile', 'shipcarrier'}},
+		proximity = {radius = 50, defs = {name = {'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'missileslow'}}}, -- pickup the desired units around the target within the desired radius
+		want = 1,
+		hasStructure = true,
+		on_press = true,
+		previous_time = 0.4,
+		remove_active_command = true,
+		color = {0.6, 0.6, 1, 1},
+		fading = 0.8,
+	},
 
-		{
-			name = 'More Stilettos',
-			method = 'all',
-			keys = {'?SPACE', 'AIR', 'N_1', 'doubleTap', 'spam'},
-			defs = {name = 'bomberdisarm', ['!p:noammo'] = {1, 2}--[[, ['reload'] = {1}--]]},
-			want = 1,
-			previous_time = 0.25, -- forget previous selection faster, default is 5 second
-			on_press = true,
-			from_cursor = true,
-			shift = true,
-			color = {0.8, 0.8, 0.8, 1},
-			fading = 0.8,
-		},
+	{
+		name = 'More Tacstuff',
+		method = 'all',
+		keys = {'?AIR', 'A', 'Z', 'doubleTap', '?spam'},
+		force = true,
+		from_cursor = true, 
+		defs = {name = {'staticmissilesilo', 'subtacmissile', 'shipcarrier'}},
+		proximity = {radius = 50, defs = {name = {'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'missileslow'}}}, -- pickup the desired units around the target
+		want = 1,
+		shift = true,
+		hasStructure = true,
+		on_press = true,
+		previous_time = 0.4,
+		color = {0.6, 0.6, 1, 1},
+		fading = 0.8,
+	},
 
-		{
-			name = 'all Stilettos',
-			method = 'all',
-			keys = {'AIR', '?SPACE', 'N_1', 'doubleTap', '?spam', 'longPress', '?mouseStill'},						
-			defs = {name = 'bomberdisarm'},
-			color = {1, 1, 1, 1},
-			fading = 0.8,
-		},
+	{
+		name = 'All Tacstuff',
+		method = 'all',
+		keys = {'?AIR', 'A', 'Z', 'longPress', '?mouseStill'},
+		force = true,
+		hasStructure = true,
+		defs = {name = {'staticmissilesilo', 'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'subtacmissile', 'shipcarrier'}},
+		on_press = true,
+		color = {0.6, 0.6, 1, 1},
+		fading = 0.8,
+	},
 
-		-------------------------------
-		----- TACTICAL MISSILES -------
-		-------------------------------
+	--------------------
+	------ ESCORT ------
+	--------------------
+	-- TODO reimplement Guarding
+	-- Select Escort with a doubleTap of key, or the escorted with a doubleTap held longer
+	-- {name = 'Guards',
+	-- method = 'cylinder',
+	-- keys = {'G', 'doubleTap', '?spam'},
+	-- defs = {'isGuarding'},
+	-- force = true,
+	-- continue = true,
+	-- color = {0.1, 0.9, 0.9, 1},
+	-- fading = 0.8},
 
-		-- select all missiles and their launchers
-		--[[{name = 'Tacstuff',
-			method = 'all',
-			keys = {'A', 'Z', '?SPACE', 'doubleTap', '?spam', '?AIR'},
-			force = true,				
-			defs = {name = {'staticmissilesilo', 'tacnuke', 'seismic', 'empmissile', 'napalmmissile'}},
-			color = {0.6, 0.6, 1, 0.8},
-			fading = 0.5,
-			},
-		--]]
-		--[[{name = 'Tacstuff',
-			method = 'all',
-			keys = {'A', 'Z', '?SPACE', 'doubleTap', '?spam', '?AIR'},
-			force = true,				
-			defs = {name = {'staticmissilesilo', 'tacnuke', 'seismic', 'empmissile', 'napalmmissile'}},
-			color = {0.6, 0.6, 1, 0.8},
-			fading = 0.5,
-			},
-		--]]
-
-
-		-- select closest missile launcher with its missiles
-		{
-			name = 'close Tac Stuff',
-			method = 'all',
-			keys = {'?AIR', 'A', 'Z'},
-			force = true,
-			from_cursor = true,				
-			defs = {name = {'staticmissilesilo', 'subtacmissile', 'shipcarrier'}},
-			proximity = {radius = 50, defs = {name = {'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'missileslow'}}}, -- pickup the desired units around the target within the desired radius
-			want = 1,
-			hasStructure = true,
-			on_press = true,
-			previous_time = 0.4,
-			remove_active_command = true,
-			color = {0.6, 0.6, 1, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'More Tacstuff',
-			method = 'all',
-			keys = {'?AIR', 'A', 'Z', 'doubleTap', '?spam'},
-			force = true,
-			from_cursor = true,	
-			defs = {name = {'staticmissilesilo', 'subtacmissile', 'shipcarrier'}},
-			proximity = {radius = 50, defs = {name = {'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'missileslow'}}}, -- pickup the desired units around the target
-			want = 1,
-			shift = true,
-			hasStructure = true,
-			on_press = true,
-			previous_time = 0.4,
-			color = {0.6, 0.6, 1, 1},
-			fading = 0.8,
-		},
-
-		{
-			name = 'All Tacstuff',
-			method = 'all',
-			keys = {'?AIR', 'A', 'Z', 'longPress', '?mouseStill'},
-			force = true,
-			hasStructure = true,
-			defs = {name = {'staticmissilesilo', 'tacnuke', 'seismic', 'empmissile', 'napalmmissile', 'subtacmissile', 'shipcarrier'}},
-			on_press = true,
-			color = {0.6, 0.6, 1, 1},
-			fading = 0.8,
-		},
-
+	-- {name = 'Guarded',
+	-- method = 'cylinder',
+	-- keys = {'G', 'doubleTap', '?spam', 'longPress', '?mouseStill'},
+	-- lockedRepeat = true, -- if longPress is part of the combo and you don't want the combo itself to get repeated, just triggered once
+	--                 -- so lockedrepeat will be interpreted as a long press, 
+	-- force = true, -- will override regular hotkey bound and eventually reset active command
+	-- continue = true,
+	-- defs = {'isGuarded'},
+	-- color = {0.9, 0.9, 0.1, 1},
+	-- fading = 0.8},
 				
 
-		----- BROWSE THROUGH SELECTIONS -- not useful
-		-- quickly switch back to previous/next selection -- max selections to memorize are set in the top section of the widget
-		{
-			name = 'Last Selection', -- unused/unuseful
-			method = 'last',
-			-- keys = {'LALT', 'UNKNOWN', '?doubleTap', '?spam'}, --(UNKNOWN key is for my '²' key) 
-			color = {1, 1, 1, 0.9  }, fading = 0.6,
-		},
+	----- BROWSE THROUGH SELECTIONS -- not useful
+	-- quickly switch back to previous/next selection -- max selections to memorize are set in the top section of the widget
+	{
+		name = 'Last Selection', -- unused/unuseful
+		method = 'last',
+		-- keys = {'LALT', 'UNKNOWN', '?doubleTap', '?spam'}, --(UNKNOWN key is for my '²' key) 
+		color = {1, 1, 1, 0.9  }, fading = 0.6,
+	},
 
-		{
-			name = 'Next Selection',
-			method = 'next',
-			-- keys = {'LALT', 'N_1', '?doubleTap', '?spam'},
-			color = {1, 1, 1, 0.9  },
-			fading = 0.6,
-		},
-		---------
+	{
+		name = 'Next Selection',
+		method = 'next',
+		-- keys = {'LALT', 'N_1', '?doubleTap', '?spam'},
+		color = {1, 1, 1, 0.9  },
+		fading = 0.6,
+	},
+	---------
 
+	--- DEBUG SHORTCUTS -- not used anymore
+		-- {
+		--  name = 'Debug Check Requirements',
+		--  option_name = 'checkReq',
+		--  keys = {'LCTRL', 'LALT', 'R', '?AIR'}, -- 
+		--  color = {0.9, 0.9, 0.3, 1},
+		--  fading = 0.8,
+		-- },
+		-- --
+		-- {
+		--  name = 'Debug Current Combo',
+		--  option_name = 'currentCombo',
+		--  keys = {'LCTRL', 'LALT', 'O', '?AIR'}, -- 
+		--  color = {0.9, 0.9, 1.0, 1},
+		--  fading = 0.8,
+		-- },
+		-- --
+		-- {
+		--  name = 'Debug Show Names',
+		--  option_name = 'showNames',
+		--  keys = {'LCTRL', 'LALT', 'N', '?AIR'}, -- 
+		--  color = {0.4, 0.9, 1.0, 1},
+		--  fading = 0.8,
+		-- },
+		-- --
+		-- {
+		--  name = 'Debug Previous',
+		--  option_name = 'previous',
+		--  keys = {'LCTRL', 'LALT', 'P', '?AIR'}, -- 
+		--  color = {0.9, 0.5, 1.0, 1},
+		--  fading = 0.8,
+		-- },
+		--
 		--{name = 'DebugKeyDetect', method ="option", keys = {'CARET'}},
 }
 
-if useMyFilter then
-	local tremove = table.remove
-	local inFilter = {}
-	for _, name in ipairs(MacroFilterIn) do
-		inFilter[name] = true
-	end
-	MacroFilterIn = nil
-	local i, macro = 1, hotkeysCombos[1]
-	while macro do
-		if not inFilter[macro.name] then
-			tremove(hotkeysCombos, i)
-		else
-			i = i + 1
+local function KeyTableToLine(t)
+	local str = ''
+	for i, key in pairs(t) do
+		if type(key) == 'table' then
+			key = '{'..KeyTableToLine(key)..'}'
 		end
-		macro = hotkeysCombos[i]
+		str = str .. key .. ', '
+	end
+	return str:sub(1, -3)
+end
+local function KeyLineToTable(str)
+	local str = ''
+	for i, key in pairs(t) do
+		if type(key) == 'table' then
+			key = '{'..KeyTableToLine(key)..'}'
+		end
+		str = str .. key .. ', '
+	end
+	return str:sub(1, -3)
+end
+for i, macro in ipairs(hotkeysCombos) do
+	allowedMacros[macro.name] = true
+	if macro.keys then
+		macroKeys[macro.name] = KeyTableToLine(macro.keys, false, true)
 	end
 end
+
 
 
 --[[local UpdateKey = function(name)
@@ -4003,6 +3864,9 @@ options_order = {
 	'no_select_on_partial',
 	'zoom_scaling',
 	'use_own_ctrl_group',
+	'allow_macros',
+	'custom_keys',
+	'reload_widget',
  	-- 'test',
 }
 options = {}
@@ -4059,8 +3923,33 @@ options.test = {
 	--OnClick = {function(self) Echo(self.desc) end }
 }
 
+options.allow_macros = {
+	name = 'Custom Macro Selection',
+	desc = 'Set the macros you want here'
+	..'\nPay attention that many macros are linked together and trigger in cascade'
+	..'\nwidget must be reloaded after macros are set',
+	type = 'table',
+	value = allowedMacros,
+}
 
-
+options.custom_keys = {
+	name = 'Custom Macro Keys',
+	desc = 'Set the macros keys you want here'
+	..'\nPay attention that many macros have the same keys with varying use (long press etc...)'
+	..'\nOrder of keys matter, prefix \'?\' tolerate a key or lock to be pressed'
+	..'\nWidget must be reloaded after keys are set',
+	type = 'table',
+	value = macroKeys,
+}
+options.reload_widget = {
+	name = 'Reload Widget',
+	desc = 'After you set changes, reload the widget',
+	type = 'button',
+	OnChange = function(self)
+		widgetHandler:RemoveWidget(widget)
+		widgetHandler:EnableWidget(widget:GetInfo().name)
+	end,
+}
 ------------------------------------------------------------------------------------------------------------
 ---  END OF CONFIG
 ------------------------------------------------------------------------------------------------------------
@@ -5027,6 +4916,17 @@ do ---- **INITIALIZATION** ------
 	end
 	-- register combos
 	function HKCombos:Add()
+		local i = 1
+		local macro = hotkeysCombos[1]
+		while macro do
+			if not allowedMacros[macro.name] then
+				table.remove(hotkeysCombos)
+			else
+				macro.keys = macroKeys[macro.name]
+				i = i + 1
+			end
+			macro = hotkeysCombos[i]
+		end
 		for i, macro in ipairs(hotkeysCombos) do
 			self.length = i
 			self[i] = {keys = {}, name = macro.name, index = i}
@@ -5307,6 +5207,18 @@ do ---- **INITIALIZATION** ------
 		local combo = self[i]
 		local usePreviousSystem = not set.no_prev and (set.use_prev or set.current_to_prev or set.shared_prev)
 		if set.keys then --register keys
+			if type(set.keys) == 'string' then
+				local chunk, err = loadstring('return ' .. set.keys:gsub('([%?%w_]+)([,%{%s]?)', '"%1"%2'))
+				if err then
+					Echo('WRONG GSUB', set.keys:gsub('([%?%w_]+)([,%{%s]?)', '"%1"%2'))
+				end
+				if err then
+					Echo('['..widget:GetInfo().name..']: '..'Wrong keys definition when setting macro "' .. combo.name ..'", '..set.keys)
+					Echo('error', err)
+					return false
+				end
+				set.keys = {chunk()}
+			end
 			local function addkey(key, n)
 				key = Key(key)-- convert  to a unique coding (so user can write keys according to KEYSYMS coding or in a more intuitive manner if he want) 
 				possibleKeys[key:gsub('?', '')] = true -- remember possible key to avoid useless work in detection process
@@ -5643,6 +5555,7 @@ do ---- **INITIALIZATION** ------
 
 
 		ownedCombos[set.name] = i 
+		return true
 	end
 	------------------------------------------------------------------------
 	-- Initialize
@@ -5759,26 +5672,8 @@ do ---- **INITIALIZATION** ------
 	    --
 	    --
 	    myPlayerID = Spring.GetMyPlayerID()
-	    widget:PlayerChanged(myPlayerID)
-		resX, resY = widgetHandler:GetViewSizes()
-		HKCombos:Add(hotkeysCombos)
-		hotkeysCombos = nil
-		widget:SelectionChanged(spGetSelectedUnits())
-		widget:CommandsChanged()
-		if Spring.GetGameFrame()>0 then 
-
-			widget:GameStart()
-			-- widgetHandler:RemoveWidgetCallIn("GameFrame", self)
-		else -- deactivate any sensible callin during pre-game
-			-- widgetHandler:RemoveWidgetCallIn("Update", self)
-			-- widgetHandler:RemoveWidgetCallIn("KeyPress", self)
-			-- widgetHandler:RemoveWidgetCallIn("MousePress", self)
-			-- widget._AfterKeyRelease = widget.AfterKeyRelease
-			-- widget.AfterKeyRelease = function()end
-		end
 	end
 end
-
 
 ---------------------------------------
 ---------------------------------------
@@ -8792,7 +8687,29 @@ do
 	end
 end
 local dirtyFixUpdate = 1
+local function AfterInit()
+    widget:PlayerChanged(myPlayerID)
+	resX, resY = widgetHandler:GetViewSizes()
+	HKCombos:Add(hotkeysCombos)
+	hotkeysCombos = nil
+	widget:SelectionChanged(spGetSelectedUnits())
+	widget:CommandsChanged()
+	if Spring.GetGameFrame()>0 then 
+
+		widget:GameStart()
+		-- widgetHandler:RemoveWidgetCallIn("GameFrame", self)
+	else -- deactivate any sensible callin during pre-game
+		-- widgetHandler:RemoveWidgetCallIn("Update", self)
+		-- widgetHandler:RemoveWidgetCallIn("KeyPress", self)
+		-- widgetHandler:RemoveWidgetCallIn("MousePress", self)
+		-- widget._AfterKeyRelease = widget.AfterKeyRelease
+		-- widget.AfterKeyRelease = function()end
+	end
+end
 function widget:Update(dt)
+	if hotkeysCombos then
+		AfterInit()
+	end
 	dirtyFixUpdate = dirtyFixUpdate - dt
 	if dirtyFixUpdate <= 0 then
 		dirtyFixUpdate = 1
