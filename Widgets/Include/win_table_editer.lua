@@ -321,18 +321,18 @@ local buttons = {
 						local toBool
 						for i, child in ipairs(panel.children) do
 							if toBool == nil then
-								toBool = (child.text == 'false' or child.text:find('= false$')) and true or false
+								toBool = (child.text == 'false' or child.text:find('= false%s-$')) and true or false
 							end
 							if toBool == false then
 								if child.text == 'true' then
 									child:SetText('false')
-								elseif child.text:find('= true$') then
+								elseif child.text:find('= true%s-$') then
 									child:SetText(child.text:gsub("= true", "= false"))
 								end
 							elseif toBool == true then
 								if child.text == 'false' then
 									child:SetText('true')
-								elseif child.text:find('= false$') then
+								elseif child.text:find('= false%s-$') then
 									child:SetText(child.text:gsub("= false", "= true"))
 								end
 							end
@@ -371,7 +371,7 @@ local buttons = {
 }
 
 -- main
-local function copy(t)
+local function Copy(t)
 	local c = {}
 	for k,v in pairs(t) do
 		c[k] = v
@@ -400,7 +400,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 		end
 	}
 
-	table.insert(children, WG.Chili.Button:New(buttons.close))
+	table.insert(children, WG.Chili.Button:New(Copy(buttons.close)))
 
 	local font = WG.Chili.Font:New({})
 	local right = 24
@@ -417,7 +417,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 			button.right = right
 			button.y = 25
 			button.width = width + 14
-			local button = WG.Chili.Button:New(copy(button))
+			local button = WG.Chili.Button:New(Copy(button))
 			table.insert(children, button)
 
 			right = right + width + 12
@@ -466,7 +466,9 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 
 		sorted[i] = v
 	end
-	table.sort(sorted, sortFunc)
+	if sorted[1] then
+		table.sort(sorted, sortFunc)
+	end
 	-- create the fields
 	for i, v in ipairs(sorted) do
 		local editBox = WG.Chili.EditBox:New{
