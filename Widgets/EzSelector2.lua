@@ -41,7 +41,7 @@ local DEFAULT_CYLINDER_DRAW_POS = {(resX/2), 180}
 local selectionChanged
 local KEYCODES = WG.KEYCODES
 
-
+local copyKeySyms = (function() local t = {} for k,v in pairs(KEYSYMS) do t[k] = v end return t end)()
 
 
 --include("Widgets/COFCtools/TraceScreenRay.lua")
@@ -57,7 +57,7 @@ local CheckTime 			  = f.CheckTime
 local UniTraceScreenRay 	  = f.UniTraceScreenRay -- failsafe trace screen ray correcting mouse out of map
 local Fade 					  = f.Fade
 -- local linesbreak 			  = f.linesbreak
-local FullTableToStringCode   = f.FullTableToStringCode
+-- local FullTableToStringCode   = f.FullTableToStringCode
 local identical				  = f.identical
 
 local GetCameraHeight		  = f.GetCameraHeight
@@ -3794,41 +3794,6 @@ for i, macro in ipairs(hotkeysCombos) do
 	end
 end
 
-
-
---[[local UpdateKey = function(name)
-	Echo("HKcombos is ", HKCombos)
-	for _, combo in ipairs(HKCombos)do
-		if combo.name == name then
-			for key in pairs(Spring.GetPressedKeys())do
-				key = KEYCODES[key]
-				if key then
-					showComboInLog = options.show_combo.value
-					combo.keys[key] = true
-				end
-			end
-		end
-	end
-end--]]
-
-
-
---for k, v in pairs(T) do Echo(type(k)) end
-
---f.Page(Spring, "screen")
-
-
-
-
---showComboInLog = options.show_combo.value
---debuggingKeyDetections = options.debugging_keys_detection
-	
-
-
-
-
-
-
 -- local TABLE_CUST_COMM_DRAW_DATA = {0.5, 1.0, 0.5, 1}
 
 
@@ -3866,6 +3831,7 @@ options_order = {
 	'use_own_ctrl_group',
 	'allow_macros',
 	'custom_keys',
+	'key_names',
 	'reload_widget',
  	-- 'test',
 }
@@ -3937,10 +3903,29 @@ options.custom_keys = {
 	desc = 'Set the macros keys you want here'
 	..'\nPay attention that many macros have the same keys with varying use (long press etc...)'
 	..'\nOrder of keys matter, prefix \'?\' tolerate a key or lock to be pressed'
+	..'\nMAKE SURE YOU WRITE KEYS CORRECTLY AND OPEN THE CONSOLE (F8) TO WATCH FOR ERRORS'
+	..'\nSee name of keys below'
 	..'\nWidget must be reloaded after keys are set',
 	type = 'table',
 	value = macroKeys,
 }
+
+options.key_names = {
+	name = 'Key Names',
+	type = 'table',
+	value = copyKeySyms,
+	-- OnChange = function(self)
+	-- 	local t = self.value
+	-- 	for k, v in pairs(t) do
+	-- 		t[k] = nil
+	-- 	end
+	-- 	for k, v in pairs(KEYSYMS) do
+	-- 		t[k] = v
+	-- 	end
+	-- end,
+	reset = true,
+}
+
 options.reload_widget = {
 	name = 'Reload Widget',
 	desc = 'After you set changes, reload the widget',
