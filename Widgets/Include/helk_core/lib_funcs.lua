@@ -68,10 +68,10 @@ local WG                = WG
 local VFS               = VFS
 local clock             = os.clock
 local LUAUI_DIRNAME     = LUAUI_DIRNAME
-local gl           = gl
+local gl                = gl
 
 local glVertex     = gl.Vertex
-local _G = getfenv(loadstring(''))
+local _G = getfenv(newproxy)
 
 local Spring = Spring
 
@@ -10640,15 +10640,15 @@ do
 
 	iconSizeByDefID[0] = icontypes[("default")].size or 1.8
 	
-	function GetIconMidY(defID, y, gy, distFromCam) -- FIXME this is from trial and error and not proper on edge of screen
+	function GetIconMidY(defID, y, by, distFromCam) -- FIXME this is from trial and error and not proper on edge of screen
 		distFromCam = distFromCam * 2
 		local iconWorldHeight = iconSizeByDefID[defID]  * 22 * (1+ (distFromCam-7000)/10000 )
 		if distFromCam <= 1000 then
 			iconWorldHeight = iconWorldHeight * (0.2 + 0.8 * distFromCam / 1000)
 		end
-		if y - gy < iconWorldHeight then
+		if y - by < iconWorldHeight then
 			-- Echo('y: ' .. y .. ' => ' .. gy + iconWorldHeight)   
-			y = gy + iconWorldHeight
+			y = by + iconWorldHeight
 		end
 		-- Echo('icon size mult',iconSizeByDefID[defID],cx,cy,cz,"distFromCam is ", distFromCam,'size on screen', vsy * (20/distFromCam))
 		return y
