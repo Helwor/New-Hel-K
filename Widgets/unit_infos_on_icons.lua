@@ -1,5 +1,5 @@
 
-local ver = 0.1
+local ver = 1.0
 -- require api_has_view_changed.lua
 -- require lib_funcs
 -- can use command_tracker.lua
@@ -18,6 +18,9 @@ function widget:GetInfo()
 end
 local Echo = Spring.Echo
 local myTeamID, myPlayerID
+local currentFrame = Spring.GetGameFrame()
+local MIN_RELOAD_TIME_NOTICE = 12 -- dont register reload weapons below this time
+local gameSpeed = Game.gameSpeed
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
@@ -60,13 +63,29 @@ local symbolHealth = {
 }
 
 local symbolPrio = {
-	str = string.char(187), -- »
+	str = string.char(184), -- '›'
 	list = false,
 	Draw = function() end,
 	offX = 3,
+	offY = 2,
+}
+
+local symbolReload = {
+	str = string.char(176), -- '°'
+	list = false,
+	Draw = function() end,
+	offX = 2,
+	offY = 1,
+}
+
+local objNumbers = {
+	Draw = function() end,
+	lists = {},
+	offX = 3,
 	offY = -2,
 }
-local RADAR_TIMEOUT = 30 * 12 -- 
+
+local RADAR_TIMEOUT = 30 * 12
 
 
 ----------------------
@@ -109,7 +128,18 @@ local colors = {
 	nocolor        = {   0,    0,    0,    0 },
 }
 
-
+local exponents = {
+    ['0'] = string.char(0xE2, 0x81, 0xB0), -- ⁰
+    ['1'] = string.char(0xC2, 0xB9),       -- ¹
+    ['2'] = string.char(0xC2, 0xB2),       -- ²
+    ['3'] = string.char(0xC2, 0xB3),       -- ³
+    ['4'] = string.char(0xE2, 0x81, 0xB4), -- ⁴
+    ['5'] = string.char(0xE2, 0x81, 0xB5), -- ⁵
+    ['6'] = string.char(0xE2, 0x81, 0xB6), -- ⁶
+    ['7'] = string.char(0xE2, 0x81, 0xB7), -- ⁷
+    ['8'] = string.char(0xE2, 0x81, 0xB8), -- ⁸
+    ['9'] = string.char(0xE2, 0x81, 0xB9)  -- ⁹
+}
 local CreateWindowTableEditer
 do
 	local f = WG.utilFuncs
@@ -127,28 +157,212 @@ local ignoreUnitDefID = {
 	[UnitDefNames['terraunit'].id ] = true,
 	[UnitDefNames['wolverine_mine'].id] = true,
 	[UnitDefNames['shieldscout'].id] = true,
+	[UnitDefNames['starlight_satellite'].id] = true,
+}
+
+
+local disallowReloadNotice = {
+	[UnitDefNames['shipassault'].id] = true,
+	[UnitDefNames['turretmissile'].id] = true,
 }
 local canBuildDefID = {}
 local lowCostDefID = {}
-for defID, def in pairs(UnitDefs) do
-	if def.name:match('drone') then
-		ignoreUnitDefID[defID] = true
+
+local reloadTimes = {}
+local weaponNumber = {}
+local longReloadCheck
+
+do
+	longReloadCheck = {}
+	local lrc = longReloadCheck
+	local spGetUnitStockpile = Spring.GetUnitStockpile
+	local spGetUnitRulesParam = Spring.GetUnitRulesParam
+	local spGetUnitWeaponState = Spring.GetUnitWeaponState
+	local commDGun = {}
+	local confirmedReloadTimes = {}
+	local weaponReload = {}
+	local checkFuncs = {}
+	local WeaponDefs = WeaponDefs
+
+
+	local function GetComDGun(unitID)
+		local weapObj = commDGun[unitID]
+		if weapObj == nil then
+			weapObj = false
+			for weapOrder = 1, 2 do
+				local wdef = WeaponDefs[spGetUnitRulesParam(unitID, 'comm_weapon_id_'..weapOrder)]
+				if wdef and wdef.customParams.slot == '3' then
+					local weapNum = spGetUnitRulesParam(unitID,'comm_weapon_num_'..weapOrder)
+					local reloadTime = spGetUnitWeaponState(unitID, weapNum, 'reloadTime')
+					weapObj = {weapNum, reloadTime}
+					break
+				end
+			end
+			commDGun[unitID] = weapObj
+		end
+		if weapObj then
+			return weapObj[1], weapObj[2]
+		end
 	end
-	if def.cost < 50 then
-		lowCostDefID[defID] = true
+
+	checkFuncs.StockpileReload = function(defID, unitID)
+		local numStockpiled, numStockpileQued, stockpileBuild = spGetUnitStockpile(unitID)
+		return numStockpiled >= 1 and numStockpiled or stockpileBuild, numStockpiled
 	end
-	if def.buildSpeed ~= 0 then
-		canBuildDefID[defID] = true
+
+	checkFuncs.StockpileReloadGadget = function(defID, unitID)
+		local numStockpiled, numStockpileQued, stockpileBuild = spGetUnitStockpile(unitID)
+		if numStockpiled >= 1 then
+			return numStockpiled, numStockpiled
+		end
+		return spGetUnitRulesParam(unitID, "gadgetStockpile") or 0
+	end
+
+	checkFuncs.CaptureReload = function(defID, unitID)
+		local reloadFrame = spGetUnitRulesParam(unitID, "captureRechargeFrame")
+		if (reloadFrame or 0) == 0 then
+			return 1
+		elseif (reloadFrame > 0) then
+			return 1 - (reloadFrame - currentFrame) / reloadTimes[defID]
+		else
+			return 0
+		end
+	end
+
+	checkFuncs.WaterTank = function(defID, unitID)
+		local waterTank = spGetUnitRulesParam(unitID, "watertank")
+		if (waterTank or 1) >= 1 then
+			return 1
+		else
+			return waterTank / reloadTimes[defID]
+		end
+	end
+
+	checkFuncs.SpecialReloadUser = function(defID, unitID)
+		local specialReloadProp = spGetUnitRulesParam(unitID, "specialReloadRemaining") or 0
+		return 1 - specialReloadProp
+	end
+
+	checkFuncs.SpecialReload = function(defID, unitID)
+		local reloadFrame = spGetUnitRulesParam(unitID, "specialReloadFrame")
+		if (reloadFrame or currentFrame) <= currentFrame then
+			return 1
+		else
+			return 1 - (reloadFrame - currentFrame) / reloadTimes[defID]
+		end
+	end
+
+	checkFuncs.ScriptReload = function(defID, unitID)
+		local reloadFrame = spGetUnitRulesParam(unitID, "scriptReloadFrame") or currentFrame
+		if reloadFrame <= currentFrame then
+			return 1
+		else
+			return spGetUnitRulesParam(unitID, "scriptReloadPercentage")
+				or (1 - ((reloadFrame - currentFrame)/gameSpeed) / reloadTimes[defID])
+		end
+	end
+
+	checkFuncs.DynaCom = function(defID, unitID)
+		local weapNum, reloadTime = GetComDGun(unitID)
+		if not weapNum then
+			return 0
+		end
+		local _, reloaded, reloadFrame = spGetUnitWeaponState(unitID, weapNum)
+		if reloaded or (reloadFrame or 0) == 0 then
+			return 1
+		end
+		return 1 - ((reloadFrame-currentFrame)/gameSpeed) / reloadTime
+	end
+
+	checkFuncs.checkWeaponReload = function(defID, unitID)
+		local weapNum = weaponNumber[defID]
+		local reloadTime = reloadTimes[defID]
+		local _, reloaded, reloadFrame = spGetUnitWeaponState(unitID, weapNum)
+		if reloaded or (reloadFrame or 0) == 0 then
+			return 1
+		end
+		return 1 - ((reloadFrame-currentFrame)/gameSpeed) / reloadTime
+	end
+
+	for defID, def in pairs(UnitDefs) do
+		local cp = def.customParams
+		if def.name:match('drone') or cp.dontcount or cp.is_drone or def.cost == 0 then
+			ignoreUnitDefID[defID] = true
+		end
+		if def.cost < 50 then
+			lowCostDefID[defID] = true
+		end
+		if not ignoreUnitDefID[defID] then
+			if def.buildSpeed ~= 0 then
+				canBuildDefID[defID] = true
+			end
+
+			---- Gather various units having long reloading weapon
+
+			local reloadTime, checkFunc, weapNum
+			if def.canStockpile then
+				if cp.stockpiletime then
+					reloadTime = tonumber(cp.stockpiletime)
+					checkFunc = checkFuncs.StockpileReloadGadget
+				else
+					checkFunc = checkFuncs.StockpileReload
+				end
+			elseif cp.post_capture_reload then
+				reloadTime = tonumber(cp.post_capture_reload)
+				checkFunc = checkFuncs.CaptureReload
+			elseif cp.maxwatertank then
+				reloadTime = cp.maxwatertank
+				checkFunc = checkFuncs.WaterTank
+			elseif cp.specialreloadtime then
+				if cp.specialreload_userate then
+					reloadTime = tonumber(cp.specialreload_userate)
+					checkFunc = checkFuncs.SpecialReloadUser
+				else
+					reloadTime = cp.specialreloadtime
+					checkFunc = checkFuncs.SpecialReload
+				end
+			elseif cp.script_reload then
+				if def.name ~= 'turretaaclose' then -- reload time of 15 probably when it close
+					reloadTime = tonumber(cp.script_reload)
+					checkFunc = checkFuncs.ScriptReload
+				end
+			elseif cp.dynamic_comm then
+				checkFunc = checkFuncs.DynaCom
+			elseif def.reloadTime then
+				for i, desc in ipairs(def.weapons) do
+					local wdef = WeaponDefs[desc.weaponDef]
+					if wdef and wdef.manualFire then
+						checkFunc = checkFuncs.checkWeaponReload
+						reloadTime = wdef.reload
+						weapNum = i
+						break
+					end
+				end
+				if not reloadTime and def.primaryWeapon then
+					local desc = def.weapons[def.primaryWeapon]
+					if desc then
+						local wdef = WeaponDefs[ desc.weaponDef ]
+						if wdef and not wdef.customParams.bogus and wdef.customParams.hidden ~= '1' then
+							checkFunc = checkFuncs.checkWeaponReload
+							weapNum = def.primaryWeapon
+							reloadTime = WeaponDefs[ desc.weaponDef ].reload or 0
+						end
+					end
+				end
+			end
+			if checkFunc then
+				if not reloadTime or reloadTime >= MIN_RELOAD_TIME_NOTICE then
+					lrc[defID] = checkFunc
+					reloadTimes[defID] = reloadTime
+					weaponNumber[defID] = weapNum
+					disallowReloadNotice[defID] = disallowReloadNotice[defID] or false
+				end
+			end
+		end
 	end
 end
 
-
-
 local useGlobalList
-local currentFrame = Spring.GetGameFrame()
--- local normalScale = 1366*768
--- local scale = 1
--- local scale,vsy,vsy
 
 local UseFont
 local TextDrawCentered, GetListCentered
@@ -171,6 +385,16 @@ local inRadar = WG.inRadar or {}
 WG.inRadar = inRadar
 local problems = {}
 local delayAllyPoses = {}
+local numberLists = setmetatable(
+	{},
+	{
+		__index = function(self, str) 
+			local list = GetListCentered(str)
+			rawset(self, str, list)
+			return list
+		end
+	}
+)
 local lastView -- save some redundant work
 local cx, cy, cz = 0, 0, 0 -- current camera position
 
@@ -183,13 +407,16 @@ local showNonManualCons = true
 local showCommandStatus = false
 local showPrio = true
 local showCloaked = false
+local showReload = true
+local allyOnTop = true
+local useFinePos = true
+local debugMissingUnits = false
+
 local alphaStatus = 1
 local alphaAlly = 1
 local alphaHealth = 1
 local alphaPrio = 1
-local allyOnTop = true
-local useFinePos = true
-local debugMissingUnits = false
+local alphaReload = 1
 
 local debugChoice = 'none'
 local debugCustomProps = {
@@ -226,6 +453,10 @@ options_order = {
 	'show_prio',
 	'alpha_prio',
 
+	'show_reload',
+	'alpha_reload',
+	'custom_reload',
+
 	'show_cloaked',
 
 	'debugChoice',
@@ -235,64 +466,6 @@ options_order = {
 }
 options = {}
 
--- options.testBool = {
--- 	name = 'Test Bool',
--- 	type = 'bool',
--- 	value = false,
--- 	OnChange = function(self)
--- 		-- Echo("self.checked,self.value is ", self.checked,self.value)
--- 	end,
--- 	path = 'TOTO',
--- }
-
--- options.testColors = {
--- 	name = 'Test Colorize',
--- 	type = 'colors',
--- 	value = {0.5,0.5,0.5,1},
--- 	colorizeName = true,
--- 	path = 'TOTO',
--- }
-
--- local thisTable = {'myvalue'}
--- options.testTable = {
--- 	type = 'table',
--- 	name = 'Dummy Table',
--- 	value = thisTable,
--- 	-- alwaysOnChange = true,
--- 	callback = function(self)
--- 		Echo('MY CALL BACK',self, self and self.value, self and self[1])
--- 	end,
--- 	OnChange = function(self)
--- 		Echo('ON CHANGE',os.clock(),'type',type(self.value))
--- 		Echo("self.value == thisTable is ", self.value == thisTable)
--- 		if type(self.value) == 'table' then
--- 			for k,v in pairs(self.value) do
--- 				Echo('=>',k,v)
--- 			end
--- 		end
--- 	end,
--- 	path = 'TOTO',
--- }
-
-
-
--- options.dummy = {
--- 	type = 'bool',
--- 	name = 'Dummy',
--- 	value = {'HI'},
--- 	alwaysOnChange = true,
--- 	OnChange = function(self)
--- 		-- Echo('ON CHANGE',os.clock())
--- 		-- Echo("self.value is ", self.value)
--- 		-- if type(self.value) == 'table' then
--- 		-- 	Echo('IS TABLE !',self.value[1])
--- 		-- 	self.value[1] = 'HELLO'
--- 		-- else
--- 		-- 	self.value = {'OK'}
--- 		-- end
--- 	end,
--- 	path = 'TOTO',
--- }
 options.only_on_icons = {
 	name = 'Draw only on unit icons',
 	type = 'bool',
@@ -466,6 +639,72 @@ options.alpha_prio = {
 	parents 		= {'show_prio'},
 }
 
+options.show_reload = {
+	name = 'Show Long Reload/Stockpile',
+	desc = 'Indicate when weapon/stockpile that have long reload time is loaded or about to.\nMinimum Reload time: ' .. MIN_RELOAD_TIME_NOTICE,
+	type = 'bool',
+	value = showReload,
+	OnChange = function(self)
+		showReload = self.value
+	end,
+	noHotkey = true,
+	children = {'alpha_reload'},
+}
+options.custom_reload = {
+	name = 'Custom Reload Unit Type',
+	desc = 'Indicate which unit type you don\'t want to see reload on',
+	type = 'table',
+	value = disallowReloadNotice,
+	preTreatment = function(t) -- receive a copy
+		local temp = {}
+		local defs = UnitDefs
+		for defID, bool in pairs(t) do
+			local def = defs[defID]
+			if def then
+				temp[def.name] = bool
+			end
+			t[defID] = nil
+		end
+		for name, bool in pairs(temp) do
+			t[name] = bool
+		end
+	end,
+	postTreatment = function(t) -- receive the original
+		local temp = {}
+		local defNames = UnitDefNames
+		for name, bool in pairs(t) do
+			local def = UnitDefNames[name]
+			if def then
+				temp[def.id] = bool
+			end
+			t[name] = nil
+		end
+		for defID, bool in pairs(temp) do
+			t[defID] = bool
+		end
+	end,
+	noHotkey = true,
+	reset = true,
+	children = {'show_reload'},
+}
+
+
+options.alpha_reload = {
+	name            = '	..transparency',
+	type            = 'number',
+	value           = alphaReload,
+	min             = 0,
+	max             = 1,
+	step            = 0.05,
+	update_on_the_fly = true,
+	OnChange        = function(self)
+		alphaReload = self.value
+	end,
+	noHotkey = true,
+	parents 		= {'show_reload'},
+}
+
+
 -- options.lbl_debug = {
 -- 	type = 'label',
 -- 	name = 'Debug',
@@ -618,6 +857,7 @@ local spGetUnitRulesParam           = Spring.GetUnitRulesParam
 
 
 local max,min = math.max,math.min
+local diag = math.diag
 local floor = math.floor
 -- Points Debugging
 local spWorldToScreenCoords = Spring.WorldToScreenCoords
@@ -712,16 +952,16 @@ function widget:GameFrame(f)
 	currentFrame = f
 end
 
-local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioColor, alphaStatus, alphaHealth, alphaPrio)
+local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, alphaHealth, alphaPrio, alphaReload)
 	local unit = Units[id]
 	if not unit then
 		return
 	end
-	if not (healthColor or statusColor or prioColor) then
+	if not (healthColor or statusColor or prioColor or reloadColor) then
 		return
 	end
 
-	local _,_,_,x,y,z = unit:GetPos(1,true)
+	local _,gy,_,x,y,z = unit:GetPos(1,true)
 	if not x then
 		return
 	end
@@ -729,9 +969,8 @@ local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioC
 	if useFinePos then
 		local isIcon = VisibleIcons[id] or not inSight[id]
 		if isIcon then
-			local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+			local distFromCam = diag(cx-x, cy-y, cz-z)
 			distFromCam = distFromCam * fov / 45 
-			local gy = spGetGroundHeight(x,z)
 			y =	GetIconMidY(defID or 0, y, gy, distFromCam)
 		end
 	end
@@ -746,12 +985,19 @@ local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioC
 	if prioColor then
 		symbolPrio:Draw(mx, my, prioColor, alphaPrio)
 	end
+	if reloadColor then
+		if stockpile then
+			objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
+		else
+			symbolReload:Draw(mx, my, reloadColor, alphaReload)
+		end
+	end
 
 end
 
 local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullview, fov)
 	-- if spIsUnitVisible(id) and (not onlyOnIcons or spIsUnitIcon(id)) then
-		local statusColor, healthColor, prioColor, allySelColor
+		local statusColor, healthColor, prioColor, reloadColor, stockpile, allySelColor
 		local alphaStatus = alphaStatus
 		
 		-- local x,y,z = unit:GetPos(0, true)
@@ -796,6 +1042,7 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 				statusColor = b_ice
 				allySelColor = white
 				prioColor = green
+				reloadColor = green
 			elseif debugChoice == 'try' then
 				allySelColor = white
 			end
@@ -874,32 +1121,50 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 			if showAllySelected and allySelUnits[id] then
 				allySelColor = white
 			end
+			if showReload and unit.teamID == myTeamID then
+				local checkFunc = longReloadCheck[defID]
+				if checkFunc and not disallowReloadNotice[defID] then
+					local value, sp = checkFunc(defID, id)
+					if value >= 1 then
+						reloadColor = value >= 1 and green or lightblue
+						stockpile = sp and sp <= 100 and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
+					end
+				end
+			end
 		end
 
-		if healthColor or statusColor or allySelColor or prioColor then
-			local _,_,_,x,y,z = unit:GetPos(1)
+		if healthColor or statusColor or allySelColor or prioColor or reloadColor then
+			local _,gy,_,x,y,z = unit:GetPos(1)
 			if x then
 				if useFinePos then
 					local isIcon = onlyOnIcons or VisibleIcons[id]
 					if isIcon then
 						-- LOOK UnitDrawer.cpp LINE 420
-						local gy = spGetGroundHeight(x,z)
-						local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+						local distFromCam = diag(cx-x, cy-y, cz-z)
 						distFromCam = distFromCam * fov / 45
 						y = GetIconMidY(defID or 0, y, gy, distFromCam)
 					end
 				end
 
-				if not anyDebug and fullview~=1 and (statusColor or healthColor or prioColor) then
+				if not anyDebug and fullview~=1 and (statusColor or healthColor or prioColor or reloadColor) then
 					local ls = lastStatus[id]
 					if not ls then
-						lastStatus[id] = {defID, statusColor, healthColor, prioColor, alphaStatus, alphaHealth, alphaPrio}
+						lastStatus[id] = {defID, statusColor, healthColor, prioColor, reloadColor, alphaStatus, alphaHealth, alphaPrio, alphaReload}
 					else
-						ls[2], ls[3], ls[4] = statusColor, healthColor, prioColor
-						ls[5], ls[6], ls[7] = alphaStatus, alphaHealth, alphaPrio
+						ls[2], ls[3], ls[4], ls[5] = statusColor, healthColor, prioColor, reloadColor
+						ls[6], ls[7], ls[8], ls[9] = alphaStatus, alphaHealth, alphaPrio, alphaReload
+						ls[10] = stockpile
 					end
 				end
 				local mx,my = spWorldToScreenCoords(x,y,z)
+				if reloadColor then
+					if stockpile then
+						objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
+					else
+						symbolReload:Draw(mx,my, reloadColor, alphaReload)
+					end
+					-- end
+				end
 				if healthColor then
 					symbolHealth:Draw(mx, my, healthColor, alphaHealth)
 				end
@@ -921,12 +1186,10 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 		else
 			lastStatus[id] = nil
 		end
-	return 
+		return 
+	-- end
 end
 
-function widget:GameOver()
-	-- widgetHandler:RemoveWidget(widget)
-end
 function widget:UnitEnteredLos(unitID)
 	if lastStatus[unitID] then
 		inRadar[unitID] = nil
@@ -1007,7 +1270,8 @@ local GlobalDraw = function()
 				inRadar[id] = nil
 				lastStatus[id] = nil
 			else
-				ApplyColor(id, blink, fov, t[1], t[2], t[3], t[4], t[5], t[6], t[7])
+				Echo('apply')
+				ApplyColor(id, blink, fov, t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10])
 			end
 		end
 	end
@@ -1158,11 +1422,15 @@ function widget:Initialize()
 	TextDrawCentered = fontHandler.DrawCentered
 	useGlobalList = glCallList
 
-
-	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio}) do
+	for i = 1, 100 do
+		if numberLists[tostring(i)] then -- FIXME: can't make lists during a list creation so I have to do it outside
+			-- list created
+		end
+	end
+	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolReload, symbolHealth, symbolPrio}) do
 		if GetListCentered then
 			obj.list = GetListCentered(obj.str)
-			obj.Draw = function(self, mx,my,color)
+			obj.Draw = function(self, mx,my,color, alpha)
 				glColor(color[1], color[2], color[3], alpha or color[4])
 				glPushMatrix()
 				glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5) , 0)
@@ -1174,6 +1442,20 @@ function widget:Initialize()
 				glColor(color[1], color[2], color[3], alpha or color[4])
 				TextDrawCentered(self.str, floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5))
 			end
+		end
+	end
+	if GetListCentered then
+		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
+			glColor(color[1], color[2], color[3], alpha or color[4])
+			glPushMatrix()
+			glTranslate(floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5), 0)
+			glCallList(numberLists[numbers])
+			glPopMatrix()
+		end
+	else
+		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
+			glColor(color[1], color[2], color[3], alpha or color[4])
+			TextDrawCentered(numbers, floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5))
 		end
 	end
 	if useGlobalList then
@@ -1210,11 +1492,14 @@ function widget:Shutdown()
 	end
 	widgetHandler.actionHandler:RemoveAction(widget,'showpropicon')
 
-	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio}) do
+	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio, symbolReload}) do
 		if obj.list then
 			glDeleteList(obj.list)
 			obj.list = nil
 		end
+	end
+	for _, list in pairs(numberLists) do
+		glDeleteList(list)
 	end
 end
 
