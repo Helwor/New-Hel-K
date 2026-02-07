@@ -200,7 +200,7 @@ local function DrawComRanges(defID, units, color, isEnemy, use_ballistic)
 					DrawRangeCircle(x, y, z, weap1, range1, rangeInfo, 1, color, use_ballistic)
 				end
 				if weap2 then
-					DrawRangeCircle(ux,uy,uz, weap2, range2, rangeInfo, 1, color, use_ballistic)
+					DrawRangeCircle(x, y, z, weap2, range2, rangeInfo, 2, color, use_ballistic)
 				end
 			end
 		end
