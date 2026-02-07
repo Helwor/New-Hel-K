@@ -7386,6 +7386,83 @@ end
 
 ----------------------------------- DEBUGGING ----------------------------------------------------------
 
+
+function IncludeWithLocals(filePath)
+	local fileContent = VFS.LoadFile(filePath, VFS.RAW_FIRST)
+	local chunk = loadstring(fileContent, filePath)
+	if not chunk then
+		Echo("Error while loading " .. filePath)
+		return nil
+	end
+	
+	local env = {}
+	setmetatable(env, {__index = widget})
+	
+	local i = 1
+	while true do
+		local name, value = debug.getlocal(2, i)
+		if not name then break end
+		env[name] = value
+		i = i + 1
+	end
+	
+	i = 1
+	while true do
+		local name, value = debug.getupvalue(chunk, i)
+		if not name then break end
+		env[name] = value
+		i = i + 1
+	end
+	
+	setfenv(chunk, env)
+	return chunk()
+end
+
+function GetFuncSource(func)
+	local info = debug.getinfo(func, 'Sl')
+	Echo(info.source, info.linedefined)
+	return info.source, info.linedefined
+end
+
+function EchoTableCompare(t1, t2, indent, maxK, maxV)
+	indent = indent or ""
+	local keys, maxLenKey, maxLenVal = {}, 0, 0
+	for k in pairs(t1) do keys[k] = true end
+	for k in pairs(t2) do keys[k] = true end
+
+	-- Première passe pour calculer les largeurs max
+	for k in pairs(keys) do
+		local v1, v2 = t1[k], t2[k]
+		local val1 = (v1 ~= nil) and tostring(v1) or "X"
+		local val2 = (v2 ~= nil) and tostring(v2) or "X"
+		maxLenKey = math.max(maxLenKey, #tostring(k))
+		maxLenVal = math.max(maxLenVal, #val1, #val2)
+	end
+	maxLenKey = math.min(maxLenKey, maxK or math.huge)
+	maxLenVal = math.min(maxLenKey, maxV or math.huge)
+	-- Deuxième passe pour l'affichage aligné
+	local tc = {}
+	local sorted = {}
+	for k in pairs(keys) do
+		sorted[#sorted + 1] = k
+	end
+	table.sort(sorted, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+	for _, k in ipairs(sorted) do
+		local v1, v2 = t1[k], t2[k]
+		local has1, has2 = v1 ~= nil, v2 ~= nil
+		local val1 = has1 and tostring(v1) or "X"
+		local val2 = has2 and tostring(v2) or "X"
+		local eq = (v1 == v2) and "==" or "=/="
+		tc[#tc+1] = string.format(
+			"%s%-"..maxLenKey.."s  %-"..maxLenVal.."s  %2s  %-"..maxLenVal.."s",
+			indent, k, val1, eq, val2
+		)
+	end
+	local comp = table.concat(tc, '\n')
+	Echo(comp)
+	return comp
+end
+
 function CreateDebug(Debug,widget,path)
 	if not Debug then
 		Echo('DEBUG FOR '..widget:GetInfo().name.." HASN'T BEEN GIVEN !")
@@ -7780,58 +7857,85 @@ function CreateDebug(Debug,widget,path)
 end
 
 
-do
+do -- Page(T, ...) ----- display and handle content of table, 
 	local lastPage,lastTable
-	Page = function (T,...) ----- display and handle content of table, 
+	local isType = {['function']=true, ['userdata']=true, ['number']=true, ['table']=true, ['boolean']=true, ['string']=true}
+	local function formatcode_key(k)
+		local type_k = t(k)
+		if type_k == 'number' or type_k == 'boolean' then
+			return "["..tostring(k).."]"
+		elseif type_k == 'function' or type_k == 'userdata' or type_k == 'table' then
+			return "[\""..tostring(k).."\"]"
+		elseif k:find('[^%w_]') then
+			return "[\""..k:gsub('\"','\\"').."\"]"
+		else
+			return k
+		end
+	end
+	local function formatcode_value(v)
+		local type_v = t(v)
+		if type_v == 'number' or type_v == 'boolean' then
+			return tostring(v)
+		elseif type_v == 'function' or type_v == 'userdata' or type_v == 'table' then
+			return "\""..tostring(v).."\""
+		else
+			return "\""..v.."\""
+		end
+	end
+	local info = table.concat({
+		'Page Usage:',
+		'  Page(table [, [params_table | arg1, ...arg3] ])',
+		'  (you can copy this to clipboard with Page("cliphelp"))',
+		'  params_table=',
+		'   { page     =n,               --page number',
+		'    nblines    =n,             --lines per page,27 by default',
+		'    fIn        =str|{str,.},   --name(s) for match, ',
+		'    fOut     =str|{str,.},     --exclusion(s) ',
+		'    fKType       =str,         --type of key to find',
+		'    fVType       =str,         --type of value to find',
+		'    fType        =str,         --type of k or v to find',
+		'    exactmatch =bool,          --false by default ',
+		'    highlight  =str|{str,.},   --highlight given found key(s)',
+		'    content    =bool,          --show also content of found tables',
+		'    keys       =bool,          --return keys',
+		'    obj        =bool,          --return first value found',
+		'    objs       =bool,          --return table of found values',
+		'    report     =bool,          --return the whole result as string',
+		'    clip       =bool,          --copy result to clip',
+		'    tocode     =bool,          --return and show result as code',
+		'    show       =bool,          --show result, on by default',
+		'    loop       =bool,          --return to arg.page or 1 if beyond',
+		'    iterator   =function,      --replace the "pairs" iterator by a customized one',
+		'    next       =function,      --next function must be given along the iterator',
+		"    noPageTell =bool,          --don't show page number and END" ,
+		'    sort       =bool,          --sort keys alphabetically',
+		'    all        =bool,          --show all at once',
+		'   }',
+		'  Non-Table Arguments:(in any order and number)',
+		'  a number for the page,',
+		'  a string for name',
+		'  a string describing type to filter',
+	}, '\n')
+
+	function Page(T, ...) ----- display and handle content of table, 
+		local args = {...}
+
 		local r,w = RedStr,WhiteStr
-		if not T then return false, Echo(w..'Page: table is '..tostring(T)) end
-		if not T or t(T)=='string' and T:match('help') then help=true
-		elseif t(T)~="table" then return false, Echo(w.."Page: argument#1 is not a table")
-		elseif l(T)==0 then return "end", Echo("Page: table is empty")
+		if not T then
+			return false, Echo(w..'Page: table is '..tostring(T))
+		elseif t(T) == 'string' and T:match('help') then
+			help = true
+		elseif t(T) ~= "table" then
+			return false, Echo(w.."Page: argument#1 is not a table")
+		elseif l(T) == 0 then
+			if t(args[1]) ~= 'table' or not t(args[1]).iterator then
+				return "end", Echo("Page: table is empty")
+			end
 		end
 		if help then
-			local info = {
-				 'Page Usage:'
-				,'  Page(table [, [params_table | arg1,.arg3] ])'
-				,'  (you can copy this to clipboard with Page("cliphelp"))'
-				,'  params_table='
-				,'   { page     =n               --page number'
-				,'    ,nblines    =n             --lines per page,27 by default'
-				,'    ,fIn        =str|{str,.}   --name(s) for match, '
-				,'    ,fOut     =str|{str,.}     --exclusion(s) '
-				,'    ,fKType       =str         --type of key to find'
-				,'    ,fVType       =str         --type of value to find'
-				,'    ,fType        =str         --type of k or v to find'
-				,'    ,exactmatch =bool          --false by default '
-				,'    ,highlight  =str|{str,.}   --highlight given found key(s)'
-				,'    ,content    =bool          --show also content of found tables'
-				,'    ,keys       =bool          --return keys'
-				,'    ,obj        =bool          --return first value found'
-				,'    ,objs       =bool          --return table of found values'
-				,'    ,report     =bool          --return the whole result as string'
-				,'    ,clip       =bool          --copy result to clip'
-				,'    ,tocode     =bool          --return and show result as code'
-				,'    ,show       =bool          --show result, on by default'
-				,'    ,loop       =bool          --return to arg.page or 1 if beyond'
-				,'    ,iterator   =function      --replace the "pairs" iterator by a customized one'
-				,'    ,next       =function      --next function must be given along the iterator'
-				,"    ,noPageTell =bool          --don't show page number and END" 
-
-				,'    ,all        =bool          --show all at once'
-				,'   }'
-				,'  Non-Table Arguments:(in any order and number)'
-				,'  a number for the page,'
-				,'  a string for name'
-				,'  a string describing type to filter'
-			}
 			local str=''
-			if T=='cliphelp' then
-				for i,line in ipairs(info) do
-					if i>1 then str=str..'\n' end
-					str=str..line
-
-				end
-				sp.SetClipboard(str)
+			if T == 'cliphelp' then
+				sp.SetClipboard(info)
 			else
 				for i,line in ipairs(info) do
 					if i==1 then str=r..line
@@ -7842,175 +7946,200 @@ do
 			end
 			return
 		end
-		local args={...}
 		if args[1] then
-			if t(args[1])~='table' then
+			if t(args[1]) ~= 'table' then
 				-- case: quick params without table: (see help above)
-				local isType = {['function']=true,['userdata']=true,['number']=true,['table']=true,['boolean']=true,['string']=true}
 				for i=1,3 do
-					if not args[i]              then break
-					elseif tonumber(args[i]) and not args.page       then args.page  = args[i] 
-					elseif isType[args[i]]                           then args.fType = args[i] 
-					elseif t(args[i])=='string' or tonumber(args[i]) then args.fIn   = args[i]
-					else Echo(r..'Page: wrong argument #'..i..', '..tostring(args[i])..' will not be taken into account\n'..w..'Type Page("help") for help' )
+					if not args[i]                                     then
+						break
+					elseif tonumber(args[i]) and not args.page         then
+						args.page = args[i] 
+					elseif isType[args[i]]                             then
+						args.fType = args[i] 
+					elseif t(args[i]) == 'string' or tonumber(args[i]) then
+						args.fIn = args[i]
+					else 
+						Echo(r..'Page: wrong argument #'..i..', '..tostring(args[i])..' will not be taken into account\n'..w..'Type Page("help") for help' )
 					end
-					args[i]=nil
+					args[i] = nil
 				end
 			else
-				args=args[1]
-				if args.page and not tonumber(args.page) then Echo(r..'Page: warn page argument is not a number, showing first page...' ) args.page=1 end
+				args = args[1]
+				if args.page and not tonumber(args.page) then
+					Echo(r..'Page: warn page argument is not a number, showing first page...' )
+					args.page = 1
+				end
 			end
 		end
 
 
-		local page=tonumber(args.page)
-		local fIn=args.fIn -- look for specific word, alone or in table (not case sensitive)
-		local fOut=args.fOut -- reject some unwanted results (reverse of fIn)--same possibilities
-		local fType=args.fType -- look for a specific type 'table', 'function'...
-		local fKType=args.fKType -- look for a specific type of key: 'table', 'function'...
-		local fVType=args.fVType -- look for a specific type of value: 'table', 'function'...
-		local highlight= args.highlight -- improve visiblity of elements founds by given keywords--same possibilities
+		local page = tonumber(args.page)
+		local fIn        = args.fIn -- look for specific word, alone or in table (not case sensitive)
+		local fOut       = args.fOut -- reject some unwanted results (reverse of fIn)--same possibilities
+		local fType      = args.fType -- look for a specific type 'table', 'function'...
+		local fKType     = args.fKType -- look for a specific type of key: 'table', 'function'...
+		local fVType     = args.fVType -- look for a specific type of value: 'table', 'function'...
+		local highlight  = args.highlight -- improve visiblity of elements founds by given keywords--same possibilities
+		local sort       = args.sort
 		local exactmatch = args.exactmatch
-		local content= args.content -- open found subtables at one level
+		local content    = args.content -- open found subtables at one level
 
-		local keys= args.keys and {} -- return keys
-		local obj = args.obj -- return first found value
-		local objs = args.objs and {} -- return table of values
-		local report = args.report  --return one big string with linebreak
-		local clip = args.clip -- send also found results in clipboard
-		local tocode = args.tocode and "" -- format result to code
-		local concat = (report or clip) and "" 
-		local show = args.show~=false -- show results, true by default
-		local loop = args.loop~=false -- loop back to arg page when max page is reached, true by default
-		local all = args.all or args.all==nil and (keys or obj or objs or report or strings) --all results at once, by default for some options
-		local nblines= args.nblines or all and 1000000 or 27 -- nb of lines per page to show/research 27 by default, fitting right side of screen
-		local iterator,next = pairs,next
+		local keys       = args.keys and {} -- return keys
+		local obj        = args.obj -- return first found value
+		local objs       = args.objs and {} -- return table of values
+		local report     = args.report  --return one big string with linebreak
+		local clip       = args.clip -- send also found results in clipboard
+		local tocode     = args.tocode and "" -- format result to code
+		local concat     = (report or clip)
+		local show       = args.show ~= false -- show results, true by default
+		local loop       = args.loop ~= false -- loop back to arg page when max page is reached, true by default
+		local all        = args.all or args.all == nil and (keys or obj or objs or report or strings) -- all results at once, by default for some options
+		local nblines    = args.nblines or all and 1000000 or 27 -- nb of lines per page to show/research 27 by default, fitting right side of screen
 		local noPageTell = args.noPageTell
+
+		local iterator, next_v = pairs, next
+
 		if args.iterator then
 			if not args.next then
 				Echo(r..'Page: You must give a next function in as params.next along with the iterator...' )
 				return
 			end
 			iterator = args.iterator
-			next = args.next
-			if t(iterator)~='function' then
+			next_v = args.next
+			if t(iterator) ~= 'function' then
 				Echo(r..'Page: the given iterator is not a function' )
 				return
 			end
-			if t(next)~='function' then
+			if t(next_v) ~= 'function' then
 				Echo(r..'Page: the given "next" is not a function' )
 				return
 			end
 		end
 
-		if fIn and t(fIn)~="table" then fIn={fIn}  end
-		if fOut and t(fOut)~="table" then fOut={fOut}  end
-		if fType and t(fType)~="table" then fType={fType} end
+		if fIn   and t(fIn)   ~= "table" then fIn   = {fIn}   end
+		if fOut  and t(fOut)  ~= "table" then fOut  = {fOut}  end
+		if fType and t(fType) ~= "table" then fType = {fType} end
 
 		if not page then 
-			if lastPage and lastTable==T then -- we assume the user don't want to browse page using a variable, we will do it for him
-				page = lastPage+1
+			if lastPage and lastTable == T then -- we assume the user don't want to browse page using a variable, we will do it for him
+				page = lastPage + 1
 				lastPage = page
-				loop=true
+				loop = true
 			else
 				page = 1
 			end
 		end
-		lastTable,lastPage=T,page
+		lastTable, lastPage = T,page
 
 		nblines = nblines or 27
 
-		local length =0
+		local length = 0
 		if not args.iterator then 
 			length = l(T)
 		else
-			for _ in iterator(T) do length=length+1 end
+			for _ in iterator(T) do length = length + 1 end
 		end
 
 		local totalres=length
 		local results={}
 
-
 		local ln = 0 
 		local filter
-		local nbres=0
+		local nbres = 0
 		local light
 		local newk
-		for k,v in iterator(T) do
-			ln=ln+1
-			local filter=false
-			filter= fIn and not elemstrmatch(k,v,exactmatch,fIn)
+
+		local sorted_keys = T
+		if sort then
+			sorted_keys = {}
+			for k in iterator(T) do
+				sorted_keys[#sorted_keys + 1] = k
+			end
+			table.sort(sorted_keys, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+			iterator = pairs
+			next_v = next
+		end
+
+		for i, k in iterator(sorted_keys) do
+			local v = T[k]
+			if not sort then
+				k, v = i, T[i]
+			end
+			ln = ln + 1
+			local filter = false
+			filter = fIn and not elemstrmatch(k,v,exactmatch,fIn)
 			filter = filter or fOut and elemstrmatch(k,v,exactmatch,fOut)
-			filter= filter or fType and not typematch(k,v,fType)
-			filter= filter or fKType and not typematch(k,nil,fKType)
-			filter= filter or fVType and not typematch(nil,v,fVType)
-			light= highlight and elemstrmatch(k,v,highlight,exactmatch) and "\n" or ""
+			filter = filter or fType and not typematch(k,v,fType)
+			filter = filter or fKType and not typematch(k,nil,fKType)
+			filter = filter or fVType and not typematch(nil,v,fVType)
+			light  = highlight and elemstrmatch(k,v,highlight,exactmatch) and "\n" or ""
 
 			if filter then
-				ln=ln-1
-				totalres=totalres-1
+				ln = ln - 1
+				totalres = totalres - 1
 
-			elseif ln > (page-1)*nblines and ln <= (page)*nblines then -- if we're at the desired page
-				nbres=nbres+1
-				if obj==true then obj=v end
+			elseif ln > (page-1) * nblines and ln <= (page) * nblines then -- if we're at the desired page
+				nbres = nbres + 1
+				if obj == true then
+					obj = v
+				end
 
-				if keys then keys[nbres]=k end
-				if objs then objs[k]=v end
-				if content and t(v)=="table" then
+				if keys then keys[nbres] = k end
+				if objs then objs[k] = v end
+				if content and t(v) == "table" then
 					if tocode then
-						newk = t(tonumber(k))=="number" and "["..k.."]" or k
-						tocode =tocode..newk.."={"..table.tostring(v,true).."},\n"
+						tocode = tocode..formatcode_key(k).." = {"..table.tostring(v, true).."},\n"
 					end
-					results[nbres]=light..ln..":["..k.."]:{"..table.tostring(v,false,tostring(k):len()+5).."}"
+					results[nbres] = light..ln..":["..k.."]:{"..table.tostring(v, false, tostring(k):len()+5).."}"
 
 				else 
 					if tocode then
-						newv = t(v)=="string" and "'"..v.."'" or tostring(v)
-						newk = t(tonumber(k))=="number" and "["..k.."]" or tostring(k)
-						tocode=tocode..newk.."="..newv..", \n"
+						tocode = tocode..'\t'..formatcode_key(k).." = "..formatcode_value(v)..", \n"
 					end
 					--if type(v)=='table' and v.GetInfo then v=v.GetInfo().name end
-					local k,v = k,v
-					if type(k)=='table' and k.GetInfo and k.GetInfo() then k=k.GetInfo().name end
-					if type(v)=='table' and v.GetInfo and v.GetInfo() then v=v.GetInfo().name end
-					results[nbres]=light..ln..":["..tostring(k).."]:"..tostring(v)..(t(v)=="table" and "("..l(v)..")" or "")
-				end
-				if concat then
-					concat=concat..results[nbres].."\n"
+					local k, v = k, v 
+					if type(k) == 'table' and k.GetInfo and k.GetInfo() then k = k.GetInfo().name end
+					if type(v) == 'table' and v.GetInfo and v.GetInfo() then v = v.GetInfo().name end
+					results[nbres] = light..ln..":["..tostring(k).."]:"..tostring(v)..(t(v)=="table" and "("..l(v)..")" or "")
 				end
 			end
-			if ln < (page)*nblines and not next(T,k) then
-				break
+			if ln < page * nblines then
+				if sort then
+					if not next_v(sorted_keys, i) then
+						break
+					end
+				elseif not next_v(T, k) then
+					break
+				end
 			end     
 		end
 		if tocode then
-			tocode=tocode:sub(0,-4)
+			tocode = 'local T = {\n' .. tocode:sub(0,-4) .. '\n}'
 		end
 		
 		local nbpages = ceil(totalres/nblines)
-		if nbpages==0 then
+		if nbpages == 0 then
 			return false, Echo("Page found nothing.")
 		end
 
-		if page>nbpages then -- this is to loop back to page 1 if we're using an iterator to swipe page
+		if page > nbpages then -- this is to loop back to page 1 if we're using an iterator to swipe page
 			if loop then 
 				args.page = ((args.page or page)-1)%nbpages +1
 			else 
 				return false
 			end
-			return Page(T,args)
+			return Page(T, args)
 		end
-		if nbres>0 then
-
+		if nbres > 0 then
 			if show then
 				if not noPageTell then
 					Echo("------- page: "..page.."/"..nbpages..", ("..totalres.." results /"..length.." elements) --------")
 				end
-				for i=1, nbres do
+				for i = 1, nbres do
 					Echo(results[i])
 				end
 				if not noPageTell then
-					if page==nbpages then
+					if page == nbpages then
 						Echo("------ End ------")
 					else 
 						Echo("---- end "..page.."/"..nbpages.." ----")
@@ -8018,17 +8147,28 @@ do
 				end
 			end
 		end
-		local clipcontent= clip and (tocode and tocode or keys and table.valtostr(keys) or obj and obj or objs and table.valtostr(objs) or concat)
+		if concat then
+			concat = table.concat(results or {}, '\n')
+		end
+		local clipcontent = clip and (
+				tocode 
+				or keys and table.valtostr(keys)
+				or obj 
+				or objs and table.valtostr(objs)
+				or concat
+			)
 		
 		if clip then 
 			sp.SetClipboard(clipcontent)
 		end
 
 
-		if nbres>0 then 
-			return tocode and "{"..tocode.."}" or keys or obj or objs or (report or clip) and concat
-				   or page~=nbpages and "more"
-				   or 'end'
+		if nbres > 0 then 
+			return tocode 
+					or keys or obj or objs 
+					or concat
+					or page ~= nbpages and "more"
+					or 'end'
 		else 
 			return false
 		end
@@ -8152,7 +8292,7 @@ GetUpvaluesOf= function(func,searchname, searchvalue)
 	return T, indexes
 
 end
-function listing(i)
+function ListAllVariablesFromStack(i)
 	local max = i+1
 	while debug.getinfo(i) and i<max do
 		local func = debug.getinfo(i).func
@@ -9778,7 +9918,7 @@ function tracefunc(oriFunc, wid, Log,warn) -- wrap function to add properly trac
 		local report=makeReport(res[2], true)
 		return error(Echo('\nError in ' .. report)) 
 	end
-	local runFunc=function(thisfunc,...)
+	local runFunc = function(thisfunc, ...)
 		local args={...}
 		local function anonfunc()
 			return thisfunc(unpack(args))
@@ -9797,7 +9937,7 @@ function tracefunc(oriFunc, wid, Log,warn) -- wrap function to add properly trac
 			
 			if time then
 				time = spDiffTimers(spGetTimer(), time)
-				if time>0.2 then
+				if time > 0.2 then
 					local report = makeReport(debug.traceback())
 					Echo('\nFunction took longer than 0.2 sec: \n' .. report)
 					if Log then
@@ -9828,10 +9968,12 @@ function GetCalledLine()
 	end
 end
 
-function DebugWidget(widget,Log,warn)
+function DebugWidget(widget, Log, warn)
 	local wid = GetWidgetInfos()
 	for k,v in pairs(widget) do 
-		if t(v)=='function' and wid.callins[k] then widget[k] = tracefunc(v, wid, Log, warn) end
+		if t(v) == 'function' and wid.callins[k] then
+			widget[k] = tracefunc(v, wid, Log, warn)
+		end
 	end
 end
 
@@ -10633,7 +10775,8 @@ do
 		if def.name == 'shieldbomb' then
 			iconSizeByDefID[defID] = 1.8
 		else
-			iconSizeByDefID[defID] = ( icontypes[(def.iconType or "default")] ).size or 1.8
+			-- since last zk update Feb 2026 the assaultcruiser's def.iconType "vanquisher" (at least this one) has not his icon def in the icontypes
+			iconSizeByDefID[defID] = ( icontypes[(def.iconType or "default")] or icontypes["default"] ).size or 1.8
 		end
 	end
 
