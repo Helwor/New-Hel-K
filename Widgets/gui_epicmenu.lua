@@ -2589,7 +2589,17 @@ function MENU:Navigate(newEventObj, pause)
 			local newPage = true
 			if newEventObj.widget then
 				local name = newEventObj.widget:GetInfo().name
+				local basename = newEventObj.widget.whInfo.basename
 				local nowWidget = widgetHandler:FindWidget(name)
+				if not nowWidget then -- check if name has changed
+					for _name, knownInfo in pairs(widgetHandler.knownWidgets) do
+						if knownInfo.basename == basename then
+							name = _name
+							nowWidget = widgetHandler:FindWidget(name)
+							-- Echo('Epic debug widget name changed: ', name, nowWidget)
+						end
+					end
+				end
 				if nowWidget then
 					newEventObj.widget = nowWidget
 				end
@@ -2598,13 +2608,8 @@ function MENU:Navigate(newEventObj, pause)
 					Echo(sig .. w:GetInfo().name .. ' doesn\'t have any options.')
 					return
 				end
-				if eventObj.widget then
-					local curname = eventObj.widget:GetInfo().name
-					local ki = widgetHandler.knownWidgets[name]
-					local curki = widgetHandler.knownWidgets[curname]
-					local kiFilename = ki.filename:gsub('\\', '/')
-					local curkiFilename = curki.filename:gsub('\\', '/')
-					if eventObj.widget and kiFilename == curkiFilename then
+				if eventObj.widget then -- verify if the widget is still the "same", so we stay on the same page
+					if eventObj.widget and eventObj.widget.whInfo.basename == basename then
 						newPage = false
 						eventObj.scrollY = newEventObj.scrollY
 						eventObj.widget = w
