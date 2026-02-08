@@ -283,85 +283,77 @@ do
 		end
 		return 1 - ((reloadFrame-currentFrame)/gameSpeed) / reloadTime
 	end
-	function InitializeDefs()
-		for defID, def in pairs(UnitDefs) do
+	for defID, def in pairs(UnitDefs) do
 
-			local cp = def.customParams
-			if def.name:match('drone') or cp.dontcount or cp.is_drone or def.cost == 0 then
-				ignoreUnitDefID[defID] = true
+		local cp = def.customParams
+		if def.name:match('drone') or cp.dontcount or cp.is_drone or def.cost == 0 then
+			ignoreUnitDefID[defID] = true
+		end
+		if def.cost < 50 then
+			lowCostDefID[defID] = true
+		end
+		if not ignoreUnitDefID[defID] then
+			if def.buildSpeed ~= 0 then
+				canBuildDefID[defID] = true
 			end
-			if def.cost < 50 then
-				lowCostDefID[defID] = true
-			end
-			if not ignoreUnitDefID[defID] then
-				if def.buildSpeed ~= 0 then
-					canBuildDefID[defID] = true
+
+			---- Gather various units having long reloading weapon
+
+			local reloadTime, checkFunc, weapNum
+			if def.canStockpile then
+				if cp.stockpiletime then
+					reloadTime = tonumber(cp.stockpiletime)
+					checkFunc = checkFuncs.StockpileReloadGadget
+				else
+					checkFunc = checkFuncs.StockpileReload
 				end
-
-				---- Gather various units having long reloading weapon
-
-				local reloadTime, checkFunc, weapNum
-				if def.canStockpile then
-					if cp.stockpiletime then
-						reloadTime = tonumber(cp.stockpiletime)
-						checkFunc = checkFuncs.StockpileReloadGadget
-					else
-						checkFunc = checkFuncs.StockpileReload
-					end
-				elseif cp.post_capture_reload then
-					reloadTime = tonumber(cp.post_capture_reload)
-					checkFunc = checkFuncs.CaptureReload
-				elseif cp.maxwatertank then
-					reloadTime = cp.maxwatertank
-					checkFunc = checkFuncs.WaterTank
-				elseif cp.specialreloadtime then
-					if cp.specialreload_userate then
-						reloadTime = tonumber(cp.specialreload_userate)
-						checkFunc = checkFuncs.SpecialReloadUser
-					else
-						reloadTime = cp.specialreloadtime
-						checkFunc = checkFuncs.SpecialReload
-					end
-				elseif cp.script_reload then
-					if def.name ~= 'turretaaclose' then -- reload time of 15 probably when it close
-						reloadTime = tonumber(cp.script_reload)
-						checkFunc = checkFuncs.ScriptReload
-					end
-				elseif cp.dynamic_comm then
-					checkFunc = checkFuncs.DynaCom
-				elseif def.reloadTime then
-					for i, desc in ipairs(def.weapons) do
-						local wdef = WeaponDefs[desc.weaponDef]
-						if wdef and wdef.manualFire then
-							checkFunc = checkFuncs.checkWeaponReload
-							reloadTime = wdef.reload
-							weapNum = i
+			elseif cp.post_capture_reload then
+				reloadTime = tonumber(cp.post_capture_reload)
+				checkFunc = checkFuncs.CaptureReload
+			elseif cp.maxwatertank then
+				reloadTime = cp.maxwatertank
+				checkFunc = checkFuncs.WaterTank
+			elseif cp.specialreloadtime then
+				if cp.specialreload_userate then
+					reloadTime = tonumber(cp.specialreload_userate)
+					checkFunc = checkFuncs.SpecialReloadUser
+				else
+					reloadTime = cp.specialreloadtime
+					checkFunc = checkFuncs.SpecialReload
+				end
+			elseif cp.script_reload then
+				if def.name ~= 'turretaaclose' then -- reload time of 15 probably when it close
+					reloadTime = tonumber(cp.script_reload)
+					checkFunc = checkFuncs.ScriptReload
+				end
+			elseif cp.dynamic_comm then
+				checkFunc = checkFuncs.DynaCom
+			else
+				for i, desc in ipairs(def.weapons) do
+					local maxReload = 0
+					local wdef = WeaponDefs[desc.weaponDef]
+					if wdef and (wdef.manualFire or wdef.reload > maxReload) then
+						reloadTime = wdef.reload
+						maxReload = reloadTime
+						checkFunc = checkFuncs.checkWeaponReload
+						weapNum = i
+						if wdef.manualFire then
 							break
 						end
 					end
-					if not reloadTime and def.primaryWeapon then
-						local desc = def.weapons[def.primaryWeapon]
-						if desc then
-							local wdef = WeaponDefs[ desc.weaponDef ]
-							if wdef and not wdef.customParams.bogus and wdef.customParams.hidden ~= '1' then
-								checkFunc = checkFuncs.checkWeaponReload
-								weapNum = def.primaryWeapon
-								reloadTime = WeaponDefs[ desc.weaponDef ].reload or 0
-							end
-						end
-					end
 				end
-				if checkFunc then
-					if not reloadTime or reloadTime >= MIN_RELOAD_TIME_NOTICE then
-						lrc[defID] = checkFunc
-						reloadTimes[defID] = reloadTime
-						weaponNumber[defID] = weapNum
-						disallowReloadNotice[defID] = disallowReloadNotice[defID] or false
-					end
+			end
+			if checkFunc then
+				if not reloadTime or reloadTime >= MIN_RELOAD_TIME_NOTICE then
+					lrc[defID] = checkFunc
+					reloadTimes[defID] = reloadTime
+					weaponNumber[defID] = weapNum
+					disallowReloadNotice[defID] = disallowReloadNotice[defID] or false
 				end
 			end
 		end
 	end
+
 end
 
 local useGlobalList
@@ -1402,7 +1394,6 @@ function widget:Initialize()
 		widgetHandler:RemoveWidget(widget)
 		return
 	end
-	InitializeDefs() -- we can't get the reloads at loading (probably due to post unit defs applied?)
 	NewView = WG.NewView
 	Visibles = WG.Visibles and WG.Visibles.anyMap
 	VisibleIcons = WG.Visibles and WG.Visibles.iconsMap
