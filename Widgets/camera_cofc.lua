@@ -239,16 +239,8 @@ options = {
 
 		end,
 		OnChange = function(self)
-
-			-- local oldPy = Spring.GetCameraState().py
-			-- local oldValue = mapToScreenFit
 			mapToScreenFit = self.value
-
-			SetFOV(Spring.GetCameraFOV(), 0.3)
-			if Spring.GetCameraState().name=='free' then
-				Zoom(false, true, true, 10000, true)
-			end
-
+			SetFOV(options.fov.value, 0.3)
 		end,
 	},
 	maxzoomout_alt = {
@@ -263,16 +255,7 @@ options = {
 			return ('%d%%'):format(self.value*100)
 		end,
 		OnChange = function(self)
-
-			-- local oldPy = Spring.GetCameraState().py
-			-- local oldValue = mapToScreenFitAlt
 			mapToScreenFitAlt = self.value
-
-			SetFOV(Spring.GetCameraFOV(), 0.3)
-			if Spring.GetCameraState().name=='free' then
-				Zoom(false, true, true, 10000, true)
-			end
-
 		end,
 	},
 
@@ -609,7 +592,7 @@ Complete Overhead/Free Camera has six actions:
 		name = 'Field of View (Degrees)',
 		--desc = "FOV (25 deg - 100 deg).",
 		type = 'number',
-		min = 10, max = 100, step = 5,
+		min = 10, max = 100, step = 1,
 		value = Spring.GetCameraFOV(),
 		springsetting = 'CamFreeFOV', --save stuff in springsetting. reference: epicmenu_conf.lua
 		OnChange = function(self)
@@ -1110,7 +1093,9 @@ GetDistForBounds = function(width, height, maxGroundHeight, mult, fov, useMapMul
 		totalFittingLength = totalFittingLength * avgMapMult
 	end
 	-- edgeBuffer = math.max(maxGroundHeight, edgeBuffer)
-	return totalFittingLength/math.tan(currentFOVhalf_rad), edgeBuffer
+	local maxDist = totalFittingLength/math.tan(currentFOVhalf_rad)
+	maxDist = math.clamp(maxDist, 7000 * (45/fov), 50000 * (45/fov))
+	return maxDist, edgeBuffer
 end
 
 SetFOV = function(fov)
@@ -1123,7 +1108,7 @@ SetFOV = function(fov)
 	currentFOVhalf_rad = (fov/2) * RADperDEGREE
 	maxDistY, mapEdgeBuffer = GetDistForBounds(MWIDTH, MHEIGHT, groundMax, mapToScreenFit, fov, true) --adjust maximum TAB/Overview distance based on camera FOV
 	-- maxDistY, mapEdgeBuffer = GetDistForBounds(MWIDTH, MHEIGHT, groundMax) --adjust maximum TAB/Overview distance based on camera FOV
-	-- Echo("maxDistY is ", maxDistY)
+
 	cs.fov = fov
 	cs.py = overview_mode and maxDistY or math.min(cs.py, maxDistY)
 
