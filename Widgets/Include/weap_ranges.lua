@@ -1,10 +1,11 @@
 if false and WG.weapRanges then
-	return WG.weapRanges, WG.CalcBallisticCircleOfUnit, WG.CalcBallisticCircleOfModel
+	return WG.weapRanges, WG.CalcBallisticCircleOfUnit, WG.CalcBallisticCircleOfModel, WG.CalcBallisticCircleOfModelSpecRange
 end
 local aim_from_pieces = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces.lua')
 local aim_from_pieces_2 = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces_2.lua')
 local aim_from_poses = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_poses.lua')
 WG.commDefIDs = WG.commDefIDs or (function()
+	local commDefIDs = {}
 	for unitDefID, unitDef in pairs(UnitDefs) do
 		if unitDef.customParams.dynamic_comm or unitDef.customParams.level then
 			commDefIDs[unitDefID] = true
@@ -27,8 +28,10 @@ WG.weapRanges = (function()
 		local scriptName = def.scriptName:match('/(.*)%....')
 		for i, weap in ipairs(def.weapons) do
 			local wDef = WeaponDefs[weap.weaponDef]
+
 			if not wDef.name:find('fakegun') then
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
+				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				if weaponRange <= 32 and wDef.shieldRadius then
 					weaponRange = wDef.shieldRadius
@@ -66,7 +69,7 @@ WG.weapRanges = (function()
 						-- Echo("offY is ", offY)
 					end
 					t['offY' .. entryIndex] = offY or 0
-					t['aimFromModel' .. entryIndex] = aimPiece
+					t['aimFromModel' .. entryIndex] = aimPieceModel
 					t['aimFromUnit' .. entryIndex] = aimFromUnit -- can be a function to fill at query time
 				end
 			end
@@ -190,9 +193,31 @@ WG.CalcBallisticCircleOfModel = function(x, y, z, defID, ...) -- give weap numbe
 	return ret
 end
 
+WG.CalcBallisticCircleOfModelSpecRange = function(x, y, z, defID, ...) -- give weap numbers and specified range
+	local obj = WG.weapRanges[defID]
+	if not obj then
+		return
+	end
+	local ret = {}
+	for i = 1, select('#', ...) do
+		local weapNum = select(i*2-1, ...)
+		local range = select(i*2, ...)
+		local index = 0
+		local wNum = true
+		while wNum and wNum ~= weapNum do
+			index = index + 1
+			wNum = obj['weaponNum' .. index]
+		end
+		if wNum then
+			local wDef = obj['weaponDef' .. index]
+			local wy = obj['offY' .. index]
+			ret[#ret+1] = CalcBallisticCircle( x, y + wy, z, range, wDef)
+		end
+	end
+	return ret
+end
 
 
 
 
-
-return WG.weapRanges, WG.CalcBallisticCircleOfUnit, WG.CalcBallisticCircleOfModel
+return WG.weapRanges, WG.CalcBallisticCircleOfUnit, WG.CalcBallisticCircleOfModel, WG.CalcBallisticCircleOfModelSpecRange

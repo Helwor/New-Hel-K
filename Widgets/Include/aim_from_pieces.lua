@@ -176,7 +176,7 @@ WG.aim_from_pieces = {
     ,spiderskirm          = 'box'
     --
     --
-    ,staticarty           = 'sleeve'
+    ,staticarty           = 'turret'
     ,staticheavyarty      = 'query'
     --
     ,striderarty          = 'launchers'
