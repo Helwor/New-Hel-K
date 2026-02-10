@@ -21,6 +21,7 @@ local myTeamID, myPlayerID
 local currentFrame = Spring.GetGameFrame()
 local MIN_RELOAD_TIME_NOTICE = 12 -- dont register reload weapons below this time
 local gameSpeed = Game.gameSpeed
+
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
@@ -405,12 +406,13 @@ local showReload = true
 local allyOnTop = true
 local useFinePos = true
 local debugMissingUnits = false
-
 local alphaStatus = 1
 local alphaAlly = 1
 local alphaHealth = 1
 local alphaPrio = 1
 local alphaReload = 1
+
+local scale = 1
 
 local debugChoice = 'none'
 local debugCustomProps = {
@@ -431,6 +433,7 @@ options_order = {
 	-- 'dummy',
 	'only_on_icons',
 	'fine_pos',
+	'scale',
 
 	'show_ally',
 	'ally_on_top',
@@ -478,6 +481,19 @@ options.fine_pos = {
 	value = useFinePos,
 	OnChange = function(self)
 		useFinePos = self.value
+	end,
+	noHotkey = true,
+}
+
+options.scale = {
+	name = 'Symbols Scale',
+	type = 'number',
+	value = scale,
+	min             = 1.0,
+	max             = 2.5,
+	step            = 0.01,
+	OnChange = function(self)
+		scale = self.value
 	end,
 	noHotkey = true,
 }
@@ -860,7 +876,7 @@ local spWorldToScreenCoords = Spring.WorldToScreenCoords
 -- local glRect              = gl.Rect
 local glColor = gl.Color
 local glPushMatrix 	= gl.PushMatrix
-local glScale      	= gl.Scale
+local glScale      	= glScale
 local glPopMatrix  	= gl.PopMatrix
 local glCallList   	= gl.CallList
 local glCreateList 	= gl.CreateList
@@ -868,6 +884,7 @@ local glDeleteList 	= gl.DeleteList
 local glTranslate  	= gl.Translate
 local glPushMatrix 	= gl.PushMatrix
 local glPopMatrix 	= gl.PopMatrix
+local glScale		= gl.Scale
 
 
 local spGetUnitViewPosition = Spring.GetUnitViewPosition
@@ -1427,13 +1444,17 @@ function widget:Initialize()
 				glColor(color[1], color[2], color[3], alpha or color[4])
 				glPushMatrix()
 				glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5) , 0)
+				glScale(scale, scale, 0)
 				glCallList(self.list)
 				glPopMatrix()
 			end
 		else
 			obj.Draw = function(self, mx,my, color, alpha)
 				glColor(color[1], color[2], color[3], alpha or color[4])
+				glPushMatrix()
+				glScale(scale, scale, 0)
 				TextDrawCentered(self.str, floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5))
+				glPopMatrix()
 			end
 		end
 	end
@@ -1441,6 +1462,7 @@ function widget:Initialize()
 		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
 			glColor(color[1], color[2], color[3], alpha or color[4])
 			glPushMatrix()
+			glScale(scale, scale, 0)
 			glTranslate(floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5), 0)
 			glCallList(numberLists[numbers])
 			glPopMatrix()
@@ -1448,7 +1470,10 @@ function widget:Initialize()
 	else
 		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
 			glColor(color[1], color[2], color[3], alpha or color[4])
+			glPushMatrix()
+			glScale(scale, scale, 0)
 			TextDrawCentered(numbers, floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5))
+			glPopMatrix()
 		end
 	end
 	if useGlobalList then
