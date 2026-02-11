@@ -96,7 +96,7 @@ local function DrawStraightToGround(x, y, z, goalx, goaly, goalz, alreadyFoundGr
 			return
 		end
 		if distance > 10000 and not alreadyFoundGround and i > 1 and (numChecks - i) * step < 6000 then
-			-- refine smaller steps for the last ~3500 elmos (especially useful for long distance nuke)
+			-- refine smaller steps for the last ~6000 elmos (especially useful for long distance nuke)
 			return DrawStraightToGround(x, y, z, goalx, goaly, goalz)
 		end
 		lastx, lasty, lastz = x, y, z
@@ -266,7 +266,7 @@ function widget:DrawWorld()
 					end
 				end
 			end
-			WG.moddedMissileImpact[unitID] = moddedImpact
+			-- WG.moddedMissileImpact[unitID] = moddedImpact
 		end
 	end
 	glDepthTest(false)
