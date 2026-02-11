@@ -1604,7 +1604,7 @@ local hotkeysCombos = {
 		disable_SM = true, -- disable the selection mod keys widget for this call because this combo is a fall back of another using left click
 						  -- and we don't want Selection Modkey widget to select unwanted unit under cursor on release
 		--continue = true, --reset future selection at each update round
-		
+		share_radius = 'Lob',
 		color = {0.9, 0.9, 0.1, 1},
 		fading = 0.8,
 	},
@@ -6349,9 +6349,10 @@ function widget:DefaultCommand(_, _, engineCmd)
 		-- Echo('engineCmd', engineCmd, 'time', math.round(osclock()), 'state', Spring.GetMouseState())
 		local _, _, _, _, rmb = Spring.GetMouseState()
 		if not rmb then
+			changeCommand = false
 			-- changeCommand = changeCommand - 1
 			-- if changeCommand == 0 then
-				slz = false
+			--	slz = false
 			-- end
 			return
 		end
