@@ -35,6 +35,7 @@ local _, ToKeysyms = include("Configs/integral_menu_special_keys.lua")
 --------------------------------------------------------------------------------
 
 local init = true
+
 local trackmode = false --before options
 local thirdperson_trackunit = false
 local overrideTiltValue = false
@@ -1752,9 +1753,10 @@ local function SetCameraTargetBox(minX, minZ, maxX, maxZ, minDist, maxY, smoothn
 	local dist = math.max(GetDistForBounds(math.abs(maxX - minX), math.abs(maxZ - minZ), maxY, 1), minDist)
 	SetCameraTarget(x, y, z, smoothness, useSmoothMeshSetting or false, dist)
 end
-
+local lastZoomin
 function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	value = value or 1
+
 	local maxZoomSpeed = options.maxzoomspeed.value
 	local zoomDistFactor = options.zoomdistfactor.value
 	local zoomBase = options.zoombase.value
@@ -1768,6 +1770,7 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	end
 	local cs = GetTargetCameraState()
 	if not zoomin and cs.py >= maxDistY then
+		lastZoomin = zoomin
 		return
 	end
 	--//ZOOMOUT FROM CURSOR, ZOOMIN TO CURSOR//--
@@ -1791,6 +1794,7 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 			dz = gz - cs.pz
 			-- Echo("distance => ", sqrt(dx^2+dy^2+dz^2))
 		else
+			lastZoomin = zoomin
 			return false
 		end
 
@@ -1798,9 +1802,11 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 		-- Spring.Echo("Zoom Speed: "..sp)
 
 		local zox,zoy,zoz = LimitZoom(dx,dy,dz,sp,zoomBase,maxZoomSpeed,zoomDistFactor)
-		local new_px = cs.px + zox --a zooming that get slower the closer you are to the target.
-		local new_py = cs.py + zoy
-		local new_pz = cs.pz + zoz
+		local new_px, new_py, new_pz
+		new_px = cs.px + zox --a zooming that get slower the closer you are to the target.
+		new_py = cs.py + zoy
+		new_pz = cs.pz + zoz
+
 		-- Spring.Echo("Zoom Speed Vector: ("..zox..", "..zoy..", "..zoz..")")
 
 		local groundMinimum = GetMapBoundedGroundHeight(new_px, new_pz) + options.minzoomdistance.value
@@ -1838,7 +1844,7 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 			--//SUPCOM camera zoom by Shadowfury333(Dominic Renaud):
 			if options.tiltedzoom.value then
 				cs = ZoomTiltCorrection(cs, zoomin, mx,my, gx, gy, gz, true)
-			else
+			else --if not targetCam.active or zoomin ~= lastZoomin then
 				lockPoint = {}
 			end
 		end
@@ -1860,6 +1866,7 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 		ComputeLockSpotParams(cs, gx, gy, gz, onmap)
 
 		if not ls_have then
+			lastZoomin = zoomin
 			return
 		end
 
@@ -1906,7 +1913,7 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	else
 		OverrideSetCameraStateInterpolate(cs,options.smoothness.value, lockPoint)
 	end
-
+	lastZoomin = zoomin
 	return true
 end
 
@@ -2521,7 +2528,7 @@ function widget:Update(dt)
 		end
 	end
 
-	cs = GetTargetCameraState()
+	-- cs = GetTargetCameraState()
 
 	if firstUpdate and options.overridetilt.value then
 		TiltOverrideFunc()
@@ -3063,9 +3070,9 @@ function widget:DrawScreenEffects(vsx, vsy)
 	Interpolate()
 end
 
-local screenFrame = 0
-local frame=0
+
 function widget:DrawScreen()
+	screenFrame = screenFrame + 1
 	SetSkyBufferProportion()
 	hideCursor = false
 	if not cx then return end

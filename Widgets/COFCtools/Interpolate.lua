@@ -17,7 +17,7 @@ local beginCam = {px=nil,py=0,pz=0,rx=0,ry=0,rz=0,fov=0,time=0}
 local deltaEnd = {px=nil,py=0,pz=0,rx=0,ry=0,rz=0,fov=0,time=0}
 targetCam = {px=0,py=0,pz=0,rx=0,ry=0,rz=0,dx=0,dy=0,dz=0,fov=0,name="",active=false}
 local lockTarget = nil
-
+screenFrame = 0
 MWIDTH, MHEIGHT = Game.mapSizeX, Game.mapSizeZ
 mcx, mcz 	= MWIDTH / 2, MHEIGHT / 2
 mcy 		= Spring.GetGroundHeight(mcx, mcz)
@@ -170,6 +170,7 @@ function GetTargetCameraState()
 		targetCam.px = curr_px
 		targetCam.py = curr_py
 		targetCam.pz = curr_pz
+		targetCam.frame = screenFrame
 	end
 
 	return targetCam
@@ -307,13 +308,12 @@ function Interpolate()
 		-- AddSpeed(cs,deltaEnd,0.5)
 		DisableEngineTilt(cs)
 		spSetCameraState(cs,0)
-		CorrectToLockpoint(cs, tweenFact)
-		targetCam.active = false
+		CorrectToLockpoint(cs, 1)
+		targetCam.active = targetCam.frame == screenFrame
 	else
 		if (deltaEnd.period > 0) then
 			local timeRatio = (deltaEnd.period - lapsedTime) / (deltaEnd.period);
 			local tweenFact = 1.0 - pow(timeRatio, 4);
-
 			local newState = Add(beginCam,deltaEnd,tweenFact) --add changes to camera state in gradual manner
 			local cs = spGetCameraState()
 			CopyState(cs, newState)
