@@ -2231,7 +2231,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 	local ownFacing = p.facing
 	local before = meta and not shift
 	local after = not meta and shift
-	local direct = not (before or after)
+	local direct = not (meta or shift)
 	local hasTerra
 	local commandTag = false
 	local nDelayed = #delayedOrders
