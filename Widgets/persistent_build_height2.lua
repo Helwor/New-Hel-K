@@ -106,6 +106,8 @@ local spGetUnitCurrentCommand	= Spring.GetUnitCurrentCommand
 local spIsAboveMiniMap			= Spring.IsAboveMiniMap
 
 
+
+
 local UnitDefs = UnitDefs
 
 local function IdentifyPlacement(pid, facing)
@@ -163,7 +165,7 @@ local elevRangeDraw = {
 local useMinimap = false
 
 -- previously local INSERT_TABLE = {[3]=CMD_OPT_SHIFT}
-
+local placed
 
 
 local myTeamID = Spring.GetMyTeamID()
@@ -175,6 +177,7 @@ local opt = {
 	findPlatform = true,
 	force_wind_no_terra = true,
 	auto_fix_mex = true,
+	alt_alone_insert = false,
 }
 
 local dbg_options_path = 'Hel-K/' .. widget:GetInfo().name
@@ -221,17 +224,6 @@ end
 ---------------------------------
 --local commandPanelPath = 'Hotkeys/Command Panel'
 --local customGridPath = 'Hotkeys/Command Panel/Custom'
-local helkpath = 'Hel-K/' .. widget:GetInfo().name
-local hotkeyPath = "Hotkeys/Construction"
-options_path = 'Settings/Interface/Building Placement'
-options_order = {   
-	'enterSetHeightWithB', 'altMouseToSetHeight', 'label_structure', 'hotkey_toggle', 'hotkey_raise', 'hotkey_lower',
-	'auto_fix_mex', 'force_wind_no_terra',
-}
-if SPECIFIED_MEMORY then
-	table.insert(options_order, 'rmbHeightOverGame')
-	table.insert(options_order, 'forgetHeightAfterPlacing')
-end
 -- Working but no need anymore
 -- Heights to retain over games
 local heightsNamesToRmbOverGames = {
@@ -275,6 +267,21 @@ heightsToForgetAfterPlacing.Update = heightsToRmbOverGames.Update
 heightsToRmbOverGames:Update(heightsNamesToRmbOverGames)
 heightsToForgetAfterPlacing:Update(heightsNamesToForgetAfterPlacing)
 --
+
+
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
+local hotkeyPath = "Hotkeys/Construction"
+options_path = 'Settings/Interface/Building Placement'
+options_order = {   
+	'enterSetHeightWithB', 'altMouseToSetHeight', 'label_structure', 'hotkey_toggle', 'hotkey_raise', 'hotkey_lower',
+	'auto_fix_mex', 'force_wind_no_terra', 'alt_alone_insert'
+}
+if SPECIFIED_MEMORY then
+	table.insert(options_order, 'rmbHeightOverGame')
+	table.insert(options_order, 'forgetHeightAfterPlacing')
+end
+
+
 options_path_alphabetical = { ['Hel-K'] = true }
 options = {
 	enterSetHeightWithB = {
@@ -336,7 +343,7 @@ options = {
 		OnChange = function(self)
 			opt[self.key] = self.value
 		end,
-		path = helkpath,
+		path = helk_path,
 	},
 	force_wind_no_terra = {
 		name = 'Force no terra on wind',
@@ -346,7 +353,17 @@ options = {
 		OnChange = function(self)
 			opt[self.key] = self.value
 		end,
-		path = helkpath,
+		path = helk_path,
+	},
+	alt_alone_insert = {
+		name = 'Alt alone Insert',
+		desc = 'Special behaviour where holding alt alone will insert and keep the active command until alt is released.\nEspecially useful if Alt Alone option for Building Starter is set too, in order to be able to spam nanoframe',
+		type = 'bool',
+		value = opt.alt_alone_insert,
+		OnChange = function(self)
+			opt[self.key] = self.value
+		end,
+		path = helk_path,
 	},
 	
 }
@@ -730,7 +747,50 @@ local function CheckGeos(px,pz)
 	end
 	return px,pz,spot
 end
+local function GetPlacements() -- for now, only placements from current cons are considered
+	
+	if not (  g.preGame and  WG.preGameBuildQueue and WG.preGameBuildQueue[1]	or cons[1] and spValidUnitID(cons[1])  ) then
+		return EMPTY_TABLE
+	end
+	-- local lookForEbuild = PID and E_RADIUS[PID] and dstatus ~= 'paint_farm' and sp.GetBuildSpacing() >= 7
 
+	local time = Spring.GetTimer()
+	local T,length={},0
+	local eBuilds,copy = {},{}
+	local buffered = conTable and conTable.inserted_time and os.clock() - conTable.inserted_time < 0.8
+	local queue = g.preGame and WG.preGameBuildQueue or buffered and conTable.cons[ cons[1] ].commands or spGetCommandQueue(cons[1],-1) or EMPTY_TABLE
+	for i,order in ipairs(queue) do
+		local pid,x,y,z,facing
+		if buffered then
+			if order.cmd and order.cmd < 0 then
+				x, z = order[1], order[2]
+				pid, facing = -order.cmd, order.facing
+			end
+		elseif g.preGame then
+			pid, x, y, z, facing = unpack(order)
+		elseif order.id < 0 then 
+			pid, x, y, z, facing = -order.id, unpack(order.params)
+		end
+		if pid then
+			local s = WG.PlacementModule:Measure(pid, facing)
+			local sx,sz = s.sizeX,s.sizeZ
+
+			local eradius = s.eradius
+			-- if pid == mexDefID and WG.GetClosestMetalSpot --[[and not g.preGame--]] then
+			-- 	local spot = WG.GetClosestMetalSpot(x,z)
+			-- 	if spot then
+			-- 		-- g.cantMex[spot]=not IsMexable(spot)
+			-- 		g.cantMex[spot]=true
+			-- 	end
+			-- end
+			length = length + 1
+			local build = {x, z, sx, sz, eradius = eradius, defID = pid, facing = facing}
+			T[length]=build
+			--Echo("UnitDefs[-order.id].name is ", UnitDefs[-order.id].name,sx,sz)
+		end
+	end
+	return T
+end
 local function FindPlacementAround(px,pz,placed,pid,_p,lookingForFlat,customElev,dontRegister)
 	local p = _p or pid and IdentifyPlacement(pid) or p
 	local customPID = pid
@@ -1726,48 +1786,50 @@ local function CheckEnabled()
 end
 
 local function reset(shift,keepAcom,force)
-		pointX = false
-		--cons = {}
-		mexes = {}
-		if not keepAcom then
-			groundModule.altPH = nil
-			groundModule.altDig = nil
-			groundModule.altElev = nil
+	-- Echo("reset ",shift,keepAcom,force, f.GetCalledLine())
+	pointX = false
+	--cons = {}
+	mexes = {}
+	if not keepAcom then
+		groundModule.altPH = nil
+		groundModule.altDig = nil
+		groundModule.altElev = nil
+	end
+	-- WG.commandLot={}
+	if widgets.command_insert and widgets.command_insert._CommandNotify then
+		widgets.command_insert.CommandNotify = widgets.command_insert._CommandNotify
+		widgets.command_insert._CommandNotify = nil
+	end
+	placed = false
+	ignoreFirst=false
+	-- if not (shift or meta) then
+	if --[[force or--]] not (shift --[[or meta--]]) then
+		if (
+			force and (not WG.drawingPlacement)
+			or not keepAcom and not widgets.drawing_placement
+		) and (select(2,spGetActiveCommand()) or 0)<0 then
+			spSetActiveCommand(0)
 		end
-		-- WG.commandLot={}
-		if widgets.command_insert and widgets.command_insert._CommandNotify then
-			widgets.command_insert.CommandNotify = widgets.command_insert._CommandNotify
-			widgets.command_insert._CommandNotify = nil
-		end
-		ignoreFirst=false
-		-- if not (shift or meta) then
-		if --[[force or--]] not (shift --[[or meta--]]) then
-			if (
-				force and (not WG.drawingPlacement)
-				or not keepAcom and not widgets.drawing_placement
-			) and (select(2,spGetActiveCommand()) or 0)<0 then
-				spSetActiveCommand(0)
-			end
-			PID = false
-			myPlatforms.x = false
-			myPlatforms.oriPH = false
-			-- if CI_Disabled then
-			--     local widgets.command_insert = widgetHandler:FindWidget('CommandInsert')
-			--     if widgets.command_insert then
-			--         widgetHandler:UpdateWidgetCallIn("CommandNotify", widgets.command_insert)
-			--     end
-			--     CI_Disabled = false
-			--     -- Echo('widgets.command_insert reenabled')
-			-- end
-			ordered = false
-		end
-		if force and not shift then
-			forceResetAcom = false
-		end
-		movedPlacement[1] = -1
-		update=true
-		g.timeOutNoTerra = 0
-		if WG.DrawTerra then WG.DrawTerra.finish=true end
+		PID = false
+		myPlatforms.x = false
+		myPlatforms.oriPH = false
+		-- if CI_Disabled then
+		--     local widgets.command_insert = widgetHandler:FindWidget('CommandInsert')
+		--     if widgets.command_insert then
+		--         widgetHandler:UpdateWidgetCallIn("CommandNotify", widgets.command_insert)
+		--     end
+		--     CI_Disabled = false
+		--     -- Echo('widgets.command_insert reenabled')
+		-- end
+		ordered = false
+	end
+	if force and not shift then
+		forceResetAcom = false
+	end
+	movedPlacement[1] = -1
+	update=true
+	g.timeOutNoTerra = 0
+	if WG.DrawTerra then WG.DrawTerra.finish=true end
 end
 -- testing speed
 --local T ={ln=0}
@@ -1795,6 +1857,11 @@ function widget:KeyRelease(key,mods)
 	-- Echo("ordered, meta, shift, mods.shift is ", ordered, meta, shift, mods.shift)
 
 	local newalt,newctrl,newmeta,newshift = mods.alt,mods.ctrl,mods.meta,mods.shift
+	if resetOnReleaseAlt and not newalt then
+		reset(false,false,true) 
+		resetOnReleaseAlt = false
+		widget.keepAcom = false
+	end
 	if  shift and not newshift and PID then
 		if toForgetOnShiftRelease then
 			buildHeight[toForgetOnShiftRelease] = 0
@@ -2065,6 +2132,8 @@ local function DistributeOrders(lot, PID, meta, shift)
 	if not PID then
 		return
 	end
+	local fakemeta = alt and opt.alt_alone_insert and not (ctrl or shift or meta)
+	meta = meta or fakemeta
 	shift = shift and not g.modArena
 	-- conTable = getconTable()
 	if not next(conTable.cons) then 
@@ -2162,13 +2231,13 @@ local function DistributeOrders(lot, PID, meta, shift)
 	local ownFacing = p.facing
 	local before = meta and not shift
 	local after = not meta and shift
-	local direct = not meta and not shift
+	local direct = not (before or after)
 	local hasTerra
 	local commandTag = false
 	local nDelayed = #delayedOrders
 	local batch
 	local order_count=0
-	local opts = f.MakeOptions()
+	local opts = f.MakeOptions(nil, nil, {alt, ctrl, meta, shift})
 	INSERT_TABLE[3] = opts.coded
 	local GBC = WG.GlobalBuildCommand
 	for i = 1, #lot do
@@ -2270,15 +2339,15 @@ local function DistributeOrders(lot, PID, meta, shift)
 							-- simulate a command notify for guard remove check
 								-- Echo("i==1, widgets.guard_remove, posCommand == con.queueSize, shift is ", i==1, widgets.guard_remove, posCommand, con.queueSize, shift)
 							if i == 1 then
-								if firstcon and WG.sounds_gaveOrderToUnit then
+								if WG.sounds_gaveOrderToUnit then
 									-- Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
 									 WG.sounds_gaveOrderToUnit(id, true)
 								end
 								if widgets.fix_autoguard and shift then
-									widgets.fix_autoguard:CommandNotify(cmdID, {pointX, pointY, pointZ}, {shift = true})
+									widgets.fix_autoguard:CommandNotify(cmdID, XYZP_TABLE, {shift = true})
 								end
 								if widgets.guard_remove and (posCommand == -1 or posCommand >= con.queueSize) and shift then
-									widgets.guard_remove:CommandNotify(cmdID, {pointX, pointY, pointZ}, {shift = true})
+									widgets.guard_remove:CommandNotify(cmdID, XYZP_TABLE, {shift = true})
 								end
 							end
 
@@ -2296,7 +2365,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 								firstcon = false
 							end
 							if widgets.fac_preorder then
-								widgets.fac_preorder:CommandNotify(cmdID, {pointX, pointY, pointZ, facing}, {shift = true})
+								widgets.fac_preorder:CommandNotify(cmdID, XYZP_TABLE, {shift = true})
 							end
 
 						end
@@ -2319,7 +2388,7 @@ local function DistributeOrders(lot, PID, meta, shift)
 						if not commandTag then
 							if widgets.building_starter then
 								-- XYZ_TABLE[1],XYZ_TABLE[2],XYZ_TABLE[3]=pointX,pointY,pointZ
-								widgets.building_starter:CommandNotify(cmdID, XYZP_TABLE, EMPTY_TABLE,true)
+								widgets.building_starter:CommandNotify(cmdID, XYZP_TABLE, {alt = alt, ctrl = ctrl, shift = shift, meta = meta and not fakemeta})
 							end
 							-- if widgets.ctrl_morph and ctrl then
 							--     -- Echo('send ctrl', os.clock())
@@ -2734,20 +2803,20 @@ do
 		------------------------------------------------------
 		--
 
-		if shift and PID and cmd==0 and not params[1]  then
-			-- spGiveOrderToUnitArray(cons,CMD.STOP, {},{})
-			-- spSetActiveCommand(-1) -- cancel with S while placing multiple
-			-- reset(shift)
-		end
+		-- if shift and PID and cmd==0 and not params[1]  then
+		-- 	-- spGiveOrderToUnitArray(cons,CMD.STOP, {},{})
+		-- 	-- spSetActiveCommand(-1) -- cancel with S while placing multiple
+		-- 	-- reset(shift)
+		-- end
 		if pointX then
-			if cmd<0 and PID --[[and PID~=mexDefID--]] and params[3] then
+			if cmd < 0 and PID --[[and PID~=mexDefID--]] and params[3] then
 				if ignoreFirst then 
-					ignoreFirst=false
+					ignoreFirst = false
 				else
 
 					pointX = params[1]
 					pointZ = params[3]
-					table.insert(WG.commandLot, {params[1],params[3],nil,p.facing~=params[4] and params[4]})
+					table.insert(WG.commandLot, {params[1], params[3], nil, p.facing ~= params[4] and params[4]})
 				end
 
 				if mustTerraform then
@@ -2757,7 +2826,7 @@ do
 		end
 	end
 end
---Page(CMD,'45')
+
 local terraDefID = UnitDefNames['terraunit'].id
 local cmdTags = {}
 local tagHolder = {}
@@ -3082,7 +3151,7 @@ function TreatLot(lot,PID, useBuildHeight, exceptPlatform)
 		DistributeOrders(lot, PID, meta, shift or lot.shift)
 	end
 	for k in pairs(lot) do lot[k]=nil end
-	reset(shift)
+	reset(shift or alt and opt.alt_alone_insert and not (meta or shift or ctrl))
 	conTable.fromPBH = true
 
 	-- for i,order in ipairs(conTable.cons[ cons[1] ].commands) do
@@ -3173,10 +3242,10 @@ local function Process(mx, my, update)
 		-- Echo('look for plat',os.clock(),'=>',platX, platZ)
 	end
 	if platX then
-		needTerra = CheckTerra(platX, platZ)
+		needTerra = CheckTerra(platX, platZ, nil, placed)
 		if not blockingStruct then
 			pointX, pointZ = platX, platZ
-			needTerra = CheckTerra()
+			needTerra = CheckTerra(nil, nil, nil, placed)
 		end
 	else
 		if not platX then
@@ -3187,18 +3256,17 @@ local function Process(mx, my, update)
 					groundModule.lastOffset = nil
 				end
 			end
-			needTerra = CheckTerra()
+			needTerra = CheckTerra(nil, nil, nil, placed)
 			
 		end
 	end
-
 	--[[Echo('updating')--]]
 	drawWater = pointY < 80 and pointY > -80 -- showing water level when approaching of it
 			-- Callin may have been removed
 	movedPlacement[1]=-1
 	-- Echo("sloppedTerrain is ", sloppedTerrain)
 	-- Echo("surround is ", surround)
-	if not platX --[[and (surround or 0) < 2500--]] and PID~=mexDefID then --
+	if not platX --[[and (surround or 0) < 2500--]] and (PID~=mexDefID or not WG.metalSpots) then --
 		local noterra = g.noterra
 		if noterra or PID~=geoDefID or geoSpot then
 			local lookingForFlat = noterra or not blockingStruct and sloppedTerrain and mol(placementHeight,0,7)
@@ -3208,7 +3276,7 @@ local function Process(mx, my, update)
 			-- Echo('=>',math.round(os.clock()))
 			-- Echo("lookingForFlat, blockingStruct is ", lookingForFlat, blockingStruct)
 			if findAround then
-				FindPlacementAround(pointX, pointZ, nil, nil, nil, lookingForFlat)
+				FindPlacementAround(pointX, pointZ, placed, nil, nil, lookingForFlat)
 			end
 		end
 	end 
@@ -3216,6 +3284,7 @@ local function Process(mx, my, update)
 		widgetHandler:UpdateWidgetCallIn("DrawWorld", widget)
 	end
 	update = false
+	WG.placementX, WG.placementZ = pointX, pointZ
 end
 widget.Process = Process
 
@@ -3469,6 +3538,8 @@ local spGetDefaultCommand = Spring.GetDefaultCommand
 function widget:MousePress(mx, my, button)
 	-- Echo("meta and PID is ", meta and PID, meta and PID and ordered)
 	alt, ctrl, meta, shift = spGetModKeyState()
+	fakemeta = alt and opt.alt_alone_insert and not (shift or meta or ctrl)
+	placed = fakemeta and button == 1 and GetPlacements()
 	-- Echo("spGetActiveCommand() is ", spGetActiveCommand())
 	if button == 1 then
 		leftClick = true
@@ -3496,7 +3567,7 @@ function widget:MousePress(mx, my, button)
 			reset()
 			return
 		end
-		if not (cons[1] or g.preGame) or WG.Chili.Screen0:IsAbove(mx,my) then
+		if not (cons[1] or g.preGame) or WG.Chili.Screen0.hoveredControl then
 			return
 		end
 		useMinimap = spIsAboveMiniMap(mx, my)
@@ -3664,7 +3735,7 @@ function widget:MousePress(mx, my, button)
 				--[[if PID == mexDefID and not shift and WG.metalSpots then
 					-- let mex_placement_handler do the job
 					Echo('ok here')
-				else--]]if widgets.drawing_placement and not shift then
+				else--]]if --[[widgets.drawing_placement and]] not shift then
 					workOnRelease = {pointX,pointZ,pid = PID}
 
 					-- widgetHandler:CommandNotify(-PID,{pointX,pointY,pointZ,p.facing},MakeOptions())
@@ -3698,7 +3769,15 @@ function widget:MouseRelease(mx,my,button)
 
 			if not (shift or WG.commandLot.shift) then
 				TreatLot(WG.commandLot,PID)
-				reset(false,false,true) 
+				local fakemeta = alt and opt.alt_alone_insert and (not meta or shift or ctrl)
+				if fakemeta then
+					resetOnReleaseAlt = true
+					-- tell Draw Placement that we want to keep the active command
+					widget.keepAcom = true
+
+				else
+					reset(false,false,true) 
+				end
 			else
 				 ordered=true
 				 forceResetAcom = true
@@ -4140,9 +4219,12 @@ function widget:GameFrame(f)
 	end
 end
 function widget:Initialize()
-	-- Echo('PBH INITIALIZE')
-	-- take spSetActiveCommand again from Spring, for debugging
-	spSetActiveCommand = Spring.SetActiveCommand
+	-- spSetActiveCommand = function(...)
+	-- 	Echo(...)
+	-- 	Echo(f.GetCalledLine())
+	-- 	return Spring.SetActiveCommand(...)
+	-- end
+
 	Cam = WG.Cam
 	if not Cam then
 		Echo(widget:GetInfo().name .. ' requires api_has_view_changed')

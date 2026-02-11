@@ -16,6 +16,7 @@ local buildings = {}	-- {[1] = {x = posX, z = posZ, ud = unitID}}	-- unitID is o
 local toClear = {}	-- {[1] = {x = posX, z = posZ, unitID = unitID}}	-- entries created in UnitCreated, iterated in GameFrame
 local numBuildings = 0
 local myBuilders = {}
+local alt_alone = false
 
 local team = Spring.GetMyTeamID()
 include("keysym.lua")
@@ -29,21 +30,31 @@ local function HotkeyChangeNotification()
 	buildingStartKey = ToKeysyms(key and key[1])
 end
 
-options_order = {'hotkey'}
+options_order = {'hotkey', 'alt_insert'}
 options_path = 'Hotkeys/Construction'
-options = {
-	hotkey = {
-		name = 'Place Nanoframes',
-		desc = 'Hold this key during structure placement to queue structures which are to placed but not constructed.',
-		type = 'button',
-		hotkey = "Q",
-		bindWithAny = true,
-		dontRegisterAction = true,
-		OnHotkeyChange = HotkeyChangeNotification,
-		path = hotkeyPath,
-	},
+local helk_path = 'Hel-K/' .. widget:GetInfo().name
+options = {}
+options.hotkey = {
+	name = 'Place Nanoframes',
+	desc = 'Hold this key during structure placement to queue structures which are to placed but not constructed.',
+	type = 'button',
+	hotkey = "Q",
+	bindWithAny = true,
+	dontRegisterAction = true,
+	OnHotkeyChange = HotkeyChangeNotification,
+	path = hotkeyPath,
 }
 
+options.alt_insert = {
+	name = 'Insert Nano frame with Alt alone',
+	desc = 'Hold Alt only to insert nanoframe in front of queue',
+	type = 'bool',
+	value = alt_alone,
+	OnChange = function(self)
+		alt_alone = self.value
+	end,
+	path = helk_path,
+}
 -- Speedups
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGetTeamUnits = Spring.GetTeamUnits
@@ -126,7 +137,8 @@ function widget:CommandNotify(id, params, options)
 		local ux = params[1]
 		local uz = params[3]
 		
-		if buildingStartKey and spGetKeyState(buildingStartKey) then
+		if buildingStartKey and spGetKeyState(buildingStartKey)
+			or options.alt and not (options.meta or options.shift or options.ctrl) then
 			buildingMap:Add(ux, uz)
 			-- buildings[numBuildings] = { x = ux, z = uz}
 			-- numBuildings = numBuildings+1

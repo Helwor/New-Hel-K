@@ -1692,7 +1692,7 @@ local function reset(complete)
 	-- if complete then
 	-- 	Echo(debug.traceback())
 	-- end
-
+	-- Echo('reset', complete, f.GetCalledLine())
 	--Echo(debug.getinfo(2).currentline)
 	WG.drawEnabled=false
 	if complete then
@@ -4464,7 +4464,7 @@ function widget:IsAbove(x, y)	-- previously Update
 			-- Echo('too late',time > 0.1, VERIF_SHIFT.page > 2, not select(3,sp.GetMouseState()))
 			VERIF_SHIFT = false
 		elseif shift then
-			if not widgetHandler.mouseOwner or widgetHandler.mouseOwner.GetInfo().name == 'Persistent Build Height 2' then
+			if not widgetHandler.mouseOwner or widgetHandler.mouseOwner.whInfo.name == 'Persistent Build Height 2' then
 				local _mx, _my = VERIF_SHIFT[1], VERIF_SHIFT[2]
 				VERIF_SHIFT = false
 				widgetHandler.mouseOwner = nil
@@ -4533,7 +4533,7 @@ function widget:IsAbove(x, y)	-- previously Update
 			return
 		end
 	end
-	if dstatus == 'engaged' and not (shift or leftClick) then
+	if dstatus == 'engaged' and not (shift or leftClick or (PBH and PBH.keepAcom)) then
 		if not Drawing and PID==mexDefID then
 				dstatus = 'none'
 		--if PID==mexDefID and not shift then sp.SetActiveCommand(-1) end
@@ -6408,6 +6408,11 @@ function widget:Initialize()
 		-- return
 		widgetHandler:RemoveWidgetCallIn('UnitCommand',widget)
 	end
+	-- sp.SetActiveCommand = function(...)
+	-- 	Echo('set acom', ...)
+	-- 	Echo(f.GetCalledLine())
+	-- 	return Spring.SetActiveCommand(...)
+	-- end
 	
 	Cam = WG.Cam
 	NewView = WG.NewView
