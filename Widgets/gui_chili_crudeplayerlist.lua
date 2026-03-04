@@ -87,6 +87,8 @@ local res_tooltip_mod_info = table.concat({
 	"Alt + Shift: Give max for ".. CONTINUE_TIME .." seconds.",
 }, '\n')
 
+
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -148,17 +150,65 @@ local function GetPlayerTeamColor(teamID, isDead, specGone)
 	return {r, g, b, a}
 end
 
+local function GetTeamName(teamID)
+	local name
+	local _, leader, _, isAI = Spring.GetTeamInfo(teamID, false)
+	if isAI then
+		name = select(2,Spring.GetAIInfo(teamID))
+	else
+ 		name = select(1,Spring.GetPlayerInfo(leader, false))
+	end
+	local playerslist = Spring.GetPlayerList(teamID, true)
+	if #playerslist > 1 then
+		name = name .. "'s squad"
+	end
+	return name
+end
+
+local function FilterOwnUnits(defIDs, count)
+	if not Spring.IsGodModeEnabled() then
+		return count
+	end
+	local myTeamID = Spring.GetMyTeamID()
+	local GetUnitTeam = Spring.GetUnitTeam
+	local tremove = table.remove
+	for defID, units in pairs(defIDs) do
+		local i = 1
+		local unitID = units[i]
+		while unitID do
+			if GetUnitTeam(unitID) ~= myTeamID then
+				tremove(units, i)
+				count = count - 1
+			else
+				i = i + 1
+			end
+			unitID = units[i]
+		end
+		if not units[1] then
+			defIDs[defID] = nil
+		end
+	end
+	return count
+end
+
+
 local function ShareUnits(playername, teamID)
 	if not teamID then
 		Spring.Echo('Player List: Invalid team to share.')
 		return
 	end
+	playername = playername or GetTeamName(teamID)
 	local selcnt = Spring.GetSelectedUnitsCount()
 	if selcnt == 0 then
 		Spring.Echo('Player List: No units selected to share.')
 		return
 	end
 	local sel = Spring.GetSelectedUnitsSorted()
+	selcnt = FilterOwnUnits(sel, selcnt)
+	if selcnt == 0 then
+		Echo('Player List: No own units in selection to share.')
+		return
+	end
 	local names = ''
 	local count = 0
 	local maxcount = 3
@@ -177,9 +227,9 @@ local function ShareUnits(playername, teamID)
 	names = names:sub(1,-3)
 	
 	if names == '' then
-		Spring.SendCommands("say a: I gave "..selcnt.." units to "..playername..".")
+		Spring.SendCommands("say a: I gave " .. selcnt .. " units to " .. playername .. ".")
 	else
-		Spring.SendCommands("say a: I gave "..names.." (" .. selcnt .. ") to "..playername..".")
+		Spring.SendCommands("say a: I gave " .. selcnt .. ' ' .. names.. " to " .. playername .. ".")
 	end
 	Spring.ShareResources(teamID, "units")
 end
@@ -205,15 +255,8 @@ local function GiveResource(target, kind, mod, quiet) -- directly copied from gu
 			mod = defaultamount
 		end
 	end
-	local _, leader, _, isAI = Spring.GetTeamInfo(target, false)
-	local name = select(1,Spring.GetPlayerInfo(leader, false))
-	if isAI then
-		name = select(2,Spring.GetAIInfo(target))
-	end
-	local playerslist = Spring.GetPlayerList(target, true)
-	if #playerslist > 1 then
-		name = name .. "'s squad"
-	end
+	local name = GetTeamName(target)
+
 	local num = 0
 	local currentResourceValue = Spring.GetTeamResources(select(1, Spring.GetMyTeamID(), kind))
 	if mod == "continue" then
@@ -1158,7 +1201,8 @@ end
 --------------------------------------------------------------------------------
 
 options_path = 'Settings/HUD Panels/Player List'
-options_order = {'text_height', 'backgroundOpacity', 'alignToTop'}
+local helk_path = 'Hel-K/'..widget.GetInfo().name
+options_order = {'text_height', 'backgroundOpacity', 'alignToTop', 'give_to_hovered'}
 options = {
 	text_height = {
 		name = 'Font Size (10-18)',
@@ -1185,8 +1229,23 @@ options = {
 		desc = "Align list entries to top (i.e. don't push to bottom)",
 		OnChange = SortEntries,
 	},
+	give_to_hovered = {
+		type = 'button',
+		value = false,
+		name = 'Give To Hovered',
+		desc = 'Give the selected units to the hovered team (hotkey needed)',
+		OnChange = function(self)
+			local underID = WG.PreSelection_GetUnitUnderCursor()
+			if underID then
+				local teamID = Spring.GetUnitTeam(underID)
+				if teamID and teamID ~= Spring.GetMyTeamID() then
+					ShareUnits(nil, teamID)
+				end
+			end
+		end,
+		path = helk_path,
+	},
 }
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
