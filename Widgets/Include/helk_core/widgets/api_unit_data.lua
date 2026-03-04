@@ -796,7 +796,7 @@ function widget:KeyPress(key,mods)
     --     return true
     -- end
 
-	local debug=true
+	local debug = false
     if key == 267 and mods.alt then -- 267 == KP_/
         local id = spGetSelectedUnits()[1] or WG.PreSelection_GetUnitUnderCursor()
         if id and Units[id] then
