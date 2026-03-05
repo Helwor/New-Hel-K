@@ -19,6 +19,7 @@ if Spring.GetModOptions().singleplayercampaignbattleid then
 	return
 end
 
+local LOG_RES = false
 -- A test game: http://zero-k.info/Battles/Detail/797379
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -46,6 +47,9 @@ local function GetColorChar(colorTable)
 		col[i] = math.ceil(colorTable[i]*255)
 	end
 	return string.char(col[4],col[1],col[2],col[3])
+end
+local function coloredString(str,color)
+	return '\255' .. string.char(color[1]*255) .. string.char(color[2]*255) ..  string.char(color[3]*255) .. str .. '\008'
 end
 
 local pingCpuColors = {
@@ -235,9 +239,11 @@ local function ShareUnits(playername, teamID)
 end
 local function GetResource(target, kind)
 	local tgtCurr, tgtStor = Spring.GetTeamResources(target, kind)
-	tgtStor = tgtStor - HIDDEN_STORAGE
-	local maxfill =  tgtStor - tgtCurr
-	return tgtCurr, tgtStor, maxfill
+	if tgtCurr then
+		tgtStor = tgtStor - HIDDEN_STORAGE
+		local maxfill =  tgtStor - tgtCurr
+		return tgtCurr, tgtStor, maxfill
+	end
 end
 local function GiveResource(target, kind, mod, quiet) -- directly copied from gui_chili_share.lua, the TAB playlist
 	--mod = 20,500,all
@@ -301,6 +307,61 @@ local function GiveResource(target, kind, mod, quiet) -- directly copied from gu
 end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+local col_metal   = {136/255,214/255,251/255,1}
+local col_energy  = {.93,.93,0,1}
+local red = {1,0,0,1}
+local green = {0,1,0,1}
+local function Mix(...)
+	local col = {0,0,0,0}
+	local n = select('#', ...)
+	for i = 1, n do
+		local c = select(i, ...)
+		for j = 1, 4 do
+			col[j] = col[j] + c[j]
+		end
+	end
+	for i = 1, 4 do
+		col[i] = col[i]/n
+	end
+	return col
+end
+local HIDDEN_STORAGE = 10000
+local prefix = {
+	metal = GetColorChar(col_metal),
+	metal_low = GetColorChar(Mix(col_metal, col_metal, red)),
+	metal_hi = GetColorChar(Mix(col_metal, col_metal, green)),
+	energy = GetColorChar(col_energy),
+	energy_low = GetColorChar(Mix(col_energy, col_energy, red)),
+	energy_hi = GetColorChar(Mix(col_energy, col_energy, green)),
+}
+local max = math.max
+local function ColorResString(num, cur, max, type)
+	return prefix[type .. ((cur < num or (max) <= 0) and '_low' or cur > (max) and '_hi' or '')] .. num
+end
+local function UpdateResources(controls, teamID)
+	local mCur, mMax, mPull, mInc, mExp, mShar, mSent, mReci = Spring.GetTeamResources(teamID, "metal")
+
+	if mInc then
+		local eCur, eMax, ePull, eInc, eExp, eShar, eSent, eReci = Spring.GetTeamResources(teamID, "energy")
+
+		-- local energyOverdrive = Spring.GetTeamRulesParam(teamID,'OD_energyOverdrive') or 0
+		-- local extraEnergyPull = Spring.GetTeamRulesParam(teamID,'extraEnergyPull') or 0
+		-- local extraMetalPull  = Spring.GetTeamRulesParam(teamID,'extraMetalPull') or 0
+		-- local metalMisc       = Spring.GetTeamRulesParam(teamID,'OD_team_metalMisc') or 0
+		-- local metalBase       = Spring.GetTeamRulesParam(teamID,'OD_team_metalBase') or 0
+		-- local metalOverdrive  = Spring.GetTeamRulesParam(teamID,'OD_team_metalOverdrive') or 0
+		local energyIncome    = Spring.GetTeamRulesParam(teamID, "OD_energyIncome") or 0
+		-- local energyMisc      = Spring.GetTeamRulesParam(teamID, "OD_energyMisc") or 0
+		-- local energyChange    = Spring.GetTeamRulesParam(teamID, "OD_energyChange") or 0
+		-- if eMax < 11000 then
+			-- Echo("team: "..teamID, "ePull: "..math.round(ePull), "eInc: "..math.round(eInc), "eExp: "..math.round(eExp), "eReci: "..math.round(eReci), "eShar: "..math.round(eShar), "exEPull: "..extraEnergyPull, "eOD: "..math.round(energyOverdrive), "eInc2: "..math.round(energyIncome), "eMisc: "..math.round(energyMisc), "eChange: "..math.round(energyChange))
+			-- Echo("mPull: "..math.round(mPull), "mInc: "..math.round(mInc), "mExp: "..math.round(mExp), "mReci: "..math.round(mReci), "mextraPull: "..math.round(extraMetalPull), "mMisc: "..math.round(metalMisc), "mBase: "..math.round(metalBase), "mOD: "..math.round(metalOverdrive))
+		-- end
+		controls.btnMetal:SetCaption(ColorResString(math.round(mInc + mReci), mCur, mMax - HIDDEN_STORAGE, 'metal'))
+		controls.btnEnergy:SetCaption(ColorResString(math.round(max(eInc, energyIncome)), eCur, eMax - HIDDEN_STORAGE, 'energy'))
+		controls.mainControl:UpdateLayout()
+	end
+end
 
 local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateControls,info, connecting)
 	local newTeamID, newAllyTeamID = entryData.teamID, entryData.allyTeamID
@@ -309,6 +370,10 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 	local newIsConnecting = connecting
 	local isSpectator = false
 	local resortRequired, updateColors = false, false
+	if LOG_RES and controls and (controls.btnMetal and controls.btnMetal.visible) then
+		UpdateResources(controls, newTeamID)
+	end
+
 	if entryData.playerID then
 		local playerName, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(entryData.playerID, true)
 		if info then
@@ -375,7 +440,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			controls.imCpu.tooltip = CpuUsageOut(cpuUsage)
 			controls.imPing.tooltip = PingTimeOut(pingTime)
 		end
-		
+
 		newIsLagging = ((pingTime > PING_TIMEOUT) and true) or false
 		if forceUpdateControls or newIsLagging ~= entryData.isLagging then
 			entryData.isLagging = newIsLagging
@@ -587,9 +652,11 @@ end
 local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec, parent)
 	local offset             = 0
 	local offsetY            = 0
-	local height             = options.text_height.value + 4
+	local text_height        = options.text_height.value
+	local height             = text_height + 4
 	local userControls = {}
 	userControls.entryData = GetEntryData(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec)
+	local entryData = userControls.entryData
 
 	userControls.mainControl = Chili.Control:New {
 		-- name = playerID,
@@ -606,55 +673,55 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 	}
 
 	offset = offset + 1
-	-- if userControls.entryData.country then
+	-- if entryData.country then
 		userControls.imCountry = Chili.Image:New {
 			name = "imCountry",
-			color = not userControls.entryData.country and {0,0,0,0} or nil,
+			color = not entryData.country and {0,0,0,0} or nil,
 			x = offset,
 			y = offsetY,
-			width = options.text_height.value + 3,
-			height = options.text_height.value + 3,
+			width = text_height + 3,
+			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
-			file = userControls.entryData.country,
+			file = entryData.country,
 		}
 	-- end
-	offset = offset + options.text_height.value + 3
+	offset = offset + text_height + 3
 
 	offset = offset + 1
-	if userControls.entryData.rank then
+	if entryData.rank then
 		userControls.imRank = Chili.Image:New {
 			name = "imRank",
 			x = offset,
 			y = offsetY,
-			width = options.text_height.value + 3,
-			height = options.text_height.value + 3,
+			width = text_height + 3,
+			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
-			file = userControls.entryData.rank,
+			file = entryData.rank,
 		}
 	end
-	offset = offset + options.text_height.value + 3
+	offset = offset + text_height + 3
 	
 	offset = offset + 1
-	-- if userControls.entryData.clan then
+	-- if entryData.clan then
 		userControls.imClan = Chili.Image:New {
 			backGroundColor = {0,0,0,0},
-			color = not userControls.entryData.clan and {0,0,0,0} or nil,
+			color = not entryData.clan and {0,0,0,0} or nil,
 			name = "imClan",
 			x = offset,
 			y = offsetY,
-			width = options.text_height.value + 3,
-			height = options.text_height.value + 3,
+			width = text_height + 3,
+			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
-			file = userControls.entryData.clan or '',
+			file = entryData.clan or '',
 		}
 	-- end
-	offset = offset + options.text_height.value + 3
+	offset = offset + text_height + 3
 
 	offset = offset + 1
-	-- if userControls.entryData.clan then
+	-- if entryData.clan then
 	userControls.txtElo = Chili.Label:New {
 		name = "elo",
 		x = offset,
@@ -662,13 +729,13 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		right = 0,
 		bottom = 3,
 		parent = userControls.mainControl,
-		caption = userControls.entryData.elo and ('%.1f'):format(userControls.entryData.elo/1000) or '',
-		fontsize = options.text_height.value,
+		caption = entryData.elo and ('%.1f'):format(entryData.elo/1000) or '',
+		fontsize = text_height,
 		fontShadow = true,
 		autosize = false,
 	}
 	-- end
-	offset = offset + options.text_height.value + 3
+	offset = offset + text_height + 3
 
 
 	offset = offset + 15
@@ -679,9 +746,9 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 	-- 	right = 0,
 	-- 	bottom = 3,
 	-- 	-- parent = userControls.mainControl,
-	-- 	caption = userControls.entryData.allyTeamID + (isSpec and not isDead and 0 or 1),
-	-- 	textColor = userControls.entryData.allyTeamColor,
-	-- 	fontsize = options.text_height.value,
+	-- 	caption = entryData.allyTeamID + (isSpec and not isDead and 0 or 1),
+	-- 	textColor = entryData.allyTeamColor,
+	-- 	fontsize = text_height,
 	-- 	fontShadow = true,
 	-- 	autosize = false,
 	-- }
@@ -692,13 +759,13 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		right = 0,
 		bottom = 3,
 		parent = userControls.mainControl,
-		caption = isSpec and not isDead and 0 or userControls.entryData.teamID,
-		textColor = userControls.entryData.allyTeamColor,
-		fontsize = options.text_height.value,
+		caption = isSpec and not isDead and 0 or entryData.teamID,
+		textColor = entryData.allyTeamColor,
+		fontsize = text_height,
 		fontShadow = true,
 		autosize = false,
 	}
-	offset = offset + options.text_height.value --+ 3
+	offset = offset + text_height --+ 3
 	
 	offset = offset + 2
 	userControls.textName = Chili.Label:New {
@@ -709,13 +776,13 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		bottom = 3,
 		align = "left",
 		parent = userControls.mainControl,
-		caption = GetName(userControls.entryData.name, nil, userControls.entryData),
-		textColor = GetPlayerTeamColor(userControls.entryData.teamID, userControls.entryData.isDead or userControls.entryData.isSpec),
-		fontsize = options.text_height.value,
+		caption = GetName(entryData.name, nil, entryData),
+		textColor = GetPlayerTeamColor(entryData.teamID, entryData.isDead or entryData.isSpec),
+		fontsize = text_height,
 		fontShadow = true,
 		autosize = false,
 	}
-	userControls.textName:SetCaption(GetName(userControls.entryData.name, userControls.textName.font, userControls.entryData))
+	userControls.textName:SetCaption(GetName(entryData.name, userControls.textName.font, entryData))
 	offset = offset + MAX_NAME_LENGTH - 15
 
 	offset = offset + 1
@@ -723,14 +790,14 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		name = "btnShare",
 		x = offset + 2,
 		y = offsetY + 2,
-		width = options.text_height.value - 1,
-		height = options.text_height.value - 1,
+		width = text_height - 1,
+		height = text_height - 1,
 		parent = userControls.mainControl,
 		caption = "",
 		tooltip = "Click to share the units you have selected to this player.",
 		padding ={0,0,0,0},
 		OnClick = {function(self)
-			ShareUnits(userControls.entryData.name, userControls.entryData.teamID)
+			ShareUnits(entryData.name, entryData.teamID)
 		end, },
 	}
 	Chili.Image:New {
@@ -743,8 +810,8 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		keepAspect = true,
 		file = IMAGE_SHARE,
 	}
-	userControls.btnShare:SetVisibility((userControls.entryData.isMyAlly and (userControls.entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + options.text_height.value + 1
+	userControls.btnShare:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
+	offset = offset + text_height + 1
 
 
 
@@ -753,116 +820,144 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		name = "btnMetal",
 		x = offset + 2,
 		y = offsetY + 2,
-		width = options.text_height.value - 1,
-		height = options.text_height.value - 1,
+		width = text_height - 1,
+		height = text_height - 1,
 		parent = userControls.mainControl,
-		caption = "",
-		tooltip = "Click to give Metal to this player.",
+		caption = LOG_RES and "0" or "",
+		fontsize = text_height-3,
+		tooltip = "",
 		padding ={0,0,0,0},
+		color = {0,0,0,0},
+		DisableFunc = function(self)
+			return entryData.isSpec or (
+				entryData.teamID == myTeamID or (entryData.allyTeamID ~= myAllyTeamID and not Spring.IsGodModeEnabled())
+			)
+		end,
 		OnMouseOver = {
 			function(self)
-				local cur, stor = GetResource(userControls.entryData.teamID, 'metal')
-				self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-				UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				local cur, stor = GetResource(entryData.teamID, 'metal')
+				if cur then
+					self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
+					if not self:DisableFunc() then
+						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
+					end
+					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				end
 			end
 		},
 		OnClick = {function(self)
-			GiveResource(userControls.entryData.teamID,"metal")
-			local cur, stor = GetResource(userControls.entryData.teamID, 'metal')
-			self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-
+			if not self:DisableFunc() then
+				GiveResource(entryData.teamID,"metal")
+				local cur, stor = GetResource(entryData.teamID, 'metal')
+				self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
+			end
 		end, },
 	}
-	Chili.Image:New {
-		name = "imMetal",
-		x = 0,
-		y = 0,
-		right = 0,
-		bottom = 0,
-		parent = userControls.btnMetal,
-		keepAspect = true,
-		file = IMAGE_METAL,
-	}
-	userControls.btnMetal:SetVisibility((userControls.entryData.isMyAlly and (userControls.entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + options.text_height.value + 1
-
-
+	if not LOG_RES then
+		Chili.Image:New {
+			name = "imMetal",
+			x = 0,
+			y = 0,
+			right = 0,
+			bottom = 0,
+			parent = userControls.btnMetal,
+			keepAspect = true,
+			file = IMAGE_METAL,
+		}
+	end
+	userControls.btnMetal:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
+	offset = offset + text_height + 1
 
 	offset = offset + 1
 	userControls.btnEnergy = Chili.Button:New {
 		name = "btnEnergy",
 		x = offset + 2,
 		y = offsetY + 2,
-		width = options.text_height.value - 1,
-		height = options.text_height.value - 1,
+		width = text_height - 1,
+		height = text_height - 1,
 		parent = userControls.mainControl,
-		caption = "",
-		tooltip = "Click to give Energy to this player.",
+		caption = LOG_RES and "0" or "",
+		fontsize = text_height-3,
+		align = 'center',
+		tooltip = "",
 		padding ={0,0,0,0},
+		DisableFunc = function(self)
+			return entryData.isSpec or (
+				entryData.teamID == myTeamID or (entryData.allyTeamID ~= myAllyTeamID and not Spring.IsGodModeEnabled())
+			)
+		end,
 		OnMouseOver = {
 			function(self)
-				local cur, stor = GetResource(userControls.entryData.teamID, 'energy')
-				self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-				UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				local cur, stor = GetResource(entryData.teamID, 'energy')
+				if cur then
+					self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
+					if not self:DisableFunc() then
+						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
+					end
+					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				end
 			end
 		},
 		OnClick = {function(self)
-			GiveResource(userControls.entryData.teamID,"energy")
-			local cur, stor = GetResource(userControls.entryData.teamID, 'energy')
-			self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-
+			if not self:DisableFunc() then
+				GiveResource(entryData.teamID,"energy")
+				local cur, stor = GetResource(entryData.teamID, 'energy')
+				self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
+			end
 		end, },
 	}
-	Chili.Image:New {
-		name = "imEnergy",
-		x = 0,
-		y = 0,
-		right = 0,
-		bottom = 0,
-		parent = userControls.btnEnergy,
-		keepAspect = true,
-		file = IMAGE_ENERGY,
-	}
-	userControls.btnEnergy:SetVisibility((userControls.entryData.isMyAlly and (userControls.entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + options.text_height.value + 1
+	if not LOG_RES then
+		Chili.Image:New {
+			name = "imEnergy",
+			x = 0,
+			y = 0,
+			right = 0,
+			bottom = 0,
+			parent = userControls.btnEnergy,
+			keepAspect = true,
+			file = IMAGE_ENERGY,
+		}
+	end
+	userControls.btnEnergy:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
+	offset = offset + text_height + 1
 
 
 
 	offset = offset + 1
-	if userControls.entryData.cpuBucket then
+	if entryData.cpuBucket then
 		userControls.imCpu = Chili.Image:New {
 			name = "imCpu",
 			x = offset,
 			y = offsetY,
-			width = options.text_height.value + 3,
-			height = options.text_height.value + 3,
+			width = text_height + 3,
+			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
 			file = IMAGE_CPU,
-			color = pingCpuColors[userControls.entryData.cpuBucket],
+			color = pingCpuColors[entryData.cpuBucket],
 		}
 		function userControls.imCpu:HitTest(x,y) return self end
 	end
-	offset = offset + options.text_height.value
+	offset = offset + text_height
 	
 	offset = offset + 1
-	if userControls.entryData.pingBucket then
+	if entryData.pingBucket then
 		userControls.imPing = Chili.Image:New {
 			name = "imPing",
 			x = offset,
 			y = offsetY,
-			width = options.text_height.value + 3,
-			height = options.text_height.value + 3,
+			width = text_height + 3,
+			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
 			file = IMAGE_PING,
-			color = pingCpuColors[userControls.entryData.pingBucket],
+			color = pingCpuColors[entryData.pingBucket],
 		}
 		function userControls.imPing:HitTest(x,y) return self end
 	end
-	offset = offset + options.text_height.value
+	offset = offset + text_height
 
-	UpdateEntryData(userControls.entryData, userControls, false, true)
+	UpdateEntryData(entryData, userControls, false, true)
 
 	return userControls
 end
@@ -1002,9 +1097,6 @@ local function SortEntries()
 	end
 
 	local headerCaption = ''
-	local function coloredString(str,color)
-		return '\255' .. string.char(color[1]*255) .. string.char(color[2]*255) ..  string.char(color[3]*255) .. str .. '\008'
-	end
 
 	for _, t in ipairs(teams) do
 		local countTxt =  coloredString(t.count,t.color)
@@ -1202,7 +1294,7 @@ end
 
 options_path = 'Settings/HUD Panels/Player List'
 local helk_path = 'Hel-K/'..widget.GetInfo().name
-options_order = {'text_height', 'backgroundOpacity', 'alignToTop', 'give_to_hovered'}
+options_order = {'text_height', 'backgroundOpacity', 'alignToTop', 'give_to_hovered', 'show_res'}
 options = {
 	text_height = {
 		name = 'Font Size (10-18)',
@@ -1245,6 +1337,58 @@ options = {
 		end,
 		path = helk_path,
 	},
+	show_res = {
+		type = 'bool',
+		value = LOG_RES,
+		name = 'Show Player Resources',
+		OnChange = function(self)
+			if LOG_RES ~= self.value then
+				LOG_RES = self.value
+				for i, controls in ipairs(listControls) do
+					if controls.btnMetal and not controls.entryData.isSpec then
+						if LOG_RES then
+							controls.btnMetal:RemoveChild(controls.btnMetal.children[1]) -- remove image
+							controls.btnMetal:SetCaption('0')
+							controls.btnEnergy:RemoveChild(controls.btnEnergy.children[1]) -- remove image
+							controls.btnEnergy:SetCaption('0')
+							if controls.btnMetal.hidden then
+								controls.btnMetal:SetVisibility(true)
+								controls.btnEnergy:SetVisibility(true)
+							end
+						else
+							Chili.Image:New {
+								name = "imMetal",
+								x = 0,
+								y = 0,
+								right = 0,
+								bottom = 0,
+								parent = controls.btnMetal,
+								keepAspect = true,
+								file = IMAGE_METAL,
+							}
+							controls.btnMetal:SetCaption('')
+							Chili.Image:New {
+								name = "imEnergy",
+								x = 0,
+								y = 0,
+								right = 0,
+								bottom = 0,
+								parent = controls.btnEnergy,
+								keepAspect = true,
+								file = IMAGE_ENERGY,
+							}
+							if myAllyTeamID ~= controls.entryData.allyTeamID or (controls.entryData.teamID == myTeamID) then
+								controls.btnMetal:SetVisibility(false)
+								controls.btnEnergy:SetVisibility(false)
+							end
+							controls.btnEnergy:SetCaption('')
+						end
+					end
+				end
+			end
+		end,
+		path = helk_path,
+	},
 }
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -1281,8 +1425,8 @@ function widget:Update(dt)
 	end
 	lastUpdate = 0
 	
-	for i = 1, #listControls do
-		UpdateEntryData(listControls[i].entryData, listControls[i], true)
+	for i, control in ipairs(listControls) do
+		UpdateEntryData(control.entryData, control, true)
 	end
 end
 
