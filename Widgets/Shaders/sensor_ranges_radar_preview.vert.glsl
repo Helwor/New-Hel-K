@@ -69,10 +69,11 @@ vec3 pointLosPos;
 
 void StepSizeMethod() {
 	float steps_f;
-	raypos = radarLosPos;
-	vec3 fromradar = pointLosPos - raypos;
+	raypos = radarPos;
+	vec3 fromradar = vec3(worldPos.xyz - raypos);
 	steps_f = length(fromradar.xz) / 32.0;
 	vec3 smallstep = fromradar / steps_f;
+
 
 	int steps = int(ceil(steps_f));
 	for (int i = 1; i <= steps; i++) {
