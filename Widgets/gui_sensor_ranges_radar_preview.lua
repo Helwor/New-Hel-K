@@ -1,8 +1,8 @@
 function widget:GetInfo()
 	return {
-		name = "Sensor Ranges Radar Preview 2",
+		name = "Sensor Ranges Radar Preview 3",
 		desc = "Raytraced Radar Range Coverage on building Radar (GL4)",
-		author = "Beherith",
+		author = "Beherith, rewrite fix and improvement Helwor",
 		date = "2021.07.12",
 		license = "Lua: GPLv2, GLSL: see shader files",
 		layer = 0,
@@ -12,19 +12,37 @@ end
 local spGetActiveCommand = Spring.GetActiveCommand
 local spGetGroundHeight = Spring.GetGroundHeight
 local spGetSelectedUnits = Spring.GetSelectedUnits
-local SHADERRESOLUTION = 32 -- THIS SHOULD MATCH RADARMIPLEVEL!
-local WANT_ON_SELECTED = false
+
+local sig = '['..widget:GetInfo().name..']: '
+local initialized = false
+
+local resolution = 32
+local radar_color = {0.2, 0.7, 0.3, 0.7}
+
+local modRules = VFS.Include("gamedata/modrules.lua")
+local radarMipLevel = modRules and modRules.sensors and modRules.sensors.los and modRules.sensors.los.radarMipLevel or 2
+local LuaShader = VFS.Include("LuaRules/Gadgets/Include/LuaShader.lua")
+
+--
+local vsx, vsy = Spring.Orig.GetViewSizes()
+
 options_path = 'Hel-K/' .. widget:GetInfo().name
 options = {}
--- options.shaderRes = {
--- 	name = 'Resolution',
--- 	type = 'number',
--- 	min = 16, max = 32, step = 16,
--- 	value = SHADERRESOLUTION,
--- 	OnChange = function(self)
--- 		SHADERRESOLUTION = self.value
--- 	end
--- }
+options.shaderRes = {
+	name = 'Resolution',
+	type = 'number',
+	min = 16, max = 64, step = 1,
+	value = resolution,
+	update_on_the_fly = true,
+	OnChange = function(self)
+		if resolution ~= self.value then
+			resolution = self.value
+			if initialized then
+				UpdateRadarBOs()
+			end
+		end
+	end
+}
 options.wantOnSelected = {
 	name = 'Show also On Selected radar',
 	type = 'bool',
@@ -33,12 +51,20 @@ options.wantOnSelected = {
 		WANT_ON_SELECTED = self.value
 	end
 }
-
+options.radar_color = {
+	name = 'Color',
+	type = 'colors',
+	value = radar_color,
+	OnChange = function(self)
+		radar_color[1], radar_color[2], radar_color[3], radar_color[4] = unpack(self.value)
+	end,
+	category = 'user',
+}
 local radarStructureRange = {}
 local radarTotalHeight = {}
 local radarEmitHeight = {}
 
-local radarRangeShaders = {}
+local radarRangeVAO, radarRangeVBO = {}, {}
 local radarTruthShader = nil
 local selectedRadarUnitID = false
 
@@ -48,9 +74,6 @@ for unitDefID, ud in pairs(UnitDefs) do
 		radarStructureRange[unitDefID] = range
 		radarEmitHeight[unitDefID] = ud.radarEmitHeight
 		radarTotalHeight[unitDefID] = radarEmitHeight[unitDefID] + ud.model.midy
-		if not radarRangeShaders[range] then
-			radarRangeShaders[range] = true
-		end
 	end
 end
 
@@ -59,60 +82,91 @@ local LuaShader = VFS.Include(luaShaderDir .. "LuaShader.lua")
 VFS.Include(luaShaderDir .. "instancevbotable.lua")
 
 local shaderConfig = {}
-local vsSrcPath = "LuaUI/Widgets/Shaders/sensor_ranges_radar_preview.vert.glsl"
-local fsSrcPath = "LuaUI/Widgets/Shaders/sensor_ranges_radar_preview.frag.glsl"
 
-local shaderSourceCache = {
-	vssrcpath = vsSrcPath,
-	fssrcpath = fsSrcPath,
-	shaderName = "radarTruthShader GL4",
-	uniformInt = {
-			heightmapTex = 0,
-		},
-	uniformFloat = {
-		radarcenter_range = { 1000, 100, 1000, 1000 },
-		resolution = { 128 },
-	},
-	shaderConfig = shaderConfig,
-}
+local gridLosSize = 8 * 2 ^ radarMipLevel -- SQUARE_SIZE = 8
 
 local function goodbye(reason)
-	Spring.Echo("radarTruthShader GL4 widget exiting with reason: " .. reason)
+	Spring.Echo(sig .. "exiting with reason: " .. reason)
 	widgetHandler:RemoveWidget()
 end
 
-local function initgl4()
-	radarTruthShader = LuaShader.CheckShaderUpdates(shaderSourceCache)
 
-	if not radarTruthShader then
-		goodbye("Failed to compile radarTruthShader  GL4 ")
+
+
+local function CreateRadarTruthShader()
+	if radarTruthShader then
+		radarTruthShader:Delete()	
 	end
+	shaderConfig = {}
+	radarTruthShader = LuaShader.CheckShaderUpdates({ -- need this function and table to get some engine uniform made by LuaShader
+		vssrcpath = "LuaUI/Widgets/Shaders/sensor_ranges_radar_preview.vert.glsl",
+		fssrcpath = "LuaUI/Widgets/Shaders/sensor_ranges_radar_preview.frag.glsl",
+		uniformInt = {
+			heightmapTex = 0,
+			distTex = 1,
+			radarMiplevel = radarMipLevel,
+			gridLosSize = gridLosSize,
+			invGridLosSize = 1.0 / gridLosSize,
+		},
+		uniformFloat = {
+			radarcenter_range = { 0, 0, 0, 0 },
+			invMapSize = {1.0/Game.mapSizeX, 1.0/Game.mapSizeZ},
+		},
+		shaderConfig = shaderConfig,
+		shaderName = sig.."radarTruthShader GL4"
+	})
+	return radarTruthShader
+end
 
-	for range, _ in pairs(radarRangeShaders) do
-		local radarVertex, _ = makePlaneVBO(1, 1, range / SHADERRESOLUTION)
-		local radarIndex, _ = makePlaneIndexVBO(range / SHADERRESOLUTION, range / SHADERRESOLUTION, true)
-		radVAO = gl.GetVAO()
+function UpdateRadarBOs()
+	for _, range in pairs(radarStructureRange) do
+		local size = range / resolution
+		local radarVertex, _ = makePlaneVBO(1, 1, size, size)
+		local radarIndex, _ = makePlaneIndexVBO(size, size, true)
+		local radVAO = gl.GetVAO()
 		radVAO:AttachVertexBuffer(radarVertex)
 		radVAO:AttachIndexBuffer(radarIndex)
-		radarRangeShaders[range] = radVAO
+		radarRangeVAO[range] = radVAO
+		radarRangeVBO[range] = radarVertex
 	end
 end
 
+local function initgl4()
+	if not CreateRadarTruthShader() then
+		goodbye('radarTruthShader compilation failed')
+		return false
+	end
+	UpdateRadarBOs()
+	return true
+end
 
-function widget:Initialize()
+function widget:GetViewSizes()
+	vsx, vsy = Spring.Orig.GetViewSizes()
+end
+
+function widget:Update() -- get the option values before Initializing
+	Init()
+	widgetHandler:RemoveCallIn('Update')
+end
+
+function Init()
+	vsx, vsy = Spring.Orig.GetViewSizes()
 	if not gl.CreateShader then -- no shader support, so just remove the widget itself, especially for headless
-		widgetHandler:RemoveWidget()
+		goodbye("Cannot create shader")
 		return
 	end
 
-	initgl4()
+	if not initgl4() then
+		return
+	end
 	widget:CommandsChanged()
+	initialized = true
 end
 
 function widget:CommandsChanged()
 	local sel = spGetSelectedUnits()
 	selectedRadarUnitID = false
-	if #sel == 1 and Spring.GetUnitDefID(sel[1]) and radarStructureRange[Spring.GetUnitDefID(sel[1])] then
+	if sel[1] and not sel[2] and Spring.GetUnitDefID(sel[1]) and radarStructureRange[Spring.GetUnitDefID(sel[1])] then
 		selectedRadarUnitID = sel[1]
 	end
 end
@@ -142,7 +196,8 @@ end
 local function GetRadarDrawPos(unitID, unitDefID)
 	if unitID then
 		if WANT_ON_SELECTED then
-			local _, _, _, x, y, z = Spring.GetUnitPosition(unitID, true) -- Base position
+			local _, by, _, x, y, z = Spring.GetUnitPosition(unitID, true) -- mid position
+			-- Echo('HEIGHTS:', 'ground: '.. by, 'mid: ' .. y, 'emit: ' .. radarEmitHeight[unitDefID], 'model.midy: ' .. UnitDefs[unitDefID].model.midy, 'offset: ' .. height_offset, 'given: ' .. y + radarEmitHeight[unitDefID] + height_offset)
 			return x, y + radarEmitHeight[unitDefID], z
 		end
 	else
@@ -155,7 +210,12 @@ local function GetRadarDrawPos(unitID, unitDefID)
 			else
 				x, z = Spring.Utilities.SnapToBuildGrid(unitDefID, Spring.GetBuildFacing(), coords[1], coords[3])
 			end
-			local y = (coords and coords[2] or spGetGroundHeight(x,z)) + radarTotalHeight[unitDefID]
+			local y = (
+				WG.placementX and spGetGroundHeight(x,z) or
+				coords and coords[2] or
+				spGetGroundHeight(x,z)
+			) + radarTotalHeight[unitDefID]
+
 			if WG.placementHeight then
 				y = y + WG.placementHeight
 			end
@@ -164,35 +224,51 @@ local function GetRadarDrawPos(unitID, unitDefID)
 	end
 end
 
+
+local function DrawRadarCoverage(drawX, drawY, drawZ, range)
+	gl.Culling(false)
+	gl.Culling(GL.BACK)
+
+	gl.DepthTest(true)
+	gl.Texture(0, "$heightmap")
+	radarTruthShader:Activate()
+	radarTruthShader:SetUniform("radarcenter_range", drawX, drawY, drawZ, range)
+	radarTruthShader:SetUniform("radar_color", radar_color[1], radar_color[2], radar_color[3], radar_color[4] )
+	radarRangeVAO[range]:DrawElements(GL.TRIANGLES)
+	radarTruthShader:Deactivate()
+	gl.Texture(0, false)
+	gl.DepthTest(true)
+	gl.Culling(false)
+end
+
 function widget:DrawWorld()
+
 	if Spring.IsGUIHidden() then
 		return
 	end
-	
 	local unitID, unitDefID = GetRadarUnitToDraw()
 	if not unitDefID then
 		return
 	end
-	
 	local drawX, drawY, drawZ = GetRadarDrawPos(unitID, unitDefID)
 	if not drawX then
 		return
 	end
-	local range = radarStructureRange[unitDefID]
-	gl.DepthTest(false)
-	gl.Culling(GL.BACK)
-	gl.Texture(0, "$heightmap")
-	radarTruthShader:Activate()
-	
-	radarTruthShader:SetUniform("radarcenter_range",
-		drawX, drawY, drawZ, range
-	)
-
-
-	radarRangeShaders[range]:DrawElements(GL.TRIANGLES)
-	radarTruthShader:Deactivate()
-	gl.Texture(0, false)
-
-	gl.DepthTest(true)
+	DrawRadarCoverage(drawX, drawY, drawZ, radarStructureRange[unitDefID])
 end
 
+
+function widget:Shutdown()
+	for k, vao in pairs(radarRangeVAO) do
+		vao:Delete()
+		radarRangeVAO[k] = nil
+	end
+	for k, vbo in pairs(radarRangeVBO) do
+		vbo:Delete()
+		radarRangeVBO[k] = nil
+	end
+	if radarTruthShader then
+		radarTruthShader:Delete()
+		radarTruthShader = nil
+	end
+end

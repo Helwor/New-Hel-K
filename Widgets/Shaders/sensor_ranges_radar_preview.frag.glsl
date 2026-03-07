@@ -1,6 +1,5 @@
 #version 420
-// Beherith (mysterme@gmail.com) claims copyright on this file. He gives the Zero-K team permission to
-// use this for ZK but he would be unhappy if it were copied further without asking him, so best to ask.
+// Shader licensed under GNU GPL, v2 or later. Relicensed from MIT, preserving the notice "(c) Beherith (mysterme@gmail.com)".
 
 #line 20000
 
@@ -14,9 +13,9 @@ uniform sampler2D heightmapTex;
 //__DEFINES__
 in DataVS {
 	vec4 worldPos; // w = range
-	vec4 centerposrange;
 	vec4 blendedcolor;
-	float worldscale_circumference;
+	vec2 xyworld_xyfract_v;
+	float obscured;
 };
 
 out vec4 fragColor;
@@ -30,7 +29,7 @@ void main() {
 
 	fragColor.rgba = blendedcolor.rgba;
 
-	vec2 toedge = centerposrange.xz - worldPos.xz;
+	vec2 toedge = radarcenter_range.xz - worldPos.xz;
 
 	float angle = atan(toedge.y/toedge.x);
 
