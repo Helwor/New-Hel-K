@@ -335,8 +335,21 @@ local prefix = {
 	energy_hi = GetColorChar(Mix(col_energy, col_energy, green)),
 }
 local max = math.max
+local modf = math.modf
+local function kformat(num)
+	if num >= 1000 then
+		local th, cen = modf(num/1000)
+		if cen >= 0.1 and th < 10 then
+			return th .. 'k' .. modf(cen*10)
+		else
+			return th .. 'k'
+		end
+	else
+		return num
+	end
+end
 local function ColorResString(num, cur, max, type)
-	return prefix[type .. ((cur < num or (max) <= 0) and '_low' or cur > (max) and '_hi' or '')] .. num
+	return prefix[type .. ((cur < num or (max) <= 0) and '_low' or cur > (max) and '_hi' or '')] .. kformat(num)
 end
 local function UpdateResources(controls, teamID)
 	local mCur, mMax, mPull, mInc, mExp, mShar, mSent, mReci = Spring.GetTeamResources(teamID, "metal")
@@ -1397,8 +1410,8 @@ local lastUpdate = 0
 function widget:Update(dt)
 	if UPDATE_TOOLTIP then
 		local now = os.clock()
-		local control = UPDATE_TOOLTIP.control
 		if UPDATE_TOOLTIP.next_time < now then
+			local control = UPDATE_TOOLTIP.control
 			if not control.state.hovered then
 				UPDATE_TOOLTIP = false
 			else
