@@ -54,15 +54,14 @@ do
 end
 
 local sig = '['..widget:GetInfo().name..']: '
-local swapFBO, swapTex, maskTex, borderShader
-local radarFBO
+
 local mapShader
 local mapVBO
 local resolution = 8
 local active = true
 local poly_offset = -6
 local alpha = 0.4
-
+-- local vehpass = 6
 options = {}
 options_path = 'Hel-K/' .. widget.GetInfo().name
 
@@ -76,7 +75,16 @@ options.alpha = {
 		alpha = self.value
 	end,
 }
-
+-- options.vehpass = {
+-- 	name = 'Veh Pass',
+-- 	type = 'number',
+-- 	value = vehpass,
+-- 	update_on_the_fly = true,
+-- 	min = 0.1, max = 15.0, step = 0.01,
+-- 	OnChange = function(self)
+-- 		vehpass = self.value
+-- 	end,
+-- }
 options.poly_offset = {
 	name = 'Polygon offset',
 	type = 'number',
@@ -142,7 +150,7 @@ local function initgl4()
 	MakeMapVBO()
 	return true
 end
-local startDraw, endDraw
+
 local function DrawHeightMap()
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 	gl.StencilTest(true)
@@ -161,6 +169,7 @@ local function DrawHeightMap()
 
 	mapShader:Activate()
 	mapShader:SetUniform("alpha", alpha)
+	mapShader:SetUniform("vehpass", vehpass)
 	mapVAO:DrawElements(GL.TRIANGLES)
 
 	mapShader:Deactivate()
