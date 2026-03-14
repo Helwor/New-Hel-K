@@ -37,7 +37,7 @@ float GetSlope(vec3 w, vec2 uv) {
 void main() {
 	vec3 worldPos = vec3(0.0);
 	worldPos.xz = mapCenter * (1 + xyworld_xyfract.xy);
-	vec2 uv = vec2(clamp(worldPos.x, 8.0, mapSize.x-8.0), clamp(worldPos.z, 8.0, mapSize.z-8.0)) * invMapSize;
+	vec2 uv = vec2(clamp(worldPos.x, 8.0, mapSize.x-8.0), clamp(worldPos.z, 8.0, mapSize.y-8.0)) * invMapSize;
 	height = textureLod(heightmapTex, uv, texlod).x;
 	worldPos.y = height;
 	slope = GetSlope(worldPos, uv);
