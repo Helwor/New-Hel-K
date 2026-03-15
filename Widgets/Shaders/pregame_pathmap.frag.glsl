@@ -1,28 +1,31 @@
 #version 420
 
-#line 20000
-
+//__DEFINES__
 //__ENGINEUNIFORMBUFFERDEFS__
 
-//__DEFINES__
+#line 9007
 
+uniform float depth_mul;
+uniform float depth_pow;
 uniform float alpha;
+const float inv6 = 1 / 1e6;
 // uniform float vehpass; 
 in DataVS {
 	float slope;
 	float height;
 };
 
+
 out vec4 fragColor;
 const float botpass = 18.0;
 const float vehpass = 6.0;
 void main() {
-	if (slope < 1.0 && height > -16.0)
+	if (slope < 2.5 && height > -16.0)
 		discard;
-	fragColor.r = pow(min(slope, vehpass) / vehpass, 3.0) * step(-16.0, height);
-	fragColor.b = pow(min(slope - vehpass, botpass - vehpass) / (botpass - vehpass), 3.0);
-	fragColor.g = 0.0;
-	fragColor.b += step(height, -16.0) * 0.5 + step(height, -22.0) * 0.5;
-	fragColor.a = alpha;
-	gl_FragDepth = gl_FragCoord.z * 0.99999;
+	float water = step(height, -16.0) * 0.6 + step(height, -22.0) * 0.4;
+	fragColor.r = step(-16.0, height) * (pow(min(slope, vehpass) / vehpass, 3.0));
+	fragColor.b = water + pow(min(slope - vehpass, botpass - vehpass) / (botpass - vehpass), 3.0) * 0.8;
+	fragColor.g = water * 0.3;
+	fragColor.a = alpha + water * 0.2;
+	gl_FragDepth = pow(gl_FragCoord.z * (1.0 - slope * inv6 ), depth_pow);
 }
