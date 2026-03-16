@@ -750,10 +750,6 @@ function widget:BeforeKeyRelease(key, ...)
 		end
 		-----------
 		-- ignoreRelease = not return_key
-		if key == escape_key or key == return_key then
-			WG.enteringText = false -- fixing the bugged variable in the case of escape, and doing it ourself in the case of return
-		end
-
 		ignoreRelease = true-- some keys like UP/DOWN, ESCAPE, ENTER, trigger a release while writing but not a press
 	end
 	callback('BeforeKeyRelease', key, ...)
@@ -778,6 +774,10 @@ function widget:BeforeKeyRelease(key, ...)
 
 	local ret = wh:_KeyRelease(key, ...)
 	callback('AfterKeyRelease', key, ...)
+	if WG.enteringText and key == escape_key or key == return_key then
+		WG.enteringText = false -- fixing the bugged variable in the case of escape, and doing it ourself in the case of return
+	end
+
 	return ret
 end
 
