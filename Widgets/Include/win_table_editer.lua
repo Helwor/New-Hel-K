@@ -207,7 +207,7 @@ end
 
 local AddAutoEmptyBox -- method definition
 local function CreateAutoEmptyBoxMethod()
-	local Screen0 = WG.Chili.Screen0
+	Screen0 = WG.Chili.Screen0
 	--
 	if not Screen0.FocusControl then
 		-- install FocusControl function for Screen0 if we're using old chili
@@ -387,7 +387,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 	local children = {}
 	local stack_children = {}
 	local win, panel, scrollpanel
-	local Screen0 = WG.Chili.Screen0
+	Screen0 = WG.Chili.Screen0
 	--
 	-------------
 	buttons.save.OnClick = {
