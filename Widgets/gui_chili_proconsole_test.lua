@@ -154,7 +154,7 @@ local Image, Panel, TextBox, Button
 --------------------------------------------------------------------------------
 
 WG.enteringText = false
-WG.chat = WG.chat or {}
+WG.chat = WG.chat or {text = ""}
 
 local screen0
 local myName -- my console name
@@ -190,6 +190,99 @@ local requestRemake = false
 local requestUpdate = {needed = false}
 local lastMsgChat, lastMsgBackChat, lastMsgConsole
 
+local emote = false
+local function RandomSort(t)
+	local len = #t
+	local randomized = {}
+	local random = math.random
+	local tremove = table.remove
+	local r = random(len)
+	repeat
+		if not randomized[r] then
+			randomized[r] = tremove(t)
+		end
+		r = random(len)
+	until not next(t)
+	return randomized
+end
+local tooltip_emotes = {
+	win = nil,
+	text = nil,
+	base = "Emote Mode enabled. press \":\" for simple colon, <space> to leave",
+	leave = "press <space> to leave",
+	no_emote = "no emote press <space> to leave",
+	confirm = "press <space> to confirm",
+
+	Reset = function(self)
+
+		if not self.win.hidden then
+			self.win:Hide()
+			self.text:SetText(self.base) 
+		end
+	end,
+	Start = function(self)
+		local screenWidth, screenHeight = Spring.GetViewGeometry()
+		self.win:SetPosRelative(window_chat.x, math.min(screenHeight - 150, window_chat.y + window_chat.height))
+		self.win:Show()
+		-- self.win:BringToFront()
+		-- WG.Chili.Screen0:FocusControl(self.text)
+	end,
+	Continue = function(self, char, max)
+		local t = {"emote: " .. emote .. " = " .. (emotes[emote] or '-')}
+		local found, all = self:Find(emote, max)
+		if not found[1] then
+			t[#t+1] = self.no_emote
+		elseif not found[2] then
+			t[#t+1] = self.confirm
+		else
+			t[#t+1] = 'found ' .. all .. ' ' .. (emotes[emote] and self.confirm or self.leave)
+			for i, key in ipairs(found) do
+				t[#t+1] = key .. ' = ' .. emotes[key]
+			end
+		end
+		self.text:SetText(table.concat(t, '\n')) 
+	end,
+	Find = function(self, emote, max)
+		local found, c = {}, 0
+		for key, v in pairs(emotes) do
+			if tostring(key):find('^'..emote) then
+				c = c + 1
+				found[c] = key
+			end
+		end
+		if found[2] then
+			if not found[max + 1] then
+				table.sort(found)
+				return found, c
+			end
+			found = RandomSort(found)
+			local rand = {}
+			local common = {}
+			local len = #emote + 1
+			for i, f in ipairs(found) do
+				local cm = f:sub(1, len)
+				if not common[cm] then
+					common[cm] = true
+					rand[#rand + 1] = f
+				end
+			end
+			if not rand[2] then
+				for i = max + 1, #found do
+					found[i] = nil
+				end
+				return found, c
+			end
+			if rand[max + 1] then
+				for i = max + 1, #rand do
+					rand[i] = nil
+				end
+			end
+			return rand, c
+		end
+
+		return found, c
+	end
+}
 ------------------------------------------------------------
 -- options
 
@@ -201,6 +294,7 @@ local filter_path = options_path .. '/Filtering'
 local color_path = options_path .. '/Color Setup'
 
 options_order = {
+	'use_emotes',
 	'emotes',
 	'lblGeneral',
 	
@@ -365,11 +459,19 @@ options = {
 	emotes = {
 		name = 'Emotes',
 		type = 'table',
+		desc = 'See and add emotes (command "/emotes") ',
 		value = emotes,
 		path = helk_path,
 		default = (function() local t = {}; for k,v in pairs(emotes) do t[k] = v end; return t end)(),
 		action = 'emotes',
 		noRemove = true, -- keep the hardcoded value
+	},
+	use_emotes = {
+		name = 'Use Emotes',
+		desc = 'Enter the emote mode while typing message by pressing twice ":". see the emotes available and add in the Emotes options.\n example: "::kthrow3 "',
+		type = 'bool',
+		value = false,
+		path = helk_path,
 	},
 	--lblFilter = {name='Filtering', type='label', advanced = false},
 	--lblPointButtons = {name='Point Buttons', type='label', advanced = true},
@@ -1436,22 +1538,28 @@ function RemakeConsole()
 
 end
 
-local function ShowInputSpace()
+local function ShowInputSpace(prefix)
 	WG.enteringText = true
+	WG.chat.text = ally and prefix or ""
 	inputspace.backgroundColor = tOnes
 	inputspace.borderColor = {0,0,0,1}
 	inputspace:Invalidate()
-	
+	emote = false
+	unicode = false
+	tooltip_emotes:Reset()
 	if options.backlogHideNotChat.value and backlogButton and backlogButton.parent then
 		backlogButton:SetVisibility(true)
 	end
 end
 local function HideInputSpace()
 	WG.enteringText = false
+	WG.chat.text = ""
 	inputspace.backgroundColor = tZeroes
 	inputspace.borderColor = tZeroes
 	inputspace:Invalidate()
-	
+	emote = false
+	unicode = false
+	tooltip_emotes:Reset()
 	if options.backlogHideNotChat.value and backlogButton and backlogButton.parent then
 		backlogButton:SetVisibility(false)
 	end
@@ -1679,41 +1787,56 @@ local function UnicodeHandling()
 	altPressed = curAlt
 	return unicode
 end
-local emote = false
 
 function widget:TextInput(char)
 	if unicode then
 		return true
 	end
-	if not emote then
-		if char == ':' then
-			emote = 1
-			return true
-		end
-	else
-		if emote == 1 then
+	if options.use_emotes.value then
+		if not emote then
 			if char == ':' then
-				emote = true
+				emote = 1
+				return true
+			end
+		else
+			if emote == 1 then
+				if char == ':' then
+					emote = true
+					tooltip_emotes:Start()
+					return true
+				else
+					emote = false
+					Spring.SendCommands('pastetext ' .. ':')
+					tooltip_emotes:Reset()
+				end
+			elseif emote == true then
+				if char == ':' then -- user just
+					emote = false
+					tooltip_emotes:Reset()
+				elseif char == ' ' then
+					emote = false
+					tooltip_emotes:Reset()
+					return true
+				else
+					emote = char
+					tooltip_emotes:Continue(emote, 5)
+					return true
+				end
+			elseif char == ' ' then
+				local str = emotes[emote]
+				if str then
+					Spring.SendCommands('pastetext ' .. str)
+				else
+					Echo('No such emote: ' .. tostring(emote) .. ' registered.')
+				end
+				emote = false
+				tooltip_emotes:Reset()
 				return true
 			else
-				emote = false
-				Spring.SendCommands('pastetext ' .. ':')
+				emote = emote .. char
+				tooltip_emotes:Continue(emote, 5)
+				return true
 			end
-		elseif emote == true then
-			emote = char
-			return true
-		elseif char == ' ' then
-			local str = emotes[emote]
-			if str then
-				Spring.SendCommands('pastetext ' .. str)
-			else
-				Echo('No such emote: ' .. tostring(emote) .. ' registered.')
-			end
-			emote = false
-			return true
-		else
-			emote = emote .. char
-			return true
 		end
 	end
 end
@@ -1721,18 +1844,16 @@ end
 local KP_ENTER, RETURN, ESCAPE = KEYSYMS.KP_ENTER, KEYSYMS.RETURN, KEYSYMS.ESCAPE
 
 function widget:KeyPress(key, modifier, isRepeat, label)
-	-- Echo("Spring.IsUserWriting() is ", Spring.IsUserWriting())
-
 	if not isRepeat then
 	end
 	if key == KP_ENTER then
 		keypadEnterPressed = true
 	end
 	if (key == RETURN) or (key == KP_ENTER) then
-		unicode = false
-		emote = false
+		local prefix = ""
 		if firstEnter then
 			if (not (modifier.Shift or modifier.Ctrl)) and CheckEnableAllyChat() then
+				prefix = "a:"
 				Spring.SendCommands("chatally")
 			else
 				Spring.SendCommands("chatall")
@@ -1743,7 +1864,7 @@ function widget:KeyPress(key, modifier, isRepeat, label)
 		if options.backlogShowWithChatEntry.value then
 			SetBacklogShow(true)
 		end
-		ShowInputSpace()
+		ShowInputSpace(prefix)
 	else
 		if options.backlogShowWithChatEntry.value then
 			SetBacklogShow(false)
@@ -1753,7 +1874,6 @@ function widget:KeyPress(key, modifier, isRepeat, label)
 end
 
 function widget:KeyRelease(key, modifier, label)
-
 	if (key == RETURN) or (key == KP_ENTER) then
 		if key == KP_ENTER and keypadEnterPressed then
 			keypadEnterPressed = false
@@ -1950,6 +2070,7 @@ function widget:Initialize()
 
 		--backgroundColor = {1,1,1,1},
 	}
+
 	backlogButtonImage = WG.Chili.Image:New {
 		width = "100%",
 		height = "100%",
@@ -2047,6 +2168,46 @@ function widget:Initialize()
 
 	window_console = MakeMessageWindow("ProConsole", options.enableConsole.value, InitializeConsole)
 	window_console:AddChild(scrollpanel_console)
+
+	local x = (window_chat.x)
+	local y = (window_chat.y + window_chat.height)
+	tooltip_emotes.text = WG.Chili.TextBox:New{
+		name = "tooltip_emotes.text",
+		x = 1,
+		y = 1,
+		width = 300,
+		height = 15,
+		valign = "ascender",
+		autoHeight = true,
+		objectOverrideFont = WG.GetFont(13),
+		text = tooltip_emotes.base,
+	}
+
+	tooltip_emotes.win = WG.Chili.Window:New{
+		name = "tooltip_emotes.window",
+		x = x,
+		y = y,
+		KeyPress = {
+			function(self, key, ...)
+				Echo('key press', key, ...)
+				return WG.Chili.Window.KeyPress(self, key, ...)
+			end
+		},
+		savespace = true,
+		resizable = false,
+		draggable = false,
+		autosize  = true,
+		minWidth = 75,
+		noFont = true,
+		padding = {6,4,6,2},
+		color = {1, 1, 1, 0.9},
+		parent = WG.Chili.Screen0,
+		children = {
+			tooltip_emotes.text
+		},
+	}
+	tooltip_emotes:Reset()
+
 end
 
 local function Initialize()
