@@ -1670,7 +1670,8 @@ local hotkeysCombos = {
 		force = true,
 		from_cursor = true, -- get the closest of cursor
 		on_press = true,
-		previous_time = DOUBLETAP_THRESHOLD,
+		-- previous_time = DOUBLETAP_THRESHOLD,
+		previous_time = 0.075,
 		disable_SM = true,
 		call_on_fail = 'Sub'}, -- call this macro if nothing found
 		
@@ -1717,7 +1718,7 @@ local hotkeysCombos = {
 		same_units = true,
 		add_last_acquired = true,
 		share_radius = 'One Bomb',
-		longPressTime = 0.085   ,
+		longPressTime = 0.075  ,
 	}, -- use same 'previous' table as the cited macro
 
 
