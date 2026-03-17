@@ -1644,7 +1644,6 @@ local hotkeysCombos = {
 		fading = 0.8,
 	},
 
-
 	---------------------
 	---- CLOAKED ROACHES
 	---------------------
@@ -3896,6 +3895,7 @@ options.allow_macros = {
 	..'\nwidget must be reloaded after macros are set',
 	type = 'table',
 	value = allowedMacros,
+	noRemove = true,
 }
 
 options.custom_keys = {
@@ -3908,6 +3908,7 @@ options.custom_keys = {
 	..'\nWidget must be reloaded after keys are set',
 	type = 'table',
 	value = macroKeys,
+	noRemove = true,
 }
 
 options.key_names = {
@@ -4835,8 +4836,8 @@ local function FinishCall(selecting)
 			return selecting or force
 		end
 	end
-	if call_on_empty_selection or call_on_fail or call_on_success then
-		local jumpCall = call_on_empty_selection or call_on_fail or call_on_success
+	local jumpCall = call_on_empty_selection or call_on_fail or call_on_success
+	if jumpCall then
 		g.hkCombo = jumpCall
 		jumpCall.secondary = last.call.secondary or last.call
 		last.call.calling = jumpCall
@@ -4905,7 +4906,7 @@ do ---- **INITIALIZATION** ------
 		local macro = hotkeysCombos[1]
 		while macro do
 			if not allowedMacros[macro.name] then
-				table.remove(hotkeysCombos)
+				table.remove(hotkeysCombos, i)
 			else
 				macro.keys = macroKeys[macro.name]
 				i = i + 1
