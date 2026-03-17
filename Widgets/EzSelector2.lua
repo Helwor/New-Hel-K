@@ -1642,6 +1642,7 @@ local hotkeysCombos = {
 		share_radius = 'One Bomb',
 		color = {0.9, 0.9, 0.1, 1},
 		fading = 0.8,
+		high_lock_call = true,
 	},
 
 	---------------------
