@@ -2802,6 +2802,10 @@ end
 function string:nline(pos)
 	return select(2,self:sub(1,pos):gsub('\n',''))+1
 end
+function string:escape_pattern()
+	-- escape magic chars: . % + - * ? [ ] ( ) $ ^
+	return (self:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1"))
+end
 function string:sol(pos) -- get start of the line where pos is
 	if pos>self:len() then
 		return
@@ -2937,7 +2941,88 @@ function string:readnl(p, p2)
 		return (self:gsub('[\n\r\t ]',{['\r'] = '\\r',['\n'] = '\\n', ['\t'] = '\\t' })) -- fastest is using an (undeclared) table
 	end
 end
+do
+	-- string:readctrl() -- display every control caracter in text
+	--[[
+	0    0x00	NUL	Null, vide
+	1    0x01	SOH	Start of Heading
+	2    0x02	STX	Start of Text
+	3    0x03	ETX	End of Text (EOF)
+	4    0x04	EOT	End of Transmission
+	5    0x05	ENQ	Enquiry
+	6    0x06	ACK	Acknowledgement
+	7    0x07	BEL	Bell
+	8    0x08	BS	Backspace
+	9    0x09	HT	Horizontal Tab
+	10   0x0A	LF	Line Feed
+	11   0x0B	VT	Vertical Tab
+	12   0x0C	FF	Form Feed
+	13   0x0D	CR	Carriage Return
+	14   0x0E	SO	Shift Out
+	15   0x0F	SI	Shift In
+	16   0x10	DLE	Data Link Escape
+	17   0x11	DC1	Device Control 1 (XON)
+	18   0x12	DC2	Device Control 2
+	19   0x13	DC3	Device Control 3 (XOFF)
+	20   0x14	DC4	Device Control 4
+	21   0x15	NAK	Negative Acknowledgement
+	21   0x16	SYN	Synchronous Idle
+	23   0x17	ETB	End Transmission Block
+	24   0x18	CAN	Cancel
+	25   0x19	EM	End of Medium
+	26   0x1A	SUB	Substitute
+	27   0x1B	ESC	Escape
+	28   0x1C	FS	File Separator
+	29   0x1D	GS	Group Separator
+	32   0x1E	RS	Record Separator
+	31   0x1F	US	Unit Separator
+	32   0x20	SP	Space
+	127  0x7F	DEL	Delete
+	--]]
+	-- BUG: \000 prevent a string to be readable through at least Spring.Echo, everything after \000 will not be displayed
+	local ctrls = {
+		[0] = '<NUL>', [1] = '<SOH>', [2] = '<STX>', [3] = '<EOF>',
+		[4] = '<EOT>', [5] = '<ENQ>', [6] = '<ACK>', [7] = '\\a',
+		[8] = '\\b', [9] = '\\t', [10] = '\\n', [11] = '\\v',
+		[12] = '\\f', [13] = '\\r', [14] = '<SO>', [15] = '<SI>',
+		[16] = '<DLE>', [17] = '<DC1>', [18] = '<DC2>', [19] = '<DC3>',
+		[20] = '<DC4>', [21] = '<NAK>', [22] = '<SYN>', [23] = '<ETB>',
+		[24] = '<CAN>', [25] = '<EM>', [26] = '<SUB>', [27] = '\\e',
+		[28] = '<FS>', [29] = '<GS>', [30] = '<RS>', [31] = '<US>',
+		[32] = '·',  -- visible space 
+		[127] = '<DEL>', [128] = '<BL1>',[129] = '<BL2>',
+		[141] = '<141>', [142] = '<142>', [143] = '<143>', [144] = '<144>', 
+		[149] = '<149>', [150] = '<150>', [151] = '<151>', 
+		[253] = '<TRS>', [254] = '<BLR>', [255] = '<COL>'
+	}
 
+	function string:readctrl(p, p2)
+		if p then self = self:sub(p, p2) end
+		if self == '' then
+			return '<empty_string>'
+		elseif not (self:find('[\001-\032\127-\129\141-\144\149-\151\253-\255]') or self:find('\000') ) then
+			return self
+		else
+			-- GSUB BUG WITH \000 work around
+			local p = self:find('\000')
+			if p then
+				local parts = {}
+				local start = 1
+				while p do
+					parts[#parts + 1] = self:sub(start, p - 1)
+					parts[#parts + 1] = ctrls[0]
+					start = p + 1
+					p = self:find('\000', start)
+				end
+				parts[#parts + 1] = self:sub(start)
+				self = table.concat(parts)
+			end
+			return (self:gsub('[\001-\032\127-\129\141-\144\149-\151\253-\255]', function(c)
+				return ctrls[c:byte()]
+			end)--[[:gsub('\000', ctrls[0])]]) -- BUG gsub find \000 before and after every character, dont test for it
+		end
+	end
+end
 function string:removereturns()
 	if not self:find('\r') then -- much faster to check first in case none
 		return self
@@ -3029,27 +3114,39 @@ function string:matchOptDot(pbefore,p,pafter)
 	return match
 end
 
-function EncodeToNumber(str) -- transform unique string to unique number  -- NOTE: the number is too long for it to be useful
+function EncodeToNumber(str) -- transform unique string to unique number  -- NOTE: the number is very long and must stay as string to be preserved
 	local base64bytes = {['A']=0,['B']=1,['C']=2,['D']=3,['E']=4,['F']=5,['G']=6,['H']=7,['I']=8,['J']=9,['K']=10,['L']=11,['M']=12,['N']=13,['O']=14,['P']=15,['Q']=16,['R']=17,['S']=18,['T']=19,['U']=20,['V']=21,['W']=22,['X']=23,['Y']=24,['Z']=25,['a']=26,['b']=27,['c']=28,['d']=29,['e']=30,['f']=31,['g']=32,['h']=33,['i']=34,['j']=35,['k']=36,['l']=37,['m']=38,['n']=39,['o']=40,['p']=41,['q']=42,['r']=43,['s']=44,['t']=45,['u']=46,['v']=47,['w']=48,['x']=49,['y']=50,['z']=51,['0']=52,['1']=53,['2']=54,['3']=55,['4']=56,['5']=57,['6']=58,['7']=59,['8']=60,['9']=61,['-']=62,['_']=63,[' ']=64}
-	local result=""
-	for pos=1,string.len(str) do
-		local num =  base64bytes[str:sub(pos,pos):upper()] or ''
-		result=result..string.len(num)..num
+	local result = ""
+	for pos = 1, str:len() do
+		local num =  base64bytes[str:sub(pos, pos):upper()] or ''
+		result = result .. num:len() .. num
 	end
 	return result
 end
 function DecodeToString(num) --decode number to original string, based on the code of the above function
 	local base64chars = {[0]='A',[1]='B',[2]='C',[3]='D',[4]='E',[5]='F',[6]='G',[7]='H',[8]='I',[9]='J',[10]='K',[11]='L',[12]='M',[13]='N',[14]='O',[15]='P',[16]='Q',[17]='R',[18]='S',[19]='T',[20]='U',[21]='V',[22]='W',[23]='X',[24]='Y',[25]='Z',[26]='a',[27]='b',[28]='c',[29]='d',[30]='e',[31]='f',[32]='g',[33]='h',[34]='i',[35]='j',[36]='k',[37]='l',[38]='m',[39]='n',[40]='o',[41]='p',[42]='q',[43]='r',[44]='s',[45]='t',[46]='u',[47]='v',[48]='w',[49]='x',[50]='y',[51]='z',[52]='0',[53]='1',[54]='2',[55]='3',[56]='4',[57]='5',[58]='6',[59]='7',[60]='8',[61]='9',[62]='-',[63]='_',[64]=' '}
-	local result,pos='',1
-	while pos<string.len(num) do
-		local ln = tonumber(num:sub(pos,pos))
-		result=result..base64chars[tonumber(num:sub(pos+1,pos+ln))]
-		pos=pos+ln+1
+	local result, pos, len = '', 1, num:len()
+	while pos < len do
+		local ln = tonumber(num:sub(pos, pos)) -- get the length of the next number (1 or 2)
+		result = result .. base64chars[tonumber(num:sub(pos + 1, pos + ln))]
+		pos = pos + ln + 1
 	end
 	return result
 end
-
-
+do
+	local base64bytes = {['A']=0,['B']=1,['C']=2,['D']=3,['E']=4,['F']=5,['G']=6,['H']=7,['I']=8,['J']=9,['K']=10,['L']=11,['M']=12,['N']=13,['O']=14,['P']=15,['Q']=16,['R']=17,['S']=18,['T']=19,['U']=20,['V']=21,['W']=22,['X']=23,['Y']=24,['Z']=25,['a']=26,['b']=27,['c']=28,['d']=29,['e']=30,['f']=31,['g']=32,['h']=33,['i']=34,['j']=35,['k']=36,['l']=37,['m']=38,['n']=39,['o']=40,['p']=41,['q']=42,['r']=43,['s']=44,['t']=45,['u']=46,['v']=47,['w']=48,['x']=49,['y']=50,['z']=51,['0']=52,['1']=53,['2']=54,['3']=55,['4']=56,['5']=57,['6']=58,['7']=59,['8']=60,['9']=61,['-']=62,['_']=63,[' ']=64}
+	local base64chars = {[0]='A',[1]='B',[2]='C',[3]='D',[4]='E',[5]='F',[6]='G',[7]='H',[8]='I',[9]='J',[10]='K',[11]='L',[12]='M',[13]='N',[14]='O',[15]='P',[16]='Q',[17]='R',[18]='S',[19]='T',[20]='U',[21]='V',[22]='W',[23]='X',[24]='Y',[25]='Z',[26]='a',[27]='b',[28]='c',[29]='d',[30]='e',[31]='f',[32]='g',[33]='h',[34]='i',[35]='j',[36]='k',[37]='l',[38]='m',[39]='n',[40]='o',[41]='p',[42]='q',[43]='r',[44]='s',[45]='t',[46]='u',[47]='v',[48]='w',[49]='x',[50]='y',[51]='z',[52]='0',[53]='1',[54]='2',[55]='3',[56]='4',[57]='5',[58]='6',[59]='7',[60]='8',[61]='9',[62]='-',[63]='_',[64]=' '}
+	function Encode3_64(a, b, c)
+		return base64bytes[a] * 4096 + base64bytes[b] * 64 + base64bytes[c]
+	end
+	local floor = math.floor
+	function Decode3_64(n)
+		local c = base64chars[n % 64]
+		local b = base64chars[floor(n / 64) % 64]
+		local a = base64chars[floor(n / 4096)]
+		return a, b, c
+	end
+end
 
 function string:explode(div, regex) --copied and improved from gui_epicmenu.lua
 	div = div or ','
@@ -9959,8 +10056,8 @@ function tracefunc(oriFunc, wid, Log,warn) -- wrap function to add properly trac
 end
 
 
-function GetCalledLine()
-	local info = debug.getinfo(3, 'lS')
+function GetCalledLine(stack_level)
+	local info = debug.getinfo(stack_level or 3, 'lS')
 	if info then
 		return info.currentline, info.source
 	else
