@@ -312,6 +312,8 @@ local opt = {
 	forceExclude = true,
 	forceAttack = true,
 
+	overrideLoad = true,
+
 	showDot = true,
 
 	dragSelectionThreshold = Spring.GetConfigInt('SelectionDragThreshold', 0),
@@ -341,6 +343,7 @@ options_order = {
 	'suppressRepairCloaked',
 	'findStaticRepair',
 	'forceCtrlMove',
+	'overrideLoad',
 
 	'lbl_alt_rclick',
 	'smartLoadUnload',
@@ -504,6 +507,15 @@ options.findStaticRepair = {
 	end,
 }
 
+options.overrideLoad = {
+	name = 'Override Load By Move',
+	type = 'bool',
+	value = opt.overrideLoad,
+	noHotkey = true,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+}
 
 
 options.lbl_alt_rclick = {
@@ -1385,7 +1397,7 @@ local function Evaluate(type, id, engineCmd)
 		)
 		or not alt and (
 				engineCmd == CMD_GUARD
-				or engineCmd == CMD_LOAD_UNITS
+				or opt.overrideLoad and engineCmd == CMD_LOAD_UNITS
 				or engineCmd == CMD_LOAD_ONTO
 				or onSelf and engineCmd == CMD_REPAIR
 			)   
@@ -1451,7 +1463,6 @@ function widget:CommandsChanged()
 	controllableRepairersMap = EMPTY_TABLE
 	local hasControllableRepairer = false
 	local hasValidAttacker, hasAttacker = false, false
-
 	local hasDgunOnAlt = mySelection.hasLobster or mySelection.hasDgunCom
 	local lobsters = false
 
@@ -2546,14 +2557,6 @@ do --- EzTarget ---
 					if x then
 						-- local x,y,z = spGetUnitPosition(id)
 						local gy = spGetGroundHeight(x,z)
-						-- if y == gy then
-						--     local height = UnitDefs[defID].height
-						--     y = y + height/2
-						-- end
-						-- local def = UnitDefs[defID]
-						-- local heightOfIcon = iconSizeByDefID[defID] * ratioSize * 64
-						-- max(camHeight,1000)/1000
-						
 						local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
 						distFromCam = distFromCam * fov / 45
 						if distFromCam > opt.ezTargetThreshold then
