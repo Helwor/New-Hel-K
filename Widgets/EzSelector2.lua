@@ -1785,7 +1785,7 @@ local hotkeysCombos = {
 		want = 1,
 		-- previous_time = 0.2,
 		-- shared_prev = 'Cloaker',
-		share_radius = 'Shields',
+		share_radius = 'Ground Army / GS / ships',
 		hasStructure = true,
 		no_prev = true,
 		longPressTime = 0.1,
@@ -1892,6 +1892,7 @@ local hotkeysCombos = {
 		keep_on_fail = true,
 		call_on_fail = 'Cloak On',
 		hasStructure = true,
+		anyBP = true,
 	-- same_units = true,
 	}, -- use same 'previous' table as the cited macro
 
@@ -1905,6 +1906,7 @@ local hotkeysCombos = {
 		keep_on_fail = true,
 		call_on_fail = 'Switch Impulse',
 		hasStructure = true,
+		anyBP = true,
 	}, 
 
 
@@ -1918,6 +1920,7 @@ local hotkeysCombos = {
 		hasStructure = true,
 		OnSuccessFunc = SwitchImpulse,
 		call_on_fail = "Switch Fly State",
+		anyBP = true,
 	}, 
 
 	{
@@ -1928,6 +1931,7 @@ local hotkeysCombos = {
 		on_press = true,
 		force = true,
 		OnSuccessFunc = SwitchFlyIdleMode, 
+		anyBP = true,
 	}, 
 
 
@@ -1942,6 +1946,7 @@ local hotkeysCombos = {
 		keep_on_fail = true,
 		call_on_fail = 'Normal Prio',
 		hasStructure = true,
+		anyBP = true,
 	},
 
 	{
@@ -1954,6 +1959,7 @@ local hotkeysCombos = {
 		keep_on_fail = true,
 		hasStructure = true,
 		call_on_fail = 'Misc High',
+		anyBP = true,
 	},
 
 	{
@@ -1977,6 +1983,7 @@ local hotkeysCombos = {
 		force = true,
 		keep_on_fail = true,
 		hasStructure = true,
+		anyBP = true,
 	}, 
 
 
@@ -8531,6 +8538,7 @@ do
 				-- ratio = max(ratio, 1)
 				-- local ratio = (GetCameraHeight(spGetCameraState()) * 1.5 / 1000)
 				if call.share_radius then
+					Echo(call.name, call.share_radius)
 					call.radius = HKCombos.byName[call.share_radius].radius
 				end
 				-- Echo(call.name, call.share_radius)
