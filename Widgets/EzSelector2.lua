@@ -8538,7 +8538,6 @@ do
 				-- ratio = max(ratio, 1)
 				-- local ratio = (GetCameraHeight(spGetCameraState()) * 1.5 / 1000)
 				if call.share_radius then
-					Echo(call.name, call.share_radius)
 					call.radius = HKCombos.byName[call.share_radius].radius
 				end
 				-- Echo(call.name, call.share_radius)
