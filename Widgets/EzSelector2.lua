@@ -3905,6 +3905,7 @@ options.allow_macros = {
 	type = 'table',
 	value = allowedMacros,
 	noRemove = true,
+	isCheckboxList = true,
 }
 
 options.custom_keys = {
@@ -3933,7 +3934,7 @@ options.key_names = {
 	-- 		t[k] = v
 	-- 	end
 	-- end,
-	reset = true,
+	readOnly = true,
 }
 
 options.reload_widget = {
