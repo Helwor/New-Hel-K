@@ -575,7 +575,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 		height = fullHeight,
 		right = 1,
 		AddAutoEmptyBox = not (isCheckboxList or readOnly) and AddAutoEmptyBox,
-		padding = {0,0,0,0},
+		padding = isCheckboxList and {2,0,2,0} or {0,0,0,0},
 		preserveChildrenOrder = true,
 		children = stack_children,
 		itemMargin = {0,0,0,0},
