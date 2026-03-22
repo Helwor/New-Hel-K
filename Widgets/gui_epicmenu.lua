@@ -34,6 +34,9 @@ Implementations:
 	- add WG.crude.OpenWidgetOptions collect the options belonging to a widget through and in order with widget.options_order, combine different paths if needed. Usage WG.crude.OpenWidgetOptions(widget)
 	- Implement real history: parent Button, a back Button and a forward Button, smart detect to avoid duplicate at same history point
 	- automatically add widget's description to a directory if that directory is the name of its widget
+	- add .updateInPlace for colors option to update the given color table
+	- add .isCheckboxList for table options, self explanatory
+	- add .readOnly for table options, self explanatory
 Convenience:
 	- added a main menu caption when at root
 	- menu window is minizable (clicking on title bar shrink the window to its title) requires chili_addon
@@ -67,6 +70,7 @@ Fix:
 	- stop triggering OnChange when option is just displayed
 	- smart scroll fixed
 	- options and their directory are always updated when shown
+	- colors options keep the unique table given instead of replacing it.
 ]]
 
 function widget:GetInfo()
@@ -121,6 +125,7 @@ local MENU = {}
 --------------------------------------------------------------------------------
 local isMission = Game.modDesc:find("Mission Mutator")
 local isServerHost = Spring.GetModOptions().sendspringiedata and not Spring.IsReplay()
+
 
 -- Config file data
 local keybind_dir, keybind_file, defaultkeybinds, defaultkeybind_date, confdata
@@ -674,7 +679,6 @@ local function DirIsEmpty(path, isDevMode, showAdvanced)
 		for k,v in pairs(dir) do
 			if type(v) == 'table' then
 				local pathopt, opt = v[1], v[2]
-				
 				local hidden = opt.hidden 
 					or opt.dev and not isDevMode
 					or opt.advanced and not showAdvanced
@@ -1474,11 +1478,11 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 	elseif not option.noSave then
 		--load option from widget settings (LuaUI/Config/ZK_data.lua).
 		--Read/write is handled by widgethandler; see widget:SetConfigData and widget:GetConfigData
-		if settings.config[fullkey] ~= nil then --nil check as it can be false
+		local saved = settings.config[fullkey]
+		if saved ~= nil then --nil check as it can be false
 			if option.type == 'radioButton' and not radioButtonGotKey(option, settings.config[fullkey]) then
 				settings.config[fullkey] = nil
 			elseif option.type == 'table' then
-				local saved = settings.config[fullkey]
 				if type(saved) == 'table' then
 					if type(option.value) == 'table' then
 						local changed = false
@@ -1504,8 +1508,14 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 						newval = saved
 					end
 				end
+			elseif option.type == 'colors' then
+				if type(saved) == 'table' then
+					local v = option.value
+					v[1], v[2], v[3], v[4] = saved[1], saved[2], saved[3], saved[4]
+					newval = v
+				end
 			else
-				newval = settings.config[fullkey]
+				newval = saved
 			end
 		end
 	end
@@ -1536,7 +1546,7 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 		end
 	end
 	
-	if newval ~= nil and (option.value ~= newval or option.alwaysOnChange or option.type == 'table') then --must nilcheck newval
+	if newval ~= nil and (option.value ~= newval or option.alwaysOnChange or option.type == 'table' or option.type == 'colors') then --must nilcheck newval
 		valuechanged = true
 		option.value = newval
 
@@ -1651,7 +1661,11 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 	elseif option.type == 'colors' then
 		controlfunc = function(self)
 			if self ~= option then
-				option.value = self.color
+				if option.updateInPlace then
+					option.value[1], option.value[2], option.value[3], option.value[4] = unpack(self.color)
+				else
+					option.value = self.color
+				end
 			end
 		end
 		if option.colorizeName and option.origName then
@@ -1723,14 +1737,14 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 					setPropWindow = nil
 				else
 					if CreateWindowTableEditer then
-						setPropWindow = CreateWindowTableEditer(option.value, 'table editer', saveValue, option.preTreatment, option.postTreatment, option.extraButton)
+						setPropWindow = CreateWindowTableEditer(option.value, option.name, saveValue, option.preTreatment, option.postTreatment, option.extraButton, option.isCheckboxList, option.readOnly)
 					end
 				end
 			elseif setPropWindow and self == option then
 				-- else if window is up, refresh it
 				setPropWindow:Dispose()
 				userOnChange(option)
-				setPropWindow = CreateWindowTableEditer(option.value, 'table editer', saveValue, option.preTreatment, option.postTreatment)
+				setPropWindow = CreateWindowTableEditer(option.value, option.name, saveValue, option.preTreatment, option.postTreatment, option.extraButton, option.isCheckboxList, option.readOnly)
 			end
 
 		end
@@ -2988,7 +3002,7 @@ function MENU:Navigate(newEventObj, pause)
 						max = option.max or 100,
 						step = option.step or 1,
 						useValueTooltip = not option.tooltipFunction,
-						tooltipFunction = option.tooltipFunction and (function(self, ...) if UserDetected(self) then return option.tooltipFunction(self,...) else return self.value end end) or nil,
+						tooltipFunction = option.tooltipFunction, -- and (function(self, ...) if UserDetected(self) then return option.tooltipFunction(self,...) else return self.value end end) or nil,
 						tooltip_format = option.tooltip_format,
 					}
 
@@ -3204,7 +3218,7 @@ function MENU:MakeWin()
 	}
 	window_children[1] = self.scrollpanel
 	---- menu checks
-
+	Echo("settings.dev is ", settings.dev)
 	self.devCheck = Checkbox:New{
 		--x = 0,
 		width = 150;
@@ -3217,7 +3231,9 @@ function MENU:MakeWin()
 		-- textalign = 'right',
 		textoffset = 8,
 		OnChange = {function(self)
+			Echo('Switch, current', settings.dev)
 			settings.dev = not settings.dev
+
 			if self.win then -- for case of menu refresh, retain the scroll
 				eventObj.scrollY = self.win.children[1] and self.win.children[1].scrollPosY or 0
 			end

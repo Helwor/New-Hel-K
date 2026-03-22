@@ -14,7 +14,7 @@ if TESTME then
 		}
 	end
 end
-local Echo                      = Spring.Echo
+local Echo = Spring.Echo
 local Screen0
 
 
@@ -106,6 +106,13 @@ local WinContentToTable = function(control, toT) -- for saving or clipping code
 							end
 						end
 					end
+				elseif child.classname == 'checkbox' then
+					local value = child.checked
+					local key = child.caption
+					if tonumber(key) then
+						key = tonumber(key)
+					end
+					toT[key] = value
 				end
 			end
 		end
@@ -171,7 +178,7 @@ local function Navigate(self, key, mods)
 			if neigh == self then
 				if key == DEL then
 					if self.emptyText or mods.ctrl then
-						if lastFound then
+						if lastFound and self.editable then
 							GoAndSelect(lastFound)
 							RemoveBox(self, i)
 						end
@@ -180,7 +187,7 @@ local function Navigate(self, key, mods)
 				elseif key == RETURN then
 					if lastFound then
 						GoAndSelect(lastFound)
-					else
+					elseif self.parent.AddAutoEmptyBox then
 						self.parent:AddAutoEmptyBox(true)
 					end
 					break
@@ -320,20 +327,29 @@ local buttons = {
 						local panel = v.children[1]
 						local toBool
 						for i, child in ipairs(panel.children) do
-							if toBool == nil then
-								toBool = (child.text == 'false' or child.text:find('= false%s-$')) and true or false
-							end
-							if toBool == false then
-								if child.text == 'true' then
-									child:SetText('false')
-								elseif child.text:find('= true%s-$') then
-									child:SetText(child.text:gsub("= true", "= false"))
+							if child.classname == 'editbox' then
+								if toBool == nil then
+									toBool = (child.text == 'false' or child.text:find('= false%s-$')) and true or false
 								end
-							elseif toBool == true then
-								if child.text == 'false' then
-									child:SetText('true')
-								elseif child.text:find('= false%s-$') then
-									child:SetText(child.text:gsub("= false", "= true"))
+								if toBool == false then
+									if child.text == 'true' then
+										child:SetText('false')
+									elseif child.text:find('= true%s-$') then
+										child:SetText(child.text:gsub("= true", "= false"))
+									end
+								elseif toBool == true then
+									if child.text == 'false' then
+										child:SetText('true')
+									elseif child.text:find('= false%s-$') then
+										child:SetText(child.text:gsub("= false", "= true"))
+									end
+								end
+							elseif child.classname == 'checkbox' then
+								if toBool == nil then
+									toBool = not child.checked
+									child:Toggle()
+								elseif child.checked ~= toBool then
+									child:Toggle()
 								end
 							end
 						end
@@ -352,14 +368,18 @@ local buttons = {
 						local panel = v.children[1]
 						local toBool
 						for i, child in ipairs(panel.children) do
-							if child.text == 'true' then
-								child:SetText('false')
-							elseif child.text:find('= true$') then
-								child:SetText(child.text:gsub("= true", "= false"))
-							elseif child.text == 'false' then
-								child:SetText('true')
-							elseif child.text:find('= false$') then
-								child:SetText(child.text:gsub("= false", "= true"))
+							if child.classname == 'editbox' then
+								if child.text == 'true' then
+									child:SetText('false')
+								elseif child.text:find('= true$') then
+									child:SetText(child.text:gsub("= true", "= false"))
+								elseif child.text == 'false' then
+									child:SetText('true')
+								elseif child.text:find('= false$') then
+									child:SetText(child.text:gsub("= false", "= true"))
+								end
+							elseif child.classname == 'checkbox' then
+								child:Toggle()
 							end
 						end
 						break
@@ -378,7 +398,7 @@ local function Copy(t)
 	end
 	return c
 end
-local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatment, extraButton) -- ideally should be implemented in Chili
+local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatment, extraButton, isCheckboxList, readOnly) -- ideally should be implemented in Chili
 	if not AddAutoEmptyBox then
 		CreateAutoEmptyBoxMethod()
 	end
@@ -396,7 +416,9 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 			if postTreatment and type(postTreatment) == 'function' then
 				postTreatment(t)
 			end
-			Save(t)
+			if not readOnly then
+				Save(t)
+			end
 		end
 	}
 
@@ -407,7 +429,9 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 	buttons.extra = extraButton
 	for i, name in ipairs(alignedButtons) do
 		local button = buttons[name]
-		if button then
+		if button and (
+				not readOnly or (name ~= 'allBool' and name ~= 'inverse' and (name ~= 'Save' or postTreatment))
+			) then
 			local title = button.caption
 			if not title or title == '' then
 				title = 'button'
@@ -444,47 +468,68 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 	-- 			or tonumber(a) < tonumber(b)
 	-- 		)
 	-- end
-	for k, v in pairs(copy or t) do
-		i = i + 1
-		if type(k) == 'string' and not tonumber(k) then
-			local keys = k:explode('&')
-			if keys[2] and keys[2]:match('[^ ]') then
-				k = ''
-				for j, subk in ipairs(keys) do
-					k = k .. subk
-					if keys[j+1] then
-						k = k .. ' & '
+	if isCheckboxList then
+		for k, v in pairs(copy or t) do
+			i = i + 1
+			sorted[i] = k
+		end
+	else
+		for k, v in pairs(copy or t) do
+			i = i + 1
+			if type(k) == 'string' and not tonumber(k) then
+				local keys = k:explode('&')
+				if keys[2] and keys[2]:match('[^ ]') then
+					k = ''
+					for j, subk in ipairs(keys) do
+						k = k .. subk
+						if keys[j+1] then
+							k = k .. ' & '
+						end
 					end
 				end
+				v = k .. ' = ' .. tostring(v)
+			elseif showKeys then
+				v = k .. ' = ' .. tostring(v)
+			else
+				v = tostring(v)
 			end
-			v = k .. ' = ' .. tostring(v)
-		elseif showKeys then
-			v = k .. ' = ' .. tostring(v)
-		else
-			v = tostring(v)
-		end
 
-		sorted[i] = v
+			sorted[i] = v
+		end
 	end
-	if sorted[1] then
-		table.sort(sorted, sortFunc)
-	end
+	table.sort(sorted)
 	-- create the fields
 	for i, v in ipairs(sorted) do
-		local editBox = WG.Chili.EditBox:New{
-			OnKeyPress = { Navigate },
-			OnFocusUpdate = { FixFocus },
-			width = '100%',
-			text = v,
-			caption = v,
-			autosize = false,
-			margin = {0,0,0,0},
-			-- autoObeyLineHeight = false,
-			y = offsetY,
-			height = 19,
-		}
-		table.insert(stack_children, editBox)
-		offsetY = offsetY + 19
+		if isCheckboxList then
+			local checkbox = WG.Chili.Checkbox:New{
+				width = '100%',
+				caption = v,
+				checked = (copy or t)[v],
+				autosize = false,
+				margin = {0,0,0,0},
+				-- autoObeyLineHeight = false,
+				y = offsetY,
+				height = 19,
+			}
+			table.insert(stack_children, checkbox)
+			offsetY = offsetY + 19
+		else
+			local editBox = WG.Chili.EditBox:New{
+				OnKeyPress = { Navigate },
+				OnFocusUpdate = { FixFocus },
+				editable = not readOnly,
+				width = '100%',
+				text = v,
+				caption = v,
+				autosize = false,
+				margin = {0,0,0,0},
+				-- autoObeyLineHeight = false,
+				y = offsetY,
+				height = 19,
+			}
+			table.insert(stack_children, editBox)
+			offsetY = offsetY + 19
+		end
 	end
 
 	local vsx, vsy = Spring.GetScreenGeometry()
@@ -529,13 +574,15 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 		-- height = height - 55,
 		height = fullHeight,
 		right = 1,
-		AddAutoEmptyBox = AddAutoEmptyBox,
+		AddAutoEmptyBox = not (isCheckboxList or readOnly) and AddAutoEmptyBox,
 		padding = {0,0,0,0},
 		preserveChildrenOrder = true,
 		children = stack_children,
 		itemMargin = {0,0,0,0},
 	}
-	panel:AddAutoEmptyBox()
+	if panel.AddAutoEmptyBox then
+		panel:AddAutoEmptyBox()
+	end
 	scrollpanel:AddChild(panel)
 	win:AddChild(scrollpanel)
 	if WG.MakeMinizable then
