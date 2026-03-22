@@ -430,7 +430,7 @@ local function CreateWindowTableEditer(t, tname, Save, preTreatment, postTreatme
 	for i, name in ipairs(alignedButtons) do
 		local button = buttons[name]
 		if button and (
-				not readOnly or (name ~= 'allBool' and name ~= 'inverse' and (name ~= 'Save' or postTreatment))
+				not readOnly or (name ~= 'allBool' and name ~= 'inverse' and (name ~= 'save' or postTreatment))
 			) then
 			local title = button.caption
 			if not title or title == '' then
