@@ -146,11 +146,14 @@ function widget:Initialize()
 				y2 = vsy + offy + height + 1,
 			},
             callback = function()
-                local before = collectgarbage('count')
-                collectgarbage('collect')
-                curUsage = collectgarbage('count')
-                Echo(('Collected manually %.1fMB.'):format((before - curUsage) / 1024))
-
+                if select(3, Spring.GetModKeyState()) then -- meta (space)
+                    WG.crude.OpenWidgetOptions(widget)
+                else
+                    local before = collectgarbage('count')
+                    collectgarbage('collect')
+                    curUsage = collectgarbage('count')
+                    Echo(('Collected manually %.1fMB.'):format((before - curUsage) / 1024))
+                end
                 return true
             end
 		}
