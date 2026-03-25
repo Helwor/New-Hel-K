@@ -35,7 +35,7 @@ local methodUsed = 2
 
 options_path = "Settings/Interface/Reclaim Highlight"
 options_order = { 'fastClusters','showhighlight', 'showAtPregame', 'flashStrength', 'fontSizeMin', 'fontSizeMax', 'fontScaling' }
-
+local helk_path = 'Hel-K/' .. widget.GetInfo().name
 options = {
 	fastClusters = {
 		name = 'Fast Clustering',
@@ -52,6 +52,7 @@ options = {
 			end
 			widget:GameFrame(checkFrequency)
 		end,
+		path = helk_path,
 	},
 	showhighlight = {
 		name = 'Show Field Summary',
@@ -75,7 +76,8 @@ options = {
 			if self.value and Spring.GetGameFrame() <= 0 and not next(knownFeatures) then
 				widget:GameFrame(checkFrequency)
 			end
-		end
+		end,
+		path = helk_path,
 	},
 	flashStrength = {
 		name = "Field flashing strength",
@@ -560,11 +562,11 @@ local function ClusterizeFeatures()
 			featureClusters[k] = nil
 		end
 	    if debugCluster then
-	        time1 = spDiffTimers(spGetTimer(),time1)
+	        time2 = spGetTimer()
+	        time1 = spDiffTimers(time2, time1)
 	        if time1>0.1 then
 	        	Echo(widget:GetInfo().name .. ': collecting features took more than 0.1 sec!  ', time1)
 	        end
-	        time2 = spGetTimer()
 	    end
 
 		local clusters = WG.DBSCAN_cluster3(pointsTable,minDistance,1)
