@@ -1751,7 +1751,12 @@ local function TestPosLos(id, struct, complete) -- remove discovered building th
 	if struct then
 		if spIsPosInLos(struct[4], struct[5], struct[6], fullview ~= 1 and myAllyTeamID or nil) then
 			if not complete then
-				retestPosLos[id] = struct
+				-- if id == 11820 then
+				-- 	Echo('retest pos start ', currentFrame)
+				-- end
+				if not retestPosLos[id] then
+					retestPosLos[id] = 8
+				end
 				-- see explanation pos los vs unit los at top
 				return
 			end
@@ -1761,6 +1766,7 @@ local function TestPosLos(id, struct, complete) -- remove discovered building th
 				if unit and unit.defID == struct.defID then
 					widget:UnitDestroyed(id, struct.defID, struct.teamID)
 					destroyedByLosCheck[id] = true
+					retestPosLos[id] = nil
 					-- Echo('struct discovered ' .. id ..', ' .. unit.name .. ' is gone ('..currentFrame - unit.frame..')', 'valid?', spValidUnitID(id),'dead?', spGetUnitIsDead(id))
 				else
 					-- got recycled ?
@@ -1773,6 +1779,8 @@ local function TestPosLos(id, struct, complete) -- remove discovered building th
 				end
 
 			end
+		else
+			retestPosLos[id] = nil
 		end
 	end
 end
@@ -1782,17 +1790,25 @@ end
 function widget:GameFrame(f)
 	currentFrame = f
 	-- Verify pos being in los for supposedly discovered structure
-	-- !! UNIT ENTERING LOS appear ONE FRAME LATER of spIsInLos returing true, (btw height given in isPosInLos doesnt matter)
-	for id, struct in pairs(retestPosLos) do
-		TestPosLos(id, struct, true)
-		retestPosLos[id] = nil
+	-- !! UNIT ENTERING LOS appear UP TO NOW 7 FRAMES (since quaternion engine update I suppose) LATER of spIsInLos returing true, (btw height given in isPosInLos doesnt matter)
+	for id, delay in pairs(retestPosLos) do
+		local struct = structureDiscovered[id]
+		if not struct then
+			retestPosLos[id] = nil
+		else
+			delay = delay - 1
+			TestPosLos(id, struct, delay == 0)
+			retestPosLos[id] = delay > 0 and delay or nil
+		end
 	end
 	local struct
 	structID, struct = next(structureDiscovered, structureDiscovered[structID] and structID or nil)
+	if not retestPosLos[structID] then
+		TestPosLos(structID, struct)
+	end
 	-- if f%100 == 0 then
 	-- 	Echo('discovered', table.size(structureDiscovered), structID)
 	-- end
-	TestPosLos(structID, struct)
 	--
 	if WAIT then
 		if f < WAIT then
