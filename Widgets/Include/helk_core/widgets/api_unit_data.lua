@@ -74,28 +74,31 @@ options_order = {
 local SHOW_UNIT_PROP = false
 options.showprop = {
 	name = 'Show Debug Prop',
+	desc = 'command /sowprop',
 	type = 'bool',
 	value = SHOW_UNIT_PROP,
 	OnChange = function(self)
 		SHOW_UNIT_PROP = self.value
 	end,
 	action = 'showprop',
-
+	dev = true,
 }
+
 options.showAllProps = {
 	name = 'Show All Properties',
 	type = 'bool',
 	value = false,
-
+	dev = true,
 }
 options.test = {
 	name = 'Test',
 	type = 'bool',
 	value = false,
-
+	dev = true,
 }
 options.setprop = {
 	name = 'Debug Property',
+	desc = 'command /setprop',
 	type = 'button',
 	OnChange = function(self)
 		if setPropWindow and not setPropWindow.disposed then
@@ -106,9 +109,11 @@ options.setprop = {
 		end
 	end,
 	action = 'setprop',
+	dev = true,
 }
 options.setpropfilter = {
 	name = 'Filter Out Property',
+	desc = 'command /setpropfilter',
 	type = 'button',
 	OnChange = function(self)
 		if setPropFilterWindow and not setPropFilterWindow.disposed then
@@ -119,6 +124,7 @@ options.setpropfilter = {
 		end
 	end,
 	action = 'setpropfilter',
+	dev = true,
 }
 
 ------------- Partial DEBUG
