@@ -1,5 +1,5 @@
 function widget:GetInfo()
-  return {
+	return {
 	name      = "Chili Widget Selector", --needs epic menu to dynamically update widget checkbox colors.
 	desc      = "v1.013 Chili Widget Selector",
 	author    = "CarRepairer",
@@ -9,7 +9,7 @@ function widget:GetInfo()
 	handler   = true,
 	enabled   = true,
 	alwaysStart = true,
-  }
+	}
 end
 local dev = true -- implement Ctrl + KP6 to reload the widget
 local SUBCAT_LOCAL = false
@@ -366,7 +366,7 @@ local function colstr(color)
 		n=math.round(n)
 		return n==0 and 1 or n
 	end
-   return table.concat({char(255),char(round(color[1]*255)),char(round(color[2]*255)),char(round(color[3]*255))})
+	 return table.concat({char(255),char(round(color[1]*255)),char(round(color[2]*255)),char(round(color[3]*255))})
 end
 local function colorize(text, color)
 	return colstr(color) .. text .. '\255\255\255\255'
@@ -447,20 +447,20 @@ local FileExists = VFS.FileExists
 local help_tooltip = table.concat({ -- chili bug: broke line by tooltip getting colorized, need to put \008 at those exact spots or order a white color after colorization of words
 
 	'Color Status and Actions:',
-	'-' .. colorize('Categories', yellow) .. ' collapsable with '..colorize('LClick', red),
-	'-' ..'(' .. colorize('Ctrl+LClick', red) .. ' to collapse all)',
-	'-' .. colorize('Uniquely local widget', user_col),
-	'-' .. colorize('Local version loaded', user_alt_col),
-	'-' .. colorize('Game version loaded', game_alt_col),
-	'-' .. colorize('Uniquely game widget', game_col),
-	'-' .. 'Use '.. colorize('Ctrl+LClick', red) .. ' to switch version',
-	'-' .. colorize('Shift+LClick', red) .. ' put the widget to ',
-	' '.. colorize('Sleep', darker[game_col]) .. ' and darken widget color',
-	'-' .. colorize('Inactive', greyer[game_col])  .. ' widget with greyed colors',
-	'-' .. colorize('Crashed', crashed[game_col]) .. ' widgets have redish colors',
-	'-' .. colorize('Shift+RClick', red) .. ' hook the widget to survey it with HookFuncs',
-	'-' .. colorize('Space+LClick', red) .. ' open the corresponding option panel',
-	'-' .. colorize('DEV MODE', red) .. ':\n',
+	'-'  .. colorize('Categories', yellow) .. ' collapsable with '..colorize('LClick', red),
+	'-'  ..'(' .. colorize('Ctrl+LClick', red) .. ' to collapse all)',
+	'-'  .. colorize('Uniquely local widget', user_col),
+	'-'  .. colorize('Local version loaded', user_alt_col),
+	'-'  .. colorize('Game version loaded', game_alt_col),
+	'-'  .. colorize('Uniquely game widget', game_col),
+	'-'  .. 'Use '.. colorize('Ctrl+LClick', red) .. ' to switch version',
+	'-'  .. colorize('Shift+LClick', red) .. ' put the widget to ',
+	' '  .. colorize('Sleep', darker[game_col]) .. ' and darken widget color',
+	'-'  .. colorize('Inactive', greyer[game_col])  .. ' widget with greyed colors',
+	'-'  .. colorize('Crashed', crashed[game_col]) .. ' widgets have redish colors',
+	'-'  .. colorize('Shift+RClick', red) .. ' hook the widget to survey it with HookFuncs',
+	'-'  .. colorize('Space+LClick', red) .. ' open the corresponding option panel',
+	'-'  .. colorize('DEV MODE', red) .. ':\n',
 	'   '.. 'Enable interaction with sensible',
 	'   '.. 'widgets (apis, alwaysStarting ...)',
 	'   '.. 'Enable Reload ('..colorize('Ctrl+KeyPad_6', red)..')',
@@ -484,6 +484,7 @@ end
 ------ Checking and widget color update
 local function CheckWidget(widget, reverse)
 	local name
+	local desc = ''
 	if type(widget) == 'string' then
 		name = widget
 		widget = widgetHandler:FindWidget(name)
@@ -494,6 +495,7 @@ local function CheckWidget(widget, reverse)
 	local wcheck = widget_checks[name]
 	if wcheck then
 		local ki = widgetHandler.knownWidgets[name]
+
 		local confData = widgetHandler.configData[name]
 		local useVanilla = not ki.fromZip and confData and confData.useVanilla
 		local isModVanilla = not ki.fromZip and VFS.FileExists(ki.filename, VFS.ZIP_ONLY)
@@ -510,6 +512,7 @@ local function CheckWidget(widget, reverse)
 			) or isCrashed and crashed[base_color]
 			or greyer[base_color]
 		wcheck.tooltip = ''
+		desc = ki.desc or desc
 		if widget then
 			local extra = ''
 			if widget.status and type(widget.status) == 'string' then
@@ -518,14 +521,16 @@ local function CheckWidget(widget, reverse)
 			if isSleeping then
 				extra = extra .. '\n[Sleeping]: Press Shift + LClick to wake it up.'
 			end
-			wcheck.tooltip = (widget.whInfo.desc or '') .. extra
+			desc = widget.whInfo.desc or desc
+			wcheck.tooltip = extra
 		end
 		if reverse then -- reverse it when it is from a click of the user (OnChange function) because the check is reversed again after that function call
 			enabled = not enabled
 		end
-		if not reverse and not enabled then
-			wcheck.tooltip = '[DISABLED]\n' .. wcheck.tooltip
-		end
+		wcheck.tooltip = desc .. wcheck.tooltip
+		-- if not reverse and not enabled then
+		-- 	wcheck.tooltip = '[DISABLED]\n' .. wcheck.tooltip
+		-- end
 		if dev_mode then
 			wcheck.tooltip = wcheck.tooltip .. "\n---------------\n<" .. ki.filename .. ">"
 		end
@@ -681,8 +686,9 @@ local function WidgetClickMod(self, wdata)
 			end
 			return w
 		end
-
+		Echo('disable')
 		Spring.SendCommands{'luaui disablewidget ' ..wdata.name}
+		Echo('enable')
 		Spring.SendCommands{'luaui enablewidget ' ..wdata.name}
 
 		widgetHandler.LoadWidget = oriLoadWidget
@@ -707,7 +713,7 @@ local function WidgetClickMod(self, wdata)
 		wdata.fromZip = ki.fromZip
 		wdata.desc = ki.desc
 		self.tooltip = ki.desc
-			-- TODO: manage the change of name when VFS mode change
+		-- TODO: manage the change of name when VFS mode change
 		CheckWidget(wdata.name)
 		return true
 	end
