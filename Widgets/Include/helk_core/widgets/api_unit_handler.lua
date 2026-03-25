@@ -338,7 +338,8 @@ options.healthCheck = {
 	value = UPDATE_FRAME_HEALTH,
 	OnChange = function(self)
 		UPDATE_FRAME_HEALTH = self.value
-	end
+	end,
+	dev = true,
 }
 options.debugVis = {
 	name = 'Show Units Dots per Visibility',
