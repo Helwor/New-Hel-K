@@ -2362,25 +2362,22 @@ local hotkeysCombos = {
 		name = 'AIR', -- the name given here will then be interpreted as a key that has been pressed
 		method = 'toggleLock', --special syntax of method to indicate this is a permanent toggle
 		-- removed the hotkey I don't use it, and I use Roam instead with same key 
-		-- keys = {'?AIR', 'UNKNOWN'}, --(UNKNOWN key is for my '²' key interpreted by KEYSIM) 
+		keys = {'?AIR', 'UNKNOWN'}, --(UNKNOWN key is for my '²' key interpreted by KEYSIM) 
 		draw_pos = {0, resY-88}, -- you can specify size and position or it will stack them on default in the top left 
 		size = 25,
-		on_press = true,
+		-- on_press = true,
+		nokey = true, -- prevent key to be set for it
 		color = {1.0, 0.9, 0.85, 0.99},
 		fading = 0.5, -- fading from alpha 0.99 to 0.5
 	},
 	-- TEMPORARY TOGGLE: same as toggle lock except that it switch only when key is pressed, then it revert
 	-- NOW THE TEMPORARY TOGGLE IS USED ALSO ALONG WITH Cons selection
-	-- the name AIR beeing the same as the toggle lock name above, it will switch on to off, or off to on temporarily until key is released
-	-- if you only want temporary toggle just make a fake lock with no keys and give tmpToggle the same name
-	-- {name = 'AIR',
-	--  method = 'tmpToggle',
-	--  keys = {'?AIR', 'space'},
-	--  --removekey = true, -- uncomment if you want the key that trigger the toggle to not get registered
-	-- },
+	-- NOW NAME OF LOCK MUST BE SET IN ".lock" PROPERTY. AVOID HAVING SEVERAL MACROS WITH SAME EXACT NAME
+	-- 
 	{
-		name = 'AIR',
+		name = 'AIR ',
 		method = 'tmpToggle',
+		lock = 'AIR',
 		-- on_press = true,
 		keys = {'?AIR', {'LClick', 'RClick'}, 'SPACE', '?doubleTap'}, -- 
 		-- ignore_from_sel = true,
@@ -3797,7 +3794,7 @@ local function KeyLineToTable(str)
 end
 for i, macro in ipairs(hotkeysCombos) do
 	allowedMacros[macro.name] = true
-	if macro.keys then
+	if macro.keys and not macro.nokey then
 		macroKeys[macro.name] = KeyTableToLine(macro.keys, false, true)
 	end
 end
@@ -3918,6 +3915,14 @@ options.custom_keys = {
 	..'\nWidget must be reloaded after keys are set',
 	type = 'table',
 	value = macroKeys,
+	OnChange = function(self)
+		for name, keys in pairs(macroKeys) do
+			local macro = HKCombos.byName[name]
+			if macro and macro.nokey then
+				macroKeys[name] = nil
+			end
+		end
+	end,
 	noRemove = true,
 }
 
@@ -4890,7 +4895,8 @@ do ---- **INITIALIZATION** ------
 	end
 	local function Key(key) -- make unified coding of the key that KEYCODES can understand, except for clicks
 		--return the KEYSYMS symbol format using eventually specialKeys from Configs/integral_menu_special_keys.lua and eventually the question mark
-		if not key then return
+		if not key then
+			return
 		elseif type(key)== 'table' then -- unused
 			for i, k in ipairs(key) do key[i] = Key(k) end
 			return key
@@ -4901,12 +4907,11 @@ do ---- **INITIALIZATION** ------
 			Or, key = key:match('?') or '', key:gsub('?', '')
 
 			key = KEYCODES[
-						 KEYSYMS[key] or
-						 KEYSYMS[string.upper(key)] or
-						 tonumber(key) and KEYSYMS['N_' .. key] or
-						 specialKeys[key]
-						]
-				or key
+				KEYSYMS[key] or
+				KEYSYMS[string.upper(key)] or
+				tonumber(key) and KEYSYMS['N_' .. key] or
+				specialKeys[key]
+			] or key
 			return Or..key	
 		end
 	end
@@ -5202,7 +5207,8 @@ do ---- **INITIALIZATION** ------
 	function HKCombos:Set(set, i) -- set proper parameters for each combo on initialization
 		local combo = self[i]
 		local usePreviousSystem = not set.no_prev and (set.use_prev or set.current_to_prev or set.shared_prev)
-		if set.keys then --register keys
+		combo.nokey = set.nokey
+		if set.keys and not set.nokey then --register keys
 			if type(set.keys) == 'string' then
 				local chunk, err = loadstring('return ' .. set.keys:gsub('([%?%w_]+)([,%{%s]?)', '"%1"%2'))
 				if err then
@@ -5231,9 +5237,10 @@ do ---- **INITIALIZATION** ------
 					end
 				else
 					key = addkey(key, n)
-					if (set.method == 'tmpToggle' or set.isTmpLock) and not key:find('?') then
-						locks.tmpToggleByKey[key] = set.isTmpLock and self.byName[set.isTmpLock] or set
-						locks.tmpPushed[set.isTmpLock or set.name] = false
+					local lockName = (set.method == 'tmpToggle' and set.lock or set.isTmpLock)
+					if lockName and not key:find('?') then
+						locks.tmpToggleByKey[key] = self.byName[lockName]
+						locks.tmpPushed[lockName] = false
 					end
 				end
 				table.insert(combo.keys, key)
@@ -5469,9 +5476,11 @@ do ---- **INITIALIZATION** ------
 
 		-- Lock setting
 		combo.isTmpLock = set.isTmpLock -- a normal combo can also trigger a temporary toggle of a Lock
-		if set.method == 'toggleLock' and not set.hide then
-			combo.draw_pos = set.draw_pos or {0, resY-(68+22*locks.count)}
-			combo.size = set.size or 35
+		if set.method == 'toggleLock' then
+			if not set.hide then
+				combo.draw_pos = set.draw_pos or {0, resY-(68+22*locks.count)}
+				combo.size = set.size or 35
+			end
 			combo.active = false -- config data will update it
 			table.insert(locks, combo)
 			-- locks[set.name] = combo
@@ -5480,6 +5489,7 @@ do ---- **INITIALIZATION** ------
 			combo.draw_pos = set.draw_pos or set.method == 'cylinder' and DEFAULT_CYLINDER_DRAW_POS or DEFAULT_DRAW_POS
 			combo.size = set.size or 25
 		end
+		combo.lock = set.lock
 		--------
 
 		combo.OnCallFunc = set.OnCallFunc
@@ -6162,7 +6172,7 @@ do
 					end
 				end
 				-- updating toggle if any
-				local lockName = (newcall.method == 'toggleLock' or newcall.method == 'tmpToggle') and newcall.name or newcall.isTmpLock
+				local lockName = (newcall.method == 'toggleLock' and newcall.name or newcall.method == 'tmpToggle' and newcall.lock) or newcall.isTmpLock
 				if  lockName then -- setting up toggle if any -- replacing the key by the toggle
 					cckeys[lockName] = cckeys[lockName] == nil and 0 or nil -- toggling with nil instead of false
 					if newcall.method == 'tmpToggle' or newcall.isTmpLock then
@@ -8765,10 +8775,8 @@ end
 		local tmpToggle = locks.tmpToggleByKey[symbol]
 		if tmpToggle then 
 			local tog_name = tmpToggle.name
-
 			if locks.tmpPushed[tog_name] then
 				locks.tmpPushed[tog_name] = false
-
 				cckeys[tog_name] = cckeys[tog_name] == nil and 0 or nil
 			end
 		end
