@@ -99,6 +99,7 @@ options.autoMute = {
 		AUTO_MUTE = self.value
 	end,
 	noHotkey = true,
+	dev = true,
 }
 options.globalMuteLevel = {
 	name = 'Global Mute Level',
@@ -114,6 +115,7 @@ options.globalMuteLevel = {
 	end,
 	tooltip_format = '%d',
 	noHotkey = true,
+	dev = true,
 }
 options.debugCycle = {
 	name = 'Debug Cycle',
@@ -124,6 +126,7 @@ options.debugCycle = {
 		debugOnSwitch = not not debugCycle
 	end,
 	noHotkey = true,
+	dev = true,
 }
 options.periodicalCheck = {
 	name = 'Periodical Check',
@@ -133,6 +136,7 @@ options.periodicalCheck = {
 		PERIODICAL_CHECK = 0
 	end,
 	noHotkey = true,
+	dev = true,
 }
 options.editNames = {
 	name = 'Ignore List',
@@ -141,6 +145,7 @@ options.editNames = {
 	-- keep the hardcoded key-value pairs written in here at loading, in case code has been updated or if user removed them in a previous session
 	noRemove = true, 
 	noHotkey = true,
+	dev = true,
 }
 -- 
 local UPDATE_RATE = 0.2
