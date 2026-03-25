@@ -22,6 +22,7 @@ options_path = 'Hel-K/' .. widget:GetInfo().name
 options = {}
 options.debug_state = {
 	name = 'Debug State',
+	desc = 'command /dbgkeymouse',
 	type = 'bool',
 	value = debugState,
 	OnChange = function(self)
@@ -29,6 +30,7 @@ options.debug_state = {
 	end,
 	dev = true,
 	action = 'dbgkeymouse',
+	dev = true,
 }
 options.capture = {
 	name = 'Shift detection',
