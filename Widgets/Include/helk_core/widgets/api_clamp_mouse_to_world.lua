@@ -75,6 +75,7 @@ options.debugMe = {
 	OnChange = function(self)
 		debugMe.state = self.value
 	end,
+	dev = true,
 }
 options.margin = {
 	name = 'margin',
@@ -84,6 +85,7 @@ options.margin = {
 	OnChange = function(self)
 		defaultMargin = self.value
 	end,
+	dev = true,
 }
 
 ----
