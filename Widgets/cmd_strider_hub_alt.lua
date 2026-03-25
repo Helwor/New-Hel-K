@@ -151,38 +151,40 @@ function widget:CommandNotify(cmdID, params, opts) -- need modified gui_chili_in
 		local capture = false
 		local onUI = WG.Chili.Screen0.hoveredControl
 		for i, unitID in ipairs(selectionDefID[striderHubDefID]) do
-			if cmdID == CMD_RAW_MOVE then
+			if myHubs[unitID] then
+				if cmdID == CMD_RAW_MOVE then
 
-				if not (opts.shift and moveOrders[unitID]) then
-					moveOrders[unitID] = {params}
-				else
-					moveOrders[unitID][#moveOrders[unitID] + 1] = params
-				end
-				capture = true
-			elseif cmdID < 0 and opts.alt then
-
-				if newSequence then
-					if onUI then
-						local queue = spGetCommandQueue(unitID, -1)
-						local build = false
-						for i, order in ipairs(queue) do
-							if order.id < 0 then
-								build = true
-								break
-							end
-						end
-						if not build then
-							local x, y, z = GetClosestBuildPos(-cmdID, unpack(myHubs[unitID]))
-							if x == -1 then
-								Echo('['..widget:GetInfo().name..']: '.. UnitDefs[striderHubDefID].humanName .. ' #' .. unitID .. ' couldn\'t find a location to build ' .. UnitDefs[-cmdID].humanName .. '.')
-							else
-								spGiveOrderToUnit(unitID, cmdID, {x, y, z, 0}, opts)
-							end
-						end
+					if not (opts.shift and moveOrders[unitID]) then
+						moveOrders[unitID] = {params}
+					else
+						moveOrders[unitID][#moveOrders[unitID] + 1] = params
 					end
-					newSequence = false
+					capture = true
+				elseif cmdID < 0 and opts.alt then
+
+					if newSequence then
+						if onUI then
+							local queue = spGetCommandQueue(unitID, -1)
+							local build = false
+							for i, order in ipairs(queue) do
+								if order.id < 0 then
+									build = true
+									break
+								end
+							end
+							if not build then
+								local x, y, z = GetClosestBuildPos(-cmdID, unpack(myHubs[unitID]))
+								if x == -1 then
+									Echo('['..widget:GetInfo().name..']: '.. UnitDefs[striderHubDefID].humanName .. ' #' .. unitID .. ' couldn\'t find a location to build ' .. UnitDefs[-cmdID].humanName .. '.')
+								else
+									spGiveOrderToUnit(unitID, cmdID, {x, y, z, 0}, opts)
+								end
+							end
+						end
+						newSequence = false
+					end
+					capture = true
 				end
-				capture = true
 			end
 		end
 		return capture
