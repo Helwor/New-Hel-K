@@ -109,7 +109,7 @@ local timeExpiredCnt = 0
 
 
 options = {}
-options_path = 'Hel-k/' .. widget.GetInfo().name
+options_path = 'Hel-K/' .. widget.GetInfo().name
 
 options.ghost_units = {
 	name = 'Ghost Mobile Units',
