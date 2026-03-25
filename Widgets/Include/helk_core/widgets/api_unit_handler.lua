@@ -349,6 +349,7 @@ options.debugVis = {
 		DEBUG_VIS = self.value
 	end,
 	action = 'debugvis',
+	dev = true,
 
 }
 options.debugDetect = {
@@ -361,6 +362,7 @@ options.debugDetect = {
 	end,
 	action = 'debugstate',
 	checkForChangeAtLoading = true,
+	dev = true,
 	-- onChangeAtLoading = true,
 
 }
