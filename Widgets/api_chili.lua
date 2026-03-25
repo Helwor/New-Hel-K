@@ -121,7 +121,8 @@ options_order = {
 options = {}
 options.switchChili = {
 	name = 'Switch Chili',
-	desc = 'New Chili is currently ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF'),
+	desc = 'New Chili is currently ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF')
+		.. '\ncommand /switchchili',
 	type = 'button',
 	value = Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1,
 	OnChange = function(self)
@@ -135,6 +136,7 @@ options.switchChili = {
 		self.desc = 'New Chili is set ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF')
 	end,
 	action = 'switchchili',
+	dev = true,
 }
 
 options.updateMethod = {
@@ -173,6 +175,7 @@ options.ezSelectNoUpdate = {
 		TaskHandler.ezSelectNoUpdate = ezSelectNoUpdate
 		Echo('now update are '.. (ezSelectNoUpdate and 'OFF' or 'ON') .. ' when using EzSelector')
 	end,
+	dev = true,
 }
 options.panningNoUpdate = {
 	name = 'Suppress Update on PanView',
@@ -184,6 +187,7 @@ options.panningNoUpdate = {
 		TaskHandler.panningNoUpdate = panningNoUpdate
 		Echo('now update are '.. (panningNoUpdate and 'OFF' or 'ON') .. ' when using PanView')
 	end,
+	dev = true,
 }
 options.drawpNoUpdate = {
 	name = 'Suppr. Upd. on Drawing Placement',
@@ -195,6 +199,7 @@ options.drawpNoUpdate = {
 		TaskHandler.drawpNoUpdate = drawpNoUpdate
 		Echo('now update are '.. (drawpNoUpdate and 'OFF' or 'ON') .. ' when using Placement')
 	end,
+	dev = true,
 }
 
 
@@ -351,7 +356,7 @@ options.checkAllObjects = {
 
 options.showDrawCount = { 
 	name = 'Show Draw Count',
-	desc = 'action: /showdrawcount',
+	desc = 'command /showdrawcount',
 	type = 'bool',
 	value = false,
 	OnChange = function(self)
@@ -361,6 +366,7 @@ options.showDrawCount = {
 	end,
 	noHotkey = true,
 	action = 'showdrawcount',
+	dev = true,
 }
 
 
@@ -488,6 +494,7 @@ function widget:Initialize()
 		path = 'Tweakings',
 		action = 'showrtt',
 		noHotkey = true,
+		dev = true,
 	}
 	options.tryRTT = {
 		name = 'UI Render To Texture',
@@ -527,6 +534,7 @@ function widget:Initialize()
 			end
 		end,
 		path = 'Tweakings',
+		dev = true,
 	}
 	---
 	table.sort(order)
@@ -785,7 +793,8 @@ options = {}
 
 options.switchChili = {
 	name = 'Switch Chili',
-	desc = 'New Chili is currently ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF'),
+	desc = 'New Chili is currently ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF')
+		.. '\ncommand /switchchili',
 	type = 'button',
 	value = Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1,
 	OnChange = function(self)
@@ -800,6 +809,7 @@ options.switchChili = {
 
 	end,
 	action = 'switchchili',
+	dev = true,
 }
 
 
@@ -815,6 +825,7 @@ options.updateMethod = {
 			TaskHandler.SwitchMethod(self.value)
 		end
 	end,
+	dev = true,
 }
 options.debugUpdates = {
 	name = 'Debug Update Func',
@@ -826,6 +837,7 @@ options.debugUpdates = {
 			-- tk_Update = TaskHandler.Update
 		end
 	end,
+	dev = true,
 }
 options.ezSelectNoUpdate = {
 	name = 'No Update when using EzSelector',
@@ -838,6 +850,7 @@ options.ezSelectNoUpdate = {
 		TaskHandler.ezSelectNoUpdate = ezSelectNoUpdate
 		Echo('now update are '.. (ezSelectNoUpdate and 'OFF' or 'ON') .. ' when using EzSelector')
 	end,
+	dev = true,
 }
 options.panningNoUpdate = {
 	name = 'No Update when using PanView',
@@ -850,6 +863,7 @@ options.panningNoUpdate = {
 		TaskHandler.panningNoUpdate = panningNoUpdate
 		Echo('now update are '.. (panningNoUpdate and 'OFF' or 'ON') .. ' when using PanView')
 	end,
+	dev = true,
 }
 options.drawpNoUpdate = {
 	name = 'No Update when using Drawing Placement',
@@ -862,6 +876,7 @@ options.drawpNoUpdate = {
 		TaskHandler.drawpNoUpdate = drawpNoUpdate
 		Echo('now update are '.. (drawpNoUpdate and 'OFF' or 'ON') .. ' when using Placement')
 	end,
+	dev = true,
 }
 
 
@@ -877,6 +892,7 @@ options.refreshTexRate = {
 			TextureHandler.timeLimit = self.value
 		end
 	end,
+	dev = true,
 }
 options.debugTexUpdate = {
 	name = 'Texture Update Debugging',
@@ -888,6 +904,7 @@ options.debugTexUpdate = {
 			-- th_Update = TextureHandler.Update
 		end
 	end,
+	dev = true,
 }
 
 options.slowdownScreen = {
@@ -902,6 +919,7 @@ options.slowdownScreen = {
 			list = false
 		end
 	end,
+	dev = true,
 }
 options.slowdownGen = {
 	hidden = true,
@@ -915,10 +933,11 @@ options.slowdownGen = {
 			list2 = false
 		end
 	end,
+	dev = true,
 }
 options.showDrawCount = { 
 	name = 'Show Draw Count',
-	desc = 'action: /showdrawcount',
+	desc = 'command /showdrawcount',
 	type = 'bool',
 	value = false,
 	OnChange = function(self)
@@ -928,6 +947,7 @@ options.showDrawCount = {
 	end,
 	noHotkey = true,
 	action = 'showdrawcount',
+	dev = true,
 }
 
 function widget:Initialize()
