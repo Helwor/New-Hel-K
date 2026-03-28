@@ -1105,9 +1105,11 @@ local function CreateTextTexture(text, fontSize, hull, r, g, b)
 
 	if texSize < minTexSize then
 		scale = sqrt(texSize / minTexSize)
-		size = size * (1/scale)
-		texSizeX, texSizeY = texSizeX * (1/scale), texSizeY * (1/scale)
-		hull.scale = scale
+		if scale > 0 then
+			size = size * (1/scale)
+			texSizeX, texSizeY = texSizeX * (1/scale), texSizeY * (1/scale)
+			hull.scale = scale
+		end
 		-- Echo("scale is ", scale)
 	end
 	hull.texSizeX, hull.texSizeY = texSizeX, texSizeY
