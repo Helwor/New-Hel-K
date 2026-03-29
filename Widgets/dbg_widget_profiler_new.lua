@@ -247,10 +247,8 @@ local function newbox(name,height,caption, shutdown)
 		caption = "X",
 		OnClick = {
 			function(self)
-				if hooked then
-					StopHook()
-				end
-				RemoveWindows()
+				Stop()
+				options.enable.value = false; options.enable:OnChange()
 				-- widgetHandler:ToggleWidget(widget:GetInfo().name)
 			end
 		},
@@ -930,9 +928,7 @@ buttons = {
 		tooltip = 'Show most consuming widgets in windows',
 		func = 	function() 
 			options.watchDog.value = false; options.watchDog:OnChange()
-			if not options.enable.value then
-				options.enable.value = true; options.enable:OnChange()
-			end
+			options.enable.value = true; options.enable:OnChange()
 			panel:Hide()
 		end,
 	},
@@ -941,9 +937,7 @@ buttons = {
 		tooltip = 'Alert on screen when a widget spend too much time',
 		func = function() 
 			options.watchDog.value = true; options.watchDog:OnChange()
-			if not options.enable.value then
-				options.enable.value = true; options.enable:OnChange()
-			end
+			options.enable.value = true; options.enable:OnChange()
 			panel:Hide()
 		end,
 	},
