@@ -1,4 +1,3 @@
-
 local ver = 2.0
 -- require api_has_view_changed.lua
 -- require lib_funcs
@@ -16,6 +15,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
+
 local Echo = Spring.Echo
 local myTeamID, myPlayerID
 local currentFrame = Spring.GetGameFrame()
@@ -995,7 +995,7 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
 	end
 end
 
-local function DrawUnit(id, unit, fovRatio)
+local function DrawUnit(id, unit, blink, fovRatio)
 	local _,gy,_,x,y,z = unit:GetPos(1)
 	if x then
 		local info = unit.info
@@ -1258,10 +1258,10 @@ local GlobalDraw = function()
 			if anyDebug or not (avoidLowCost and lowCost[defID] or ignore[defID]) then
 				if anyDebug or (unit.lastInfo or -1000) < updateFrame then
 					if ProcessUnit(id, unit.defID, allySelUnits, unit, blink, anyDebug, fullview) then
-						DrawUnit(id, unit, fovRatio)
+						DrawUnit(id, unit, blink, ovRatio)
 					end
 				elseif unit.info.gotAny then
-					DrawUnit(id, unit, fovRatio)
+					DrawUnit(id, unit, blink, fovRatio)
 				end
 			end
 		end
