@@ -38,6 +38,7 @@ local CalcBallisticCircle 		= VFS.Include("LuaUI/Utilities/engine_range_circles.
 local max_selection = 20
 local max_selection_ballistic = 1
 local use_ballistic = true
+local use_ballistic_shader = true
 local EMPTY_TABLE = {}
 local dbg = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
@@ -47,6 +48,7 @@ options_order = {
 	'showselectedunitrange',
 	'max_selection',
 	'use_ballistic',
+	'use_ballistic_shader',
 	'max_selection_ballistic',
 	'dbg',
 }
@@ -99,6 +101,20 @@ options.use_ballistic = {
 	value = use_ballistic,
 	OnChange = function (self)
 		use_ballistic = self.value
+		if widget.CommandsChanged then
+			widget:CommandsChanged()
+		end
+	end,
+	path = helk_path,
+}
+
+options.use_ballistic_shader = {
+	name = 'Use Shader to calculate ballistic range',
+	desc = 'Improve perf a lot, need api_range_renderer.lua',
+	type = 'bool',
+	value = use_ballistic_shader,
+	OnChange = function (self)
+		use_ballistic_shader = self.value
 		if widget.CommandsChanged then
 			widget:CommandsChanged()
 		end
@@ -173,6 +189,14 @@ local function RangeColor(strengthIdx, color, ballistic)
 		glColor(strength, ballistic and 0.9 or 0, 0, 0.35)
 	end
 end
+local function GetRangeColor(strengthIdx, color, ballistic)
+	local strength = (1 - strengthIdx/5)
+	if color then
+		return {color[1] * strength, color[2] * strength, color[3] - strength, color[4] or 0.35}
+	else
+		return {strength, ballistic and 0.6 or 0, 0, 0.65}
+	end
+end
 local function CircleVerts(verts)
 	for i = 1, #verts do
 		glVertex(verts[i])
@@ -186,7 +210,7 @@ do
 	templist = newproxy(true)
 	getmetatable(templist).__gc = function(self)
 		if self == templist then
-			Echo('master proxy collected')
+			-- Echo('master proxy collected')
 			return
 		else
 			 local key = lists[self]
@@ -207,8 +231,11 @@ do
 	end
 end
 local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff)
-	RangeColor(strengthIdx, color, use_ballistic)
-	if not dbg and rangeInfo.static then
+	local static = rangeInfo.static
+	if not use_ballistic_shader or static then
+		RangeColor(strengthIdx, color, use_ballistic)
+	end
+	if not dbg and static then
 		local cached = lists[unitID .. '-' .. i .. (use_ballistic and 'b' or '')]
 		if not cached then
 			cached = gl.CreateList(
@@ -227,8 +254,12 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		return
 	end
 	if use_ballistic then
-		local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
-		gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+		if use_ballistic_shader then
+			WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
+		else
+			local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
+			gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+		end
 	else
 		glDrawGroundCircle(x, y, z, range, 40)
 	end

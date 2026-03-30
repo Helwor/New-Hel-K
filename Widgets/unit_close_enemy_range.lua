@@ -29,6 +29,7 @@ local USE_CLUSTERIZATION = true
 local ALPHA = 0.35
 local SHOW_ALL_CLOSE = true -- we cannot use GetNearestEnemy because it may return some harmless unit instead
 local USE_BALLISTIC_CALC = true
+local USE_BALLISTIC_SHADER = true
 local RANGE_COLOR = {1,1,0,ALPHA}
 local MAX_RANGE = 1500
 local MAX_SEL = 10
@@ -47,6 +48,7 @@ local closeEnemies, toDrawNoCalc = {}, {}
 local allDists = {}
 local sel = EMPTY_TABLE
 local cache = setmetatable({}, {__mode = 'k'})
+local force_update = false
 
 local timeDrawing = 0
 local timeDrawingCount = 0
@@ -261,6 +263,17 @@ options.useBallisticCalc = {
 	end,
 }
 
+options.useBallisticShader = {
+	name = 'Use Shader to calculate ballistic range',
+	desc = 'Improve perf a lot, need api_range_renderer.lua',
+	type = 'bool',
+	value = USE_BALLISTIC_SHADER,
+	OnChange = function (self)
+		USE_BALLISTIC_SHADER = self.value
+		Reset()
+	end,
+}
+
 options.useClusterization = {
 	name = 'Use Clusterization',
 	type = 'bool',
@@ -283,6 +296,7 @@ options.color = {
 			for k,v in pairs(self.value) do
 				RANGE_COLOR[k] = v
 			end
+			force_update = true
 		end
 	end,
 }
@@ -465,7 +479,9 @@ local function ProcessEnemiesFromPoint(ux,uz, max_range)
 						closeEnemies[enemy] = lastPos
 						reused = reused + 1
 					else
-						if WANT_ALL_RANGES then
+						if USE_BALLISTIC_SHADER then
+
+						elseif WANT_ALL_RANGES then
 							-- more expensive in every way even with one single range to do and could barely be useful when facing a strider
 							thisEnemy.verts = WG.CalcBallisticCircleOfUnit(thisEnemy.id)
 						else
@@ -600,22 +616,34 @@ function widget:DrawWorldPreUnit()
 			-- if thisEnemy then
 			-- 	Echo("thisEnemy, thisEnemy and thisEnemy.verts is ", thisEnemy, thisEnemy and thisEnemy.verts)
 			-- end
-			local verts = thisEnemy and thisEnemy.verts
-			if verts then
-				got = true
-				if WANT_ALL_RANGES then
-					for i, v in ipairs(verts) do
-						if AUTO_VERT_MODE then
-							gl.Shape(GL_LINE_LOOP, CircleVerts2(v))
-						else
-							glBeginEnd(GL_LINE_STRIP, CircleVerts, v)
-						end
-					end
-				else
-					if AUTO_VERT_MODE then
-						gl.Shape(GL_LINE_LOOP, CircleVerts2(verts))
+			if USE_BALLISTIC_SHADER then
+				if thisEnemy then
+					-- Echo("thisEnemy.id, thisEnemy[1], thisEnemy[2], thisEnemy[3], thisEnemy.radius, thisEnemy.weaponDef is ", thisEnemy.id, thisEnemy[1], thisEnemy[2], thisEnemy[3], thisEnemy.radius, thisEnemy.weaponDef)
+					if thisEnemy.id then
+						WG.RenderRangeGL4(thisEnemy.id, thisEnemy[1], thisEnemy[2], thisEnemy[3], thisEnemy.radius, thisEnemy.weaponDef, RANGE_COLOR, force_update)
 					else
-						glBeginEnd(GL_LINE_STRIP, CircleVerts, verts)
+						-- Echo('no wDef', thisEnemy.id, thisEnemy[1], thisEnemy[2], thisEnemy[3], thisEnemy.radius, thisEnemy.weaponDef)
+					end
+
+				end
+			else
+				local verts = thisEnemy and thisEnemy.verts
+				if verts then
+					got = true
+					if WANT_ALL_RANGES then
+						for i, v in ipairs(verts) do
+							if AUTO_VERT_MODE then
+								gl.Shape(GL_LINE_LOOP, CircleVerts2(v))
+							else
+								glBeginEnd(GL_LINE_STRIP, CircleVerts, v)
+							end
+						end
+					else
+						if AUTO_VERT_MODE then
+							gl.Shape(GL_LINE_LOOP, CircleVerts2(verts))
+						else
+							glBeginEnd(GL_LINE_STRIP, CircleVerts, verts)
+						end
 					end
 				end
 			end
@@ -635,6 +663,7 @@ function widget:DrawWorldPreUnit()
 		timeDrawing = timeDrawing +  spDiffTimers(spGetTimer(), time)
 		timeDrawingAverage = timeDrawing / timeDrawingCount
 	end
+	force_update = false
 end
 
 
