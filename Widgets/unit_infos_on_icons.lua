@@ -1258,7 +1258,7 @@ local GlobalDraw = function()
 			if anyDebug or not (avoidLowCost and lowCost[defID] or ignore[defID]) then
 				if anyDebug or (unit.lastInfo or -1000) < updateFrame then
 					if ProcessUnit(id, unit.defID, allySelUnits, unit, blink, anyDebug, fullview) then
-						DrawUnit(id, unit, blink, ovRatio)
+						DrawUnit(id, unit, blink, fovRatio)
 					end
 				elseif unit.info.gotAny then
 					DrawUnit(id, unit, blink, fovRatio)
