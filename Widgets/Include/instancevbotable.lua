@@ -794,7 +794,7 @@ function makePlaneVBO(xsize, ysize, xresolution, yresolution) -- makes a plane f
 	if not yresolution then yresolution = xresolution end
 	xresolution = math.floor(xresolution)
 	yresolution = math.floor(yresolution)
-	local planeVBO = gl.GetVBO(GL.ARRAY_BUFFER,false)
+	local planeVBO = gl.GetVBO(GL.ARRAY_BUFFER, false)
 	if planeVBO == nil then return nil end
 
 	local VBOLayout = {
@@ -805,7 +805,7 @@ function makePlaneVBO(xsize, ysize, xresolution, yresolution) -- makes a plane f
 
 	for x = 0, xresolution  do -- this is +1
 		for y = 0, yresolution do
-			VBOData[#VBOData+1] = xsize * ((x / xresolution) -0.5 ) *2
+			VBOData[#VBOData+1] = xsize * ((x / xresolution) -0.5 ) * 2
 			VBOData[#VBOData+1] = ysize * ((y / yresolution) -0.5 ) * 2
 		end
 	end	
@@ -823,7 +823,7 @@ end
 function makePlaneIndexVBO(xresolution, yresolution, cutcircle, indexType)
 	xresolution = math.floor(xresolution)
 	if not yresolution then yresolution = xresolution end
-	local planeIndexVBO = gl.GetVBO(GL.ELEMENT_ARRAY_BUFFER,false, GL.UNSIGNED_SHORT)
+	local planeIndexVBO = gl.GetVBO(GL.ELEMENT_ARRAY_BUFFER, false)
 	if planeIndexVBO == nil then return nil end
 
 	local function xyinrad(lx, ly)
@@ -836,20 +836,20 @@ function makePlaneIndexVBO(xresolution, yresolution, cutcircle, indexType)
 	local qindex = 0
 	local vbo_i = 0
 	local colsize = yresolution + 1
-	local realMaxIndex = 0
+
 	for x = 0, xresolution-1  do -- this is +1
 		for y = 0, yresolution-1 do
 			--this is only 20% optimization
 			if cutcircle == nil or (xyinrad(x,y) or xyinrad(x + 1,y) or xyinrad(x,y + 1 )) then 
 				-- top left one
 				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex
-				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex +1
+				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex + 1
 				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex + colsize
 			end
 			
 			if cutcircle == nil or (xyinrad(x+1,y+1) or xyinrad(x + 1,y) or xyinrad(x,y + 1 )) then 
 				-- bottom right one?
-				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex +1
+				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex + 1
 				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex + colsize + 1
 				vbo_i = vbo_i + 1; IndexVBOData[vbo_i] = qindex + colsize
 			end
@@ -867,7 +867,9 @@ function makePlaneIndexVBO(xresolution, yresolution, cutcircle, indexType)
 		else
 			indexType = GL.UNSIGNED_INT
 		end
+		-- Echo('xresolution: '..xresolution, 'yresolution: '..yresolution , "maxIndex,  vbo_i is ", maxIndex, vbo_i, 'index type', indexType == GL.UNSIGNED_BYTE and 'UNSIGNED_BYTE' or indexType == GL.UNSIGNED_SHORT and 'UNSIGNED_SHORT' or 'UNSIGNED_INT')
 	end
+
 	planeIndexVBO:Define(#IndexVBOData, indexType)
 	planeIndexVBO:Upload(IndexVBOData)
 	--Spring.Echo("PlaneIndexVBO up:",#IndexVBOData, "Down", #planeIndexVBO:Download())
