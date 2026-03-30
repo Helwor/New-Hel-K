@@ -17,6 +17,7 @@
 		'api_load_ai.lua',
 		'addon_chili.lua',
 		'api_draw_utils.lua',
+		'api_range_renderer_gl4.lua',
 	}
 
 	local importantWidgets = {
@@ -103,7 +104,7 @@
 		-- end
 		if widgetFiles then
 
-			-- local source = debug.getinfo(1).source
+			-- local source = debug.getinfo(2).source
 			-- local this_widget_pat = source:sub(source:find('[%w_]+%.lua')) .. '$'
 			local this_widget_pat = 'api_apm_stats.lua' .. '$'
 			local this_widget_index, on_widget_state_index , add_sleep_wake_index
