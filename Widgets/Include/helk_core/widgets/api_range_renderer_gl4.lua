@@ -93,18 +93,6 @@ local function SetWeaponParams(wDef, range)
 		wDef.heightBoostFactor or -1
 end
 
-
-
-
-
--- How it works:
--- instances[unitID][rangeDef][range](x, y, z)
--- create new instance for unitID if not exist
--- that instance create new subtable by rangeDef if not exist and pass the unitID
--- the subtable rangeDef create new subtable range if not exist and pass the rangedef into it
--- the subtable range have rangeDef, then get range, and can then grab the corresponding VAO/instance
--- a new VAO/VBO/instance is created if not exist for the calculated divs
--- the subtable range contains now reverything we need and run the update_mt call which receive the position x, y, z
 local service = {}
 local instances = setmetatable({},
 	{
