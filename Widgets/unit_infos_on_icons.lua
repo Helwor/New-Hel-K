@@ -1,5 +1,5 @@
 
-local ver = 1.0
+local ver = 2.0
 -- require api_has_view_changed.lua
 -- require lib_funcs
 -- can use command_tracker.lua
@@ -21,7 +21,7 @@ local myTeamID, myPlayerID
 local currentFrame = Spring.GetGameFrame()
 local MIN_RELOAD_TIME_NOTICE = 12 -- dont register reload weapons below this time
 local gameSpeed = Game.gameSpeed
-
+local updateRate = 5
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
@@ -379,6 +379,7 @@ WG.lastStatus = lastStatus
 local inRadar = WG.inRadar or {}
 WG.inRadar = inRadar
 local problems = {}
+local thisFrame = -1
 local delayAllyPoses = {}
 local numberLists = setmetatable(
 	{},
@@ -962,12 +963,12 @@ function widget:GameFrame(f)
 	currentFrame = f
 end
 
-local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, alphaHealth, alphaPrio, alphaReload)
+local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
 	local unit = Units[id]
 	if not unit then
 		return
 	end
-	if not (healthColor or statusColor or prioColor or reloadColor) then
+	if not (healthColor or statusColor) then
 		return
 	end
 
@@ -977,12 +978,12 @@ local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioC
 	end
 	-- Echo("defID is ", defID, id)
 	if useFinePos then
-		local isIcon = VisibleIcons[id] or not inSight[id]
-		if isIcon then
+		-- local isIcon = VisibleIcons[id] or not inSight[id]
+		-- if isIcon then
 			local distFromCam = diag(cx-x, cy-y, cz-z)
-			distFromCam = distFromCam * fov / 45 
+			distFromCam = distFromCam * fovRatio
 			y =	GetIconMidY(defID or 0, y, gy, distFromCam)
-		end
+		-- end
 	end
 	local mx,my = spWorldToScreenCoords(x,y,z)
 	if healthColor then
@@ -992,212 +993,205 @@ local function ApplyColor(id, blink, fov, defID, statusColor, healthColor, prioC
 		statusColor = blink and blinkcolor[statusColor] or statusColor
 		symbolStatus:Draw(mx, my, statusColor, alphaStatus)
 	end
-	if prioColor then
-		symbolPrio:Draw(mx, my, prioColor, alphaPrio)
-	end
-	if reloadColor then
-		if stockpile then
-			objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
-		else
-			symbolReload:Draw(mx, my, reloadColor, alphaReload)
+end
+
+local function DrawUnit(id, unit, fovRatio)
+	local _,gy,_,x,y,z = unit:GetPos(1)
+	if x then
+		local info = unit.info
+		local statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, allySelColor
+		 = info[1], info[2], info[3], info[4], info[5], info[6], info[7]
+		if useFinePos then
+			local isIcon = onlyOnIcons or VisibleIcons[id]
+			if isIcon then
+				-- LOOK UnitDrawer.cpp LINE 420
+				local distFromCam = diag(cx-x, cy-y, cz-z)
+				distFromCam = distFromCam * fovRatio
+				y = GetIconMidY(unit.defID or 0, y, gy, distFromCam)
+			end
 		end
+
+		local mx,my = spWorldToScreenCoords(x,y,z)
+		if reloadColor then
+			if stockpile then
+				objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
+			else
+				symbolReload:Draw(mx,my, reloadColor, alphaReload)
+			end
+			-- end
+		end
+		if healthColor then
+			symbolHealth:Draw(mx, my, healthColor, alphaHealth)
+		end
+		if statusColor then
+			local statusColor = blink and blinkcolor[statusColor] or statusColor
+			symbolStatus:Draw(mx,my, statusColor, alphaStatus)
+		end
+		if prioColor then
+			symbolPrio:Draw(mx,my, prioColor, alphaPrio)
+		end
+		if allySelColor then
+			if allyOnTop then
+				delayAllyPoses[{mx,my}] = true
+			else
+				symbolSelAlly:Draw(mx,my, allySelColor, alphaAlly)
+			end
+		end
+	else
+		lastStatus[id] = nil
 	end
 
 end
+local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullview)
+	local statusColor, healthColor, prioColor, reloadColor, stockpile, allySelColor
+	local alphaStatus = alphaStatus
+	local gotAny
+	local info = unit.info
+	unit.lastInfo = thisFrame
+	if not info then
+		info = {}
+		unit.info = info
+	end
+	-- local x,y,z = unit:GetPos(0, true)
 
-local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullview, fov)
-	-- if spIsUnitVisible(id) and (not onlyOnIcons or spIsUnitIcon(id)) then
-		local statusColor, healthColor, prioColor, reloadColor, stockpile, allySelColor
-		local alphaStatus = alphaStatus
-		
-		-- local x,y,z = unit:GetPos(0, true)
-
-		if anyDebug then
-			if debugChoice == 'custom' then
-				for k,v in pairs(debugCustomProps) do
-					local orik = k
-					local AND = k:explode('&')
-					local pass
-					for _,key in ipairs(AND) do
-						local NOT, key = key:match('^(!?)(.*)')
-						if NOT == '!' then
-							pass = not unit[key]
-						else
-							pass = unit[key]
-						end
-						if not pass then
-							break
-						end
+	if anyDebug then
+		if debugChoice == 'custom' then
+			for k,v in pairs(debugCustomProps) do
+				local orik = k
+				local AND = k:explode('&')
+				local pass
+				for _,key in ipairs(AND) do
+					local NOT, key = key:match('^(!?)(.*)')
+					if NOT == '!' then
+						pass = not unit[key]
+					else
+						pass = unit[key]
 					end
-					-- done = true
-					if pass then
-						local color = colors[v]
-						if color then
-							if not statusColor then
-								statusColor = color
-							-- elseif not allySelColor then
-							-- 	allySelColor = color
-							elseif not healthColor then
-								healthColor = color
-							end
-						end
+					if not pass then
+						break
 					end
 				end
-			elseif debugChoice == 'alledgiance' then
-				healthColor = unit.isMine and lightblue or unit.isAllied and blue or unit.isEnemy and orange
-			elseif debugChoice == 'inSight' then
-				healthColor = white
-			elseif debugChoice == 'all' then
-				healthColor = orange
-				statusColor = b_ice
-				allySelColor = white
-				prioColor = green
-				reloadColor = green
-			elseif debugChoice == 'try' then
-				allySelColor = white
-			end
-		else
-			local health = unit.health
-			if not health[1] then
-				health = false
-			end
-			local paralyzed
-			local hp,maxhp,paraDmg,bp
-			if health then
-				hp,maxhp, paraDmg,bp = health[1], health[2], health[3], health[5]
-				paralyzed = paraDmg > maxhp
-				health = hp/(maxhp*bp)
-			end
-			-- if unit.isKnown then statusColor = violet
-			-- end
-			-- local builder = bp<1 and Units[unit.builtBy]
-			if showPrio and defID and canBuildDefID[defID] then
-				prioColor = spGetUnitRulesParam(id, "buildpriority") == 2 and green
-			end
-			if showStatus then
-				statusColor = 
-					bp and bp >= 0 and (
-							bp < 0.8 and grey
-							or bp < 1 and lightgreen
-						)
-					or (paralyzed or enable4) and b_ice
-					or disarmUnits[id] ~= nil and b_whiteviolet
-					-- or builder and not builder.isFactory and white
-					or showCommandStatus and unit.tracked and (
-							unit.movingBack and brown
-							  -- unit.assisting and darkenedgreen
-							or unit.isIdle and blue
-							or unit.autoguard and darkenedgreen
-							or unit.manual and (
-									unit.building and red
-									or unit.actualCmd == 90 and hardviolet
-									or orange
-								)
-							or unit.isFighting and turquoise
-							or unit.waitManual and yellow
-							-- or unit.actualCmd == 90 and paleviolet
-							or unit.cmd and green
-						)
-					or showNonManualCons and unit.tracked and (
-							unit.isCon and not (unit.manual or unit.waitManual) and blue
-						)
-				if not statusColor then
-					if unit.isJumper then
-						local jumpReload = unit.isJumper and unit.isMine and spGetUnitRulesParam(id,'jumpReload')
-						if jumpReload then
-							statusColor = jumpReload >= 1 and darkenedgreen
-								  or jumpReload >= 0.8 and lime
-						end
-					elseif showCloaked and unit.isCloaked then
-					  alphaStatus = 0.7
-					  statusColor = paleblue
-					elseif defID then
-						if airpadDefID[defID] and not unit.isEnemy then
-							if spGetUnitRulesParam(id, "padExcluded" .. myTeamID) == 1 then
-								statusColor = copper
-							end
-						elseif unit.isBomber then
-							local noammo = spGetUnitRulesParam(id, "noammo")
-							if (noammo or 0) > 0 then
-								statusColor = ocre
-							end
+				-- done = true
+				if pass then
+					local color = colors[v]
+					if color then
+						if not statusColor then
+							statusColor = color
+						-- elseif not allySelColor then
+						-- 	allySelColor = color
+						elseif not healthColor then
+							healthColor = color
 						end
 					end
 				end
 			end
-			if showHealth then
-				healthColor = health and (health < 0.3 and red or health < 0.6 and orange)
-			end
-			if showAllySelected and allySelUnits[id] then
-				allySelColor = white
-			end
-			if showReload and unit.teamID == myTeamID then
-				local checkFunc = longReloadCheck[defID]
-				if checkFunc and not disallowReloadNotice[defID] then
-					local value, sp = checkFunc(defID, id)
-					if value >= 1 then
-						reloadColor = value >= 1 and green or lightblue
-						stockpile = sp and sp <= 100 and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
+		elseif debugChoice == 'alledgiance' then
+			healthColor = unit.isMine and lightblue or unit.isAllied and blue or unit.isEnemy and orange
+		elseif debugChoice == 'inSight' then
+			healthColor = white
+		elseif debugChoice == 'all' then
+			healthColor = orange
+			statusColor = b_ice
+			allySelColor = white
+			prioColor = green
+			reloadColor = green
+		elseif debugChoice == 'try' then
+			allySelColor = white
+		end
+	else
+		local health = unit.health
+		local hp = health and health[1]
+		local paralyzed
+		local maxhp,paraDmg,bp
+		if hp then
+			maxhp, paraDmg, bp = health[2], health[3], health[5]
+			paralyzed = paraDmg > maxhp
+			health = hp / (maxhp * bp)
+		end
+		-- if unit.isKnown then statusColor = violet
+		-- end
+		-- local builder = bp<1 and Units[unit.builtBy]
+		if showPrio and canBuildDefID[defID] then
+			prioColor = spGetUnitRulesParam(id, "buildpriority") == 2 and green
+		end
+		if showStatus then
+			statusColor = 
+				bp and bp >= 0 and (
+						bp < 0.8 and grey
+						or bp < 1 and lightgreen
+					)
+				or (paralyzed or enable4) and b_ice
+				or disarmUnits[id] ~= nil and b_whiteviolet
+				-- or builder and not builder.isFactory and white
+				or showCommandStatus and unit.tracked and (
+						unit.movingBack and brown
+						  -- unit.assisting and darkenedgreen
+						or unit.isIdle and blue
+						or unit.autoguard and darkenedgreen
+						or unit.manual and (
+								unit.building and red
+								or unit.actualCmd == 90 and hardviolet
+								or orange
+							)
+						or unit.isFighting and turquoise
+						or unit.waitManual and yellow
+						-- or unit.actualCmd == 90 and paleviolet
+						or unit.cmd and green
+					)
+				or showNonManualCons and unit.tracked and (
+						unit.isCon and not (unit.manual or unit.waitManual) and blue
+					)
+			if not statusColor then
+				if unit.isJumper then
+					local jumpReload = unit.isJumper and unit.isMine and spGetUnitRulesParam(id,'jumpReload')
+					if jumpReload then
+						statusColor = jumpReload >= 1 and darkenedgreen
+							  or jumpReload >= 0.8 and lime
+					end
+				elseif showCloaked and unit.isCloaked then
+				  alphaStatus = 0.7
+				  statusColor = paleblue
+				else
+					if airpadDefID[defID] and not unit.isEnemy then
+						if spGetUnitRulesParam(id, "padExcluded" .. myTeamID) == 1 then
+							statusColor = copper
+						end
+					elseif unit.isBomber then
+						local noammo = spGetUnitRulesParam(id, "noammo")
+						if (noammo or 0) > 0 then
+							statusColor = ocre
+						end
 					end
 				end
 			end
 		end
-		
-		if healthColor or statusColor or allySelColor or prioColor or reloadColor then
-			local _,gy,_,x,y,z = unit:GetPos(1)
-			if x then
-				if useFinePos then
-					local isIcon = onlyOnIcons or VisibleIcons[id]
-					if isIcon then
-						-- LOOK UnitDrawer.cpp LINE 420
-						local distFromCam = diag(cx-x, cy-y, cz-z)
-						distFromCam = distFromCam * fov / 45
-						y = GetIconMidY(defID or 0, y, gy, distFromCam)
-					end
-				end
-
-				if not anyDebug and fullview~=1 and (statusColor or healthColor or prioColor or reloadColor) then
-					local ls = lastStatus[id]
-					if not ls then
-						lastStatus[id] = {defID, statusColor, healthColor, prioColor, reloadColor, alphaStatus, alphaHealth, alphaPrio, alphaReload}
-					else
-						ls[2], ls[3], ls[4], ls[5] = statusColor, healthColor, prioColor, reloadColor
-						ls[6], ls[7], ls[8], ls[9] = alphaStatus, alphaHealth, alphaPrio, alphaReload
-						ls[10] = stockpile
-					end
-				end
-				local mx,my = spWorldToScreenCoords(x,y,z)
-				if reloadColor then
-					if stockpile then
-						objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
-					else
-						symbolReload:Draw(mx,my, reloadColor, alphaReload)
-					end
-					-- end
-				end
-				if healthColor then
-					symbolHealth:Draw(mx, my, healthColor, alphaHealth)
-				end
-				if statusColor then
-					local statusColor = blink and blinkcolor[statusColor] or statusColor
-					symbolStatus:Draw(mx,my, statusColor, alphaStatus)
-				end
-				if prioColor then
-					symbolPrio:Draw(mx,my, prioColor, alphaPrio)
-				end
-				if allySelColor then
-					if allyOnTop then
-						delayAllyPoses[{mx,my}] = true
-					else
-						symbolSelAlly:Draw(mx,my, allySelColor, alphaAlly)
-					end
+		if showHealth then
+			healthColor = health and (health < 0.3 and red or health < 0.6 and orange)
+		end
+		if showAllySelected and allySelUnits[id] then
+			allySelColor = white
+		end
+		if showReload and unit.teamID == myTeamID then
+			local checkFunc = longReloadCheck[defID]
+			if checkFunc and not disallowReloadNotice[defID] then
+				local value, sp = checkFunc(defID, id)
+				if value >= 1 then
+					reloadColor = value >= 1 and green or lightblue
+					stockpile = sp and sp <= 100 and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
 				end
 			end
-		else
-			lastStatus[id] = nil
 		end
-		return 
-	-- end
+	end
+	if not anyDebug and fullview~=1 and unit.isEnemy and (statusColor or healthColor) then
+		lastStatus[id] = unit
+	end
+	gotAny = healthColor or statusColor or allySelColor or prioColor or reloadColor
+	info.gotAny = gotAny
+	if gotAny then
+		info[1], info[2], info[3], info[4], info[5], info[6] , info[7]
+			= statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, allySelColor
+	end
+	return gotAny
 end
 
 function widget:UnitEnteredLos(unitID)
@@ -1230,7 +1224,6 @@ local lastMessage = ''
 local clockMessage = os.clock()
 local GlobalDraw = function()
 	UseFont(monobold)
-	local allySelUnits = WG.allySelUnits
 	local subjects =
 		(debugChoice == 'custom' or debugChoice == 'alledgiance') and Cam.Units
 		or debugChoice == 'inSight' and inSight
@@ -1249,8 +1242,11 @@ local GlobalDraw = function()
 	if allyOnTop then
 		delayAllyPoses = {}
 	end
-
-	local anyDebug = debugChoice ~= 'none'
+	local Units, allySelUnits, updateRate, currentFrame = Units, WG.allySelUnits, updateRate, currentFrame
+	local fullview, fov, lowCost, ignore, anyDebug = Cam.fullview, Cam.fov, lowCostDefID, ignoreUnitDefID, debugChoice ~= 'none'
+	local fovRatio = fov / 45
+	local updateFrame = currentFrame - updateRate
+	-- Echo("currentFrame, thisFrame is ", currentFrame, thisFrame)
 	for id in pairs(subjects) do
 		local unit = Units[id]
 		if not unit then
@@ -1259,9 +1255,14 @@ local GlobalDraw = function()
 			end
 		else
 			local defID = unit.defID
-			local valid = anyDebug or not (avoidLowCost and lowCostDefID[defID] or ignoreUnitDefID[defID])
-			if valid then
-				ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, Cam.fullview, Cam.fov)
+			if anyDebug or not (avoidLowCost and lowCost[defID] or ignore[defID]) then
+				if anyDebug or (unit.lastInfo or -1000) < updateFrame then
+					if ProcessUnit(id, unit.defID, allySelUnits, unit, blink, anyDebug, fullview) then
+						DrawUnit(id, unit, fovRatio)
+					end
+				elseif unit.info.gotAny then
+					DrawUnit(id, unit, fovRatio)
+				end
 			end
 		end
 	end
@@ -1274,13 +1275,13 @@ local GlobalDraw = function()
 	-- Echo("table.size(inRadar) is ", table.size(inRadar))
 	-- show last seen unit's symbol and color for a few sec ocne they gone out of view
 	if debugChoice ~= "Insight" and Cam.fullview~=1 then
-		local fov = Cam.fov
-		for id, t in pairs(inRadar) do
-			if t.toframe < currentFrame then
+		for id, unit in pairs(inRadar) do
+			if unit.toframe < currentFrame then
 				inRadar[id] = nil
 				lastStatus[id] = nil
 			else
-				ApplyColor(id, blink, fov, t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10])
+				local info = unit.info
+				ApplyColor(id, unit.defID, blink, fovRatio, info[1], info[2])
 			end
 		end
 	end
@@ -1350,14 +1351,14 @@ function widget:KeyPress(key, mods)
 		return true
 	end
 end
-local test = function() end
+
 function widget:DrawScreenEffects()
 	-- gl.Billboard()
 	-- gl.DepthTest(false)
 	-- Echo("gl.DrawListAtUnit(id,symbolHealth.list) is ", gl.DrawListAtUnit(id,symbolHealth.list,true,4,4,4))
 	-- gl.DepthTest(true)
 	--***************************
-	local thisFrame = spGetGameFrame()
+	thisFrame = spGetGameFrame()
 	lastFrame = thisFrame
 	if globalList then
 		if lastView ~= NewView[5] then -- 50% faster
