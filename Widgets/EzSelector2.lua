@@ -575,50 +575,69 @@ local function ByID(t)
 	t.n = cnt
 	return t
 end
-local SwitchImpulse = function()
-	local cmdDescs = Spring.GetActiveCmdDescs()
-	if not cmdDescs then
-		return
-	end
-	local cmdIdx = Spring.GetCmdDescIndex(CMD_PUSH_PULL)
-	if not  cmdIdx then
-		return
-	end
-	local impulseState = cmdDescs[cmdIdx].params[1]
+local Switch = {
+	KillCaptured = function()
+		local cmdDescs = Spring.GetActiveCmdDescs()
+		if not cmdDescs then
+			return
+		end
+		local cmdIdx = Spring.GetCmdDescIndex(CMD_UNIT_KILL_SUBORDINATES)
+		if not  cmdIdx then
+			return
+		end
+		local impulseState = cmdDescs[cmdIdx].params[1]
 
-	local newState = impulseState == '1' and 0 or 1
-	Spring.GiveOrder(CMD_PUSH_PULL, {newState, 0}, 0)
-	sh.extra = newState == 1 and ' ON' or ' OFF'
-	return true
-end
+		local newState = impulseState == '1' and 0 or 1
+		Spring.GiveOrder(CMD_UNIT_KILL_SUBORDINATES, {newState, 0}, 0)
+		sh.extra = newState == 1 and ' ON' or ' OFF'
+		return true
+	end,
 
-local SwitchFlyIdleMode = function()
-	local cmdDescs = Spring.GetActiveCmdDescs()
-	if not cmdDescs then
-		return
-	end
-	local cmdIdx = Spring.GetCmdDescIndex(CMD.IDLEMODE)
-	if not  cmdIdx then
-		return
-	end
-	local flyState = cmdDescs[cmdIdx].params[1]
+	SwitchImpulse = function()
+		local cmdDescs = Spring.GetActiveCmdDescs()
+		if not cmdDescs then
+			return
+		end
+		local cmdIdx = Spring.GetCmdDescIndex(CMD_PUSH_PULL)
+		if not  cmdIdx then
+			return
+		end
+		local impulseState = cmdDescs[cmdIdx].params[1]
 
-	local newState = flyState == '1' and 0 or 1
-	sh.extra = newState == 1 and ' OFF' or ' ON'
-	Spring.GiveOrder(CMD.IDLEMODE, {newState, 0}, 0)
-	for defID, units in pairs(Spring.GetSelectedUnitsSorted()) do
-		local unit = Units[units[1]]
-		if unit and unit.isPlane then
-			for i, unitID in ipairs(units) do
-				if not spGetUnitCurrentCommand(unitID) then
-					local x, y, z = spGetUnitPosition(unitID)
-					spGiveOrderToUnit(unitID, CMD.MOVE, {x, y, z}, CMD.OPT_RIGHT)
+		local newState = impulseState == '1' and 0 or 1
+		Spring.GiveOrder(CMD_PUSH_PULL, {newState, 0}, 0)
+		sh.extra = newState == 1 and ' ON' or ' OFF'
+		return true
+	end,
+
+	FlyIdleMode = function()
+		local cmdDescs = Spring.GetActiveCmdDescs()
+		if not cmdDescs then
+			return
+		end
+		local cmdIdx = Spring.GetCmdDescIndex(CMD.IDLEMODE)
+		if not  cmdIdx then
+			return
+		end
+		local flyState = cmdDescs[cmdIdx].params[1]
+
+		local newState = flyState == '1' and 0 or 1
+		sh.extra = newState == 1 and ' OFF' or ' ON'
+		Spring.GiveOrder(CMD.IDLEMODE, {newState, 0}, 0)
+		for defID, units in pairs(Spring.GetSelectedUnitsSorted()) do
+			local unit = Units[units[1]]
+			if unit and unit.isPlane then
+				for i, unitID in ipairs(units) do
+					if not spGetUnitCurrentCommand(unitID) then
+						local x, y, z = spGetUnitPosition(unitID)
+						spGiveOrderToUnit(unitID, CMD.MOVE, {x, y, z}, CMD.OPT_RIGHT)
+					end
 				end
 			end
 		end
-	end
-	return true
-end
+		return true
+	end,
+}
 
 local HKCombos = {length = 0, byName = {}}
 	---------------------------------------------------------------
@@ -1918,7 +1937,7 @@ local hotkeysCombos = {
 		on_press = true,
 		force = true,
 		hasStructure = true,
-		OnSuccessFunc = SwitchImpulse,
+		OnSuccessFunc = Switch.Impulse,
 		call_on_fail = "Switch Fly State",
 		anyBP = true,
 	}, 
@@ -1930,7 +1949,19 @@ local hotkeysCombos = {
 		no_select = true,
 		on_press = true,
 		force = true,
-		OnSuccessFunc = SwitchFlyIdleMode, 
+		OnSuccessFunc = Switch.FlyIdleMode, 
+		call_on_fail = "Switch Kill Captured",
+		anyBP = true,
+	}, 
+
+	{
+		name = 'Switch Kill Captured', -- 
+		method = 'on_selection',
+		defs = {},
+		no_select = true,
+		on_press = true,
+		force = true,
+		OnSuccessFunc = Switch.KillCaptured, 
 		anyBP = true,
 	}, 
 
