@@ -1,7 +1,7 @@
 function widget:GetInfo()
 	return {
 	name      = "EzTarget",
-	desc      = "When zoomed out, help you targetting while using right click",
+	desc      = "When zoomed out, help you targetting while using right click and much more",
 	author    = "Helwor",
 	date      = "8 Sept 2022",
 	license   = "GNU GPL, v2 or later",
@@ -2174,7 +2174,7 @@ Execute = function(mx, my) -- execute a single target cmd if CF2 didnt take over
 			spGiveOrder(v.defaultCmd, pos, opts.coded)
 			return true
 		end
-	elseif v.defaultCmd == CMD_REPAIR then
+	elseif v.defaultCmd == CMD_REPAIR and not v.moddedCmd then
 		local type, id = spTraceScreenRay(mx, my, false, true, true, false)
 		if not id or type ~= 'unit' then
 			return
