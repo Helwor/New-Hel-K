@@ -233,11 +233,12 @@ local tooltip_emotes = {
 		if not found[1] then
 			t[#t+1] = self.no_emote
 		elseif not found[2] then
-			t[#t+1] = self.confirm
+			t[#t+1] = found[1] .. ' = ' .. emotes[ found[1] ]
+			t[#t+1] = 'only one found, ' .. (emotes[emote] and self.confirm or self.leave)
 		else
 			t[#t+1] = 'found ' .. all .. ' ' .. (emotes[emote] and self.confirm or self.leave)
-			for i, key in ipairs(found) do
-				t[#t+1] = key .. ' = ' .. emotes[key]
+			for i, name in ipairs(found) do
+				t[#t+1] = name .. ' = ' .. emotes[name]
 			end
 		end
 		self.text:SetText(table.concat(t, '\n')) 
@@ -1810,7 +1811,7 @@ function widget:TextInput(char)
 					tooltip_emotes:Reset()
 				end
 			elseif emote == true then
-				if char == ':' then -- user just
+				if char == ':' then -- user just want to write a fking colon
 					emote = false
 					tooltip_emotes:Reset()
 				elseif char == ' ' then
