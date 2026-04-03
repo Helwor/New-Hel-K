@@ -370,8 +370,8 @@ local function UpdateResources(controls, teamID)
 			-- Echo("team: "..teamID, "ePull: "..math.round(ePull), "eInc: "..math.round(eInc), "eExp: "..math.round(eExp), "eReci: "..math.round(eReci), "eShar: "..math.round(eShar), "exEPull: "..extraEnergyPull, "eOD: "..math.round(energyOverdrive), "eInc2: "..math.round(energyIncome), "eMisc: "..math.round(energyMisc), "eChange: "..math.round(energyChange))
 			-- Echo("mPull: "..math.round(mPull), "mInc: "..math.round(mInc), "mExp: "..math.round(mExp), "mReci: "..math.round(mReci), "mextraPull: "..math.round(extraMetalPull), "mMisc: "..math.round(metalMisc), "mBase: "..math.round(metalBase), "mOD: "..math.round(metalOverdrive))
 		-- end
-		controls.btnMetal:SetCaption(ColorResString(math.round(mInc + mReci), mCur, mMax - HIDDEN_STORAGE, 'metal'))
-		controls.btnEnergy:SetCaption(ColorResString(math.round(max(eInc, energyIncome)), eCur, eMax - HIDDEN_STORAGE, 'energy'))
+		controls.btnMetal:SetCaption(ColorResString(tonumber(math.round(mInc + mReci)), mCur, mMax - HIDDEN_STORAGE, 'metal'))
+		controls.btnEnergy:SetCaption(ColorResString(tonumber(math.round(max(eInc, energyIncome))), eCur, eMax - HIDDEN_STORAGE, 'energy'))
 		controls.mainControl:UpdateLayout()
 	end
 end
