@@ -7560,7 +7560,7 @@ function EchoTableCompare(t1, t2, indent, maxK, maxV)
 	return comp
 end
 
-function CreateDebug(Debug,widget,path)
+function CreateDebug(Debug, widget, path)
 	if not Debug then
 		Echo('DEBUG FOR '..widget:GetInfo().name.." HASN'T BEEN GIVEN !")
 		return {}
@@ -7823,10 +7823,10 @@ function CreateDebug(Debug,widget,path)
 					end
 				elseif not notboolkey[k] then
 					if on and Debug.active then
-						Echo('initialize '.. k .. ' as On')
+						-- Echo('initialize '.. k .. ' as On')
 						proxy[k] = proxy.Echo
 					else
-						Echo('initialize '.. k .. ' as Off')
+						-- Echo('initialize '.. k .. ' as Off')
 						proxy[k] = proxy.dummy
 					end
 				end
@@ -7856,7 +7856,7 @@ function CreateDebug(Debug,widget,path)
 		widget.options_order = widget.options_order or {}
 		widget.options = widget.options or {}
 		local setting =  proxy.GetSetting()
-		local orderIndex = {lbl_debug=0,reload=1,active=2,global=3}
+		local orderIndex = {lbl_debug = 0, reload = 1, active = 2, global = 3}
 		local sort = function(a,b)
 			if orderIndex[a] then
 				return not orderIndex[b] or orderIndex[a] < orderIndex[b]
