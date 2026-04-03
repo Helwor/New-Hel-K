@@ -7682,7 +7682,7 @@ function CreateDebug(Debug,widget,path)
 					proxy[opt_name] = proxy.dummy
 				end
 			elseif opt_name == 'active' then
-				local debugVarOpt = widget.options.debugVar
+				local debugVarOpt = widget.options.dbg_debugVar
 				if debugVarOpt and debugVarOpt.value  and not Debug.active then
 					debugVarOpt.value = false
 					debugVarOpt:OnChange()
@@ -7761,10 +7761,10 @@ function CreateDebug(Debug,widget,path)
 			if path then
 
 				-- widget have debugging in option panel
-				if widget.options[opt_name].type == 'bool' then
-					widget.options[opt_name].value = not widget.options[opt_name].value
+				if widget.options['dbg_' .. opt_name].type == 'bool' then
+					widget.options['dbg_' .. opt_name].value = not widget.options['dbg_' .. opt_name].value
 				end
-				widget.options[opt_name]:OnChange()
+				widget.options['dbg_' .. opt_name]:OnChange()
 				-- check if panel is open and refresh it
 				local panel,_,scrollY = proxy.GetPanel(path)
 				if panel then
@@ -7786,9 +7786,9 @@ function CreateDebug(Debug,widget,path)
 	end
 
 	-- Setup the initial function of each option
-	for k,on in pairs(Debug) do
+	for k, on in pairs(Debug) do
 		if not internalkey[k] then
-			if k=='debugVar' then
+			if k == 'debugVar' then
 				if not widget.debugVars then
 					Echo('widget.debugVars is not present in widget ' .. widget:GetInfo().name)
 				elseif on then
@@ -7823,10 +7823,10 @@ function CreateDebug(Debug,widget,path)
 					end
 				elseif not notboolkey[k] then
 					if on and Debug.active then
-						-- Echo('initialize '.. k .. ' as On')
+						Echo('initialize '.. k .. ' as On')
 						proxy[k] = proxy.Echo
 					else
-						-- Echo('initialize '.. k .. ' as Off')
+						Echo('initialize '.. k .. ' as Off')
 						proxy[k] = proxy.dummy
 					end
 				end
@@ -7864,13 +7864,13 @@ function CreateDebug(Debug,widget,path)
 		end    
 		local debugOrder = {}
 		local dbgChildren = {}
-		local dbgParent = {"active"}
+		local dbgParent = {"dbg_active"}
 		for k,v in pairs(setting) do
 			if not internalkey[k] then
 				if k=='debugVar' then
 
-					widget.options[k] = {
-						name = 'debugVar',
+					widget.options['dbg_' .. k] = {
+						name = 'dbg_debugVar',
 						type = 'bool',
 						value = v,
 						path = path,
@@ -7904,7 +7904,7 @@ function CreateDebug(Debug,widget,path)
 					}
 					table.insert(dbgChildren, k)
 				elseif k=='reload' then
-					widget.options[k] = {
+					widget.options['dbg_' .. k] = {
 						name = 'Reload Widget',
 						type = 'button',
 						value = v,
@@ -7917,7 +7917,7 @@ function CreateDebug(Debug,widget,path)
 						dev = true,
 					}
 				elseif not notboolkey[k] or k:lower()=='log' then
-					widget.options[k] = {
+					widget.options['dbg_'.. k] = {
 						name = 'debug ' .. k,
 						type = 'bool',
 						value = v,
@@ -7932,21 +7932,21 @@ function CreateDebug(Debug,widget,path)
 						dev = true,
 					}
 					if k == 'active' then
-						widget.options[k].desc = 'Allow specified debugging'
-						widget.options[k].children = dbgChildren
+						widget.options['dbg_'.. k].desc = 'Allow specified debugging'
+						widget.options['dbg_'.. k].children = dbgChildren
 					else
-						widget.options[k].parents = dbgParent
-						table.insert(dbgChildren, k)
+						widget.options['dbg_'.. k].parents = dbgParent
+						table.insert(dbgChildren, 'dbg_'.. k)
 					end
 				end
 				table.insert(debugOrder,k)
 			end
 		end
-		widget.options.lbl_debug = {name='Debug',type='label',path=path, dev = true}
+		widget.options.dbg_lbl_debug = {name='Debug',type='label',path=path, dev = true}
 		table.insert(debugOrder,1,'lbl_debug')
 		table.sort(debugOrder,sort)
 		for i,name in ipairs(debugOrder) do
-			table.insert(widget.options_order,name)
+			table.insert(widget.options_order, 'dbg_' .. name)
 		end
 
 	end
