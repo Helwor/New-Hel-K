@@ -9,7 +9,7 @@ function widget:GetInfo()
 		layer     = 10000,
 		enabled   = true,  --  loaded by default?
 		handler   = true,
-		-- api       = true,
+		api       = true,
 }
 end
 

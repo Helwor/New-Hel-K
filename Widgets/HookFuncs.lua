@@ -12,6 +12,7 @@ function widget:GetInfo()
         layer     = 4000, 
         enabled   = false,  --  loaded by default?
         handler   = true,
+        api       = true,
     }
 end
 VFS.Include("LuaUI\\Widgets\\Include\\prefab_window.lua")
