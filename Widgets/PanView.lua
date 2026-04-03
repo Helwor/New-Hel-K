@@ -1708,7 +1708,7 @@ function widget:Update(deltaTime)
 		tooltip:UpdateTime(deltaTime)
 	end
 	if not v.active then
-		if opt.debugVar.value then
+		if opt.dbg_debugVar.value then
 			CopyInto(spGetCameraState(),cs)
 		end
 		-- if checkForMeta then
