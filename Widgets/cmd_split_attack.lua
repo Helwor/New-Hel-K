@@ -217,7 +217,7 @@ options.unit_types = {
 -- CONFIG -- 
 local MAX_ELDER_TIME = 2 -- how long until we forget about old targets, if opt.removeOldest is, they can be cancelled first when split is maxed and shift is not held
 local REMOVE_TIMEOUT = 1.2 -- if opt.RemoveOnTimeOut on non shift order, we will not wait to have every units assigned a different target, we will just cancel all of them and start fresh
-local PING_LEEWAY = 0.02
+local PING_LEEWAY = 0.01
 local opt = {
 	-- which algrorythmn should we use to attach units to the differents targets
 	-- (setting all to true would be useless)
@@ -496,7 +496,7 @@ Register = function()
 	local targets_n = 0
 	local attackers_n = 0
 	local tid
-	local tx,ty,tz = unpack(nextTarget)
+	local tx, ty, tz = unpack(nextTarget)
 	local now = osclock()
 	local timed_out = now - time > REMOVE_TIMEOUT
 	local lookForStart = opt.removeOnTimeOut and timed_out
@@ -539,15 +539,18 @@ Register = function()
 	--
 	local acceptableCmd = acceptableCmd
 	if cmd == CMD_UNIT_SET_TARGET then
-		acceptableCmd = {[CMD_UNIT_SET_TARGET] = true}
+		acceptableCmd = {[CMD_UNIT_SET_TARGET] = true} -- bc it's not certain we can make it work correctly
 	end
-
+	local debug_global = Debug()
 	local inc = shift and -1 or 1
 	for i, attacker in ipairs(attackers) do
 		local id = attacker.id
 
 		local queue = virtualQueue[id]
 		local usingVirtualQueue = queue and queue.life and queue.life > now
+		if debug_global then
+			Echo("usingVirtualQueue is ", usingVirtualQueue, queue, queue and next(queue) and unpack(select(2, next(queue)).params), queue and #queue, 'recentMap', next(recentMap) and select(2, next(select(2, next(recentMap)))).id, table.size(recentMap), 'targetMap', next(map) and select(2, next(select(2, next(map)))).id, table.size(map))
+		end
 		if not queue or not usingVirtualQueue then
 			queue = spGetCommandQueue(id, -1) -- NOTE: when cheating we cannot get queue from a controlled enemy unit (or there might be a way I didnt find yet)
 			virtualQueue[id]  = queue
@@ -561,7 +564,7 @@ Register = function()
 				if timed_out then
 					queue = {}
 					-- Echo(id, os.clock(), 'queue empty')
-				else
+				elseif not usingVirtualQueue then
 					local target_type = spGetUnitRulesParam(id, "target_type")
 					if target_type == TARGET_UNIT then
 						local tgtID = spGetUnitRulesParam(id, "target_id") -- NOTE: there is still the last target id even if the targetting has been cancelled ! (should fix)
@@ -569,7 +572,9 @@ Register = function()
 							if shift then
 								table.insert(queue, {id = CMD_UNIT_SET_TARGET, params = {tgtID}})
 							else
-								-- Echo('unit '..id..' has target '..tgtID)
+								if debug_global then
+									Echo('unit '..id..' has rules params target '..tgtID)
+								end
 								queue = {{id = CMD_UNIT_SET_TARGET, params = {tgtID}}}
 							end    
 						end
@@ -595,7 +600,6 @@ Register = function()
 			-- in case of shift, the starting position (aka attacker[1]...attacker[3]) is the last order that got position
 			-- , if no shift, this is the unit itself
 
-
 			while order do
 				tid, tx, ty, tz = GetPosOrder(order)
 				-- Echo('attacker '..attacker.id,'order #'..queue_i..', cmd '..order.id,(tid and 'id: '..tid or 'no id'),'pos: '..'x'..round(tx or -1)..', '..'z'..round(tz or -1))
@@ -607,7 +611,7 @@ Register = function()
 					else
 						tx,tz = round(tx/16)*16, round(tz/16)*16
 					end
-					ty = spGetGroundHeight(tx,tz)
+					ty = spGetGroundHeight(tx, tz)
 					-- Echo("order #",queue_i ..'/'..(#queue),'cmd',order.id,'pos',tx,tz,'check', CheckTarget(tx,ty,tz,recentMap))
 					if CheckTarget(tx, ty, tz, recentMap) then
 						lookForStart, map = false, targets.map
@@ -632,10 +636,13 @@ Register = function()
 					if acceptableCmd[order.id] then
 						 
 						local target, new, existing = MapTarget(tx, ty, tz, tid, map, order.id)
-						-- Echo('map target normal',target and 'x'..target[1], target and 'z'..target[3], target and target.id, 'new', new, 'existing', existing)
+						if debug_global then
+							Echo(map == mapOthers and 'mapOthers' or map == targets.map and 'targetMap', 'normal', target and 'x'..target[1], target and 'z'..target[3], target and target.id, 'new', new, 'existing', existing, 'timed_out', timed_out)
+						end
 						-- if new then
 						--     Echo('NEW target',tx,tz)
 						-- end
+
 						if existing and not timed_out and cmd ~= CMD_UNIT_SET_TARGET then
 							Debug.cancel('clicked an already existing target on '..(lookForStart and 'another' or shift and 'last' or 'first')..' order.')
 							return true
@@ -749,7 +756,7 @@ DefineGroups = function () -- TODO: can probably improve algorythms,
 	local group = groups[1]
 	local group_i = 0
 	local current_group = 1
-	local off=0
+	local off = 0
 	for i = 1, attackers.n - remaining_att do
 		-- Echo((i+off)..' => ',current_group)
 		group_i = AddAttackerToGroup(attackers[i+off], group,group_i)
@@ -881,7 +888,7 @@ DistributeOrders = function()
 				debug = not debugGround or curGroundTarget or newGroundTarget
 			end
 
-			if cur_target~=target then -- attacker don't have the desired target (or nothing) as current
+			if cur_target ~= target then -- attacker don't have the desired target (or nothing) as current
 				-- local switch_to_attack = (not cur_target or cur_target.cmd==CMD_RAW_MOVE) and target.cmd==CMD_ATTACK
 
 				-- if switch_to_attack and bomberDefID[spGetUnitDefID(id)] and (spGetUnitRulesParam(id,'noammo')==1) then
@@ -948,7 +955,7 @@ end
 
 
 
-function widget:UnitCommand(id,defID,teamID,cmd,params)
+function widget:UnitCommand(id, defID, teamID, cmd, params)
 	if cmd == CMD_REMOVE and params[1] == -1 then -- hacky way to remove the last order
 		local rem = waitRemove[id]
 		if rem then
@@ -1034,6 +1041,13 @@ end
 
 CancelAttacks = function(cancel)
 	if cmd == CMD_UNIT_SET_TARGET then
+		-- local life = os.clock() + GetPing() + PING_LEEWAY
+		-- for _, id in ipairs(cancel.ids) do
+		-- 	Echo('cancel ' .. id)
+		-- 	local vQueue = {}
+		-- 	vQueue.life = life
+		-- 	virtualQueue[id] = vQueue
+		-- end
 		return
 	end
 	spGiveOrderArrayToUnitArray(cancel.ids, cancel.orders, true) -- true for 'pairwise' = 1 order per id
@@ -1082,9 +1096,9 @@ SendOrders = function(t)
 			-- for i,id in ipairs(ids) do
 			--     Echo('send order '..cmd..' to '..ids[i]..' at '..(type(target)=='number' and 'id: '..target or 'ground: x'..target[1]..', z'..target[3]) )
 			-- end
-			if cmd == CMD_ATTACK then
+			if cmd == CMD_ATTACK or cmd == CMD_UNIT_SET_TARGET then
 				local vOrder = {id = cmd, params = target}
-				for _,id in ipairs(ids) do
+				for _, id in ipairs(ids) do
 					local vQueue
 					if not shift then
 						vQueue = {}
@@ -1092,10 +1106,11 @@ SendOrders = function(t)
 					else
 						vQueue = virtualQueue[id]
 					end
-					vQueue.life = life
-					table.insert(vQueue,vOrder)
+					vQueue.life = life * (cmd == CMD_UNIT_SET_TARGET and 2 or 1)
+					table.insert(vQueue, vOrder)
 				end
 			end
+			Debug('give order attack', target[1], 'for', unpack(ids))
 			spGiveOrderToUnitArray(ids, cmd, target, target[3] and CMD.OPT_CTRL or 0)
 		end
 	end
@@ -1133,7 +1148,7 @@ AdjustTargets = function()
 	end
 	RemoveTarget(toRemove, i or 2) 
 end
-AddAttackerToGroup = function(attacker,group,group_i)
+AddAttackerToGroup = function(attacker, group, group_i)
 	group_i = group_i + 1
 	group[group_i] = attacker
 	local ax, ay, az = unpack(attacker)
