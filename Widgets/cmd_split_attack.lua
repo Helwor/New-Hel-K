@@ -376,14 +376,13 @@ function widget:CommandNotify(cmdID,params,opts)
 	if (cmdID ~= CMD_ATTACK and cmdID ~= CMD_RAW_MOVE and cmdID ~= CMD_UNIT_SET_TARGET) then
 		return
 	end
-
-	if not (mods.alt or mods.shift and cmdID == CMD_UNIT_SET_TARGET) then
+	if not mods.alt then
 		-- we count the time for opt.removeOnTimeOut --// or NOT?
 		-- time=os.clock()
 		-- Echo("time is ", time)
-
 		return
 	end
+
 	if memcomname then -- keep the active command after release of mouse and until the release of alt
 		if spGetActiveCommand() == 0 then
 			spSetActiveCommand(memcomname)
