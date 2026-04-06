@@ -247,11 +247,11 @@ local optsread = function(options)
 end
 
 local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinished)
-    local curC=unit.isFactory and spGetFactoryCommands(id,1)[1] or spGetUnitCommands(id,1)[1]
+    local curC = unit.isFactory and spGetFactoryCommands(id,1)[1] or spGetUnitCommands(id,1)[1]
 
     local cmd, tag
     if curC then
-        cmd,tag  = curC.id, curC.tag
+        cmd, tag  = curC.id, curC.tag
     end
     if cmd and cmd<0 then
         
@@ -264,7 +264,7 @@ local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinis
         local oldParams = unit.params
         if not changed and curC.params and oldParams then
             for i,p in ipairs(curC.params) do
-                if p~=oldParams[i] then
+                if p ~= oldParams[i] then
                     changed = true
                     -- Echo('command has changed, params '..i..': '..p..', differs from previous param ('..oldParams[i]..')')
                     break
@@ -374,6 +374,9 @@ local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinis
         local relevantCmd = realcmd or cmd
         local relevantTag = realtag or tag
         if unit.expectedCmd==CMD_FIGHT then
+            if false and unit.name == 'cloakcon' then
+                Echo('SET TRUE 377', CMD_FIGHT)
+            end
             unit.isFighting = true
             if relevantCmd~=CMD_FIGHT then
                 -- Echo('set engine tag',relevantTag,'relevantCmd',relevantCmd,'cmd',cmd,'tag',tag,'realcmd',realcmd,'realtag',realtag)
@@ -383,12 +386,18 @@ local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinis
         -- Echo("fromCmdDone", fromCmdDone,'cmd',cmd,'tag',tag,'relevantCmd',relevantCmd,'relevantTag',relevantTag,'expected:',unit.expectedCmd)
         if fromCmdDone then
             if relevantCmd == CMD_FIGHT then
+                if false and unit.name == 'cloakcon' then
+                    Echo('SET TRUE 386', 'cmd', cmd)
+                end
                 unit.isFighting = true
                 unit.manual = false
                 -- Echo('relevant cmd is fight')
-            elseif engineTag[relevantTag] then
+            elseif engineTag[relevantTag] == CMD_FIGHT then
                 -- Echo('detected engine tag: ' .. relevantTag .. ', cmd => ' .. engineTag[relevantTag] .. ', unit is fighting')
                 unit.isFighting = true
+                if false and unit.name == 'cloakcon' then
+                    Echo('SET TRUE 393')
+                end
                 unit.manual = false
             else
                 if unit.expectedCmd and unit.expectedCmd~=CMD_FIGHT then
@@ -419,6 +428,7 @@ local function UpdateUnitCommand(unit,id,fromCmdDone,fromLua,ifChanged,justFinis
     end
     return true
 end
+
 local function SetTrackedUnit(id, justFinished, forDebug)
 
     if forDebug and trackedUnits[id] then
@@ -431,6 +441,7 @@ local function SetTrackedUnit(id, justFinished, forDebug)
     if not unit then
         return false
     end
+
     unit.forDebug = forDebug
     unit.isIdle = false
     unit.tracked = true
@@ -521,8 +532,27 @@ end
 -- those Insertions APPEARS WHILE GAME IS NOT PAUSED
 -- /// not anymore, the notification now report the area command /// NOTE: when some area commands (listed in areaCmd) are ordered while game is paused, the command will not be changed immediately at unpause, a few moment pass before
 -- NOTE: AREA UNLOAD_UNIT bug, while PAUSED then ordering, the order doesn't show up in the order queue, and will not be removed if another AREA UNLOAD_UNIS is issued, instead it will be added up
--- local ids = {22263,5593,5602}
-function widget:Update()
+
+local showqueue = {}
+local ttime = 0
+function widget:Update(dt)
+    ttime = ttime + dt
+    if ttime > 3 then
+        ttime = 0
+        for id, count in pairs(showqueue) do
+            count = count - 1
+            if count == 0 then
+                showqueue[id] = nil
+            else
+                local queue = spGetCommandQueue(id, -1)
+                Echo('queue of ' .. id, #queue)
+                for i, order in ipairs(queue) do
+                    Echo(i, order.id, table.tostring(order.options))
+                end
+            end
+        end
+    end
+    lagFactor = dt * 20
     page = page + 1
     -- local id = ids[2]
     -- local queueCount = Spring.GetCommandQueue(id,0)
@@ -574,10 +604,10 @@ function widget:Update()
 
     if next(confirm) then
         -- Echo('confirming order in Update',os.clock())
-        for id,fromLua in pairs(confirm) do
+        for id, fromLua in pairs(confirm) do
             local unit = trackedUnits[id]
             if unit then
-                UpdateUnitCommand(unit,id,nil,fromLua)
+                UpdateUnitCommand(unit, id, nil, fromLua)
             end
             checkCommands[id] = nil
             confirm[id] = nil
@@ -613,7 +643,7 @@ function widget:GameFrame(gf)
         for id,fromLua in pairs(confirm) do
             local unit = trackedUnits[id]
             if unit then
-                UpdateUnitCommand(unit,id,nil,fromLua)
+                UpdateUnitCommand(unit, id, nil, fromLua)
             end
             checkCommands[id] = nil
             confirm[id] = nil
@@ -646,7 +676,7 @@ function widget:GameFrame(gf)
             if not unit then
                 UpdateUnpause[id] = nil
             else
-                local changed = UpdateUnitCommand(unit,id,nil,fromLua,true)
+                local changed = UpdateUnitCommand(unit, id, nil, fromLua, true)
                 if changed then
                     UpdateUnpause[id] = nil
                 end
@@ -691,7 +721,7 @@ function widget:UnitIdle(id)
         return
     end
     if unit.waitManual then
-        if os.clock() - unit.waitManual > 0.8 then
+        if os.clock() - unit.waitManual > 0.3 + lagFactor then
             unit.waitManual = false
         else
             -- Echo('WAIT MAN',os.clock())
@@ -888,6 +918,9 @@ function widget:UnitCmdDone(id, defID, team, cmd, params,opts,tag)
     --     Echo('no current cmd')
     -- end
     if unit.isFighting then
+        if cmd == CMD_FIGHT and false and unit.name == 'cloakcon' then
+            Echo('DONE FIGHT', curcmd and f.cmdNames[curcmd],opt,curtag,p1,p2,p3,p4)
+        end
         if cmd==CMD_FIGHT and not p4 and curcmd~=CMD_FIGHT then
             -- Echo('fighting is over')
             unit.isFighting = false
@@ -897,6 +930,9 @@ function widget:UnitCmdDone(id, defID, team, cmd, params,opts,tag)
                 unit.expectedCmd = false
             end
         elseif not unit.expectedCmd then
+            if false and unit.name == 'cloakcon' then
+                Echo('Expect 930')
+            end
             unit.expectedCmd = CMD_FIGHT
         else
             -- in case an insertion happen and we're leaving an order that never got notified while fighting
@@ -992,7 +1028,7 @@ function widget:UnitCommand(id, defID, teamID, cmd, params, opts, playerID,  tag
     count = count+1
     if unit.waitManual  then
         -- Echo("unit.waitCmd==cmd, table.compare(unit.waitParams,params) is ", unit.waitCmd==cmd, table.compare(unit.waitParams,params))
-        if os.clock() - unit.waitManual > 0.8 then
+        if os.clock() - unit.waitManual > 0.3 + lagFactor then
             unit.waitManual, unit.waitCmd, unit.waitParams = false, false, false
         end
     end
@@ -1173,25 +1209,43 @@ function widget:UnitCommand(id, defID, teamID, cmd, params, opts, playerID,  tag
     end
     -- Echo(cmd,"fromLua is ", fromLua)
     if fromLua then
-        queue = queue or spGetCommandQueue(id,2)
-        if queue[2] and queue[2].id == CMD_FIGHT then
-            unit.isFighting = true
-        end
+        -- queue = queue or spGetCommandQueue(id, 3)
+        -- if queue[2] and queue[2].id == CMD_FIGHT then
+        --     if false and false and unit.name == 'cloakcon' then
+        --         Echo(f.cmdNames[queue[1].id],queue[3] and f.cmdNames[queue[3]].id, 'SET TRUE 1211', queue[2].options, type(queue[2].options) == 'table' and table.tostring(queue[2].options))
+        --         if not DONE then
+        --             showqueue[unit.id] = 2
+        --             DONE = true
+        --         end
+        --     end
+        --     unit.isFighting = true
+        -- end
         -- Echo('cmd from lua',cmd,unit.isFighting)
         -- unit.actualCmd = unit.expectedCmd
-    elseif cmd == CMD_LEVEL and (unit.lastOrderTime and unit.expectedCmd) and unit.expectedCmd<0 and time-(unit.lastOrderTime)<0.1  then
+    elseif cmd == CMD_LEVEL and (unit.lastOrderTime and unit.expectedCmd) and unit.expectedCmd<0 and time-(unit.lastOrderTime)<0.3 + lagFactor  then
         --
     else
-        if cmd~=CMD_FIGHT then
-            -- this order is not from engine while fighting
+        if place == 0 then
+            if cmd ~= CMD_FIGHT then
+                -- this order is not from engine while fighting
+                unit.isFighting = false
+            end
+
+            unit.expectedCmd = cmd
+            if cmd == CMD_FIGHT and false and unit.name == 'cloakcon' then
+                Echo('SET EXP 1227')
+            end
+            unit.expectedParams = params
+            unit.actualCmd = false
+            unit.realcmd = false
+            unit.realparams = false
+        end
+    end
+    if unit.isFighting then
+        -- Echo('UNIT FIGHTING AND FROM LUA', not isShiftOrder and cmd ~= 1)
+        if not isShiftOrder and cmd ~= 1 then
             unit.isFighting = false
         end
-
-        unit.expectedCmd = cmd
-        unit.expectedParams = params
-        unit.actualCmd = false
-        unit.realcmd = false
-        unit.realparams = false
     end
 
     unit.lastOrderTime = time
