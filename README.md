@@ -4,9 +4,7 @@ QUICK GUIDE
 
 You can either directly copy paste all the files in your InstallDir/LuaUI or put only Hel-k_Update.bat in it and run the .bat
 
-If you only use my widgets, you can uncomment the check for removal in the .bat, so if files are moved/deleted from 
-
-the repo, they will also be deleted (actually renamed) when you use the .bat
+To stay up to date, use the script at all time, to make life easier. I update the repo very often.
 
 The script keep a copy of all the files it modifies, renaming them with .backup1 or .removed
 
