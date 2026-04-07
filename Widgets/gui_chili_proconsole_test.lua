@@ -2333,7 +2333,8 @@ function widget:Update(s)
 			-- if stack == stack_console then
 			--  scrollpanel_console:UpdateClientArea()
 			-- else
-				stack:UpdateClientArea()
+				-- stack:UpdateClientArea()
+				stack.parent:UpdateLayout()
 			-- end
 			requestUpdate[stack] = nil
 		end
