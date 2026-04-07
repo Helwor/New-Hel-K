@@ -272,6 +272,7 @@ local function DrawWorldFunc()
   if (not island) or options.drawForIslands.value then
       gl.DepthTest(GL.LESS)
       gl.CallList(dListWall)
+      gl.DepthTest(GL.LEQUAL)
       gl.DepthTest(false)
   end
 end
