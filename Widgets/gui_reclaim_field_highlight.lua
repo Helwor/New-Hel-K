@@ -1243,7 +1243,7 @@ local function CreateAtlas()
 				hull.u1, hull.u2, hull.v1, hull.v2 = glGetAtlasTexture(atlas, hull.tex)
 			end
 			n_tex = n_tex - in_tex
-			Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
+			-- Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
 		else
 			areaNeeded = areaNeeded * 1.20
 		end
