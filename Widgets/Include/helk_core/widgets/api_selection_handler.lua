@@ -13,6 +13,8 @@ function widget:GetInfo()
 	alwaysStart = true,
   }
 end
+-- BUG if morphing has never been used without cheats-> quick build
+-- the MorphFinished function never get triggered, and therefore mySelection.hasDgunCom will not be correct
 local Echo = Spring.Echo
 
 
