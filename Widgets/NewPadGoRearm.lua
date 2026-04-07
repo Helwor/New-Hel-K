@@ -1,4 +1,3 @@
--- obsolete it has been fixed ingame
 function widget:GetInfo()
 	return {
 		name = "Go Rearm On New Pad",
