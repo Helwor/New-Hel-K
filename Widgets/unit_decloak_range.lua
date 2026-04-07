@@ -47,6 +47,7 @@ local myPlayerID, myTeamID
 local merged, useSphere		= true, false -- defaults
 
 options_path = 'Settings/Interface/Defence and Cloak Ranges'
+helk_path = 'Hel-K/' .. widget:GetInfo().name
 options_order = {
 	"label",
 	"drawranges",
@@ -82,10 +83,10 @@ options = {
 		desc = "Use sphere instead of circle on ground (real decloak range is spherical)",
 		type = 'bool',
 		value = useSphere,
-		path = 'Hel-K/' ..widget.GetInfo().name,
 		OnChange = function(self)
 			useSphere = self.value
 		end,
+		path = helk_path,
 	},
 }
 
