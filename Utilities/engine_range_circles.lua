@@ -19,6 +19,7 @@ local spfactor = 0.7071067 -- projectileSpeed factor
 local SetCannonParams, SetRange2DWeapon, GetRange2DCannon, GetRange2DWeapon
 do
 
+	local smoothHeight = 100.0
 	local range, speed2d, speed2dSq, gravity, heightBoostFactor, rangeFactor
 	function SetRange2DWeapon(_range)
 		range = _range
@@ -43,7 +44,6 @@ do
 		end
 	end
 	function GetRange2DCannon(yDiff)
-		local smoothHeight = 100.0
 
 		if yDiff < -smoothHeight then
 			yDiff = yDiff * heightBoostFactor
@@ -119,7 +119,7 @@ local function CalcBallisticCircle( x, y, z, range, wDef)
 	end
 
 	local divs, steps --  = 40, 49
-	divs = clamp(floor((range^0.5 * 1.5) / 30) * 30, 30, 200)
+	divs = clamp(floor((range^0.5 * 2) / 30) * 30, 30, 200)
 	steps = clamp(modf(range^0.5 * 2), 20, 30)
 
 	local sins, coss = GetSinCosTables(divs)
