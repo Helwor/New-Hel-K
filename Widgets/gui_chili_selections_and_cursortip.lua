@@ -2719,7 +2719,7 @@ local function UpdateTooltipContent(mx, my, dt, requiredOnly)
 	-- end
 
 
-	-- if (WG.Chili and WG.Chili.Screen0:IsAbove(mx,my)) then
+	-- if (WG.Chili and WG.Chili.Screen0.hoveredControl) then
 	if screen0.hoveredControl then
 		-- darken opacity for readability
 		if tooltipWindow.window.color[4] < 0.9 then
@@ -2728,6 +2728,7 @@ local function UpdateTooltipContent(mx, my, dt, requiredOnly)
 		if not options.tooltipThroughPanels.value then
 			return true
 		end
+		return false
 	else
 		tooltipWindow.UnsetTemporaryOpacity()
 	end
