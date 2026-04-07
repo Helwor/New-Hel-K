@@ -142,7 +142,7 @@ do -- WIP
 		if err:find('duplicate name') then
 			status = 'duplicate name'
 			if newwidget and newwidget.whInfo.basename == filename then
-				status = status .. ' of widget ' .. newwidget.GetInfo().name
+				status = status .. ' of widget ' .. (newwidget.GetInfo and newwidget.GetInfo().name or filename)
 				t.widget = newwidget
 			end
 		end
