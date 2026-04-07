@@ -181,8 +181,75 @@ do
         glPopMatrix()
     end
 end
+-- TODO OPTIMIZE THE 3 NEXT
+function gl.Utilities.Circle3DVertical(radius, cx, cy, cz, nx, nz, segments)
+    local length = math.sqrt(nx*nx + nz*nz)
+    if length == 0 then return end  -- Éviter division par zéro
+    
+    local v1x = -nz / length
+    local v1z = nx / length
 
+    gl.BeginEnd(GL.LINE_STRIP, function()
+        for i = 0, segments do
+            local angle = 2 * math.pi * i / segments
+            local cosA = math.cos(angle)
+            local sinA = math.sin(angle)
+            
+            local x = cx + radius * (cosA * v1x)
+            local y = cy + radius * (sinA)
+            local z = cz + radius * (cosA * v1z)
+            
+            glVertex(x, y, z)
+        end
+    end)
+end
 
+function gl.Utilities.Circle3D(radius, cx, cy, cz, nx, ny, nz, segments)
+    local length = math.sqrt(nx*nx + ny*ny + nz*nz)
+    if length == 0 then return end
+    
+    nx = nx / length
+    ny = ny / length
+    nz = nz / length
+    
+    -- Vecteur arbitraire perpendiculaire
+    local v1x, v1y, v1z
+    if math.abs(nx) < 0.1 then
+        v1x, v1y, v1z = 1, 0, 0
+    else
+        v1x, v1y, v1z = -ny, nx, 0
+    end
+    
+    -- Normaliser v1
+    local len1 = math.sqrt(v1x*v1x + v1y*v1y + v1z*v1z)
+    v1x, v1y, v1z = v1x/len1, v1y/len1, v1z/len1
+    
+    -- v2 = normale × v1
+    local v2x = ny*v1z - nz*v1y
+    local v2y = nz*v1x - nx*v1z
+    local v2z = nx*v1y - ny*v1x
+    
+    gl.BeginEnd(GL.LINE_STRIP, function()
+        for i = 0, segments do
+            local angle = 2 * math.pi * i / segments
+            local cosA = math.cos(angle)
+            local sinA = math.sin(angle)
+            
+            glVertex(
+                cx + radius * (cosA * v1x + sinA * v2x),
+                cy + radius * (cosA * v1y + sinA * v2y),
+                cz + radius * (cosA * v1z + sinA * v2z)
+            )
+        end
+    end)
+end
+
+function gl.Utilities.GetNormal2D(dx, dz)
+    local length = math.diag(dx, dz)
+    if length > 0 then
+        return -dz/length, dx/length  -- Perpendiculaire
+    end
+end
 --------------------------------------------------
 -- some gl gets and debugging
 
