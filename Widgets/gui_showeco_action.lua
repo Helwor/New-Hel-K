@@ -309,6 +309,7 @@ local function makePylonListVolume(onlyActive, onlyDisabled)
 	end
 	-- Keep clean for everyone after us
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+	glColor(1,1,1,1)
 end
 
 
