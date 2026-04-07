@@ -444,7 +444,7 @@ local function DrawVisibleUnits(overrideEngineDraw, perUnitStencil)
 			Echo('PROBLEM in Outline no shader, no unit for',id,name, humanName,'is valid?',spValidUnitID(id))
 		elseif not unit.isCloaked then
 			if checknow  --[[and (supercheap and i<100 or not supercheap)--]] then
-				local unitProgress = Units[id].health[5]
+				local unitProgress = unit.health[5]
 				if unitProgress == nil or unitProgress >= 0.67 then -- when the nano frame is filled up
 					unbuiltUnits[id] = nil
 				else
@@ -480,8 +480,7 @@ local function DrawVisibleUnits(overrideEngineDraw, perUnitStencil)
 					-- local _,_,_,x,y,z = Spring.GetUnitPosition(id,true)
 					-- gl.Translate(1,1,1)
 				-- gl.PolygonOffset(8.0, 4.0)
-				
-				glUnit(id, true) -- this is quite expensive, but didnt find any workaround yet (good outline shader would be better)
+				gl.Unit(id, true)
 					-- gl.UnitShape(Spring.GetUnitDefID(id), Spring.GetMyTeamID(),false)
 				-- gl.PopMatrix()
 				if perUnitStencil then
