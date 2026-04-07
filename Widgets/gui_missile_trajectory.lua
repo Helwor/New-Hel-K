@@ -17,6 +17,8 @@ local orange    = {1,1,0,1}
 local purple    = {1,0,1,1}
 local rose_grey = {0.65, 0.45, 0.45, 1}
 
+local selectionDefID
+
 local moddedImpact
 WG.moddedMissileImpact = {}
 -- valid units for widget
@@ -30,7 +32,7 @@ local missileDefs = { -- FIXME values are arbitrary, I didnt find the real ones,
 	[UnitDefNames["shipcarrier"].id]        = { turnStart = 720,  turnRad = 260, cmd = CMD.MANUALFIRE,  color = rose_grey, piece = 'Launcher' },
 	[UnitDefNames["staticnuke"].id]         = { turnStart = 8000, turnRad = 450, cmd = CMD.ATTACK,      color = red,       },
 }
-missileDefs["staticmissilesilo"]  = {
+missileDefs[UnitDefNames["staticmissilesilo"].id]  = {
 	meta = {
 		[UnitDefNames["tacnuke"].id]        = missileDefs[UnitDefNames["tacnuke"].id],
 		[UnitDefNames["empmissile"].id]     = missileDefs[UnitDefNames["empmissile"].id],
@@ -38,6 +40,14 @@ missileDefs["staticmissilesilo"]  = {
 	},
 	cmd = CMD.ATTACK,
 	colorAlpha = 0.3,
+}
+local siloDefID = UnitDefNames["staticmissilesilo"].id
+local statMissileDefs = {
+	[UnitDefNames["tacnuke"].id] = true,
+	[UnitDefNames["empmissile"].id] = true,
+	[UnitDefNames["missileslow"].id] = true,
+	[UnitDefNames["napalmmissile"].id] = true,
+	[UnitDefNames["seismic"].id] = true,
 }
 
 local selectionChanged = false
@@ -84,7 +94,7 @@ local function DrawStraightToGround(x, y, z, goalx, goaly, goalz, alreadyFoundGr
 		else
 			x, y, z = x + stepx, y + stepy, z + stepz
 		end
-		if spGetGroundHeight(x, z) > y-10 then -- arbitrary -10 to consider width of the missile
+		if spGetGroundHeight(x, z) > y-10 then -- arbitrary -10 to consider width of the missile (hax)
 			if alreadyFoundGround then
 				return x, y, z -- give the final more precise position where the trajectory enter ground
 			else
@@ -201,18 +211,28 @@ end
 function widget:SelectionChanged()
 	selectionChanged = true
 end
-
 function widget:CommandsChanged()
 	if selectionChanged then
 		selectionChanged = false
-		local selDefID = WG.selectionDefID or spGetSelectedUnitsSorted()
+		local selDefID = selectionDefID or spGetSelectedUnitsSorted()
 		allowedCmd = {}
 		selectedRockets = {}
+		local ignoreSilo = false
+		if selDefID[siloDefID] then
+			for defID in pairs(statMissileDefs) do
+				if selDefID[defID] then
+					ignoreSilo = true
+					break
+				end
+			end
+		end
 		for defID, units in pairs(selDefID) do
 			local def = missileDefs[defID]
 			if def then
-				allowedCmd[def.cmd] = true
-				selectedRockets[defID] = units
+				if defID ~= siloDefID or not ignoreSilo then
+					allowedCmd[def.cmd] = true
+					selectedRockets[defID] = units
+				end
 			end
 		end
 	end
@@ -222,17 +242,18 @@ function widget:DrawWorld()
 	if not next(selectedRockets) then
 		return
 	end
-	-- while attacking
+
 	local _, activeCmd = spGetActiveCommand()
 	if not allowedCmd[activeCmd] then
 		return
 	end
 
 	local mx, my = spGetMouseState()
-	local desc, targetPos = spTraceScreenRay(mx, my, true)
+	local desc, targetPos = spTraceScreenRay(mx, my, true, true, false, true)
 	if not targetPos then
 		return
 	end
+	targetPos[2] = math.max(targetPos[2], 0)
 	glLineStipple("")
 	glDepthTest(GL.LEQUAL)
 	glDepthTest(true)
@@ -274,6 +295,18 @@ function widget:DrawWorld()
 	glColor(1,1,1,1)
 end
 
+function WidgetInitNotify(w, name)
+	if name == "API Selection Handler" then
+		selectionDefID = WG.selectionDefID
+	end
+end
+
+function WidgetRemoveNotify(w, name)
+	if name == "API Selection Handler" then
+		selectionDefID = nil
+	end
+end
+
 function widget:Initialize()
 	if not next(missileDefs) then
 		Echo('['..widget:GetInfo().name..']: ' .. ' Game doesn\'t have any rocket covered by the widget, shutting down.')
@@ -281,6 +314,7 @@ function widget:Initialize()
 		return
 	end
 	selectionChanged = true
+	selectionDefID = WG.selectionDefID
 	widget:CommandsChanged()
 end
 
