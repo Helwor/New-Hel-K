@@ -216,7 +216,7 @@ end
 ----------------------------------
 -- Global Vars
 local TRY_NEWLASSO = true -- working well
-local TRY_LASSORAMP = true -- WIP space each points enough
+local TRY_LASSORAMP = false -- WIP space each points enough
 local placingRectangle = false
 local drawingLasso = false
 local drawingRectangle = false
@@ -1490,7 +1490,8 @@ local function CheckPlacingRectangle(self)
 		buildToGive.needGameFrame = false
 	end
 end
-
+local snapped = false
+local presetOverride = false
 function widget:Update(dt)
 	if buildingPress and buildingPress.frame then
 		buildingPress.frame = buildingPress.frame - dt
@@ -1518,19 +1519,39 @@ function widget:Update(dt)
 					mouseX = mx
 					mouseY = my
 				end
+				presetOverride = false
 			elseif a then
 				ResetMouse()
-				storedHeight = storedHeight + (my-mouseY)*mouseSensitivity
-				local heightArray = {
-					-2,
-					orHeight,
-					-23,
-				}
-				terraformHeight = heightArray[snapToHeight(heightArray,storedHeight,3)]
+				if snapped then
+					snapped = snapped - 1
+					if snapped == 0 then
+						snapped = false
+					end
+				else
+					storedHeight = storedHeight + (my-mouseY)*mouseSensitivity*2
+					local heightArray = {
+						orHeight + 80,
+						orHeight + 50,
+						orHeight + 22,
+						orHeight + 10,
+						orHeight - 10,
+						orHeight - 22,
+						orHeight - 50,
+						orHeight,
+						-2,
+						-23,
+					}
+					local newTerraformHeight = heightArray[snapToHeight(heightArray,storedHeight,10)]
+					if terraformHeight ~= newTerraformHeight then
+						terraformHeight = newTerraformHeight
+						snapped = 20
+					end
+				end
 			else
 				ResetMouse()
 				terraformHeight = terraformHeight + (my-mouseY)*mouseSensitivity
 				storedHeight = terraformHeight
+				presetOverride = false
 			end
 			if (volumeDraw) then
 				gl.DeleteList(volumeDraw); volumeDraw=nil
@@ -1668,7 +1689,9 @@ function widget:MouseRelease(mx, my, button)
 			-- local _, pos = spTraceScreenRay(mx, my, true, false, false, true)
 
 			AddLassoPos(mx, my)
-	
+			-- if (terraform_type == 1) then
+			-- 	Echo('terraformHeight?', terraformHeight)
+			-- end
 			if (not presetTerraHeight) and (terraform_type == 1 or terraform_type == 2) then
 				setHeight = true
 				if drawingLasso then
@@ -1708,6 +1731,7 @@ function widget:MouseRelease(mx, my, button)
 					mouseGridDraw = glCreateList(glBeginEnd, GL_LINES, mouseGridRaise)
 				end
 			elseif terraform_type == 3 or terraform_type == 5 or terraform_type == 6 or (presetTerraHeight and (terraform_type == 1 or terraform_type == 2)) then
+
 			
 				local disSQ = (point[1].x-point[points].x)^2 + (point[1].z-point[points].z)^2
 			
