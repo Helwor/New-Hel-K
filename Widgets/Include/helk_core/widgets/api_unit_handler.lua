@@ -615,9 +615,6 @@ local function UpdateAll(fullview)
 
 		-- if changedSide or oldview~=fullview then
 			for id, unit in pairs(Units) do
-				if id == 888 then
-					Echo('discovered:', structureDiscovered[id])
-				end
 				-- updating our detected units
 				if spGetUnitIsDead(id) then -- can happen often
 					--Echo('detected just dead unit',id,' while switching side!')
