@@ -9,9 +9,12 @@ function widget:GetInfo()
 		date      = "2019",
 		license   = "GNU GPL, v2 or later",
 		layer     = 999, -- after PBH
-		enabled   = true,
+		enabled   = true, -- disabled by default until I find why some user have huge lag with it (quiet error spam probably)
 	}
 end
+
+local firstTime = true
+
 -- April 2025
 	-- Finally fix alpha surrounding ground, there was many redundant lines drawn on top of each others
 	-- Improve pulling shader system
@@ -3466,6 +3469,7 @@ local function Execute()
 	--layers.buildMask = CreateBuildMask(bx, gy, bz, bw, bh)
 	--timecheck('pause')
 	--Echo("   is ", quality =='automatic' and inc == 8 and timecheck() > 0.25)
+
 	if DrawingList then glDeleteList(DrawingList) DrawingList = false end
 	if needTerra and (quality =='basic' or curcount > 1) then
 		DrawingList = glCreateList(DrawBasicSlope, slopes)
@@ -3508,9 +3512,20 @@ function widget:Update(dt)
 	if WG.DrawTerra.new or newcount then
 		newcount = false
 		WG.DrawTerra.working = true
+		local timer = firstTime and spGetTimer()
 		Execute()
+		if timer then
+			if spDiffTimers(spGetTimer(), timer) > 0.15 then
+				Echo(widget:GetInfo().name, 'This widget seems to cause too much lag, shutting down.')
+				Finish()
+				widgetHandler:RemoveWidget(widget)
+				return
+			end
+		end
+
 	elseif WG.DrawTerra.finish --[[and not bx--]] then
 		Finish()
+		firstTime = false
 	end
 
 end
@@ -3572,7 +3587,16 @@ function widget:DrawWorld()
 
 
 	if not DrawingList then return end
+	local timer = firstTime and spGetTimer()
 	glCallList(DrawingList)
+	if timer then
+		if spDiffTimers(spGetTimer(), timer) > 0.15 then
+			Echo(widget:GetInfo().name, 'This widget seems to cause too much lag, shutting down.')
+			Finish()
+			widgetHandler:RemoveWidget(widget)
+			return
+		end
+	end
 
 	if debugging then
 		-- glColor(1, 1, 0, 0.6)
@@ -3843,7 +3867,7 @@ function widget:Initialize()
 --Echo("PBH2 is ", widgetHandler:FindWidget("Persistent Build Height 2"))
    -- Echo("Spring.SetDrawBuild is ", Spring.SetDrawBuild)
 	if not widget:Requires({
-			value = {['WG.Cam'] = {'Requires -HasVienwChanged.lua'}}
+			value = {['WG.Cam'] = {'Requires api_has_view_changed.lua'}}
 	})
 	then
 		return
