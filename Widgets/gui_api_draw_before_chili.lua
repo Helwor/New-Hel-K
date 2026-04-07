@@ -37,3 +37,5 @@ end
 function widget:Shutdown()
     WG.DrawBeforeChili = nil
 end
+
+f.DebugWidget(widget)
