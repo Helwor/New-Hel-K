@@ -517,7 +517,7 @@ function FacUI:New(defID, params)
 	if defID then
 		obj.icon = "#" .. defID
 		obj.defID = defID
-		obj.pos = params
+		obj.pos = {unpack(params)}
 		obj.preOrders = {}
 		obj.preMoveOrders = {}
 		obj.attached = {}
