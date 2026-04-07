@@ -72,7 +72,6 @@ local function NewInstance(divs)
 end
 
 local GAME_GRAVITY = Game.gravity / (Game.gameSpeed^2)
-local spfactor = 0.7071067 -- projectileSpeed factor
 
 local function SetWeaponParams(wDef, range)
 	local wType, wName, heightMod = wDef.type, wDef.name, wDef.heightMod
