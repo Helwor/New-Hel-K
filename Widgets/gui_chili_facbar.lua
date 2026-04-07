@@ -511,15 +511,9 @@ end
 
 local facDefID, facDefIDArray = {}, {}
 for defID, def in pairs(UnitDefs) do
-	if def.isFactory  and def.buildOptions and not def.customParams.isfakefactory then
+	if def.buildOptions and (def.isFactory or def.customParams.child_of_factory) and not def.customParams.isfakefactory then
 		push(facDefIDArray, defID)
 		facDefID[defID] = true
-	else
-		local cp = def.customParams
-		if (cp.child_of_factory) and def.buildOptions then
-			push(facDefIDArray, defID)
-			facDefID[defID] = true
-		end
 	end
 end
 
@@ -2065,5 +2059,6 @@ function widget:Shutdown()
 		end
 	end
 end
-
-f.DebugWidget(widget)
+if f then
+	f.DebugWidget(widget)
+end
