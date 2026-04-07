@@ -1039,6 +1039,9 @@ function widget:MousePress(x, y, button)
 	-- 	Spring.SendCommands('minimap min 0')
 	-- 	suppressInteraction = false
 	-- end
+	if options.disableMinimap.value or window.hidden or cs.name == "ov" then
+		return
+	end
 	if openInteractionOnLClick and button == 1 then
 		Spring.SendCommands('minimap min 0')
 		suppressInteraction = false
