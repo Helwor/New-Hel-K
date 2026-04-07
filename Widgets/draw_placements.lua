@@ -4378,9 +4378,10 @@ local UpdateRail = function()
 end
 
 function ToggleDraw()
-	if PID then 
-		noDraw[PID] = not noDraw[PID]
+	if not PID then
+		return
 	end
+	noDraw[PID] = not noDraw[PID]
 	Drawing = not noDraw[PID]
 	-- WG.drawingPlacement=Drawing
 
