@@ -468,7 +468,7 @@ options.only_on_icons = {
 	name = 'Draw only on unit icons',
 	type = 'bool',
 	desc = "draw only when unit is an icon",
-	value = false,
+	value = onlyOnIcons,
 	OnChange = function(self)
 		onlyOnIcons = self.value
 	end,
@@ -994,7 +994,6 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
 		symbolStatus:Draw(mx, my, statusColor, alphaStatus)
 	end
 end
-
 local function DrawUnit(id, unit, blink, fovRatio)
 	local _,gy,_,x,y,z = unit:GetPos(1)
 	if x then
@@ -1229,7 +1228,6 @@ local GlobalDraw = function()
 		or debugChoice == 'inSight' and inSight
 		or onlyOnIcons and VisibleIcons
 		or Visibles
-
 	for id in pairs(problems) do
 		if Units[id] then
 			problems[id] = nil
