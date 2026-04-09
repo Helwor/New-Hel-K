@@ -1300,6 +1300,7 @@ local function DrawQuadsWithAtlas()
 	local atlas = atlasses[cur_atlas]
 	local max_index = atlas.num
 	local j = 0
+	glColor(1,1,1,1)
 	glTexture(0, atlas.obj)
 	for i = #featureConvexHulls, 1, -1 do
 		local hull = featureConvexHulls[i]
@@ -1323,7 +1324,6 @@ local function DrawQuadsWithAtlas()
 			glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
 		end
 		glRotate(-90, 1, 0, 0)
-		glColor(1,1,1,1)
 		glBeginEnd(GL.QUADS, function()
 			glTexCoord(u1, v1)
 			glVertex(0, 0, 0)
@@ -1356,6 +1356,7 @@ local function DrawQuadsWithAtlas()
 end
 
 local function DrawQuads()
+	glColor(1,1,1,1)
 	for i = 1, #featureConvexHulls do
 		local hull = featureConvexHulls[i]
 		local center = hull.center
