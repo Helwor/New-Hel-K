@@ -233,13 +233,15 @@ local commandMap = {
 	CMD_RAMP,
 	CMD_RESTORE
 }
+local BLOCK_VEH = 10
+local BLOCK_BOT = 22
 local blockingTip = {
-	[22] = 'Block Bots (raise)',
-	[10] = 'Block Vehicules (raise)',
-	[-10] = 'Block Vehicules (lower)',
-	[-22] = 'Block Bots (lower)',
+	[BLOCK_BOT] = 'Block Bots (raise)',
+	[BLOCK_VEH] = 'Block Vehicules (raise)',
+	[-BLOCK_VEH] = 'Block Vehicules (lower)',
+	[-BLOCK_BOT] = 'Block Bots (lower)',
 }
-local terraTag=-1
+local terraTag = -1
 
 local volumeSelection = 0
 local totalMouseMove = 0
@@ -435,7 +437,7 @@ local function completelyStopCommand()
 	presetTerraHeight = false
 	presetTerraLevelToCursor = false
 	volumeSelection = 0
-	
+	alt_raise = false
 	currentlyActiveCommand = false
 	spSetActiveCommand(nil)
 	originalCommandGiven = false
@@ -535,6 +537,7 @@ local function SendCommand(constructor)
 
 	if terraform_type == 1 and alt_raise then
 		terraform_type = 2
+		alt_raise = false
 	end
 	if terraform_type == 4 then
 		local params = {}
@@ -1157,7 +1160,6 @@ local function SetFixedRectanglePoints(pos)
 		point[2].z = z - placingRectangle.halfZ
 		point[3].x = x + placingRectangle.halfX
 		point[3].z = z + placingRectangle.halfZ
-		
 		placingRectangle.legalPos = true
 	else
 		placingRectangle.legalPos = false
@@ -1543,16 +1545,16 @@ function widget:Update(dt)
 					local heightArray = {
 						orHeight + 80,
 						orHeight + 50,
-						orHeight + 22,
-						orHeight + 10,
-						orHeight - 10,
-						orHeight - 22,
+						orHeight + BLOCK_BOT,
+						orHeight + BLOCK_VEH,
+						orHeight - BLOCK_VEH,
+						orHeight - BLOCK_BOT,
 						orHeight - 50,
 						orHeight,
 						-2,
 						-23,
 					}
-					local newTerraformHeight = heightArray[snapToHeight(heightArray,storedHeight,10)]
+					local newTerraformHeight = heightArray[snapToHeight(heightArray, storedHeight, #heightArray)]
 					if terraformHeight ~= newTerraformHeight then
 						terraformHeight = newTerraformHeight
 						snapped = Spring.GetTimer()
@@ -2276,14 +2278,44 @@ local function DrawMouseLine(mousePos)
 		glVertex(mousePos[1], mousePos[2], mousePos[3])
 	end
 end
+
+local function DrawGroundRectangle(buffer, ori) -- TODO optimize? 
+	local ground = ori and Spring.GetGroundOrigHeight or spGetGroundHeight
+	buffer = buffer or 0
+	local start, fin = point[3], point[2]
+	local stepSize = 32
+	local lenX, lenZ = (fin.x - start.x), (fin.z - start.z)
+	local invX = lenX > 0 and 1 or -1
+	local invZ = lenZ > 0 and 1 or -1
+	lenX, lenZ = math.abs(lenX) - buffer * 2, math.abs(lenZ) - buffer * 2
+	local cur_x,  cur_z = (start.x + buffer) * invX, (start.z + buffer) * invZ
+	for dir = 1, -1, -2 do
+		local dirX = dir * invX
+		for x = cur_x, cur_x + (lenX - stepSize) * dirX, stepSize * dirX do
+			glVertex(x, ground(x, cur_z), cur_z)
+		end
+		cur_x = cur_x + lenX * dirX
+		glVertex(cur_x, ground(cur_x, cur_z), cur_z)
+		local dirZ = dir * invZ
+		for z = cur_z, cur_z + lenZ * dirZ - stepSize * dirZ, stepSize * dirZ do
+			glVertex(cur_x, ground(cur_x, z), z)
+		end
+		cur_z = cur_z + lenZ * dirZ
+		glVertex(cur_x, ground(cur_x, cur_z), cur_z)
+	end
+
+end
+
 local function DrawRectangleLine(buffer)
 	buffer = buffer or 0
 	local p1Y, p2, p3 = point[1].y, point[2], point[3]
-	glVertex(p3.x + buffer, p1Y, p3.z + buffer)
-	glVertex(p3.x + buffer, p1Y, p2.z - buffer)
-	glVertex(p2.x - buffer, p1Y, p2.z - buffer)
-	glVertex(p2.x - buffer, p1Y, p3.z + buffer)
-	glVertex(p3.x + buffer, p1Y, p3.z + buffer)
+	local invX = (p2.x - p3.x) < 0 and -1 or 1
+	local invZ = (p2.z - p3.z) < 0 and -1 or 1
+	glVertex(p3.x + buffer * invX, p1Y, p3.z + buffer * invZ)
+	glVertex(p3.x + buffer * invX, p1Y, p2.z - buffer * invZ)
+	glVertex(p2.x - buffer * invX, p1Y, p2.z - buffer * invZ)
+	glVertex(p2.x - buffer * invX, p1Y, p3.z + buffer * invZ)
+	glVertex(p3.x + buffer * invX, p1Y, p3.z + buffer * invZ)
 end
 
 local function DrawRampFirstSetHeight(dis)
@@ -2374,10 +2406,23 @@ function widget:DrawWorld()
 
 		elseif drawingRectangle or (placingRectangle and placingRectangle.legalPos) then
 			glColor(lassoColorCurrent)
-			glBeginEnd(GL_LINE_STRIP, DrawRectangleLine)
+			if terraform_type == 5 then -- RESTORE
+				glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, nil, true)
+			else
+				glBeginEnd(GL_LINE_STRIP, DrawRectangleLine)
+			end
+			glColor(1,1,0,1)
+			glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle)
 			local a,c,m,s = spGetModKeyState()
 			if c then
-				glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, 32)
+				glColor(lassoColorCurrent)
+				if terraform_type == 5 then -- RESTORE
+					glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, 32, true)
+				else
+					glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, 32)
+				end
+				glColor(1,1,0,1)
+				glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, 32)
 			end
 		end
 		
