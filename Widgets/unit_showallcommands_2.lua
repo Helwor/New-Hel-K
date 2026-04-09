@@ -365,7 +365,7 @@ local function updateDrawing()
 	-- 	return
 	-- end
 	local drawSelected, drawAll, selectedAlreadyDrawn = GetDrawLevel()
-	local redrawSelection = not selectedAlreadyDrawn or selectedUnitCount < 75 -- redraw Selection for a brighter command when not too many units are selected
+	local redrawSelection = selectedAlreadyDrawn and drawAll and selectedUnitCount < 35 -- redraw Selection for a brighter command when not too many units are selected
 	local n = 0
 	local toDraw = {}
 	local timer
