@@ -2288,7 +2288,7 @@ local function DrawGroundRectangle(buffer, ori) -- TODO optimize?
 	local invX = lenX > 0 and 1 or -1
 	local invZ = lenZ > 0 and 1 or -1
 	lenX, lenZ = math.abs(lenX) - buffer * 2, math.abs(lenZ) - buffer * 2
-	local cur_x,  cur_z = (start.x + buffer) * invX, (start.z + buffer) * invZ
+	local cur_x,  cur_z = start.x + buffer * invX, start.z + buffer * invZ
 	for dir = 1, -1, -2 do
 		local dirX = dir * invX
 		for x = cur_x, cur_x + (lenX - stepSize) * dirX, stepSize * dirX do
