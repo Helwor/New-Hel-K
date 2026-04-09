@@ -225,7 +225,7 @@ local simpleDrawingRamp = false
 local setHeight = false
 local setLassoHeight = false
 local terraform_type = 0 -- 1 = level, 2 = raise, 3 = smooth, 4 = ramp, 5 = restore, 6 = bump
-
+local alt_raise = false
 local commandMap = {
 	CMD_LEVEL,
 	CMD_RAISE,
@@ -233,7 +233,12 @@ local commandMap = {
 	CMD_RAMP,
 	CMD_RESTORE
 }
-
+local blockingTip = {
+	[22] = 'Block Bots (raise)',
+	[10] = 'Block Vehicules (raise)',
+	[-10] = 'Block Vehicules (lower)',
+	[-22] = 'Block Bots (lower)',
+}
 local terraTag=-1
 
 local volumeSelection = 0
@@ -527,6 +532,11 @@ local function SendCommand(constructor)
 	pointAveZ = pointAveZ/points
 	
 	local team = Spring.GetUnitTeam(constructor[1]) or Spring.GetMyTeamID()
+
+	if terraform_type == 1 and alt_raise then
+		terraform_type = 2
+		terraformHeight = terraformHeight - orHeight
+	end
 	if terraform_type == 4 then
 		local params = {}
 		params[1] = terraform_type -- 1 = level, 2 = raise, 3 = smooth, 4 = ramp, 5 = restore
@@ -1248,7 +1258,6 @@ function widget:MousePress(mx, my, button)
 	local activeCmdIndex, activeid = spGetActiveCommand()
 	if ((activeid == CMD_LEVEL) or (activeid == CMD_RAISE) or (activeid == CMD_SMOOTH) or (activeid == CMD_RESTORE) or (activeid == CMD_BUMPY))
 			and not (setHeight or drawingRectangle or drawingLasso or drawingRamp or simpleDrawingRamp or placingRectangle) then
-
 		if button == 1 then
 			if not spIsAboveMiniMap(mx, my) then
 		
@@ -1507,9 +1516,13 @@ function widget:Update(dt)
 	
 	if setHeight then
 		local mx,my = spGetMouseState()
-		
+		local terraform_type = terraform_type
 		if terraform_type == 1 then
 			local a,c,m,s = spGetModKeyState()
+			if alt_raise then
+				alt_raise = false
+				terraformHeight = orHeight + terraformHeight
+			end
 			if c then
 				-- local _, pos = spTraceScreenRay(mx, my, true, false, false, true)
 				local pos = safeTrace(mx, my, true, false, true, true)
@@ -1523,8 +1536,7 @@ function widget:Update(dt)
 			elseif a then
 				ResetMouse()
 				if snapped then
-					snapped = snapped - 1
-					if snapped == 0 then
+					if Spring.DiffTimers(Spring.GetTimer(), snapped) > 0.29 then
 						snapped = false
 					end
 				else
@@ -1544,8 +1556,12 @@ function widget:Update(dt)
 					local newTerraformHeight = heightArray[snapToHeight(heightArray,storedHeight,10)]
 					if terraformHeight ~= newTerraformHeight then
 						terraformHeight = newTerraformHeight
-						snapped = 20
+						snapped = Spring.GetTimer()
 					end
+				end
+				if terraformHeight >= -22 then
+					alt_raise = true
+					terraformHeight = terraformHeight - orHeight
 				end
 			else
 				ResetMouse()
@@ -1557,8 +1573,14 @@ function widget:Update(dt)
 				gl.DeleteList(volumeDraw); volumeDraw=nil
 				gl.DeleteList(mouseGridDraw); mouseGridDraw=nil
 			end
-			volumeDraw = glCreateList(glBeginEnd, GL_LINES, lineVolumeLevel)
-			mouseGridDraw = glCreateList(glBeginEnd, GL_LINES, mouseGridLevel)
+			if alt_raise then
+				volumeDraw = glCreateList(glBeginEnd, GL_LINES, lineVolumeRaise)
+				mouseGridDraw = glCreateList(glBeginEnd, GL_LINES, mouseGridRaise)
+			else
+				volumeDraw = glCreateList(glBeginEnd, GL_LINES, lineVolumeLevel)
+				mouseGridDraw = glCreateList(glBeginEnd, GL_LINES, mouseGridLevel)
+			end
+
 		elseif terraform_type == 2 then
 			ResetMouse()
 			local a,c,m,s = spGetModKeyState()
@@ -1685,13 +1707,10 @@ end
 function widget:MouseRelease(mx, my, button)
 	if drawingLasso then
 		if button == 1 then
-			
 			-- local _, pos = spTraceScreenRay(mx, my, true, false, false, true)
 
 			AddLassoPos(mx, my)
-			-- if (terraform_type == 1) then
-			-- 	Echo('terraformHeight?', terraformHeight)
-			-- end
+
 			if (not presetTerraHeight) and (terraform_type == 1 or terraform_type == 2) then
 				setHeight = true
 				if drawingLasso then
@@ -2394,7 +2413,11 @@ function widget:DrawScreen()
 	
 	if (setHeight or drawingLasso or placingRectangle or drawingRectangle or drawingRamp or simpleDrawingRamp) then
 		if terraform_type ~= 6 then
-			if volumeSelection == 1 then
+			if terraform_type == 1 and alt_raise then
+				if blockingTip[terraformHeight] then
+					drawMouseText(-10, blockingTip[terraformHeight])
+				end
+			elseif volumeSelection == 1 then
 				if terraform_type == 2 then
 					drawMouseText(-10,"Cull Cliffs")
 				else
