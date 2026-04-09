@@ -1,0 +1,58 @@
+function widget:GetInfo()
+	return {
+		name      = "Far Icon Scale",
+		desc      = "Allow you to have bigger icons when very zoomed out\nAdapt to your convenience in the options",
+		author    = "Helwor",
+		date      = "Apr 2026",
+		license   = "GNU GPL, v2 or later",
+		layer     = 0,
+		enabled   = false,  --  loaded by default?
+		handler   = true,
+	}
+end
+local on = false
+local spSendCommands = Spring.SendCommands
+local threshold = 10000
+local scale = 1.4
+options_path = 'Hel-K/' .. widget.GetInfo().name
+
+options = {
+	threshold = {
+		name = 'Far Zoom Out Threshold',
+		type = 'number',
+		min = 5000, max = 50000, step = 100,
+		value = threshold,
+		update_on_the_fly = true,
+		desc = 'Toggle the Spring Command IconsAsUI ON above this camera distance which allow use to have custom and fixed size of icon',
+		OnChange = function(self)
+			threshold = self.value
+		end
+	},
+	scale = {
+		name = 'Far Icon Scale',
+		type = 'number',
+		min = 1.0, max = 2.5, step = 0.01,
+		update_on_the_fly = true,
+		value = scale,
+		OnChange = function(self)
+			scale = self.value
+			spSendCommands('IconScaleUI ' .. scale)
+		end
+	}
+}
+
+function widget:Update()
+	if WG.Cam.relDist >= threshold then
+		if not on then
+			spSendCommands('iconsasui 1', true)
+			on = true
+		end
+	elseif on then
+		spSendCommands('iconsasui 0', true)
+		on = false
+	end
+end
+
+function widget:Initialize()
+	spSendCommands('IconFadeStart 0', 'IconFadeVanish 0', 'IconScaleUI ' .. scale)
+end
