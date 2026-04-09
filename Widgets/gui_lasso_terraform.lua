@@ -535,7 +535,6 @@ local function SendCommand(constructor)
 
 	if terraform_type == 1 and alt_raise then
 		terraform_type = 2
-		terraformHeight = terraformHeight - orHeight
 	end
 	if terraform_type == 4 then
 		local params = {}
