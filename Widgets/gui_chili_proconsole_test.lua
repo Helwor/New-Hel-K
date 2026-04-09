@@ -1448,9 +1448,15 @@ local function AddMessage(msg, target, remake)
 		lastMsgConsole = textbox
 		-- requestUpdate[scrollpanel_console] = true
 	end
-	-- stack:UpdateClientArea()
-	requestUpdate[stack] = true
-	requestUpdate.needed = true
+	if false and not stack.parent.hidden and initialized then
+		stack:UpdateClientArea()
+	-- 	stack.parent:UpdateLayout()
+	-- 	stack:UpdateClientArea()
+		-- Echo('request in add message')
+	else
+		requestUpdate[stack] = true
+		requestUpdate.needed = true
+	end
 end
 
 
@@ -2312,6 +2318,23 @@ local initialSwapTime = 0.2
 local firstSwap = true
 
 
+function widget:DrawScreen()
+	if requestUpdate.needed then
+		requestUpdate.needed = nil
+		for stack in pairs(requestUpdate) do
+			-- stack:RequestUpdate()
+			-- if stack == stack_console then
+			--  scrollpanel_console:UpdateClientArea()
+			-- else
+				-- stack:UpdateClientArea()
+				-- Echo('request in DS')
+				stack.parent:UpdateLayout()
+			-- end
+			requestUpdate[stack] = nil
+		end
+	end
+end
+
 function widget:Update(s)
 	DetectLabel()
 	if WG.enteringText then
@@ -2325,19 +2348,6 @@ function widget:Update(s)
 	elseif requestRemake then
 		requestRemake = false
 		RemakeConsole()
-	end
-	if requestUpdate.needed then
-		requestUpdate.needed = nil
-		for stack in pairs(requestUpdate) do
-			-- stack:RequestUpdate()
-			-- if stack == stack_console then
-			--  scrollpanel_console:UpdateClientArea()
-			-- else
-				-- stack:UpdateClientArea()
-				stack.parent:UpdateLayout()
-			-- end
-			requestUpdate[stack] = nil
-		end
 	end
 	if recentSoundTime then
 		recentSoundTime = recentSoundTime - s
