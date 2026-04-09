@@ -44,15 +44,19 @@ options = {
 function widget:Update()
 	if WG.Cam.relDist >= threshold then
 		if not on then
-			spSendCommands('IconsAsUI 1', true)
+			spSendCommands('IconsAsUI 1')
 			on = true
 		end
 	elseif on then
-		spSendCommands('IconsAsUI 0', true)
+		spSendCommands('IconsAsUI 0')
 		on = false
 	end
 end
 
 function widget:Initialize()
 	spSendCommands('IconFadeStart 0', 'IconFadeVanish 0', 'IconScaleUI ' .. scale)
+end
+
+function widget:Shutdown()
+	spSendCommands('IconsAsUI 0')
 end
