@@ -396,6 +396,7 @@ local cx, cy, cz = 0, 0, 0 -- current camera position
 
 -- default options value
 local onlyOnIcons = true
+local autoFix = true
 local showAllySelected = true
 local showHealth = true
 local showStatus = true
@@ -433,6 +434,7 @@ options_order = {
 	-- 'testColors',
 	-- 'dummy',
 	'only_on_icons',
+	'auto_fix',
 	'fine_pos',
 	'scale',
 
@@ -474,7 +476,16 @@ options.only_on_icons = {
 	end,
 	noHotkey = true,
 }
-
+options.auto_fix = {
+	name = 'Automatic Fix for InconsAsUI Mode',
+	type = 'bool',
+	desc = "Automatically draw on every units instead of just icons when the mode IconsAsUI is enabled. This is due to engine bug wrongly missing iconized state of units that are under ~95% build progress",
+	value = autoFix,
+	OnChange = function(self)
+		autoFix = self.value
+	end,
+	noHotkey = true,
+}
 options.fine_pos = {
 	name = 'Refine Pos',
 	type = 'bool',
@@ -1226,7 +1237,11 @@ local GlobalDraw = function()
 	local subjects =
 		(debugChoice == 'custom' or debugChoice == 'alledgiance') and Cam.Units
 		or debugChoice == 'inSight' and inSight
-		or onlyOnIcons and VisibleIcons
+		or onlyOnIcons and (
+				not autoFix or (
+					Cam.relDist < 5000 and Spring.GetConfigInt("UnitIconsAsUI", 0) == 1
+				)
+			) and VisibleIcons -- IconsAsUI mode doesnt register correctly the icons
 		or Visibles
 	for id in pairs(problems) do
 		if Units[id] then
