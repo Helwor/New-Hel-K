@@ -974,7 +974,7 @@ function widget:GameFrame(f)
 	currentFrame = f
 end
 
-local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
+local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor, IconsAsUI)
 	local unit = Units[id]
 	if not unit then
 		return
@@ -994,9 +994,13 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
 			local distFromCam = diag(cx-x, cy-y, cz-z)
 			distFromCam = distFromCam * fovRatio
 			y =	GetIconMidY(defID or 0, y, gy, distFromCam)
+
 		-- end
 	end
 	local mx,my = spWorldToScreenCoords(x,y,z)
+	if IconsAsUI then
+		my = my - 4
+	end
 	if healthColor then
 		symbolHealth:Draw(mx, my, healthColor, alphaHealth)
 	end
@@ -1005,23 +1009,28 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor)
 		symbolStatus:Draw(mx, my, statusColor, alphaStatus)
 	end
 end
-local function DrawUnit(id, unit, blink, fovRatio)
+local function DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 	local _,gy,_,x,y,z = unit:GetPos(1)
 	if x then
 		local info = unit.info
 		local statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, allySelColor
 		 = info[1], info[2], info[3], info[4], info[5], info[6], info[7]
+		local isIcon
 		if useFinePos then
-			local isIcon = onlyOnIcons or VisibleIcons[id]
+			isIcon = onlyOnIcons or VisibleIcons[id]
 			if isIcon then
 				-- LOOK UnitDrawer.cpp LINE 420
 				local distFromCam = diag(cx-x, cy-y, cz-z)
 				distFromCam = distFromCam * fovRatio
 				y = GetIconMidY(unit.defID or 0, y, gy, distFromCam)
+
 			end
 		end
 
 		local mx,my = spWorldToScreenCoords(x,y,z)
+		if IconsAsUI and isIcon then -- work around
+			my = my - 4
+		end
 		if reloadColor then
 			if stockpile then
 				objNumbers:Draw(mx,my, reloadColor, alphaReload, stockpile)
@@ -1234,12 +1243,13 @@ local lastMessage = ''
 local clockMessage = os.clock()
 local GlobalDraw = function()
 	UseFont(monobold)
+	local IconsAsUI = Spring.GetConfigInt("UnitIconsAsUI", 0) == 1
 	local subjects =
 		(debugChoice == 'custom' or debugChoice == 'alledgiance') and Cam.Units
 		or debugChoice == 'inSight' and inSight
 		or onlyOnIcons and (
 				not autoFix or (
-					Cam.relDist < 5000 and Spring.GetConfigInt("UnitIconsAsUI", 0) == 1
+					Cam.relDist < 5000 and IconsAsUI
 				)
 			) and VisibleIcons -- IconsAsUI mode doesnt register correctly the icons
 		or Visibles
@@ -1271,10 +1281,10 @@ local GlobalDraw = function()
 			if anyDebug or not (avoidLowCost and lowCost[defID] or ignore[defID]) then
 				if anyDebug or (unit.lastInfo or -1000) < updateFrame then
 					if ProcessUnit(id, unit.defID, allySelUnits, unit, blink, anyDebug, fullview) then
-						DrawUnit(id, unit, blink, fovRatio)
+						DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 					end
 				elseif unit.info.gotAny then
-					DrawUnit(id, unit, blink, fovRatio)
+					DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 				end
 			end
 		end
@@ -1294,7 +1304,7 @@ local GlobalDraw = function()
 				lastStatus[id] = nil
 			else
 				local info = unit.info
-				ApplyColor(id, unit.defID, blink, fovRatio, info[1], info[2])
+				ApplyColor(id, unit.defID, blink, fovRatio, info[1], info[2], IconsAsUI)
 			end
 		end
 	end
