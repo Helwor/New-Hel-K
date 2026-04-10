@@ -235,11 +235,13 @@ local commandMap = {
 }
 local BLOCK_VEH = 10
 local BLOCK_BOT = 22
+local BLOCK_BOAT = -4
 local blockingTip = {
 	[BLOCK_BOT] = 'Block Bots (raise)',
 	[BLOCK_VEH] = 'Block Vehicules (raise)',
 	[-BLOCK_VEH] = 'Block Vehicules (lower)',
 	[-BLOCK_BOT] = 'Block Bots (lower)',
+	[BLOCK_BOAT] = 'Block Boats',
 }
 local terraTag = -1
 
@@ -1185,7 +1187,7 @@ local function snapToHeight(heightArray, snapHeight, arrayCount)
 			smallestIndex = i
 		end
 	end
-	return smallestIndex
+	return smallestIndex, smallest
 end
 
 function widget:MousePress(mx, my, button)
@@ -1517,6 +1519,7 @@ function widget:Update(dt)
 	
 	if setHeight then
 		local mx,my = spGetMouseState()
+		-- Echo("my, mouseY is ", my, mouseY)
 		local terraform_type = terraform_type
 		if terraform_type == 1 then
 			local a,c,m,s = spGetModKeyState()
@@ -1537,11 +1540,12 @@ function widget:Update(dt)
 			elseif a then
 				ResetMouse()
 				if snapped then
-					if Spring.DiffTimers(Spring.GetTimer(), snapped) > 0.29 then
+					if Spring.DiffTimers(Spring.GetTimer(), snapped) > 0.12 then
 						snapped = false
 					end
 				else
-					storedHeight = storedHeight + (my-mouseY)*mouseSensitivity*2
+					storedHeight = storedHeight + (my-mouseY)*mouseSensitivity
+
 					local heightArray = {
 						orHeight + 80,
 						orHeight + 50,
@@ -1550,20 +1554,26 @@ function widget:Update(dt)
 						orHeight - BLOCK_VEH,
 						orHeight - BLOCK_BOT,
 						orHeight - 50,
-						orHeight,
-						-2,
-						-23,
+						0,
+						BLOCK_BOAT,
 					}
-					local newTerraformHeight = heightArray[snapToHeight(heightArray, storedHeight, #heightArray)]
-					if terraformHeight ~= newTerraformHeight then
-						terraformHeight = newTerraformHeight
-						snapped = Spring.GetTimer()
+
+					local snappedIndex, off = snapToHeight(heightArray, storedHeight, #heightArray)
+					-- Echo('mouseOFF', (my-mouseY),storedHeight, '=>', heightArray[snappedIndex] - orHeight, 'off', off)
+					if off < 6 then
+						if heightArray[snappedIndex] ~= terraformHeight then
+							snapped = Spring.GetTimer()
+						end
+						terraformHeight = heightArray[snappedIndex]
+					else
+						terraformHeight = storedHeight
 					end
 				end
-				if terraformHeight >= -22 then
+				if terraformHeight >= -23 then
 					alt_raise = true
 					terraformHeight = terraformHeight - orHeight
 				end
+
 			else
 				ResetMouse()
 				terraformHeight = terraformHeight + (my-mouseY)*mouseSensitivity
@@ -2396,33 +2406,33 @@ function widget:DrawWorld()
 			
 			--glDepthTest(false)
 		elseif drawingLasso then
-			glColor(lassoColorGood)
 			local mx, my = spGetMouseState()
 			local pos, mouse = GetLassoPos(mx, my)
-			glBeginEnd(GL_LINE_STRIP, DrawLine, pos)
-
 			glColor(1,1,0,1)
 			glBeginEnd(GL_LINE_STRIP, DrawMouseLine, mouse)
+			glColor(lassoColorGood)
+			glBeginEnd(GL_LINE_STRIP, DrawLine, pos)
+
 
 		elseif drawingRectangle or (placingRectangle and placingRectangle.legalPos) then
+			glColor(1,1,0,1)
+			glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle)
 			glColor(lassoColorCurrent)
 			if terraform_type == 5 then -- RESTORE
 				glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, nil, true)
 			else
 				glBeginEnd(GL_LINE_STRIP, DrawRectangleLine)
 			end
-			glColor(1,1,0,1)
-			glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle)
 			local a,c,m,s = spGetModKeyState()
 			if c then
+				glColor(1,1,0,1)
+				glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, 32)
 				glColor(lassoColorCurrent)
 				if terraform_type == 5 then -- RESTORE
 					glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, 32, true)
 				else
 					glBeginEnd(GL_LINE_STRIP, DrawRectangleLine, 32)
 				end
-				glColor(1,1,0,1)
-				glBeginEnd(GL_LINE_STRIP, DrawGroundRectangle, 32)
 			end
 		end
 		
@@ -2458,6 +2468,9 @@ function widget:DrawScreen()
 	if (setHeight or drawingLasso or placingRectangle or drawingRectangle or drawingRamp or simpleDrawingRamp) then
 		if terraform_type ~= 6 then
 			if terraform_type == 1 and alt_raise then
+				if alt_raise then
+					drawMouseText(30,"[Alt Raise]")
+				end
 				if blockingTip[terraformHeight] then
 					drawMouseText(-10, blockingTip[terraformHeight])
 				end
