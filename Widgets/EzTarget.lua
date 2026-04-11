@@ -24,7 +24,7 @@ local requirements = {
 		['WG.UnitsIDCard'] = {'Requires api_unit_data.lua and running'},
 		['WG.Visibles and WG.Cam'] = {'Requires api_view_changed.lua and api_visible_units.lua and running'},
 		['WG.MouseState'] = {'Requires api_click_handler.lua and running'},
-		['WG.ClampScreenPosToWorld'] = {'Works better using ClampedMouseMove.lua', true},
+		['WG.ClampScreenPosToWorld'] = {'Works better using api_clamp_mouse_to_world.lua', true},
 	}
 }
 
@@ -108,7 +108,7 @@ WG.EzTarget = WG.EzTarget or {}
 
 local shared = WG.EzTarget
 
-
+local aboveMinimap = false -- ENGINE BUG during DefaultCommand() the minimap is minimized we can't rely on Spring.IsAboveMiniMap() so we update this during Update()
 
 local tsort = table.sort
 local osclock = os.clock
@@ -987,7 +987,7 @@ local function Evaluate(type, id, engineCmd)
 	end
 	-- v.moddedActiveCommand = false
 
-	if outsideSpring or screen0.hoveredControl or spIsAboveMiniMap(mx, my) then
+	if outsideSpring or screen0.hoveredControl or aboveMinimap then
 		reset()
 		upd.updating = false
 		return v.cmdOverride
@@ -1659,7 +1659,7 @@ function widget:DefaultCommand(type, id, engineCmd) -- NOTE: DefaultCommand run 
 	end
 	-- local before = table.concat({spGetActiveCommand()},', ')
 	
-	local ret = Evaluate(type, id, engineCmd)
+	local ret = Evaluate(type, id, engineCmd) -- ENGINE BUG DURING DEFAULT COMMAND THE MINIMAP IS TEMPORARILY MINIMIZED WE CAN'T RELY ON SPRING.ISABOVEMINIMAP()
 	-- Echo('ret', ret,spGetActiveCommand(), 'before:', before)
 	-- return ret
 	-- WG.contextCmd = ret -- TODO IMPLEMENT
@@ -1672,6 +1672,7 @@ end
 
 function widget:Update(dt)
 	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
+	aboveMinimap = spIsAboveMiniMap(mx, my)
 	local realMousePress = lmb or mmb or rmb
 	if v.mousePressed and not realMousePress then
 		-- Echo('EzTARGET CORRECTED IN UPDATE, actually NOT PRESSED ',spGetMouseState())
@@ -1945,7 +1946,7 @@ function widget:MousePress(mx, my, button)
 		v.moddedActiveCommand = false
 		activeCommand=0
 	end
-	-- v.moddedTarget, s.moddedSelect =  EzTarget(selContext.hasValidAttacker and ((opt.ezTarget and not ctrl) or debugging), opt.ezSelect or debugging )
+	-- v.moddedTarget, s.moddedSelect =  EzTarget(selContext.hasValidAttacker and ((opt.ezTarget and not ctrl) or debugging), opt.ezSelect or debugging)
 	v.acquiredTarget = v.moddedTarget or v.defaultTarget
 	-- local _,_,_,v.defaultCmd = spGetDefaultCommand()
 
@@ -2462,7 +2463,7 @@ do --- EzTarget ---
 		v.clamped = false
 		local offmap
 		-- local clampedCenter
-		if clamp then
+		if clamp and not aboveMinimap then
 			if Debug.EZ() then -- STUDY THIS
 				mx, my = Transform(mx, my, 8)
 				_, center = spTraceScreenRay(mx,my,true,true,true,false)
@@ -2470,7 +2471,6 @@ do --- EzTarget ---
 				_, center = spTraceScreenRay(mx,my,true,true,true,false)
 				local _mx, _my
 				_mx,_my, center, center2 = ClampScreenPosToWorld(mx,my)
-
 				if _mx and (mx~=_mx or my~=_my) then
 					v.clamped = {_mx,_my}
 					mx, my = _mx, _my
