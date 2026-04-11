@@ -21,7 +21,7 @@ local myTeamID, myPlayerID
 local currentFrame = Spring.GetGameFrame()
 local MIN_RELOAD_TIME_NOTICE = 12 -- dont register reload weapons below this time
 local gameSpeed = Game.gameSpeed
-local updateRate = 5
+local updateRate = 10
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
@@ -167,11 +167,15 @@ local disallowReloadNotice = {
 	[UnitDefNames['turretmissile'].id] = true,
 }
 local canBuildDefID = {}
-local lowCostDefID = {}
+local lowCostDefID = {
+	[UnitDefNames['energysolar'].id] = true,
+	[UnitDefNames['energywind'].id] = true,
+}
 
 local reloadTimes = {}
 local weaponNumber = {}
 local longReloadCheck
+local morphing = {}
 local function InitializeDefs() end
 do
 	longReloadCheck = {}
@@ -934,12 +938,11 @@ local    whiteviolet, 		lightblue, 		   lightgrey,		ocre
 local cyan, ice, teal = colors.cyan, colors.ice, colors.teal
 local nocolor = colors.nocolor
 
-local b_ice, b_grey, b_grey2, b_whiteviolet = {unpack(ice)}, {unpack(grey)}, {unpack(grey)}, {unpack(whiteviolet)}
+local b_ice, b_whiteviolet, b_violet_blue = {unpack(ice)}, {unpack(whiteviolet)}, {unpack(violet)}
 local blinkcolor = {
-	[b_ice] = b_grey,
-	[b_whiteviolet] = b_grey2,
-	[b_grey] = b_ice,
-	[b_grey2] = b_whiteviolet,
+	[b_ice] = grey,
+	[b_whiteviolet] = grey,
+	[b_violet_blue] = paleblue,
 }
 -- local font = {
 --   classname     = 'font',
@@ -999,7 +1002,7 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor, 
 	end
 	local mx,my = spWorldToScreenCoords(x,y,z)
 	if IconsAsUI then
-		my = my - 4
+		my = my - 3
 	end
 	if healthColor then
 		symbolHealth:Draw(mx, my, healthColor, alphaHealth)
@@ -1029,7 +1032,7 @@ local function DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 
 		local mx,my = spWorldToScreenCoords(x,y,z)
 		if IconsAsUI and isIcon then -- work around
-			my = my - 4
+			my = my - 3
 		end
 		if reloadColor then
 			if stockpile then
@@ -1141,6 +1144,7 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 					)
 				or (paralyzed or enable4) and b_ice
 				or disarmUnits[id] ~= nil and b_whiteviolet
+				or morphing[id] and b_violet_blue
 				-- or builder and not builder.isFactory and white
 				or showCommandStatus and unit.tracked and (
 						unit.movingBack and brown
@@ -1427,6 +1431,25 @@ function WidgetInitNotify(w,name,preloading)
 	end
 end
 
+function MorphStart(unitID)-- BUG the first ever Morph Start of the game is never registered, so we use MorphUpdate to cope
+	morphing[unitID] = true
+end
+local done = false
+function MorphUpdate(morphTable) 
+	if not done then
+		for unitID in pairs(morphTable) do
+			MorphStart(unitID)
+		end
+		done = true
+	end
+end
+function MorphStop(unitID)
+	morphing[unitID] = nil
+end
+function MorphFinished(unitID)
+	morphing[unitID] = nil
+end
+
 function widget:Initialize()
 	Cam = WG.Cam
 	if not Cam then
@@ -1517,6 +1540,10 @@ function widget:Initialize()
 		't'
 	)
 
+	widgetHandler:RegisterGlobal(widget, 'MorphStart', MorphStart)
+	widgetHandler:RegisterGlobal(widget, 'MorphUpdate', MorphUpdate)
+	widgetHandler:RegisterGlobal(widget, 'MorphStop', MorphStop)
+	widgetHandler:RegisterGlobal(widget, 'MorphFinished', MorphFinished)
 
 end
 
@@ -1542,6 +1569,10 @@ function widget:Shutdown()
 	for _, list in pairs(numberLists) do
 		glDeleteList(list)
 	end
+	widgetHandler:DeregisterGlobal(widget, 'MorphStart', MorphStart)
+	widgetHandler:DeregisterGlobal(widget, 'MorphUpdate', MorphUpdate)
+	widgetHandler:DeregisterGlobal(widget, 'MorphStop', MorphStop)
+	widgetHandler:DeregisterGlobal(widget, 'MorphFinished', MorphFinished)	
 end
 
 function widget:SetConfigData(data)
