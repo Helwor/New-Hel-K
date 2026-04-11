@@ -1248,15 +1248,16 @@ local clockMessage = os.clock()
 local GlobalDraw = function()
 	UseFont(monobold)
 	local IconsAsUI = Spring.GetConfigInt("UnitIconsAsUI", 0) == 1
+
 	local subjects =
 		(debugChoice == 'custom' or debugChoice == 'alledgiance') and Cam.Units
 		or debugChoice == 'inSight' and inSight
 		or onlyOnIcons and (
-				not autoFix or (
-					Cam.relDist < 5000 and IconsAsUI
-				)
+				not (autoFix and IconsAsUI)
+				or (Cam.relDist < 5000 and IconsAsUI)
 			) and VisibleIcons -- IconsAsUI mode doesnt register correctly the icons
 		or Visibles
+	-- Echo("Cam.relDist is ", Cam.relDist)
 	for id in pairs(problems) do
 		if Units[id] then
 			problems[id] = nil
