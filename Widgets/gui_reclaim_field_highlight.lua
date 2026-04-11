@@ -10,8 +10,10 @@ function widget:GetInfo()
 		enabled   = false  --  loaded by default?
 	}
 end
-local Echo = Spring.Echo
+local debugging = false
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
+local Benchmark = debugging and VFS.Include("LuaRules/Gadgets/Include/Benchmark.lua")
+local benchmark = Benchmark and Benchmark.new()
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -346,14 +348,12 @@ local sqrt = math.sqrt
 
 local screenx, screeny
 
-local Benchmark = false and VFS.Include("LuaRules/Gadgets/Include/Benchmark.lua")
 local Optics = VFS.Include("LuaRules/Gadgets/Include/Optics.lua")
 local ConvexHull = VFS.Include("LuaRules/Gadgets/Include/ConvexHull.lua")
 -- Calculates the signed area
 local gaiaTeamId = spGetGaiaTeamID()
 
 local myAllyTeamID
-local benchmark = Benchmark and Benchmark.new()
 
 local scanInterval = 1 * Game.gameSpeed
 local scanForRemovalInterval = 10 * Game.gameSpeed --10 sec
@@ -601,11 +601,13 @@ local function ClusterizeFeatures()
 	local time1, time2
 	local debugCluster = true
 	if methodUsed == 2 then
+				-- error()
 		local pointsTable = {}
 
 		--Spring.Echo("#knownFeatures", #knownFeatures)
-		if debugCluster then
-			time1 = spGetTimer()
+		if benchmark then
+			benchmark:Enter('ClusterizeFeatures() M2')
+			benchmark:Enter('ClusterizeFeatures() M2 - Collect')
 		end
 		local n = 0
 		for fID, fInfo in pairs(knownFeatures) do
@@ -622,15 +624,12 @@ local function ClusterizeFeatures()
 		for k in pairs(featureClusters or {}) do
 			featureClusters[k] = nil
 		end
-		if debugCluster then
-			time2 = spGetTimer()
-			time1 = spDiffTimers(time2, time1)
-			if time1>0.1 then
-				Echo(widget:GetInfo().name .. ': collecting features took more than 0.1 sec!  ', time1)
-			end
+		if benchmark then
+			benchmark:Leave('ClusterizeFeatures() M2 - Collect')
+			benchmark:Enter('ClusterizeFeatures() M2 - WG.DBSCAN_cluster3')
 		end
 
-		local clusters = WG.DBSCAN_cluster3(pointsTable,minDistance,1)
+		local clusters = WG.DBSCAN_cluster3(pointsTable, minDistance, 1)
 		for i=1, clusters.n do
 			local cluster = clusters[i]
 			local members = {}
@@ -656,6 +655,10 @@ local function ClusterizeFeatures()
 				zmin = zmin,
 				zmax = zmax,
 			}
+		end
+		if benchmark then
+			benchmark:Leave('ClusterizeFeatures() M2 - WG.DBSCAN_cluster3')
+			benchmark:Leave('ClusterizeFeatures() M2')
 		end
 	end
 	if methodUsed == 1 then
@@ -748,13 +751,6 @@ local function ClusterizeFeatures()
 
 		if benchmark then
 			benchmark:Leave("ClusterizeFeatures")
-		end
-	end
-	if debugCluster then
-		time2 = spDiffTimers(spGetTimer(),time2)
-		-- Echo('clusters processed in ' .. time1 .. ' + ' .. time2 .. ' = ' .. time1 + time2 )
-		if time2>0.1 then
-			Echo(widget:GetInfo().name .. ': clusterizing features took more than 0.1 sec!  ', time1)
 		end
 
 	end
@@ -895,9 +891,9 @@ local function ClustersToConvexHull()
 		--	spMarkerAddPoint(convexHull[i].x, convexHull[i].y, convexHull[i].z, string.format("C%i(%i)", fc, i))
 		--end
 
-		if benchmark then
-			benchmark:Leave("ClustersToConvexHull")
-		end
+	end
+	if benchmark then
+		benchmark:Leave("ClustersToConvexHull")
 	end
 end
 
@@ -1094,8 +1090,6 @@ local function DrawFeatureClusterTextBUFFERED() -- SADLY CANT WORK ENGINE APPLY 
 	-- oriSetCameraTarget(x, y, z, 5, dx-0.5, dy-0.5, dz)
 	-- Spring.SetCameraOffset(0,0,0,0,0,0)
 end
-
-
 local function CreateTextTexture(text, fontSize, hull, r, g, b)
 	local mulX, mulY = font:GetTextWidth(text), font:GetTextHeight(text)
 	local size = fontSize^2 / BASE_FONT_SIZE
@@ -1108,14 +1102,12 @@ local function CreateTextTexture(text, fontSize, hull, r, g, b)
 		if scale > 0 then
 			size = size * (1/scale)
 			texSizeX, texSizeY = texSizeX * (1/scale), texSizeY * (1/scale)
-			hull.scale = scale
 		end
 		-- Echo("scale is ", scale)
 	end
-	hull.texSizeX, hull.texSizeY = texSizeX, texSizeY
-	hull.tex = gl.CreateTexture(texSizeX, texSizeY, texFormat)
+	local tex = gl.CreateTexture(texSizeX, texSizeY, texFormat)
 	-- Dessiner dans la texture
-	gl.RenderToTexture(hull.tex, function()
+	gl.RenderToTexture(tex, function()
 		-- gl.ColorMask(false, false, false, true)
 		gl.Clear(GL.COLOR_BUFFER_BIT, r, g, b, 0) -- to avoid a black antialiasing around the text
 		---- debug to see the texture size on screen
@@ -1146,17 +1138,24 @@ local function CreateTextTexture(text, fontSize, hull, r, g, b)
 		-- gl.PopMatrix()  
 	end)
 	-- local info = gl.TextureInfo(texName)
-	return
+	return tex, texSizeX, texSizeY, scale
 end
+local tex_life = {}
+local textures = {}
 
 function PrepareTextures()
-	for i, hull in ipairs(featureConvexHulls) do
-		if hull.tex then
-			glDeleteTextureFBO(hull.tex)
-			glDeleteTexture(hull.tex)
-			hull.tex = nil
-		end
+	-- for i, hull in ipairs(featureConvexHulls) do
+	-- 	if hull.tex then
+	-- 		glDeleteTextureFBO(hull.tex)
+	-- 		glDeleteTexture(hull.tex)
+	-- 		hull.tex = nil
+	-- 	end
+	-- end
+	for texID, texObj in pairs(textures) do
+		tex_life[texID] = false
+		texObj.hulls = {}
 	end
+
 	for i = 1, #featureConvexHulls do
 		local hull = featureConvexHulls[i]
 		local center = hull.center
@@ -1172,27 +1171,51 @@ function PrepareTextures()
 		local metal = featureClusters[i].metal
 		local metalText = formatK(metal)
 		local r, g, b = GetColorText(metal)
-		CreateTextTexture(metalText, fontSize, hull, r, g, b)
+		local texID = table.concat({metalText, fontSize, r, g, b}, '-')
+		local texObj = textures[texID]
+		if not texObj then
+			local tex, texSizeX, texSizeY, scale = CreateTextTexture(metalText, fontSize, hull, r, g, b)
+			texObj = {texID = texID, tex = tex, texSizeX = texSizeX, texSizeY = texSizeY, scale = scale, hulls = {}}
+			textures[texID] = texObj
+		end
+		texObj.hulls[hull] = true
+		hull.texID = texID
+		tex_life[texID] = true
+	end
+
+	for texID, alive in pairs(tex_life) do
+		if not alive then
+			local tex = textures[texID].tex
+			glDeleteTextureFBO(tex)
+			glDeleteTexture(tex)
+			textures[texID] = nil
+			tex_life[texID] = nil
+		end
 	end
 end
-
+local done = {}
 local function CreateAtlas()
 	for i, atlas in ipairs(atlasses) do
 		glDeleteTextureAtlas(atlas.obj)
 		atlasses[i] = nil
 	end
-	local n_tex = #featureConvexHulls
+	local n_tex = table.size(textures)
 	if n_tex == 0 then
 		return
 	end
 	local atlasMaxX = Spring.GetConfigInt("MaxTextureAtlasSizeX", 4096)
 	local atlasMaxY = Spring.GetConfigInt("MaxTextureAtlasSizeY", 4096)
 	local area =  0
-	for i, hull in ipairs(featureConvexHulls) do
-		area = area + hull.texSizeX * hull.texSizeY
+	for i, texObj in pairs(textures) do
+		area = area + texObj.texSizeX * texObj.texSizeY
 	end
 	local areaNeeded = math.ceil(area * 1.43) -- estimate it will be filled at 70%
 	local tries = 0
+	local texArray, a = {}, 0
+	for _, texObj in pairs(textures) do
+		a = a + 1
+		texArray[a] = texObj
+	end
 	while n_tex > 0 do
 		tries = tries + 1
 		if tries > 40 then
@@ -1216,11 +1239,12 @@ local function CreateAtlas()
 		local in_tex = 0
 		local toFill = atlas_xsize * atlas_ysize
 		local filled = 0
-		for i = n_tex, 1, -1 do
-			local hull = featureConvexHulls[i]
-			local texName = hull.tex
+		local atlas_textures = {}
 
-			local xsize, ysize = hull.texSizeX, hull.texSizeY
+		for i = n_tex, 1, -1 do
+			local texObj = texArray[i]
+			local texName = texObj.tex
+			local xsize, ysize = texObj.texSizeX, texObj.texSizeY
 			-- if (xsize > atlas_xsize and xsize > atlas_ysize) or (ysize > atlas_xsize and ysize > atlas_ysize) then -- if they can be rotated ?
 			if (xsize > atlas_xsize or ysize > atlas_ysize) then
 				Echo('['..widget.GetInfo().name .. '] ' .. 'Texture ' .. texName, 'size', xsize, ysize, 'cannot fit in atlas of size', atlas_xsize, atlas_ysize)
@@ -1231,16 +1255,17 @@ local function CreateAtlas()
 			if filled + area > toFill then
 				break
 			end
+			atlas_textures[texObj.texID] = texObj
 			filled = filled + area
 			in_tex = in_tex + 1
 			glAddAtlasTexture(atlas, texName)
 		end
 		if gl.FinalizeTextureAtlas(atlas) then
 			areaNeeded = areaNeeded - filled
-			atlasses[n_atlas] = {obj = atlas, num = in_tex}
+			atlasses[n_atlas] = {obj = atlas, num = in_tex, textures = atlas_textures}
 			for i = n_tex, n_tex - in_tex + 1, -1 do
-				local hull = featureConvexHulls[i]
-				hull.u1, hull.u2, hull.v1, hull.v2 = glGetAtlasTexture(atlas, hull.tex)
+				local texObj = texArray[i]
+				texObj.u1, texObj.u2, texObj.v1, texObj.v2 = glGetAtlasTexture(atlas, texObj.tex)
 			end
 			n_tex = n_tex - in_tex
 			-- Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
@@ -1248,10 +1273,10 @@ local function CreateAtlas()
 			areaNeeded = areaNeeded * 1.20
 		end
 	end
-	for i, hull in ipairs(featureConvexHulls) do
-		glDeleteTextureFBO(hull.tex)
-		glDeleteTexture(hull.tex)
-	end
+	-- for i, hull in ipairs(featureConvexHulls) do
+	-- 	glDeleteTextureFBO(hull.tex)
+	-- 	glDeleteTexture(hull.tex)
+	-- end
 	return true
 end
 
@@ -1296,46 +1321,39 @@ local function DrawFeatureClusterText()
 end
 
 local function DrawQuadsWithAtlas()
-	local cur_atlas = 1
-	local atlas = atlasses[cur_atlas]
-	local max_index = atlas.num
-	local j = 0
 	glColor(1,1,1,1)
-	glTexture(0, atlas.obj)
-	for i = #featureConvexHulls, 1, -1 do
-		local hull = featureConvexHulls[i]
-		j = j + 1
-		if j > max_index then
-			j = 1
-			cur_atlas = cur_atlas + 1
-			atlas = atlasses[cur_atlas]
-			max_index = atlas.num
-			glTexture(0, atlas.obj)
+
+	local count = 0
+	for i, atlas in ipairs(atlasses) do
+		glTexture(0, atlas.obj)
+		for texID, texObj in pairs(atlas.textures) do
+			local u1, u2, v1, v2 = texObj.u1, texObj.u2, texObj.v1, texObj.v2
+			local texSizeX, texSizeY = texObj.texSizeX, texObj.texSizeY
+			local scale = texObj.scale
+			for hull in pairs(texObj.hulls) do
+				local center = hull.center
+				glPushMatrix()
+				if scale then -- texture has been scaled up to increase font detail
+					glTranslate(center.x - (texSizeX/2) * scale, center.y, center.z + (texSizeY/2) * scale)
+					glScale(scale, 1, scale)
+				else
+					glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
+				end
+				glRotate(-90, 1, 0, 0)
+				glBeginEnd(GL.QUADS, function()
+					glTexCoord(u1, v1)
+					glVertex(0, 0, 0)
+					glTexCoord(u2, v1)
+					glVertex(texSizeX, 0, 0)
+					glTexCoord(u2, v2)
+					glVertex(texSizeX, texSizeY, 0)
+					glTexCoord(u1, v2)
+					glVertex(0, texSizeY, 0)
+				end)
+				glPopMatrix()
+			end
 		end
-		local u1, u2, v1, v2 = hull.u1, hull.u2, hull.v1, hull.v2
-		local center = hull.center
-		local texSizeX, texSizeY = hull.texSizeX, hull.texSizeY
-		local scale = hull.scale
-		glPushMatrix()
-		if scale then -- texture has been scaled up to increase font detail
-			glTranslate(center.x - (texSizeX/2) * scale, center.y, center.z + (texSizeY/2) * scale)
-			glScale(scale, 1, scale)
-		else
-			glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
-		end
-		glRotate(-90, 1, 0, 0)
-		glBeginEnd(GL.QUADS, function()
-			glTexCoord(u1, v1)
-			glVertex(0, 0, 0)
-			glTexCoord(u2, v1)
-			glVertex(texSizeX, 0, 0)
-			glTexCoord(u2, v2)
-			glVertex(texSizeX, texSizeY, 0)
-			glTexCoord(u1, v2)
-			glVertex(0, texSizeY, 0)
-		end)
-		glPopMatrix()
-	end	
+	end
 	----- debug show the whole atlas
 	-- glTexture(0, atlasses[1].obj)
 	-- glPushMatrix()
@@ -1357,33 +1375,34 @@ end
 
 local function DrawQuads()
 	glColor(1,1,1,1)
-	for i = 1, #featureConvexHulls do
-		local hull = featureConvexHulls[i]
-		local center = hull.center
-		local texName = hull.tex
-		local texSizeX, texSizeY = hull.texSizeX, hull.texSizeY
-		local scale = hull.scale
-		glPushMatrix()
-		if scale then
-			glTranslate(center.x - (texSizeX/2) * scale, center.y, center.z + (texSizeY/2) * scale)
-			glScale(scale, 1, scale)
-		else
-			glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
+	for texID, texObj in pairs(textures) do
+		local u1, u2, v1, v2 = texObj.u1, texObj.u2, texObj.v1, texObj.v2
+		local texSizeX, texSizeY = texObj.texSizeX, texObj.texSizeY
+		local scale = texObj.scale
+		glTexture(0, texObj.tex)
+		for hull in pairs(texObj.hulls) do
+			local center = hull.center
+			glPushMatrix()
+			if scale then
+				glTranslate(center.x - (texSizeX/2) * scale, center.y, center.z + (texSizeY/2) * scale)
+				glScale(scale, 1, scale)
+			else
+				glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
+			end
+			glRotate(-90, 1, 0, 0)
+			glBeginEnd(GL.QUADS, function()
+				glTexCoord(0, 0)
+				glVertex(0, 0, 0)
+				glTexCoord(1, 0)
+				glVertex(texSizeX, 0, 0)
+				glTexCoord(1, 1)
+				glVertex(texSizeX, texSizeY, 0)
+				glTexCoord(0, 1)
+				glVertex(0, texSizeY, 0)
+			end)
+			glPopMatrix()
 		end
-		glRotate(-90, 1, 0, 0)
-		glTexture(0, texName)
-		glBeginEnd(GL.QUADS, function()
-			glTexCoord(0, 0)
-			glVertex(0, 0, 0)
-			glTexCoord(1, 0)
-			glVertex(texSizeX, 0, 0)
-			glTexCoord(1, 1)
-			glVertex(texSizeX, texSizeY, 0)
-			glTexCoord(0, 1)
-			glVertex(0, texSizeY, 0)
-		end)
 		gl.Texture(0, false)
-		glPopMatrix()
 	end
 end
 local wasDisabled = true
@@ -1484,12 +1503,18 @@ function widget:DrawWorld()
 	end
 	glDepthTest(false)
 	glDepthTest(true)
-
+	if benchmark then
+		benchmark:Enter('Draw - Solid Hulls')
+	end
 	glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 	if drawFeatureConvexHullSolidList then
 		glColor(ColorMul(color, reclaimColor))
 		glCallList(drawFeatureConvexHullSolidList)
 		--DrawFeatureConvexHullSolid()
+	end
+	if benchmark then
+		benchmark:Leave('Draw - Solid Hulls')
+		benchmark:Enter('Draw - Edges')
 	end
 
 	if drawFeatureConvexHullEdgeList then
@@ -1499,6 +1524,9 @@ function widget:DrawWorld()
 		--DrawFeatureConvexHullEdge()
 		glLineWidth(1.0)
 	end
+	if benchmark then
+		benchmark:Leave('Draw - Edges')
+	end		
 	if updateTextTextures and textAsTex then
 		if textAtlasQuadList then
 			gl.DeleteList(textAtlasQuadList)
@@ -1506,20 +1534,58 @@ function widget:DrawWorld()
 		if textQuadList then
 			gl.DeleteList(textQuadList)
 		end
+		if benchmark then
+			benchmark:Enter('PrepareTextures()')
+		end
 		PrepareTextures()
-		if useAtlas and CreateAtlas() then
+		if benchmark then
+			benchmark:Leave('PrepareTextures()')
+		end
+		if benchmark and useAtlas then
+			benchmark:Enter('CreateAtlas()')
+		end
+		local haveAtlas = useAtlas and CreateAtlas()
+		if benchmark and useAtlas then
+			benchmark:Leave('CreateAtlas()')
+		end
+		if haveAtlas then
+			if benchmark then
+				benchmark:Enter('glCreateList(DrawQuadsWithAtlas)')
+			end
 			textAtlasQuadList = glCreateList(DrawQuadsWithAtlas)
+			if benchmark then
+				benchmark:Leave('glCreateList(DrawQuadsWithAtlas)')
+			end
 		else
+			if benchmark then
+				benchmark:Enter('glCreateList(DrawQuads)')
+			end
 			textQuadList = glCreateList(DrawQuads)
+			if benchmark then
+				benchmark:Leave('glCreateList(DrawQuads)')
+			end
 		end
 		updateTextTextures = false
 	end
 
 	if textAsTex then
 		if textAtlasQuadList and useAtlas and atlasses[1] then
+			if benchmark then
+				benchmark:Enter('Draw - glCallList(textAtlasQuadList)')
+			end
 			glCallList(textAtlasQuadList)
+			if benchmark then
+				benchmark:Leave('Draw - glCallList(textAtlasQuadList)')
+			end
+
 		elseif textQuadList then
+			if benchmark then
+				benchmark:Enter('Draw - glCallList(textQuadList)')
+			end
 			glCallList(textQuadList)
+			if benchmark then
+				benchmark:Leave('Draw - glCallList(textQuadList)')
+			end
 		end
 	elseif drawFeatureClusterTextList then
 		glCallList(drawFeatureClusterTextList)
@@ -1545,11 +1611,9 @@ function widget:Shutdown()
 		glDeleteList(textAtlasQuadList)
 	end
 
-	for i, hull in ipairs(featureConvexHulls) do
-		if hull.tex then
-			glDeleteTextureFBO(hull.tex)
-			glDeleteTexture(hull.tex)
-		end
+	for _, texObj in pairs(textures) do
+		glDeleteTextureFBO(texObj.tex)
+		glDeleteTexture(texObj.tex)
 	end
 	for i, atlas in ipairs(atlasses) do
 		glDeleteTextureAtlas(atlas.obj)
@@ -1557,5 +1621,6 @@ function widget:Shutdown()
 	if benchmark then
 		benchmark:PrintAllStat()
 	end
+	Echo('REUSED', reused)
 end
 f.DebugWidget(widget)
