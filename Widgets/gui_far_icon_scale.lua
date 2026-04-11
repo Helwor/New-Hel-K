@@ -12,7 +12,7 @@ function widget:GetInfo()
 end
 local on = false
 local spSendCommands = Spring.SendCommands
-local threshold = 7000
+local threshold = 6600
 local scale = 1.43
 options_path = 'Hel-K/' .. widget.GetInfo().name
 
@@ -20,7 +20,7 @@ options = {
 	threshold = {
 		name = 'Far Zoom Out Threshold',
 		type = 'number',
-		min = 4000, max = 20000, step = 100,
+		min = 4000, max = 15000, step = 100,
 		value = threshold,
 		update_on_the_fly = true,
 		desc = 'Toggle the Spring Command IconsAsUI ON above this camera distance which allow use to have custom and fixed size of icon',
