@@ -109,7 +109,7 @@ WG.EzTarget = WG.EzTarget or {}
 local shared = WG.EzTarget
 
 local aboveMinimap = false -- ENGINE BUG during DefaultCommand() the minimap is minimized we can't rely on Spring.IsAboveMiniMap() so we update this during Update()
-
+local IconsAsUI = false
 local tsort = table.sort
 local osclock = os.clock
 
@@ -687,81 +687,148 @@ local cmdByName = {
 }
 local debugPrefer = true
 local preferFuncsCheck = {
-	['fac>unit'] = function(isStatic, isFac)
-		if isFac then
-			return
-		end
-		--look for fac no matter the distance
-		for i, id in ipairs(minesByDist) do
-			local defID = mines[id]
-			if factoryDefID[defID] then
-				return id
-			end
-		end
-		-- if nothing found and closest is a non fac structure, look for unit
-		if isStatic then
-			for i, id in ipairs(minesByDist) do
-				local defID = mines[id]
-				if not staticBuildingDefID[defID] then
-					return id
-				end
-			end
-		end
-	end,
-	['unit>fac'] = function(isStatic, isFac)
-		if not isStatic then
-			v.prefer = 'closest is already a unit'
-			return
-		end
-		--look for unit no matter the distance
-		for i, id in ipairs(minesByDist) do
-			local defID = mines[id]
-			if not staticBuildingDefID[defID] then
-				v.prefer = 'found unit',id, 'last acquired',v.lastAcquiredSelect
-				return id
-			end
-		end
-		-- if nothing found and closest is not a fac, look for fac
+	['fac>unit'] = function(isStatic, isFac, closest, lastAcquired, secondClosest, secondDefID)
 		if not isFac then
-			for i, id in ipairs(minesByDist) do
-				local defID = mines[id]
-				if factoryDefID[defID] then
+			-- case: not a fac, look for fac or unit
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if factoryDefID[secondDefID] then
 					v.prefer = 'found fac'
-					return id
+					return secondClosest
 				end
+			-- end
+			if not isStatic then
+				v.prefer = 'keep unit'
+				return
+			else
+				-- not a unit either, look for unit
+				-- for i, id in ipairs(minesByDist) do
+				-- 	local defID = mines[id]
+					if not staticBuildingDefID[secondDefID] then
+						v.prefer = 'found unit'
+						return secondClosest
+					end
+				-- end
 			end
+			v.prefer = 'not found fac'
+		elseif closest == lastAcquired then
+			-- got a fac already selected, look for unit
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if not staticBuildingDefID[secondDefID] then
+					v.prefer = 'switch to unit'
+					return secondClosest
+				end
+			-- end
+			v.prefer = 'nothing to switch on'
 		end
 	end,
-	['unit'] = function(isStatic, isFac)
-		if not isStatic then
-			return
-		end
-		for i, id in ipairs(minesByDist) do
-			local defID = mines[id]
-			if not staticBuildingDefID[defID] then
-				return id
-			end
-		end
-	end,
-	['fac'] = function(isStatic, isFac)
-		if isFac then
-			return
-		end
-		for i, id in ipairs(minesByDist) do
-			local defID = mines[id]
-			if factoryDefID[defID] then
-				return id
-			end
-		end
-	end,
-	['static'] = function(isStatic, isFac)
+	['unit>fac'] = function(isStatic, isFac, closest, lastAcquired, secondClosest, secondDefID)
 		if isStatic then
-			return
+			-- case: not an unit, look for unit
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if not staticBuildingDefID[secondDefID] then
+					v.prefer = 'found unit'
+					return secondClosest
+				end
+			-- end
+			if not isFac then
+				-- unit not found, look for fac
+				-- for i, id in ipairs(minesByDist) do
+				-- 	local defID = mines[id]
+					if factoryDefID[secondDefID] then
+						v.prefer = 'unit not found, switched to fac'
+						return secondClosest
+					end
+				-- end
+			end
+			v.prefer = 'not found unit nor fac'
+		elseif closest == lastAcquired then
+			-- got a unit already selected, look for fac
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if factoryDefID[secondDefID] then
+					v.prefer = 'switched to fac'
+					return secondClosest
+				end
+			-- end
+			v.prefer = 'nothing to switch on'
 		end
-		for i, id in ipairs(minesByDist) do
-			local defID = mines[id]
-			if staticBuildingDefID[defID] then
-				return id
+	end,
+	['unit'] = function(isStatic, isFac, closest, lastAcquired, secondClosest, secondDefID)
+		if not isStatic then
+			v.prefer = 'closest is unit, nothing to switch on'
+			return
+		else
+			local closeUnit
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if not staticBuildingDefID[secondDefID] then
+					closeUnit = secondClosest
+					-- break
+				end
+			-- end
+			if closeUnit then
+				if closeUnit ~= lastAcquired then
+					v.prefer = 'found unit to switch on'
+					return closeUnit
+				else
+					v.prefer = 'switch back to closest'
+				end
+			else
+				v.prefer = 'nothing found to switch on'
+			end
+		end
+
+	end,
+	['fac'] = function(isStatic, isFac, closest, lastAcquired, secondClosest, secondDefID)
+		if isFac then
+			v.prefer = 'nothing to switch on'
+			return
+		else
+			local closeFac
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if factoryDefID[secondDefID] then
+					closeFac = secondClosest
+					-- break
+				end
+			-- end
+			if closeFac then
+				if closeFac ~= lastAcquired then
+					v.prefer = 'found fac to switch on'
+					return closeFac
+				else
+					v.prefer = 'switch back to closest'
+				end
+			else
+				v.prefer = 'nothing found to switch on'
+			end
+		end
+	end,
+	['static'] = function(isStatic, isFac, secondClosest, secondDefID)
+		if isStatic then
+			v.prefer = 'nothing to switch on'
+			return
+		else
+			local closeBuilding
+			-- for i, id in ipairs(minesByDist) do
+			-- 	local defID = mines[id]
+				if staticBuildingDefID[secondDefID] then
+					closeBuilding = secondClosest
+					-- break
+				end
+			-- end
+			if closeBuilding then
+				if closeBuilding ~= lastAcquired then
+					v.prefer = 'found building to switch on'
+					return closeBuilding
+				else
+					v.prefer = 'switch back to closest'
+				end
+			else
+				v.prefer = 'nothing found to switch on'
 			end
 		end
 	end,
@@ -1269,31 +1336,30 @@ local function Evaluate(type, id, engineCmd)
 		-- switch selection (not alt) static build/unit under cursor
 		local modSelChanged = false
 		if modSelDefID then
-			local newclosest
-			if opt.selPrefer ~= 'none' then
-				local preferFunc = preferFuncsCheck[opt.selPrefer]
-				if preferFunc then
+			local closest = s.moddedSelect
+			local secondClosest = minesByDist[2]
+			local lastAcquired = v.lastAcquiredSelect
+			if secondClosest and secondClosest ~= lastAcquired then
+				local newclosest
+				local dist1 = poses[closest][3]
+				local dist2 = poses[secondClosest][3]
+				local separation = math.abs(dist2 - dist1)
+
+				if opt.selPrefer ~= 'none' and separation < 6 then
+					local preferFunc = preferFuncsCheck[opt.selPrefer]
 					local isStatic = staticBuildingDefID[modSelDefID]
 					local isFac = factoryDefID[modSelDefID]
-					local closest = preferFunc(isStatic, isFac)
-					if closest and closest ~= v.lastAcquiredSelect then
-						newclosest = closest
-					end
+					newclosest = preferFunc(isStatic, isFac, closest, lastAcquired, secondClosest, mines[secondClosest])
 				end
-			end
-			if not newclosest then
-				local secondClosest = minesByDist[2]
-				if secondClosest then
-					local dist1 = poses[s.moddedSelect][3]
-					local dist2 = poses[secondClosest][3]
-					v.dist2 = dist2
+				if not newclosest and separation < 2 then
+					newclosest = secondClosest
 				end
-			end
-			if newclosest then
-				SetColor(s.moddedSelect, pink)
-				s.moddedSelect = newclosest
-				modSelChanged = true
-				SetColor(newclosest, teal)
+				if newclosest then
+					SetColor(closest, pink)
+					s.moddedSelect = newclosest
+					modSelChanged = true
+					SetColor(newclosest, teal)
+				end
 			end
 		end
 		if v.defaultCmd == CMD_ATTACK then
@@ -1673,6 +1739,7 @@ end
 function widget:Update(dt)
 	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
 	aboveMinimap = spIsAboveMiniMap(mx, my)
+	IconsAsUI = Spring.GetConfigInt('UnitIconsAsUI', 0) == 1
 	local realMousePress = lmb or mmb or rmb
 	if v.mousePressed and not realMousePress then
 		-- Echo('EzTARGET CORRECTED IN UPDATE, actually NOT PRESSED ',spGetMouseState())
@@ -2566,6 +2633,9 @@ do --- EzTarget ---
 								y = GetIconMidY(defID, y, gy, distFromCam)
 							end
 							local sx,sy = spWorldToScreenCoords(x,y,z) 
+							if IconsAsUI then
+								sy = sy - 3
+							end
 							local scrDist = ((mx-sx)^2 + (my-sy)^2)^0.5
 							-- str = str .. ', [' .. id .. '] dist: ' .. round(scrDist)
 							-- local nature, pos = spTraceScreenRay(sx,sy,true,true,true,false)
