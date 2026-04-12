@@ -1,7 +1,9 @@
 function widget:GetInfo()
 	return {
 		name      = "Far Icon Scale",
-		desc      = "Allow you to have bigger icons via the Spring setting \"IconsAsUI\" when very zoomed out\nAdapt to your convenience in the options\nWARN If you use the widget \"Infos On Icons\", some infos might not show if you draw only when unit is icon (for some reason - engine bug - units under 95% build progress are not considered as icon when using the mode IconsAsUI)",
+		desc      = "Allow you to have bigger icons via the Spring setting \"IconsAsUI\" when very zoomed out\nAdapt to your convenience in the options"
+					.."\nWARN 1 Engine bug: If you use the widget \"Infos On Icons\", some infos might not show if you draw only when unit is icon (for some reason units under 95% build progress are not considered as icon when using the mode IconsAsUI)"
+					.."\nWARN 2 Engine bug: The mode IconsAsUI also leak some icons display out of radar range",
 		author    = "Helwor",
 		date      = "Apr 2026",
 		license   = "GNU GPL, v2 or later",
