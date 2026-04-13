@@ -25,6 +25,7 @@ do
 		range = _range
 	end
 	function GetRange2DWeapon(yDiff)
+		Echo("yDiff > range is ", type(yDiff), type(range))
 		if yDiff > range  or -yDiff > range then
 			return 0
 		end
@@ -89,6 +90,7 @@ local function GetGroundHeightCached(x, z)
     return h
 end
 local function CalcBallisticCircle( x, y, z, range, wDef)
+	range = tonumber(range) -- makes it compatible with gui_defenserange.lua
 	-- count = count + 1
 	-- For best accuracy, coords has to be the aimFrom piece coords (but weapon may move to aim)
 	-- Engine bug: the unit start aiming when a target is in reach of the weapon current pos
