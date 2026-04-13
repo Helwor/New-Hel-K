@@ -25,7 +25,6 @@ do
 		range = _range
 	end
 	function GetRange2DWeapon(yDiff)
-		Echo("yDiff > range is ", type(yDiff), type(range))
 		if yDiff > range  or -yDiff > range then
 			return 0
 		end
