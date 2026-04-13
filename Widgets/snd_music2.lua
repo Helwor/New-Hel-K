@@ -72,24 +72,19 @@ local function FindAlbums(path)
 	local vfsMode = VFS.RAW_FIRST
 	local supportedFileTypes = '*.{ogg,mp3}'
 	local albums = {}
-	local dirs = VFS.SubDirs(path, 'peace', vfsMode, true)
-	if not dirs[1] then
-		 -- workaround for recursion and pattern recognition for old VFS.SubDirs version
-		local function ScanSubDirs(path)
-			local subdirs = VFS.SubDirs(path, nil, vfsMode)
-			Deduplicate(subdirs)
-			for _, subdir in pairs(subdirs) do
-				local folder = subdir:match('([%w]+)[/\\]$')
-				if folder == 'peace' then
-					dirs[#dirs+1] = subdir
-				elseif not musicTypes[folder] then
-					ScanSubDirs(subdir)
-				end
-			end
+	local subdirs = VFS.SubDirs(path, '*peace*', vfsMode, true)
+	-- VFS.SubDirs returns paths with backslash on windows for local VFS.RAW,
+	-- but passing backslash to the regex seems to crash the engine. Thus we
+	-- must do a lenient filter and trim it manually
+	local subdirs = {}
+	for _, path in pairs(VFS.SubDirs(path, '*peace*', vfsMode, true)) do
+		if path:sub(-7) == "/peace/"
+		or path:sub(-7) == "\\peace\\" then
+			subdirs[#subdirs + 1] = path
 		end
-		ScanSubDirs(path)
 	end
-	for i, path in ipairs(dirs) do
+	Deduplicate(subdirs)
+	for i, path in ipairs(subdirs) do
 		path = path:gsub('peace[\\/]', '')
 		local tracks = {}
 		for musicType in pairs(musicTypes) do
