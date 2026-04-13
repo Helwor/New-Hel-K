@@ -97,7 +97,7 @@ local function FindAlbums(path)
 		local dir = path:gsub('sounds[\\/]music[\\/]', '')
 		local name = dir:gsub('[\\/]$', '')
 		local humanName
-		if name == '' then
+		if name == '' or name == 'denny' then
 			name = 'denny'
 			humanName = 'Schneidemesser (default)'
 		elseif name == 'ost23_uf' then
@@ -117,7 +117,7 @@ end
 includedAlbums = FindAlbums('sounds/music/')
 
 
-local trackListName = includedAlbums.denny and 'denny' or next(includedAlbums)
+local trackListName = includedAlbums.d700 and 'd700' or next(includedAlbums)
 
 local trackList = includedAlbums[trackListName].tracks
 
@@ -167,9 +167,6 @@ options = {
 					local r = math.random(#self.items - 1)
 
 					local item = self.items[r]
-					-- if item.key == 'random' then -- in case the item 'random' is not at last position
-					-- 	item = self.items[r-1] or self.items[r+1]
-					-- end
 					value = item.key
 				end
 			else
