@@ -593,7 +593,7 @@ local Switch = {
 		return true
 	end,
 
-	SwitchImpulse = function()
+	Impulse = function()
 		local cmdDescs = Spring.GetActiveCmdDescs()
 		if not cmdDescs then
 			return
@@ -2869,9 +2869,9 @@ local hotkeysCombos = {
 		},
 		switch_time = 1,
 		force = true,
-		-- , call_on_fail = 'Alt Riot'
-		-- , byType = 'defID'
-		-- , byType = 'family'
+		-- call_on_fail = 'Alt Riot',
+		-- byType = 'defID',
+		-- byType = 'family',
 		from_cursor = true,
 		keys = {'?SPACE', 3, --[['?doubleTap'--]]},
 		share_radius = 'Raiders',
@@ -2883,7 +2883,7 @@ local hotkeysCombos = {
 		name = 'Alt Riot',
 		method = 'cylinder',
 		from_cursor = true,
-		-- keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
+		keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
 		defs = {class = 'riot'},
 		pref_use_prev = true,
 		only_prev_types = true,
@@ -9124,8 +9124,13 @@ do
 					-- Echo('select ' .. t.toSelect ..  ' ' .. UnitDefs[t.defID].humanName)
 					for i = 1, t.toSelect do
 						local id = t[i]
-						table.insert(newSelection, id)
-						byID[id] = true
+						if id then
+							table.insert(newSelection, id)
+							byID[id] = true
+						else
+							Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+							Echo('['..widget.GetInfo().name .. ']' .. ' ERROR during Selection Resizing, t.toSelect > t.size??',t.toSelect, t.size, #t, table.size(t) )
+						end
 					end
 				end
 
