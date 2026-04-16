@@ -228,6 +228,7 @@ local function GenerateShaders() -- those shaders will help make the grid appear
 	local vertexCode = [[
 		#version 120
 		varying vec4 color;
+
 		void main() {
 			color = gl_Color.rgba;
 			gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;
@@ -2948,7 +2949,7 @@ local function DrawSlope(layers)
 	-- 	0.99998, 	0.9999, 		0.999, 			1.0001,	     0.99999
 	curPullShader = 1
 	if heightcam < 30000 then
-		local factor = 1 -- 
+		local factor = 2-- 
 		local pull =  1 - ((30000 / heightcam) / (100000 * factor))
 		curPullShader = pull
 		-- if heightcam > 3000 then
