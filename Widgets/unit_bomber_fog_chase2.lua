@@ -64,6 +64,7 @@ local CMD_REARM                 = customCmds.REARM    -- 33410
 local CMD_RAW_MOVE              = customCmds.RAW_MOVE -- 31109
 local CMD_AIR_MANUALFIRE		= customCmds.AIR_MANUALFIRE
 local CMD_UNIT_CANCEL_TARGET	= customCmds.UNIT_CANCEL_TARGET
+local CMD_FIND_PAD				= customCmds.FIND_PAD
 local TABLE_ZERO = {0}
 local EMPTY_TABLE = {}
 local _
@@ -123,6 +124,7 @@ options.own_return = {
 		ownReturn = true
 	end
 }
+
 options.fog_timeout = {
 	name = 'Fog TimeOut',
 	desc = 'How long we hope finding that unit gone out of radar until returning to the fold',
@@ -132,7 +134,6 @@ options.fog_timeout = {
 	OnChange = function(self)
 		fogPursueTime = self.value * 30
 	end
-
 }
 
 options.clear_attacks_on_unload = {
@@ -393,8 +394,9 @@ local function TargetIsGone(targetID, delete)
 			-- spGiveOrderToUnit(id, CMD_REMOVE, CMD_ATTACK, CMD_OPT_ALT)
 			bomber:CancelLast()
 			if spGetCommandQueue(id,0) == 1 then
-				Debug('Bomber ' .. id .. ' has gone target ' .. targetID ..  ' and only one command in queue, returning to base')
-				bomber:Return()
+				spGiveOrderToUnit(id, CMD.STOP, 0, 0) -- instead of return to pad make it stop immediately
+			-- 	Debug('Bomber ' .. id .. ' has gone target ' .. targetID ..  ' and only one command in queue, returning to base')
+			-- 	bomber:Return()
 			end
 		end
 	end
@@ -668,6 +670,7 @@ function bomberClass:New(unitID, unitDefID)
 	o.movePursue	= false
 	o.lastCommand	= false
 	                -- Commands added by UnitCommand, removed (restored) by RestoreQueuedCmds
+	o:CheckUnload()
 	return o
 end
 
@@ -916,7 +919,7 @@ function bomberClass:GetPosition(threshold)
 
 end
 function bomberClass:GetClosestPad(t, pos)
-	local closest
+	local closest, closestID
 	local dist = math.huge
 	local bx,by,bz = unpack(pos or self:GetPosition(15))
 	if bz then
@@ -925,10 +928,11 @@ function bomberClass:GetClosestPad(t, pos)
 			if thisdist < dist then
 				dist = thisdist
 				closest = pad
+				closestID = id
 			end
 		end
 	end
-	return closest
+	return closest, closestID
 end
 
 function bomberClass:UpdateState(cmd, params, shift, meta, stop) -- TODO: IMPLEMENT META
@@ -1028,17 +1032,13 @@ function bomberClass:Return(rearm, shift)
 			from = order.params
 		end
 	end
-	local pad = self:GetClosestPad(myAirpads,from)
+	local pad, padID = self:GetClosestPad(myAirpads,from)
+
 	if not pad then
 		return
 	end
 	Debug(' -- bomber ' .. self.id .. ' return to own pad ' .. (rearm and 'for rearming' or ''),os.clock())
-	local opt = CMD_OPT_INTERNAL + (shift and CMD_OPT_SHIFT or 0)
-	if rearm then
-		-- NOT giving rearm command, the engine will issue the rearming once bomber has arrived close to the airpad
-		-- spGiveOrderToUnit(self.id, CMD_INSERT, {shift and -1 or 0, CMD_REARM, CMD_OPT_INTERNAL, pad.id}, CMD_OPT_ALT )
-		-- return true
-	end
+
 	if not self.returned or self.returned + 45 < currentFrame then 
 		---- workaround
 		-- it appears the engine (?) ignore a same raw move order sent twice recently at same location, even though the command order is visible, it is not applied  (NoDuplicateOrders has nothing to do with it).
@@ -1048,15 +1048,14 @@ function bomberClass:Return(rearm, shift)
 		pad = {pad[1] + 64 * r * posNeg1, pad[2], pad[3] + 64 * r * posNeg2 }
 	end
 	self.returned = currentFrame
-	if rearm then
-		-- Echo('shift?',shift)
-		spGiveOrderToUnit(self.id, CMD_INSERT, {shift and -1 or 0, CMD_RAW_MOVE, CMD_OPT_INTERNAL, unpack(pad)}, CMD_OPT_ALT )
+	if false and rearm then
+		spGiveOrderToUnit(self.id, CMD_INSERT, {shift and -1 or 0, CMD_REARM, CMD_OPT_SHIFT, padID}, CMD_OPT_ALT + CMD_OPT_SHIFT )
 		return true
+	else -- better send a move and game will sort out where to rearm 
+		local opt = CMD_OPT_INTERNAL + (shift and CMD_OPT_SHIFT or 0)
+		spGiveOrderToUnit(self.id, CMD_RAW_MOVE, pad, opt)
 	end
 
-
-
-	spGiveOrderToUnit(self.id, CMD_RAW_MOVE, pad, opt)
 
 
 end
@@ -1186,6 +1185,7 @@ function widget:UnitEnteredRadar(unitID, unitTeam, allyTeam, unitDefID)
 
 	end
 end
+
 function widget:GameFrame(gameFrame)
 	currentFrame = gameFrame
 	-- for id, bomber in pairs(selectedBombers) do
@@ -1206,10 +1206,15 @@ function widget:GameFrame(gameFrame)
 
 	for id, bomber in pairs(checkReturn) do
 		-- Echo('queue',spGetCommandQueue(id,0))
-		if spGetCommandQueue(id,0) == 0 then
-			Debug('bomber ' .. bomber.id .. " don't have any more order, returning to base")
-			bomber:Return()
+		local cmd = spGetUnitCurrentCommand(id)
+		if not cmd or cmd == CMD_ATTACK and bomber.unloaded then
+			Debug('Bomber ' .. bomber.id .. (not cmd and " don't have any more order" or "have attack order while unloaded") ..", returning to base.")
+			bomber:Return(true)
 		end
+		-- if spGetCommandQueue(id,0) == 0 then
+		-- 	Debug('bomber ' .. bomber.id .. " don't have any more order, returning to base")
+		-- 	bomber:Return()
+		-- end
 		checkReturn[id] = nil
 	end
 	for targetID, frame_timeout in pairs(timeouts) do
@@ -1322,18 +1327,27 @@ function widget:UnitIdle(unitID)
 		end
 	end
 end
+
 function widget:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOpts, cmdTag)
 -- NOTE: the engine (?) apply a time out on target gone out of radar, the command is not shown anymore but the bomber continue its course for some time
 --, then the order is removed and UnitCmdDone get triggered, the bomber then just stop on place
 -- if we 
-	if cmdID == CMD_ATTACK then
-		return
-	end
 	if not bombers[unitID] then
 		return
 	end
 
 	local bomber = bombers[unitID]
+	local nexCmd, _, _, p1, p2, p3, p4 = spGetUnitCurrentCommand(unitID)
+	if nexCmd == CMD_ATTACK and p3 then
+		-- special case of bug work around, where allied pad is excluded and all own pads are reserved, own remaining bombers will not move after attacking on the ground
+		if bomber.unloaded or bomber:CheckUnload() then
+			checkReturn[unitID] = bomber
+		end
+		return
+	end
+	if cmdID ~= CMD_ATTACK and cmdID ~= CMD_REARM then
+		return
+	end
 	-- Debug('reloaded, reloadFrame, currentFrame', reloaded, reloadFrame, currentFrame)
 	if bomber.unloaded then
 		if cmdID == CMD_REARM and not bomber:CheckUnload() then
@@ -1577,9 +1591,8 @@ function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOp
 				curStr = 'cmd ' .. current.id .. 'params ' .. current.params[1]
 			end
 			-- Echo('unload detected, curent order:',curStr)
-			spGiveOrderToUnit(unitID, CMD_REMOVE, CMD_ATTACK, CMD_OPT_ALT)
-
 			local targetID = bomber:RemoveTarget()
+			spGiveOrderToUnit(unitID, CMD_REMOVE, CMD_ATTACK, CMD_OPT_ALT)
 			-- if not targets[targetID] then
 			-- 	Debug(' ... from Unit Command')
 			-- end
