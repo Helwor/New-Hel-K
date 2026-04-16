@@ -216,6 +216,8 @@ local uniShader, unifLoc
 local div = 1.0
 local function GenerateShaders() -- those shaders will help make the grid appear above little bumps of the map
 	local fragCode = [[
+		#version 120
+		#extension GL_EXT_gpu_shader4 : enable
 		varying vec4 color;
 		uniform float div;
 		void main() {
@@ -224,8 +226,8 @@ local function GenerateShaders() -- those shaders will help make the grid appear
 		}
 	]]
 	local vertexCode = [[
+		#version 120
 		varying vec4 color;
-
 		void main() {
 			color = gl_Color.rgba;
 			gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;
