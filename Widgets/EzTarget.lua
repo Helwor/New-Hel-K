@@ -1351,7 +1351,7 @@ local function Evaluate(type, id, engineCmd)
 					local isFac = factoryDefID[modSelDefID]
 					newclosest = preferFunc(isStatic, isFac, closest, lastAcquired, secondClosest, mines[secondClosest])
 				end
-				if not newclosest and separation < 2 then
+				if not newclosest and separation < 2 and lastAcquired == closest then
 					newclosest = secondClosest
 				end
 				if newclosest then
