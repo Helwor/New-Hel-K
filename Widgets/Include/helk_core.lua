@@ -83,6 +83,7 @@ local function GetLocal(func, searchname)
 	end
 end
 
+local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
 -------
 
 Echo = Spring.Echo
@@ -91,13 +92,27 @@ if not realHandler then
 	Echo('[Hel-K]: FAILED TO INSTALL, Couldn\'t get realHandler')
 	return
 end
+local widgetFiles = GetLocal(realHandler.Initialize, 'widgetFiles')
+-- Echo('SOURCE',source)
+-- for i, v in ipairs(widgetFiles) do
+--  Spring.Echo('#'..i, v)
+-- end
+if not widgetFiles then
+	Echo('[Hel-K]: FAILED TO INSTALL, Couldn\'t retrieve widgetFiles')
+	return
+end
+local source = debug.getinfo(3).source
+local this_widget_file = source:sub(source:find('[%w_]+%.lua'))
+
+Echo('[Hel-K] Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
+
+
 VFS.Include(HELK_CORE_DIR .. "addon_handler_register_global_multi.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_cmd_insertwidget.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_sleep_wake.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_console_catcher.lua")
 VFS.Include(HELK_CORE_DIR .. "keycodes.lua")
 
-local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
 VFS.Include(HELK_CORE_DIR .. "lib_funcs.lua", copy(getfenv()) )
 f = WG.utilFuncs
 
@@ -105,73 +120,91 @@ VFS.Include(HELK_CORE_DIR .. "addon_gl.lua")
 
 
 
-local widgetFiles = GetLocal(realHandler.Initialize, 'widgetFiles')
--- Echo('SOURCE',source)
--- for i, v in ipairs(widgetFiles) do
---  Spring.Echo('#'..i, v)
--- end
-if widgetFiles then
 
-	-- local source = debug.getinfo(2).source
-	-- local this_widget_pat = source:sub(source:find('[%w_]+%.lua')) .. '$'
-	local this_widget_pat = 'api_apm_stats.lua' .. '$'
-	local this_widget_index, on_widget_state_index , add_sleep_wake_index
-	for i=1, #widgetFiles do
-		if widgetFiles[i]:find(this_widget_pat) then
-			-- Echo('FOUND FILENAME',i,filename)
-			this_widget_index = i
-			break
+local this_widget_pat = this_widget_file .. '$'
+local this_widget_index, on_widget_state_index , add_sleep_wake_index
+for i=1, #widgetFiles do
+	if widgetFiles[i]:find(this_widget_pat) then
+		-- Echo('FOUND FILENAME',i,filename)
+		this_widget_index = i
+		break
+	end
+end
+if this_widget_index then
+	local function GetLuaFileName(file)
+	    local s, e = file:find('[/\\][^/\\]+%.lua$')
+	    return file:sub(s+1, e)
+	end
+
+	local files = {}
+	for i, file in ipairs(widgetFiles) do
+		local filename = GetLuaFileName(file)
+		if filename then
+			files[filename] = true
 		end
 	end
-	if this_widget_index then
-		local function GetLuaFileName(file)
-		    local s, e = file:find('[/\\][^/\\]+%.lua$')
-		    return file:sub(s+1, e)
+	local off = 0
+	local anyMissing = false
+	for i, filename in ipairs(apiOrder) do
+		local file = HELK_CORE_DIR .. "widgets\\" .. filename
+		if VFS.FileExists(file) then
+			table.insert(widgetFiles, this_widget_index + 1 + off, file)
+			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
+			off = off + 1
+		else
+			Echo('[Hel-K]: WARN IMPORTANT API MISSING: ' .. file)
+			anyMissing = true
 		end
-
-		local files = {}
-		for i, file in ipairs(widgetFiles) do
+	end
+	if this_widget_index > 1 then
+		local unsortedWidgets = GetLocal(widgetHandler.Initialize, 'unsortedWidgets')
+		local function IsLocalVersionLoaded(file)
 			local filename = GetLuaFileName(file)
-			if filename then
-				files[filename] = true
+			for i, w in ipairs(unsortedWidgets) do
+				if not w.whInfo.fromZip and GetLuaFileName(w.whInfo.filename) == filename then
+					return true
+				end
+			end
+
+		end
+		Echo('[HEL-K] WORKAROUND (Linux user?) There have already been ' .. (this_widget_index - 1) .. ' widgets loaded before this one, reinserting the failed local ones')
+		for i = 1, this_widget_index do
+			local file = widgetFiles[i]
+			if VFS.FileExists(file, VFS.RAW) and not IsLocalVersionLoaded(file) then
+				if not GetLuaFileName(file) == this_widget_file then
+					local index = this_widget_index + 1 + off
+					Echo('Local widget ' .. GetLuaFileName(file) .. ' seemingly crashed before Hel-K, reinserting it at #' .. index)
+					table.insert(widgetFiles, index, file)
+					off = off + 1
+				end
 			end
 		end
-		local off = 0
-		local anyMissing = false
-		for i, filename in ipairs(apiOrder) do
-			local file = HELK_CORE_DIR .. "widgets\\" .. filename
-			if VFS.FileExists(file) then
-				table.insert(widgetFiles, this_widget_index + 1 + off, file)
-				Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
-				off = off + 1
-			else
-				Echo('[Hel-K]: IMPORTANT API MISSING: ' .. file)
-				anyMissing = true
-			end
-		end
-
-
-		-- for i, file in ipairs(VFS.DirList(HELK_CORE_DIR .. "widgets\\", "*.lua")) do
-		-- 	local filename = GetLuaFileName(file)
-		-- 	if filename then
-		-- 		local index = files[filename]
-		-- 		if index then
-		-- 			if index > this_widget_index then -- not replacing already loaded widget
-		-- 				widgetFiles[index + off] = file
-		-- 				Echo('[Hel-K]: Replaced widget origin ' .. filename .. ' at #' .. index + off)
-		-- 			end
-		-- 		else
-		-- 			table.insert(widgetFiles, this_widget_index + 1 + off, file)
-		-- 			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
-		-- 			off = off + 1
-		-- 		end
-		-- 	end					
-		-- end
 	end
+
+
+	-- for i, file in ipairs(VFS.DirList(HELK_CORE_DIR .. "widgets\\", "*.lua")) do
+	-- 	local filename = GetLuaFileName(file)
+	-- 	if filename then
+	-- 		local index = files[filename]
+	-- 		if index then
+	-- 			if index > this_widget_index then -- not replacing already loaded widget
+	-- 				widgetFiles[index + off] = file
+	-- 				Echo('[Hel-K]: Replaced widget origin ' .. filename .. ' at #' .. index + off)
+	-- 			end
+	-- 		else
+	-- 			table.insert(widgetFiles, this_widget_index + 1 + off, file)
+	-- 			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
+	-- 			off = off + 1
+	-- 		end
+	-- 	end					
+	-- end
 else
-	Echo('[Hel-K]: FAILED TO INSTALL, Couldn\'t retrieve widgetFiles')
+	Echo('[Hel-K] FATAL: couldn\'t get the current widget\'s index')
 	return
 end
+
+
+
 for i, filename in ipairs(includes) do
 	local file = WIDGET_DIR .. "Include\\" .. filename
 	if not VFS.FileExists(file, VFS.RAW) then
@@ -184,4 +217,6 @@ for i, filename in ipairs(importantWidgets) do
 		Echo('[Hel-K]: IMPORTANT FILE MISSING: ' .. file)
 	end
 end
+
+
 
