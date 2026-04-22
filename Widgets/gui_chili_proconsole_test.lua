@@ -173,7 +173,18 @@ local backlogButtonImage
 local color2incolor
 local widgetbuffer = {}
 local wbuffered = 0
-
+local outline_contrasted = {
+	outlineWidth = 3,
+	outlineWeight = 5,
+	outline = true,
+}
+local outline = {
+	outlineWidth = 2,
+	outlineWeight = 10,
+	outline = true,
+}
+local outline_used
+local font_name
 
 local incolor_dup
 local incolor_highlight
@@ -315,6 +326,7 @@ options_order = {
 	'toggleBacklog',
 	'text_height_chat',
 	'text_height_console',
+	'text_contrasted',
 	'backchatOpacity',
 	'autohide_text_time',
 	'max_lines',
@@ -555,6 +567,19 @@ options = {
 		min = 8, max = 30, step = 1,
 		OnChange = onOptionsChanged,
 	},
+
+	text_contrasted = {
+		name = "Text Contrasted",
+		type = 'bool',
+		value = true,
+		noHotkey = true,
+		OnChange = function(self)
+			font_name = self.value and 'proconsole_c' or 'proconsole'
+			outline_used = self.value and outline_contrasted or outline 
+			return onOptionsChanged(self)
+		end,
+	},
+
 	clickable_points = {
 		name = "Clickable points and labels",
 		type = 'bool',
@@ -1312,7 +1337,6 @@ local function AddMessage(msg, target, remake)
 		end
 		return
 	end
-
 	local textbox = TextBox:New{
 		width = '100%',
 		align = "left",
@@ -1327,11 +1351,7 @@ local function AddMessage(msg, target, remake)
 		autoHeight=true,
 		autoObeyLineHeight=true,
 		--]]
-		objectOverrideFont = WG.GetSpecialFont(size, "proconsole", {
-			outlineWidth = 3,
-			outlineWeight = 5,
-			outline = true,
-		})
+		objectOverrideFont = WG.GetSpecialFont(size, font_name, outline_used)
 	}
 	
 	local control = textbox
@@ -2059,6 +2079,7 @@ function widget:Initialize()
 		widgetHandler:RemoveWidget()
 		return
 	end
+	options.text_contrasted:OnChange()
 	screen0 = WG.Chili.Screen0
 	color2incolor = WG.Chili.color2incolor
 	
