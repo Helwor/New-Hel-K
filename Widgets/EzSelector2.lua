@@ -1174,11 +1174,22 @@ local hotkeysCombos = {
 	{
 		name = 'Shields with raiders',
 		method = 'cylinder',
-		keys = {'N_1', 4}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		keys = {'N_1', 4,}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
 		
 		no_key_order = true,
 		-- finish_current_call = true,
-		groups = {
+		switch = {
+			{
+				['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
+					{
+						name = {'shieldshield', 'shieldassault'}
+					},
+					{
+						class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
+					},
+
+				},
+			},
 			{
 				['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
 					{
@@ -1193,7 +1204,7 @@ local hotkeysCombos = {
 			{
 				['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
 					{
-						name = {'shieldshield', 'shieldassault', 'shieldcon'}
+						name = {'shieldcon'}
 					},
 					{
 						class = 'raider', ['!name'] = {'spiderscout', 'shieldscout'}
@@ -1201,8 +1212,11 @@ local hotkeysCombos = {
 
 				},
 			},
+			
 
 		},
+
+		switch_time = 0, -- allow us to to prefer the first switch everytime if exist
 
 		-- defs = {
 		--  ['AND'] = { -- 'AND' means we must find those different units together, or none will be selected
