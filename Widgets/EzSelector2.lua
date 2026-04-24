@@ -1174,7 +1174,7 @@ local hotkeysCombos = {
 	{
 		name = 'Shields with raiders',
 		method = 'cylinder',
-		keys = {'N_1', 4,}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
+		keys = {'N_1', 4}, --syntaxe: N_1 (KEYSIMS),  2 (as it appear on keyboard)-- both format work for the comfort of the user
 		
 		no_key_order = true,
 		-- finish_current_call = true,
@@ -1571,6 +1571,21 @@ local hotkeysCombos = {
 		call_on_fail = 'One Sniper',
 		shift = true,
 		keys = {'N_3', 'LClick', 'doubleLClick', '?spam'}
+	},
+	{
+		name = 'Snipers ', -- select all on double click
+		method = 'cylinder',
+		-- defs = {name = {'cloaksnipe', 'amphlaunch', 'hoverarty', 'jumpblackhole'}},
+		--params = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}},
+		-- syntaxe : !: values in the table must not be true
+		default = {name = 'cloaksnipe'},
+		share_radius = 'One Sniper',
+		same_units = true,
+		force = true,
+		call_on_fail = 'One Sniper',
+		shift = true,
+		keys = {'N_3', 'LClick', 'longClick', '?spam'},
+		longPressTime = 0.1,
 	},
 
 	-----------
