@@ -1140,7 +1140,7 @@ local hotkeysCombos = {
 				['!name'] = {
 					'vehsupport', 'shieldshield', 'amphlaunch', 'amphsupport', 'tankarty', 'tankheavyarty',
 					'heavyarty', 'spidercrabe', 'cloakbomb', 'shieldbomb', 'jumpbomb', 'amphbomb', 'chicken_dodo',
-					'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante', 'cloakheavyraid',
+					'spiderscout', 'spiderantiheavy', 'striderantiheavy', 'striderdante', 'cloakheavyraid', 'cloakarty', 'cloakskirm',
 					'hoverarty', 'amphtele', 'vehheavyarty', 'cloaksnipe', 'jumparty', 'cloakjammer', 'cloakary', 'striderarty',
 
 				}
@@ -2372,7 +2372,7 @@ local hotkeysCombos = {
 		-- switch_on_identical = true,
 		anyBP = true,
 		hasStructure = true,
-		set_active_command = 'Attack',
+		-- set_active_command = 'Attack',
 		color = {0.5, 0.9, 0.5, 1},
 		fading = 1,
 	},
@@ -2614,7 +2614,7 @@ local hotkeysCombos = {
 			{family = {'gunship'}},
 			{family = 'jump', ['!name'] = 'jumpscout'},
 			{family = {'hover'}},
-			{family = {'ship'}},
+			{family = {'ship'}, ['!name'] = 'subraider'},
 
 		},
 
@@ -2647,9 +2647,9 @@ local hotkeysCombos = {
 		keys = {'?SPACE', 'N_1', 'doubleTap', '?spam'},
 		-- defs = {class = 'raider'},
 		-- prefer = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', --[['gunshipemp', 'vehraid', 'vehscout'--]]}},
-		defs = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', 'vehscout', 'tankraid'}},
+		defs = {name = {'jumpscout', 'spiderscout', 'shieldscout', 'gunshipemp', 'vehscout', 'tankraid', 'shipscout'}},
 		call_on_only_defs = {
-			[ {name = {'vehscout', 'tankraid', 'gunshipemp'}} ] = 'Scorcher / Dart'
+			[ {name = {'vehscout', 'tankraid', 'gunshipemp', 'shipscout'}} ] = 'Scout < > Raider'
 		},
 		byType = 'defID',
 		from_cursor = true,
@@ -2671,15 +2671,15 @@ local hotkeysCombos = {
 	},
 
 	{
-		name = 'Scorcher / Dart', -- no key, called immediately by Alt Raiders if defs are matching
+		name = 'Scout < > Raider', -- no key, called immediately by Alt Raiders if defs are matching
 		method = 'cylinder',
 		-- on_press = true,
 		-- add_last_call_pool = true,
 		-- add_last_call_pool_if = 'Raiders',
 		groups = {
-			{name = {'vehscout', 'tankraid'}},
-			{name = {'vehraid', 'tankheavyraid'}},
-			{name = {'gunshipraid', 'gunshipemp'}},
+			{name = {'vehscout', 'tankraid', 'shipscout', 'gunshipemp'}},
+			{name = {'vehraid', 'tankheavyraid', 'shiptorpraider'}},
+			{name = {'gunshipraid'}},
 		},
 		-- switch = {
 		--  {name = 'vehscout'},
@@ -2732,7 +2732,7 @@ local hotkeysCombos = {
 		method = 'cylinder',
 		keys = {'?SPACE', 'N_1', 'doubleTap'},
 		call_on_only_defs = {
-			[ {name = {'vehscout', 'vehraid'}} ] = 'Scorcher / Dart'
+			[ {name = {'vehscout', 'vehraid'}} ] = 'Scout < > Raider'
 		},
 		switch = {
 			{name = {'jumpscout', 'spiderscout', 'shieldscout', 'subraider', 'vehscout', 'tankraid'}},
