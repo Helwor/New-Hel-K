@@ -17,9 +17,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-if not _G then 
-	_G = getfenv(loadstring(''))
-end
+
 local json = VFS.Include("LuaRules/Utilities/json.lua",nil, VFS.ZIP)
 
 ----- Localizations
@@ -85,6 +83,7 @@ local pix_detect = 0.5 -- any rgb color below this value will accept a pixel as 
 local analyse_size = 330 -- the diagonal of the image is extended to this in order to improve the contour making
 local onscreen_size = 150 -- the final result on screen as marker is reshrinked by this multiplicator
 local angle_tolerance = 0.05
+local noise_reduction = 2 -- contour suppressed if less lengthy that this value (% of the image diagonale) (not for plain mode)
 local always_up = true
 local placing_frame = false
 --
@@ -136,7 +135,19 @@ local taskDelay = 1
 local vsx, vsy = Spring.GetViewGeometry()
 
 options_path = 'Hel-K/'..widget:GetInfo().name
-options_order = {'always_up','placing_frame', 'updateDelay', 'maxPerUpdate', 'note', 'mode', 'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance'}
+options_order = {
+	'always_up',
+	'placing_frame',
+	'updateDelay',
+	'maxPerUpdate',
+	'note',
+	'mode',
+	'pix_detect',
+	'analyse_size',
+	'onscreen_size',
+	'angle_tolerance',
+	'noise_reduction',
+}
 options = {}
 
 
@@ -277,6 +288,20 @@ options.angle_tolerance = {
 	value = angle_tolerance,
 	OnChange = function(self)
 		angle_tolerance = self.value
+		initialized = false
+	end,
+}
+
+options.noise_reduction = {
+	name = 'Noise Reduction',
+	desc = 'Suppress little lines under this length (% of the image diagonal size)',
+	type = 'number',
+	min = 0.000, max = 10, step = 0.005,
+	value = noise_reduction,
+	default = noise_reduction,
+	reset = true,
+	OnChange = function(self)
+		noise_reduction = self.value
 		initialized = false
 	end,
 }
@@ -733,7 +758,8 @@ local function MakeCustomizationPanel()
         		  ..'\nPixel Detection: ' .. pix_detect
         		  ..'\nAnalyse Size: ' .. analyse_size
         		  ..'\nOnScreen Size: ' .. onscreen_size
-        		  ..'\nAngle Tolerance: ' .. angle_tolerance,
+        		  ..'\nAngle Tolerance: ' .. angle_tolerance
+        		  ..'\nNoise Reduction: ' .. noise_reduction,
         HitTest = ReturnSelf,
 
 	}
@@ -966,6 +992,42 @@ local function MakeCustomizationPanel()
 	}
 
 	y = y + 25
+	cp.header_noise_reduction = WG.Chili.Label:New{
+		x = left,
+		y = y,
+        caption = 'Noise Reduction',
+        width = "48%",
+        textColor = color_header,
+        tooltip = 'Suppress little lines under this length (% of the image diagonal size)',
+        HitTest = ReturnSelf,
+    }
+
+	y = y + 15
+	cp.noise_reduction = WG.Chili.Trackbar:New{
+		x = left,
+		y = y,
+		width = "48%",
+		-- right = panel_col_width,
+		min = 0.000, max = 10, step = 0.005,
+		value = noise_reduction,
+		trackColor = color_text,
+		OnMouseUp = {
+			function(self)
+				if customize then
+					if customize.noise_reduction ~= self.value then
+						customize.noise_reduction = self.value
+						if not customize.useDefault and customize.mode ~= 'plain' then
+							customize:FastUpdate()
+						else
+							customize:Save()
+						end
+					end
+				end
+			end
+		},
+	}
+
+	y = y + 25
 	cp.reset_defaults = WG.Chili.Button:New{
 		x = left,
 		y = y,
@@ -977,7 +1039,8 @@ local function MakeCustomizationPanel()
         		  ..'\nPixel Detection: ' .. pix_detect
         		  ..'\nAnalyse Size: ' .. analyse_size
         		  ..'\nOnScreen Size: ' .. onscreen_size
-        		  ..'\nAngle Tolerance: ' .. angle_tolerance,
+        		  ..'\nAngle Tolerance: ' .. angle_tolerance
+        		  ..'\nNoise Reduction: ' .. noise_reduction,
 		trackColor = color_text,
 		OnClick = {
 			function(self)
@@ -990,8 +1053,8 @@ local function MakeCustomizationPanel()
 							break
 						end
 					end
-					local defaults = {pix_detect, analyse_size, onscreen_size, angle_tolerance}
-					for i, opt in ipairs({'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance'}) do
+					local defaults = {pix_detect, analyse_size, onscreen_size, angle_tolerance, noise_reduction}
+					for i, opt in ipairs({'pix_detect', 'analyse_size', 'onscreen_size', 'angle_tolerance', 'noise_reduction'}) do
 						if math.abs(cp[opt].value - defaults[i]) > 1e-6 then -- value of angle_tolerance can differ a tiny bit when getting digested by the trackbar control
 							cp[opt]:SetValue(defaults[i])
 							cp[opt].OnMouseUp[1](cp[opt])
@@ -1090,6 +1153,10 @@ local function MakeCustomizationPanel()
 
 	cp.scroll_panel:AddChild(cp.header_angle_tolerance)
     cp.scroll_panel:AddChild(cp.angle_tolerance)
+
+	cp.scroll_panel:AddChild(cp.header_noise_reduction)
+    cp.scroll_panel:AddChild(cp.noise_reduction)
+
 
 	cp.scroll_panel:AddChild(cp.reset_defaults)
     
@@ -1203,6 +1270,7 @@ function MarkerMaker:New(file, index, params)
 		pix_detect = pix_detect, 				spix_detect = nil,
 		analyse_size = analyse_size, 			sanalyse_size = nil,
 		angle_tolerance = angle_tolerance, 		sangle_tolerance = nil,
+		noise_reduction = noise_reduction, 		snoise_reduction = nil,
 		onscreen_size = onscreen_size,
 
 		screen_ratio = nil,
@@ -1218,9 +1286,10 @@ function MarkerMaker:New(file, index, params)
 	if params then
 		obj.useDefault = params.useDefault
 		obj.mode = params.mode							
-		obj.angle_tolerance = params.angle_tolerance 	
-		obj.analyse_size = params.analyse_size 			
-		obj.onscreen_size = params.onscreen_size 		
+		obj.angle_tolerance = params.angle_tolerance
+		obj.noise_reduction = params.noise_reduction
+		obj.analyse_size = params.analyse_size
+		obj.onscreen_size = params.onscreen_size
 		obj.pix_detect = params.pix_detect
 		if params == customize then
 			customize = obj
@@ -1473,11 +1542,14 @@ function MarkerMaker:SimplifyContours(contours)
 	-- 	return tostring(n):ftrim(dec or 2)
 	-- end
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
+	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+
 	local abs, diag = math.abs, math.diag
 	local atan2 = math.atan2
 	local remove = table.remove
 	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
 	local step = math.max(3, diag(sizeX, sizeY) / 30)
+	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
 	-- Echo('*--------------------------------------------------')
 	-- Echo('--------------------------------------------------')
 	-- Echo('STEP', step)
@@ -1563,6 +1635,31 @@ function MarkerMaker:SimplifyContours(contours)
 					last = cur
 				end
 			end
+		end
+		local c = 1
+		local contour = contours[c]
+		local tremove = table.remove
+		while contour do
+			local travel = 0
+			local point = contour[1] 
+			local x, z = point[1], point[2]
+			local toRemove = true
+			for i = 2, #contour do
+				local nex_point = contour[i]
+				local nx, nz = nex_point[1], nex_point[2]
+				travel = travel + diag(nx - x, nz - z)
+				if travel > suppress_length then
+					toRemove = false
+					break
+				end
+				x, z = nx, nz
+			end
+			if toRemove then
+				tremove(contours, c)
+			else
+				c = c + 1
+			end
+			contour = contours[c]
 		end
 		-- Echo("COUNT is ", COUNT, 'segments', #contour)
 		-- Echo('contour', c, 'segments', #contour)
@@ -1913,6 +2010,11 @@ function MarkerMaker:SetupCustomPanel()
 		customPanel.angle_tolerance:SetValue(self.angle_tolerance)
 	end
 
+	if customPanel.noise_reduction.value ~= self.noise_reduction then
+		customPanel.noise_reduction:SetValue(self.noise_reduction)
+	end
+
+
 	customize = self
 	customPanel:RemakeImage()
 end
@@ -1988,19 +2090,20 @@ function MarkerMaker:SetupCoords(l, screen_ratio)
 	end
 	return l
 end
-
 function MarkerMaker:IsConform()
 	local wrong
 	if self.useDefault then
 		wrong = self.smode ~= mode
 			or self.sangle_tolerance ~= angle_tolerance
-			or self.sPixDetect ~= pix_detect
-			or self.sanalyseSize ~= analyse_size
+			or self.snoise_reduction ~= noise_reduction
+			or self.spix_detect ~= pix_detect
+			or self.sanalyse_size ~= analyse_size
 	else
 		wrong = self.smode ~= self.mode
 			or self.sangle_tolerance ~= self.angle_tolerance
-			or self.sPixDetect ~= self.pix_detect
-			or self.sanalyseSize ~= self.analyse_size
+			or self.snoise_reduction ~= self.noise_reduction
+			or self.spix_detect ~= self.pix_detect
+			or self.sanalyse_size ~= self.analyse_size
 	end
 	if not wrong then
 		local file = self.file
@@ -2019,14 +2122,16 @@ function MarkerMaker:Save()
 	if self.useDefault then
 		self.smode = mode
 		self.sangle_tolerance = angle_tolerance
-		self.sPixDetect = pix_detect
-		self.sanalyseSize = analyse_size
+		self.snoise_reduction = noise_reduction
+		self.spix_detect = pix_detect
+		self.sanalyse_size = analyse_size
 		self.sonscreen_size = onscreen_size
 	else
 		self.smode = self.mode
 		self.sangle_tolerance = self.angle_tolerance
-		self.sPixDetect = self.pix_detect
-		self.sanalyseSize = self.analyse_size
+		self.snoise_reduction = self.noise_reduction
+		self.spix_detect = self.pix_detect
+		self.sanalyse_size = self.analyse_size
 		self.sonscreen_size = self.onscreen_size
 	end
 	local jsonstring = json.encode(self)
@@ -2061,6 +2166,24 @@ function MarkerMaker:LoadObj(file)
 			end
 			for k,v in pairs(add) do
 				lines[tonumber(k)] = v
+			end
+			if not self.mode then
+				self.mode = mode
+			end
+			if not self.pix_detect then
+				self.pix_detect = pix_detect
+			end
+			if not self.angle_tolerance then
+				self.angle_tolerance = angle_tolerance
+			end
+			if not self.onscreen_size then
+				self.onscreen_size = onscreen_size
+			end
+			if not self.analyse_size then
+				self.analyse_size = analyse_size
+			end
+			if not self.noise_reduction then
+				self.noise_reduction = noise_reduction
 			end
 		end
 		code:close()
