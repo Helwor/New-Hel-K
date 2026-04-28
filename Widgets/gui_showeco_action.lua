@@ -58,7 +58,7 @@ local glCreateList    = gl.CreateList
 
 --// gl const
 
-local pylons = {count = 0, data = {}}
+local pylons = {count = 0, data = {}, byColor = {}}
 local pylonByID = {}
 local currentSelection = false
 
@@ -102,11 +102,23 @@ end
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
 local drawAlpha = 0.2
 local noEffColor = {1, 0.25, 1, drawAlpha}
+local new_method = true
+local HighlightEBuilds
+
 WG.showeco_always_mexes = true -- No OnChange when not changed from the default.
 
 options_path = 'Settings/Interface/Economy Overlay'
-options_order = {'start_with_showeco', 'always_show_mexes', 'mergeCircles', 'drawQueued', 'no_eff_color'}
+options_order = {'start_with_showeco', 'always_show_mexes', 'mergeCircles', 'new_method', 'drawQueued', 'no_eff_color'}
 options = {
+	new_method = {
+		name = 'New Merging method',
+		type = 'bool',
+		value = new_method,
+		OnChange = function(self)
+			new_method = self.value
+			HighlightEBuilds = new_method and HighlightEBuildsNEW or HighlightEBuildsOLD
+		end,
+	},
 	start_with_showeco = {
 		name = "Start with economy overlay",
 		desc = "Game starts with Economy Overlay enabled",
@@ -174,7 +186,7 @@ local function addUnit(unitID, unitDefID, unitTeam)
 		if spec or spAreTeamsAllied(unitTeam, spGetMyTeamID()) then
 			local x,y,z = spGetUnitPosition(unitID)
 			pylons.count = pylons.count + 1
-			pylons.data[pylons.count] = {unitID = unitID, x = x, y = y, z = z, range = eBuildDefs[unitDefID]}
+			pylons.data[pylons.count] = {unitID = unitID, x = x, y = y, z = z, radius = eBuildDefs[unitDefID]}
 			pylonByID[unitID] = pylons.count
 		end
 	end
@@ -243,6 +255,7 @@ end
 -- Drawing
 
 function widget:Initialize()
+	options.new_method:OnChange()
 	InitializeUnits()
 	widget:SelectionChanged(Spring.GetSelectedUnits())
 end
@@ -268,16 +281,15 @@ local function makePylonListVolume(onlyActive, onlyDisabled)
 			local efficiency = spGetUnitRulesParam(unitID, "gridefficiency") or -1
 			if efficiency == -1 and not onlyActive then
 				glColor(disabledColor)
-				drawGroundCircle(data.x, data.z, data.range)
+				drawGroundCircle(data.x, data.z, data.radius)
 			elseif efficiency ~= -1 and not onlyDisabled then
-				local color
 				if efficiency == 0 then
 					glColor(noEffColor[1], noEffColor[2], noEffColor[3], drawAlpha)
 				else
 					glColor(GetGridColor(efficiency, drawAlpha))
 				end
 				
-				drawGroundCircle(data.x, data.z, data.range)
+				drawGroundCircle(data.x, data.z, data.radius)
 			end
 			i = i + 1
 		else
@@ -312,8 +324,93 @@ local function makePylonListVolume(onlyActive, onlyDisabled)
 	glColor(1,1,1,1)
 end
 
+local colors = setmetatable(
+	{},
+	{
+		__index = function(self, efficiency)
+			local color = efficiency == '0.00' and {noEffColor[1], noEffColor[2], noEffColor[3], drawAlpha}
+				or efficiency == '-1.00' and disabledColor
+				or {unpack(GetGridColor(tonumber(efficiency), drawAlpha))}
+			rawset(self, efficiency, color)
+			return color
+		end
+	}
 
-local function HighlightEBuilds()
+)
+
+local function UpdateStatus()
+	local i = 1
+	pylons.byColor = {}
+	local byColor = pylons.byColor
+	local datas = pylons.data
+	local len = pylons.count
+	local strformat = string.format
+	while i <= len do
+		local data = datas[i]
+		local unitID = data.unitID
+		if spValidUnitID(unitID) then
+			local efficiency = spGetUnitRulesParam(unitID, "gridefficiency") or -1
+			local color = colors[strformat('%.2f',efficiency)]
+			local items = byColor[color]
+			if not items then
+				items = {}
+				byColor[color] = items
+			end
+			items[unitID] = data
+			i = i + 1
+		else
+			datas[i] = datas[len]
+			pylonByID[datas[i].unitID] = i
+			datas[len] = nil
+			len = len - 1
+		end
+	end
+	pylons.count = len
+end
+
+local function makePylonListVolumeNEW()
+	local drawGroundCircle = gl.Utilities.DrawMergedGroundCircle
+	local drawGroundCircles = gl.Utilities.DrawMergedGroundCircles
+	local tsize = table.size
+	for color, items in pairs(pylons.byColor) do
+		gl.Color(color)
+		if tsize(items) >= 10 then
+			drawGroundCircles(items)
+		else
+			for i, data in pairs(items) do
+				drawGroundCircle(data.x, data.z, data.radius)
+			end
+		end
+	end
+	if highlightQueue and currentSelection then
+		local spGetCommandQueue = Spring.GetCommandQueue
+		for i = 1, #currentSelection do
+			local unitID = currentSelection[i]
+			local unitDefID = spGetUnitDefID(unitID)
+			if unitDefID and isBuilder[unitDefID] then
+				local cmdQueue = spGetCommandQueue(unitID, -1)
+				if cmdQueue then
+					for i = 1, #cmdQueue do
+						local cmd = cmdQueue[i]
+						local radius = eBuildDefs[-cmd.id]
+						if radius then
+							glColor(disabledColor)
+							drawGroundCircle(cmd.params[1], cmd.params[3], radius)
+						end
+					end
+				end
+				break
+			end
+		end
+	end
+	-- Keep clean for everyone after us
+	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+	glColor(1,1,1,1)
+end
+
+
+
+function HighlightEBuildsOLD()
 	if lastDrawnFrame < lastFrame then
 		lastDrawnFrame = lastFrame
 		if options.mergeCircles.value then
@@ -331,6 +428,20 @@ local function HighlightEBuilds()
 		gl.CallList(disabledDrawList)
 	end
 end
+
+function HighlightEBuildsNEW()
+	if lastDrawnFrame < lastFrame then
+		if not options.mergeCircles.value then
+			return HighlightEBuildsOLD()
+		end
+		lastDrawnFrame = lastFrame
+		UpdateStatus()
+		gl.DeleteList(drawList or 0)
+		drawList = gl.CreateList(makePylonListVolumeNEW, options.mergeCircles.value)
+	end
+	gl.CallList(drawList)
+end
+
 
 local function HighlightPlacement(unitDefID)
 	local mx, my = spGetMouseState()
@@ -358,8 +469,10 @@ function widget:DrawWorldPreUnit()
 	local _, cmdID = spGetActiveCommand()  -- show eBuild if it is about to be placed
 	if cmdID ~= prevCmdID then
 		-- force regenerating the lists if just picked a building to place
-		lastDrawnFrame = 0
 		prevCmdID = cmdID
+		if cmdID and cmdID < 0 then
+			lastDrawnFrame = 0
+		end
 	end
 
 	local drawQueue, defID
@@ -380,11 +493,12 @@ function widget:DrawWorldPreUnit()
 		if lastDrawnFrame ~= 0 then
 			local commandsCount = 0
 			if currentSelection then
+				local spGetCommandQueue = Spring.GetCommandQueue
 				for i = 1,#currentSelection do
 					local unitID = currentSelection[i]
 					local unitDefID = spGetUnitDefID(unitID)
 					if unitDefID and isBuilder[unitDefID] then
-						commandsCount = Spring.GetCommandQueue(unitID, 0)
+						commandsCount = spGetCommandQueue(unitID, 0)
 						break
 					end
 				end
