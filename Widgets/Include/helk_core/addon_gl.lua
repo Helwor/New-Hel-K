@@ -362,11 +362,16 @@ function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volum
 	if createList then
 		return gl.CreateList(gl.Utilities.DrawMergedVolumesImprint, param)
 	end
-	-- gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
+	gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
+	gl.DepthMask(false)
+	-- fix map edge extension 2 leaving wrong states
+	gl.Culling(false)
+	gl.DepthTest(GL.LEQUAL)
+	--
 	if (gl.DepthClamp) then gl.DepthClamp(true) end
 	gl.ColorMask(false, false, false, false)
-	gl.DepthTest(GL.LEQUAL)
-
+	gl.DepthTest(true)
+	gl.Culling(false)
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 	gl.StencilTest(true)
 	gl.StencilMask(0xff)
@@ -388,7 +393,8 @@ function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volum
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 	gl.StencilTest(false)
 	gl.DepthTest(false)
-	-- gl.PopAttrib()
+	if (gl.DepthClamp) then gl.DepthClamp(false) end
+	gl.PopAttrib()
 
 end
 
