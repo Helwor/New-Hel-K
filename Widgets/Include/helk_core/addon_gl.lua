@@ -5,9 +5,9 @@ end
 if not (gl.Utilities and gl.Utilities.DrawMyCircle) then
 	VFS.Include("LuaRules/Utilities/glVolumes.lua")
 end
--- if gl.Utilities.DrawDisc then -- this file already loaded
--- 	return
--- end
+if gl.Utilities.DrawDisc then -- this file already loaded
+	return
+end
 local Echo = Spring.Echo
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -326,7 +326,7 @@ local upvalues = GetUpvaluesOf(gl.Utilities.DrawMergedGroundCircle)
 local shapeHeight = upvalues.shapeHeight
 local cylinder = upvalues.cylinder
 local averageGroundHeight = upvalues.averageGroundHeight
-Echo("shapeHeight, averageGroundHeight is ", shapeHeight, averageGroundHeight)
+Echo("averageGroundHeight, shapeHeight is ", averageGroundHeight, shapeHeight)
 function gl.Utilities.DrawMergedVolumes(vol_dlist) -- really draw merged volumes and not their imprint (misleading name of glVolumes.lua gl.Utilities.DrawMergedVolume)
 	gl.StencilTest(true)
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
@@ -362,7 +362,7 @@ function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volum
 	if createList then
 		return gl.CreateList(gl.Utilities.DrawMergedVolumesImprint, param)
 	end
-	gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
+	-- gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
 	if (gl.DepthClamp) then gl.DepthClamp(true) end
 	gl.ColorMask(false, false, false, false)
 	gl.DepthTest(GL.LEQUAL)
@@ -386,7 +386,9 @@ function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volum
 	gl.Utilities.DrawFullScreenQuad()
 	gl.Culling(false)
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
-	gl.PopAttrib()
+	gl.StencilTest(false)
+	gl.DepthTest(false)
+	-- gl.PopAttrib()
 
 end
 
