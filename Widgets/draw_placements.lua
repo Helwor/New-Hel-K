@@ -4378,7 +4378,7 @@ local UpdateRail = function()
 end
 
 function ToggleDraw()
-	if not PID then
+	if not PID or dstatus ~= "ready" or leftClick or rightClick then
 		return
 	end
 	noDraw[PID] = not noDraw[PID]
@@ -4387,10 +4387,6 @@ function ToggleDraw()
 
 	reset()
 	drawEnabled = false
-	if leftClick then 
-		sp.SetActiveCommand(-1)
-		dstatus = 'held'
-	end
 end
 
 
