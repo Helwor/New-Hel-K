@@ -369,6 +369,11 @@ local function UpdateStatus()
 end
 
 local function makePylonListVolumeNEW()
+	-- fix map edge extension 2 leaving wrong states
+	gl.Culling(false)
+	gl.DepthTest(GL.LEQUAL)
+	gl.DepthTest(false)
+	--
 	local drawGroundCircle = gl.Utilities.DrawMergedGroundCircle
 	local drawGroundCircles = gl.Utilities.DrawMergedGroundCircles
 	local tsize = table.size
@@ -411,6 +416,11 @@ end
 
 
 function HighlightEBuildsOLD()
+	-- fix map edge extension 2 leaving wrong states
+	gl.Culling(false)
+	gl.DepthTest(GL.LEQUAL)
+	gl.DepthTest(false)
+	--
 	if lastDrawnFrame < lastFrame then
 		lastDrawnFrame = lastFrame
 		if options.mergeCircles.value then
@@ -430,6 +440,11 @@ function HighlightEBuildsOLD()
 end
 
 function HighlightEBuildsNEW()
+	-- fix map edge extension 2 leaving wrong states
+	gl.Culling(false)
+	gl.DepthTest(GL.LEQUAL)
+	gl.DepthTest(false)
+	--
 	if lastDrawnFrame < lastFrame then
 		if not options.mergeCircles.value then
 			return HighlightEBuildsOLD()
