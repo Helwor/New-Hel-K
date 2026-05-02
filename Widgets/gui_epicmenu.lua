@@ -165,21 +165,69 @@ local useUiKeys = false
 
 local custom_cmd_actions = include("Configs/customCmdTypes.lua")
 
+
+local settingSuffix = {
+	bool = 'Int',
+	number = 'Int',
+	string = 'String',
+	float = 'Float'
+}
+local sp_settings_mt = setmetatable(
+	{},
+	{
+		__newindex = function(self, key, value)
+			if key == 'value' then
+				if self.readOnly then
+					Echo('Spring setting ' .. self.name .. ' is read only')
+					return false
+				end
+				if self.type == 'boolean' then
+					if	type(value) ~= 'boolean' and
+						tonumber(value) ~= 1 and
+						tonumber(value) ~= 0
+					then
+						Echo('Spring setting ' .. self.name .. ' value type mismatch, need boolean or 1 or 0, asked: ' .. tostring(value))
+					end
+				elseif self.type == 'float' and not tonumber(value)
+					or self.type ~= 'float' and self.type ~= type(value)
+					or self.type == 'number' and value%1 ~= 0
+				then
+					Echo('Spring setting ' .. self.name .. ' value type mismatch ', 'asked ' .. type(value))
+					return false
+				end
+				if type(value) == 'boolean' then
+					value = value and 1 or 0
+				end
+				Spring['SetConfig'..settingSuffix[self.type]](self.name, value)
+				return Spring['GetConfig'..settingSuffix[self.type]](self.name) -- verify if applied
+			end
+		end,
+		__index = function(self, key)
+			if key == 'value' then
+				return Spring['GetConfig'..settingSuffix[self.type]](self.name, self.defaultValue)
+			end
+		end
+	}
+)
 local allSettings = {}
 for i, v in pairs (Spring.GetConfigParams()) do 
 	if type(v) == 'table' then
-		allSettings[v.name] = {
-			type = v.type:find('string') and 'string' or v.type,
-			default = v.defaultValue,
-			min = v.minValue,
-			max = v.maxValue,
-			desc = v.description,
-			safemode = v.safemodeValue,
-			readOnly = v.readOnly
-		}
+		allSettings[v.name] = setmetatable(
+			{
+				name = v.name,
+				type = v.type:find('string') and 'string' or v.type:find('bool') and 'boolean' or v.type,
+				default = v.defaultValue or 0,
+				min = v.minValue,
+				max = v.maxValue,
+				desc = v.description,
+				safemode = v.safemodeValue,
+				readOnly = v.readOnly
+			},
+			sp_settings_mt
+	)
 	end
 end
-
+WG.SpringSettings = allSettings
 --------------------------------------------------------------------------------
 
 -- Chili control classes
@@ -1617,9 +1665,9 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 			if option.springsetting then --if widget supplies option for springsettings
 				Spring.SetConfigInt( option.springsetting, BoolToInt(option.value) )
 			end
-		end
-		if displayedOptions[option] then
-			requestRefresh = true
+			if displayedOptions[option] then
+				requestRefresh = true
+			end
 		end
 	elseif option.type == 'number' then
 		if option.valuelist then
@@ -2770,7 +2818,7 @@ function MENU:Navigate(newEventObj, pause)
 	eventObj.scrollY = self.stackpanel.scrollPosY
 	eventObj = newEventObj
 	-- Echo('path', path, 'elements', #eventObj)
-	displayedOptions = {}
+	for k,v in pairs(displayedOptions) do displayedOptions[k] = nil end
 	currentPaths = {}
 
 	-- Echo('list : '..#eventObj)
@@ -3435,7 +3483,7 @@ function MENU:MakeWin()
 		OnClick = {
 			function(_, _, _, button)
 				if button == 1 then
-					if table.size(displayedOptions) < 40 then
+					if table.size(displayedOptions) < 70 then
 						ResetWinSettings(eventObj.path)
 						MENU:Navigate(eventObj, false)
 					end
