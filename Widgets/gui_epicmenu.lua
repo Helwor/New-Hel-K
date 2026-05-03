@@ -71,6 +71,7 @@ Fix:
 	- smart scroll fixed
 	- options and their directory are always updated when shown
 	- colors options keep the unique table given instead of replacing it.
+	- can have multiple list with same item's name (before: Chili error)
 ]]
 
 function widget:GetInfo()
@@ -3078,7 +3079,7 @@ function MENU:Navigate(newEventObj, pause)
 						local item = option.items[i]
 						item.value = item.key --for 'OnClick'
 						tree_children[#tree_children+1] = Button:New{
-								name = option.wname .. " " .. item.name;
+								name = option.wname .. "_" .. option.name.."_" .. item.name;
 								width = "100%",
 								caption = item.name,
 								objectOverrideFont = WG.GetFont(),
