@@ -75,7 +75,17 @@ local texFormats = {
 	RGBA12                  = 0x805A,
 	RGBA16                  = 0x805B,
 	DEPTH_COMPONENT32       = 0x81A7,
-	DEPTH24_STENCIL8        = 0x88F0 -- rbo depth/stencil  format
+	DEPTH24_STENCIL8        = 0x88F0, -- rbo depth/stencil  format
+	RGBA4 					= 0x8056,
+	R3_G3_B2 				= 0x2A10,
+	RGB5_A1 				= 0x8057,
+	R8 						= 0x8229,
+	RG8 					= 0x822B,
+	RGB8 					= 0x8051,
+	RGB565 					= 0x8D62,
+	R11F_G11F_B10F 			= 0x8C3A,
+	COMPRESSED_RGB_ARB 		= 0x84ED,
+	COMPRESSED_RGBA_ARB 	= 0x84EE,
 }
 for k,v in pairs(texFormats) do
 	GL[k] = v
