@@ -294,7 +294,7 @@ local opt = {
 	clampToWorld = true,
 
 	shiftLClickSetTarget = true, -- set target with Shift + LeftClick
-	shiftAltLClickSetTarget = false,
+	shiftAltLClickSetTarget = true,
 
 	findPad = true,
 	suppressRepairCloaked = true,
