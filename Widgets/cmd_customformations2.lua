@@ -947,7 +947,7 @@ local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShi
 
 	if (usingCmd == CMD_ATTACK) and not (ctrl or usingRMB) then
 		--
-		if opt.shiftAttackTrailShootToward and shift 
+		if opt.shiftAttackTrailShootToward and shift and not singleNode
 			and not (hasBomber or hasPuppy) 
 			and (commandMap['Set Target'])
 		then
@@ -992,7 +992,7 @@ local function SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarg
 	tweaked, usingCmd,  alt, ctrl, meta, shift, usingRMB = TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShift, forceAlt, usingRMB)
 	local cmdOpts = GetCmdOpts(alt, ctrl, meta, shift, usingRMB) -- using alt uses springs box formation, so we set it off always
 	if tweakTarget then
-		pos = TweakTarget(pos, mx, my, acquiredTarget, alt, usingRMB)
+		pos = TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRMB)
 	end
 	return usingCmd, pos, cmdOpts
 end
