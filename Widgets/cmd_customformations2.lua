@@ -895,8 +895,11 @@ local function StopCommandAndRelinquishMouse()
 	end
 end
 
-local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt)
+local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRMB)
 	if usingCmd ~= CMD_MANUALFIRE and usingCmd ~= CMD_AIR_MANUALFIRE and (usingCmd ~= CMD_ATTACK or not singleNode) then
+		return pos
+	end
+	if alt and not usingRMB and usingCmd == CMD_ATTACK then
 		return pos
 	end
 	local id
@@ -989,7 +992,7 @@ local function SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarg
 	tweaked, usingCmd,  alt, ctrl, meta, shift, usingRMB = TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShift, forceAlt, usingRMB)
 	local cmdOpts = GetCmdOpts(alt, ctrl, meta, shift, usingRMB) -- using alt uses springs box formation, so we set it off always
 	if tweakTarget then
-		pos = TweakTarget(pos, mx, my, acquiredTarget)
+		pos = TweakTarget(pos, mx, my, acquiredTarget, alt, usingRMB)
 	end
 	return usingCmd, pos, cmdOpts
 end
@@ -1362,7 +1365,7 @@ function widget:MouseRelease(mx, my, mButton)
 		if singleNode then
 			-- We should check if any units are able to execute it,
 			-- but the order is small enough network-wise that the tiny bug potential isn't worth it.
-			local params = TweakTarget(fNodes[1], mx, my, acquiredTarget, true, alt)
+			local params = TweakTarget(fNodes[1], mx, my, acquiredTarget, true, alt, false)
 			GiveNotifyingOrder(usingCmd, params, cmdOpts)
 
 		else

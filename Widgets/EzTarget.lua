@@ -294,6 +294,7 @@ local opt = {
 	clampToWorld = true,
 
 	shiftLClickSetTarget = true, -- set target with Shift + LeftClick
+	shiftAltLClickSetTarget = false,
 
 	findPad = true,
 	suppressRepairCloaked = true,
@@ -336,6 +337,7 @@ options_order = {
 	'doubleClickTime',
 
 	'shiftLClickSetTarget',
+	'shiftAltLClickSetTarget',
 	'allowQueueing',
 
 	'lbl_rclick',
@@ -451,6 +453,17 @@ options.shiftLClickSetTarget = {
 	desc = '',
 	type = 'bool',
 	value = opt.shiftLClickSetTarget,
+	noHotkey = true,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+}
+
+options.shiftAltLClickSetTarget = {
+	name = 'Alt + Shift + LClick Enemy => Set Target',
+	desc = '',
+	type = 'bool',
+	value = opt.shiftAltLClickSetTarget,
 	noHotkey = true,
 	OnChange = function(self)
 		opt[self.key] = self.value
@@ -947,6 +960,7 @@ local function SetColor(id,color, remove)
 	end
 end
 local function Evaluate(type, id, engineCmd)
+	local v, s = v, s
 	-- Echo("v.cmdOverride is ", v.cmdOverride)
 	-- Echo("os.clock() is ", os.clock())
 	-- Echo("v.cmdOverride or v.moddedCmd is ", v.cmdOverride or v.moddedCmd)
@@ -1936,8 +1950,10 @@ function widget:MousePress(mx, my, button)
 		-- return
 		
 		-- on shift + left click set target
-		if (shift--[[ or alt--]] and opt.shiftLClickSetTarget)
-		and (v.moddedCmd == CMD_ATTACK or v.defaultCmd==CMD_ATTACK)
+		if shift and (
+			not alt and opt.shiftLClickSetTarget or
+			alt and opt.shiftAltLClickSetTarget
+		) and (v.moddedCmd == CMD_ATTACK or v.defaultCmd==CMD_ATTACK)
 		then
 		-- if (shift) and commandMap['Set Target'] and v.moddedCmd == CMD_ATTACK or  then
 			v.acquiredTarget = v.moddedTarget or v.defaultTarget
