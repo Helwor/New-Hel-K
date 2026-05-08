@@ -1648,6 +1648,9 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 				spSendCommands{option.action} 
 			end
 		end
+		if displayedOptions[option] then
+			requestRefresh = true
+		end
 	elseif option.type == 'label' and option.clickable then
 		controlfunc = function(self)
 			if self ~= option then
@@ -1705,6 +1708,9 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 					end
 				end
 			end
+			if displayedOptions[option] then
+				requestRefresh = true
+			end
 		end
 	
 	elseif option.type == 'colors' then
@@ -1719,6 +1725,9 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 		end
 		if option.colorizeName and option.origName then
 			option.name = ColStr(option.value) .. option.origName
+		end
+		if displayedOptions[option] then
+			requestRefresh = true
 		end
 	elseif option.type == 'list' then
 		controlfunc = function(item)
@@ -3054,7 +3063,8 @@ function MENU:Navigate(newEventObj, pause)
 						tooltipFunction = option.tooltipFunction, -- and (function(self, ...) if UserDetected(self) then return option.tooltipFunction(self,...) else return self.value end end) or nil,
 						tooltip_format = option.tooltip_format,
 					}
-
+					-- trackbar:SetValue(option.value)
+					COUNT = (COUNT or 0) + 1
 					if option.update_on_the_fly then
 						trackbar.OnChange[1] = function(self, ...) if UserDetected(self) then return option.OnChange(self, ...) end end
 					else
@@ -3267,7 +3277,7 @@ function MENU:MakeWin()
 	}
 	window_children[1] = self.scrollpanel
 	---- menu checks
-	Echo("settings.dev is ", settings.dev)
+	-- Echo("settings.dev is ", settings.dev)
 	self.devCheck = Checkbox:New{
 		--x = 0,
 		width = 150;
@@ -3280,7 +3290,7 @@ function MENU:MakeWin()
 		-- textalign = 'right',
 		textoffset = 8,
 		OnChange = {function(self)
-			Echo('Switch, current', settings.dev)
+			-- Echo('Switch, current', settings.dev)
 			settings.dev = not settings.dev
 
 			if self.win then -- for case of menu refresh, retain the scroll
@@ -4809,10 +4819,13 @@ end
 
 function widget:Update()
 	if requestRefresh then
-		local path = requestRefresh
-		requestRefresh = false
-		if MENU.win and MENU.win.visible then
-			MENU:Navigate(eventObj, false)
+		local button1, button2, button3 = select(3, Spring.GetMouseState())
+		if not (button1 or button2 or button3) then
+			local path = requestRefresh
+			requestRefresh = false
+			if MENU.win and MENU.win.visible then
+				MENU:Navigate(eventObj, false)
+			end
 		end
 	end
 	cycle = cycle%10 + 1
