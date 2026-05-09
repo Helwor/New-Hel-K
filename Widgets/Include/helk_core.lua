@@ -21,7 +21,7 @@ local apiOrder = {
 	'addon_chili.lua',
 	'api_draw_utils.lua',
 	'api_range_renderer_gl4.lua',
-	-- 'api_console_catcher.lua'
+	'api_ground_decal_drawer.lua',
 }
 
 local importantWidgets = {
