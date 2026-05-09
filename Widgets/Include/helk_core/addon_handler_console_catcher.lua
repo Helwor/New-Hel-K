@@ -15,8 +15,8 @@ if not WG.oriAddConsoleLine then
 		elseif running then
 			if msg == '[[END CATCH]]' then
 				running = false
+				-- Echo('Successfully copied from console: ' .. #WG.caughtLines .. 'messages' .. silent and ' silently.' or '.')
 				silent = false
-				Echo('Successfully copied from console: ' .. #WG.caughtLines .. 'messages')
 				return true
 			else
 				WG.caughtLines[#WG.caughtLines + 1] = msg
@@ -27,6 +27,6 @@ if not WG.oriAddConsoleLine then
 		end
 		return oriFunc(self, msg, prio)
 	end
-	Echo('Successfully implemented Console Catcher Add-on')
+	Echo('[Hel-K] Successfully implemented Console Catcher Add-on')
 end
 
