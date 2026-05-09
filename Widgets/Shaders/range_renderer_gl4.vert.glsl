@@ -28,6 +28,7 @@ out DataVS {
 #define gravity           wParams.z
 #define heightBoostFactor wParams.w
 
+const float pull_z_pow = 1.029;
 const float smoothHeight = 100.0;
 const float spfactor = 0.7071067; // projectileSpeed factor
 
@@ -62,9 +63,9 @@ float GetRange2DCannon(float yDiff) {
 }
 
 float GetRange2DWeapon(float yDiff) {
- if (yDiff > range || -yDiff > range)
-	 return 0.0;
- return sqrt(range * range - yDiff * yDiff);
+	if (yDiff > range || -yDiff > range)
+		return 0.0;
+	return sqrt(range * range - yDiff * yDiff);
 }
 
 float heightAtWorldPos(vec2 w){
@@ -89,7 +90,7 @@ void FindBallisticPoint() {
 	
 	float adjustment = rAdj * 0.5;
 	
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < 20; i++) {
 		if (abs(adjRadius - rAdj) + yDiff <= 0.01 * rAdj)
 			break;
 		
@@ -157,5 +158,9 @@ void main() {
 
 	pos.y += 5.0;
 	ret_color = color;
-	gl_Position = cameraViewProj * vec4(pos.xyz, 1.0);
+	vec4 screen_pos = cameraViewProj * vec4(pos.xyz, 1.0);
+	float z_ndc = screen_pos.z / screen_pos.w;
+	z_ndc = pow(z_ndc, pull_z_pow);
+	screen_pos.z = z_ndc * screen_pos.w;
+	gl_Position = screen_pos;
 }
