@@ -12,14 +12,17 @@ layout(std430, binding = 4) buffer Data {
 uniform sampler2D heightmapTex;
 uniform vec2  invMapSize;
 uniform vec2  mapCenter;
-uniform float resolution;
-
+// uniform float resolution;
+uniform float off_step;
+uniform float texlod;
+uniform float force_update;
 
 #line 11021
 
-const vec2 uvstep = 8.1 * invMapSize;
-const ivec2 gridSize = ivec2(mapSize.x/resolution, mapSize.y/resolution);
-const float texlod = 1.0;
+// const vec2 uvstep = off_step * invMapSize;
+const ivec2 gridSize = ivec2(mapSize.x/16.0, mapSize.y/16.0);
+// const float texlod = 1.0;
+const vec2 uvstep = off_step * invMapSize;
 
 float GetSlope(vec3 w, vec2 uv) {
 	float height = max(0.0, w.y);
@@ -34,12 +37,14 @@ float GetSlope(vec3 w, vec2 uv) {
 }
 void main() {
 	uvec2 gridPos = gl_GlobalInvocationID.xy;
-    if (gridPos.x >= gridSize.x || gridPos.y >= gridSize.y)
-    	return;
+	if (gridPos.x >= gridSize.x || gridPos.y >= gridSize.y)
+		return;
 	vec3 worldPos = vec3(0.0);
 	vec2 xyworld_xyfract = (vec2(gridPos) / vec2(gridSize)) * 2.0 - 1.0;
 	worldPos.xz = mapCenter * (1.0 + xyworld_xyfract);
-	vec2 uv = vec2(clamp(worldPos.x, 8.0, mapSize.x-8.0), clamp(worldPos.z, 8.0, mapSize.y-8.0)) * invMapSize;
+	// worldPos.xz = floor(worldPos.xz / 16.0) * 16.0 + 16.0 * 0.5;
+	// worldPos.xz = floor(worldPos.xz / resolution) * resolution + resolution * 0.5;
+	vec2 uv = vec2(clamp(worldPos.x, 0.0, mapSize.x - 0.0), clamp(worldPos.z, 0.0, mapSize.y - 0.0)) * invMapSize;
 	worldPos.y = textureLod(heightmapTex, uv, texlod).x;
 	int ssbo_index = int(gridPos.y) * gridSize.x + int(gridPos.x);
 	slopes[ssbo_index/4][ssbo_index%4] = GetSlope(worldPos, uv);
