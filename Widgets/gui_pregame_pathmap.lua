@@ -13,7 +13,7 @@ end
 
 local sig = '['..widget:GetInfo().name..']: '
 local slowUpdate = 150 -- 150 frames 5 sec
-local alpha = 0.15 -- not used anymore
+
 local active = false
 local dispatchSize2D = 8 -- can be upped but need to change the shader compute. if gpu have > 64 threads but the computing anyway is very light
 -- work around with low resolution triangles to make them show despite being eaten by the ground, far from perfect
@@ -22,8 +22,7 @@ local poly_offset_fact = 0
 local depth_pow = 1.029 -- finally only using depth_pow and tinkering it with slope in the frag shader
 local depth_mul = 0
 ------
-local hard_blending = false
-local intensity = 1.0 -- used for new gl.Blending(GL.ONE GL.ONE) instead of gl.Blending(GL.SRC_ALPHA, GL.ONE) 
+local intensity = 0.14 -- used for new gl.Blending(GL.ONE GL.ONE) instead of gl.Blending(GL.SRC_ALPHA, GL.ONE) 
 ------
 -- debugging
 -- local resolution = 16 -- big impact on perf
@@ -179,17 +178,6 @@ options.poly_offset_fact = {
 	end,
 	dev = true,
 	category = 'dev',
-}
-
-options.hard_blending = {
-	name = 'Hard Blending',
-	type = 'bool',
-	value = hard_blending,
-	OnChange = function(self)
-		hard_blending = self.value
-		newDecal = true
-	end,
-	category = 'user',
 }
 
 options.checker = { 
@@ -600,12 +588,9 @@ local function DrawHeatMap()
 	gl.StencilMask(1)
 	gl.StencilFunc(GL.EQUAL, 0, 1)  
 	gl.StencilOp(GL.KEEP, GL.KEEP, GL.INCR) 
-	-- additive blending
-	if hard_blending then
-		gl.Blending(GL.ONE, GL.ONE)  
-	else
-		gl.Blending(GL.SRC_ALPHA, GL.ONE) 
-	end
+	-- strong additive blending
+	gl.Blending(GL.ONE, GL.ONE)  
+
 	gl.Blending(true)
 	-- don't show behind ground
 	gl.DepthTest(true)
