@@ -223,7 +223,8 @@ end
 function widget:DrawWorldPreUnit()
 	gl.Texture(0, '$heightmap')
 	rangeShader:Activate()
-	gl.LineWidth(1.4)
+	gl.LineWidth(1.2)
+	gl.DepthTest(true)
 	for _, instance in pairs(instances) do
 		-- update gpu
 		local live = instance.live
@@ -246,6 +247,7 @@ function widget:DrawWorldPreUnit()
 	rangeShader:Deactivate()
 	gl.LineWidth(1)
 	gl.Texture(0, false)
+	gl.DepthTest(false)
 end
 
 function widget:Shutdown()
