@@ -35,10 +35,11 @@ local diag = math.diag
 
 
 local CalcBallisticCircle 		= VFS.Include("LuaUI/Utilities/engine_range_circles.lua")
-local max_selection = 20
-local max_selection_ballistic = 1
+local max_selection = 40
+local max_selection_ballistic = 40
 local use_ballistic = true
-local use_ballistic_shader = true
+local use_engine = false
+local render_choice = 'ballistic_shader'
 local EMPTY_TABLE = {}
 local dbg = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
@@ -47,11 +48,12 @@ options = {}
 options_order = {
 	'showselectedunitrange',
 	'max_selection',
-	'use_ballistic',
-	'use_ballistic_shader',
+	'render_choice',
 	'max_selection_ballistic',
 	'dbg',
 }
+
+
 options.showselectedunitrange = {
 	name = 'Show selected unit(s) range(s)',
 	type = 'bool',
@@ -93,34 +95,26 @@ options.max_selection = {
 	end,
 	path = helk_path,
 }
+options.render_choice = {
+	name = 'Range Display',
+	type = 'radioButton',
+	value = render_choice,
+	items = {
+		{key = 'ballistic_shader', name = 'Ballistic by Shader',  desc = 'SUPER FAST, most accurate (few bug)'},
+		{key = 'engine',           name = 'Engine',               desc = 'Slow, accurate in most case'},
+		{key = 'ballistic',        name = 'Ballistic',            desc = 'SUPER SLOW, most accurate, must be limited to a certain number'},
+		{key = 'basic',            name = 'Basic',                desc = 'Slow, only accurate on flat'},
 
-options.use_ballistic = {
-	name = 'Use Ballistic Calc',
-	desc = 'Beware it might be heavy on big numbers',
-	type = 'bool',
-	value = use_ballistic,
+	},
 	OnChange = function (self)
-		use_ballistic = self.value
+		render_choice = self.value
 		if widget.CommandsChanged then
 			widget:CommandsChanged()
 		end
 	end,
-	path = helk_path,
+	path = helk_path,	
 }
 
-options.use_ballistic_shader = {
-	name = 'Use Shader to calculate ballistic range',
-	desc = 'Improve perf a lot, need api_range_renderer.lua',
-	type = 'bool',
-	value = use_ballistic_shader,
-	OnChange = function (self)
-		use_ballistic_shader = self.value
-		if widget.CommandsChanged then
-			widget:CommandsChanged()
-		end
-	end,
-	path = helk_path,
-}
 
 options.max_selection_ballistic = {
 	type = 'number',
@@ -186,7 +180,7 @@ local function RangeColor(strengthIdx, color, ballistic)
 	if color then
 		glColor(color[1] * strength, color[2] * strength, color[3] - strength, color[4] or 0.35)
 	else
-		glColor(strength, ballistic and 0.9 or 0, 0, 0.35)
+		glColor(strength, ballistic and 0.7 or 0, 0, 0.35)
 	end
 end
 local function GetRangeColor(strengthIdx, color, ballistic)
@@ -194,7 +188,7 @@ local function GetRangeColor(strengthIdx, color, ballistic)
 	if color then
 		return {color[1] * strength, color[2] * strength, color[3] - strength, color[4] or 0.35}
 	else
-		return {strength, ballistic and 0.6 or 0, 0, 0.65}
+		return {strength, ballistic and 0.7 or 0, 0, 0.35}
 	end
 end
 local function CircleVerts(verts)
@@ -232,7 +226,7 @@ do
 end
 local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff)
 	local static = rangeInfo.static
-	if not use_ballistic_shader or static then
+	if static or render_choice ~= 'ballistic_shader' then
 		RangeColor(strengthIdx, color, use_ballistic)
 	end
 	if not dbg and static then
@@ -252,14 +246,14 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		end
 		glCallList(cached)
 		return
-	end
-	if use_ballistic then
-		if use_ballistic_shader then
-			WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
-		else
-			local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
-			gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
-		end
+	elseif render_choice == 'ballistic_shader'  then
+		WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
+	elseif render_choice == 'engine' then
+		local wDef = rangeInfo['weaponDef' .. i]
+		glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
+	elseif render_choice ==	'ballistic' then
+		local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
+		gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
 	else
 		glDrawGroundCircle(x, y, z, range, 40)
 	end
@@ -357,7 +351,7 @@ local function DrawComRanges(defID, units, color, isEnemy, use_ballistic)
 							end
 						end
 					end
-					if diag(mx - bx, mz - bz) > 2.05  then -- cheap way to detect unit being inclined (bu aim point x,z can also be offset naturally without the unit beeing inclined)
+					if use_ballistic and diag(mx - bx, mz - bz) > 2.05  then -- cheap way to detect unit being inclined (bu aim point x,z can also be offset naturally without the unit beeing inclined)
 						ax, ay, az = TranslateOffY(bx, by, bz, mx, my, mz, rangeInfo['offY'..idx1])
 						DrawRangeCircle(unitID, ax, ay, az, idx1, range1, rangeInfo, 1, color, use_ballistic, true)
 					else
@@ -395,7 +389,7 @@ local function DrawUnitsRanges(defID, units, color, use_ballistic)
 							end
 						end
 					end
-					if diag(mx - bx, mz - bz) > 2.05  then -- unit is inclined (but aim point x,z can also be offset naturally without the unit beeing inclined)
+					if use_ballistic and diag(mx - bx, mz - bz) > 2.05  then -- imperfect but cheaper, unit is inclined (but aim point x,z can also be offset naturally without the unit beeing inclined)
 						ax, ay, az = TranslateOffY(bx, by, bz, mx, my, mz, rangeInfo['offY'..idx])
 						DrawRangeCircle(unitID, ax, ay, az, idx, range, rangeInfo, idx, color, use_ballistic, true)
 					else
@@ -449,10 +443,10 @@ function widget:DrawWorldPreUnit()
 		return
 	end
 
-	glLineWidth(1.5)
-
+	glLineWidth(1.2)
+	local use_ballistic = render_choice == 'engine' or render_choice:find('ballistic')
 	for defID, units in pairs(selUnits) do
-		DrawUnitTypeRanges(defID, units, use_ballistic and selCount <= max_selection_ballistic)
+		DrawUnitTypeRanges(defID, units, use_ballistic --[[and selCount <= max_selection_ballistic]])
 	end
 
 	glColor(1, 1, 1, 1)
