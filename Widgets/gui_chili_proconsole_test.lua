@@ -148,6 +148,7 @@ local tZeroes = {0,0,0,0}
 local tOnes = {1,1,1,1}
 local tTwos = {2,2,2,2}
 local tThreeOnes = {3,3,1,1}
+local tUp2 = {0,-2,0,0}
 local Image, Panel, TextBox, Button
 
 --------------------------------------------------------------------------------
@@ -1409,15 +1410,14 @@ local function AddMessage(msg, target, remake)
 			}
 		elseif target == 'chat' then
 			-- Make a panel for each chat line because this removes the message jitter upon fade.
-			textbox:SetPos( 3, 3, stack.width - 3 )
+			textbox:SetPos( 3, 5, stack.width - 3 )
 			textbox:Update()
-			local tbheight = textbox.height + 2 -- not perfect
-			--Echo('tbheight', tbheight)
+			local height = textbox.height + 2 
 			control = Panel:New{
 
 				width = '100%',
-				height = tbheight,
-				padding = tZeroes,
+				height = height,
+				padding = tUp2,
 				backgroundColor = tZeroes,
 				caption = '',
 				-- useRTT = false,
@@ -1468,15 +1468,8 @@ local function AddMessage(msg, target, remake)
 		lastMsgConsole = textbox
 		-- requestUpdate[scrollpanel_console] = true
 	end
-	if false and not stack.parent.hidden and initialized then
-		stack:UpdateClientArea()
-	-- 	stack.parent:UpdateLayout()
-	-- 	stack:UpdateClientArea()
-		-- Echo('request in add message')
-	else
-		requestUpdate[stack] = true
-		requestUpdate.needed = true
-	end
+	requestUpdate[stack] = true
+	requestUpdate.needed = true
 end
 
 
@@ -2343,15 +2336,17 @@ function widget:DrawScreen()
 	if requestUpdate.needed then
 		requestUpdate.needed = nil
 		for stack in pairs(requestUpdate) do
-			-- stack:RequestUpdate()
-			-- if stack == stack_console then
-			--  scrollpanel_console:UpdateClientArea()
-			-- else
-				-- stack:UpdateClientArea()
-				-- Echo('request in DS')
-				stack.parent:UpdateLayout()
-			-- end
-			requestUpdate[stack] = nil
+			if stack.name ~= 'message_stack_console' or window_console.parent then
+				-- stack:RequestUpdate()
+				-- if stack == stack_console then
+				--  scrollpanel_console:UpdateClientArea()
+				-- else
+					-- stack:UpdateClientArea()
+					-- Echo('request in DS')
+					stack.parent:UpdateLayout()
+				-- end
+				requestUpdate[stack] = nil
+			end
 		end
 	end
 end
