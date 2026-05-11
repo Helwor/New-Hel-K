@@ -786,7 +786,41 @@ function makeCircleVBO(circleSegments, radius)
 	circleVBO:Upload(VBOData)
 	return circleVBO, #VBOData/4
 end
+function makeCustomPlaneVBO(xsize, ysize, xresolution, yresolution, VBOLayout) -- makes a plane from [-xsize to xsize] with xresolution subdivisions
+	if not xsize then xsize = 1 end
+	if not ysize then ysize = xsize end
+	if not xresolution then xresolution = 1 end
+	if not yresolution then yresolution = xresolution end
+	xresolution = math.floor(xresolution)
+	yresolution = math.floor(yresolution)
+	local planeVBO = gl.GetVBO(GL.ARRAY_BUFFER, false)
+	if planeVBO == nil then return nil end
 
+	local VBOData = {}
+	local fill = 0
+	for _, t in ipairs(VBOLayout) do
+		fill = fill + (xresolution + 1) * (yresolution + 1) * t.size
+	end
+	local idx = 0
+	for x = 0, xresolution  do -- this is +1
+		for y = 0, yresolution do
+			idx = idx + 1; VBOData[idx] = xsize * ((x / xresolution) -0.5 ) * 2
+			idx = idx + 1; VBOData[idx] = ysize * ((y / yresolution) -0.5 ) * 2
+		end
+	end
+	for i = idx + 1, fill do
+		VBOData[i] = 0
+	end	
+
+	planeVBO:Define(
+		(xresolution + 1) * (yresolution + 1) ,
+		VBOLayout
+	)
+	planeVBO:Upload(VBOData)
+
+	--Spring.Echo("PlaneVBOData up:",#VBOData, "Down", #planeVBO:Download())
+	return planeVBO, #VBOData/2
+end
 function makePlaneVBO(xsize, ysize, xresolution, yresolution) -- makes a plane from [-xsize to xsize] with xresolution subdivisions
 	if not xsize then xsize = 1 end
 	if not ysize then ysize = xsize end
@@ -818,6 +852,38 @@ function makePlaneVBO(xsize, ysize, xresolution, yresolution) -- makes a plane f
 
 	--Spring.Echo("PlaneVBOData up:",#VBOData, "Down", #planeVBO:Download())
 	return planeVBO, #VBOData/2
+end
+
+function makeMapVBO(xsize, ysize, resolution) 
+	if not xsize then xsize = Game.mapSizeX end
+	if not ysize then ysize = Game.mapSizeZ end
+	if not resolution then resolution = 8 end
+
+	
+	local planeVBO = gl.GetVBO(GL.ARRAY_BUFFER, false)
+	if planeVBO == nil then return nil end
+
+	local VBOLayout = {
+		{id = 0, name = "world_pos", size = 2},
+	}
+
+	local VBOData = {}
+	local idx = 0
+	for x = 0, xsize, resolution  do -- this is +1
+		for y = 0, ysize, resolution do
+			idx = idx + 1; VBOData[idx] = x
+			idx = idx + 1; VBOData[idx] = y
+		end
+	end	
+
+	planeVBO:Define(
+		(xsize / resolution + 1) * (ysize / resolution + 1) ,
+		VBOLayout
+	)
+	planeVBO:Upload(VBOData)
+
+	--Spring.Echo("PlaneVBOData up:",#VBOData, "Down", #planeVBO:Download())
+	return planeVBO, idx/2
 end
 
 function makePlaneIndexVBO(xresolution, yresolution, cutcircle, indexType)
@@ -874,6 +940,47 @@ function makePlaneIndexVBO(xresolution, yresolution, cutcircle, indexType)
 	planeIndexVBO:Upload(IndexVBOData)
 	--Spring.Echo("PlaneIndexVBO up:",#IndexVBOData, "Down", #planeIndexVBO:Download())
 	return planeIndexVBO, IndexVBOData
+end
+
+function makePlaneStripIndexVBO(xresolution, yresolution, indexType)
+	xresolution = math.floor(xresolution)
+	yresolution = math.floor(yresolution)
+	
+	local planeIndexVBO = gl.GetVBO(GL.ELEMENT_ARRAY_BUFFER, false)
+	if not planeIndexVBO then return nil end
+	
+	local colSize = yresolution + 1
+	local indices = {}
+	local idx = 0
+	
+	for x = 0, xresolution - 1 do
+		if x % 2 == 0 then
+			for y = 0, yresolution do
+				idx = idx + 1; indices[idx] = (x + 1) * colSize + y  -- bottom
+				idx = idx + 1; indices[idx] = x * colSize + y         -- top
+			end
+		else
+			for y = yresolution, 0, -1 do
+				idx = idx + 1; indices[idx] = x * colSize + y
+				idx = idx + 1; indices[idx] = (x + 1) * colSize + y
+			end
+		end
+		
+		if x < xresolution - 1 then
+			idx = idx + 1; indices[idx] = indices[idx - 1]
+			idx = idx + 1; indices[idx] = (x + 1) * colSize + ((x + 1) % 2 == 0 and 0 or yresolution)
+		end
+	end
+	
+	local maxIndex = (xresolution + 1) * (yresolution + 1)
+	if not indexType then
+		if maxIndex <= 255 then indexType = GL.UNSIGNED_BYTE
+		elseif maxIndex <= 65535 then indexType = GL.UNSIGNED_SHORT
+		else indexType = GL.UNSIGNED_INT end
+	end
+	planeIndexVBO:Define(#indices, indexType)
+	planeIndexVBO:Upload(indices)
+	return planeIndexVBO, #indices
 end
 
 function makePointVBO(numPoints, randomFactor)
@@ -1283,24 +1390,30 @@ end
 function MakeTexRectVAO(minX,minY, maxX, maxY, minU, minV, maxU, maxV)
 	-- Draw with myGL4TexRectVAO:DrawArrays(GL.TRIANGLES)
 	minX,minY,maxX,maxY,minU,minV,maxU,maxV  = minX or -1,minY or -1,maxX or 1, maxY or 1, minU or 0, minV or 0, maxU or 1, maxV or 1
-
 	local myGL4TexRectVAO
 	local rectVBO = gl.GetVBO(GL.ARRAY_BUFFER,false)
 	if rectVBO == nil then return nil end
+	local indexVBO = gl.GetVBO(GL.ELEMENT_ARRAY_BUFFER, false)
+	if not indexVBO then return nil end
 
 	--rectVBO:Define(	6,	{{id = 0, name = "position_xy_uv", size = 8}})
 	local z = 0.5
 	local w = 1
-	rectVBO:Define(	6,	{{id = 0, name = "pos", size = 4}})
+	rectVBO:Define(	4,	{{id = 0, name = "pos", size = 4}})
+
 	rectVBO:Upload({
-			
-		minX,minY, minU, minV, --bl
-		minX,maxY, minU, maxV, --tr
-		maxX,maxY, maxU, maxV, --tr
-		maxX,maxY, maxU, maxV, --tr
-		maxX,minY, maxU, minV, --br
-		minX,minY, minU, minV, --bl
-			})
+		-- maxX, minY, maxU, minV, --br
+		-- minX, minY, minU, minV, --bl
+		-- minX, maxY, minU, maxV, --tl
+		-- maxX, minY, maxU, minV, --br
+		-- minX, maxY, minU, maxV, --tr
+		-- minX, maxY, minU, maxV, --tl
+
+		    minX, minY, 0, 1, -- bl
+		    minX, maxY, 0, 1, -- tl
+		    maxX, minY, 0, 1, -- br
+		    maxX, maxY, 0, 1, -- tr
+		})
 	
 	--[[rectVBO:Upload( {
 		minX,minY,z,w, minU, minV,0,0, --bl
@@ -1311,10 +1424,13 @@ function MakeTexRectVAO(minX,minY, maxX, maxY, minU, minV, maxU, maxV)
 		minX,minY,z,w, minU, minV,0,0, --bl
 	})
 	]]--
-			
+
+	indexVBO:Define(6) -- 6 indices
+	indexVBO:Upload({0, 1, 2, 1, 3, 2})	
 	myGL4TexRectVAO = gl.GetVAO()
 	if myGL4TexRectVAO == nil then return nil end
 	myGL4TexRectVAO:AttachVertexBuffer(rectVBO)
+	myGL4TexRectVAO:AttachIndexBuffer(indexVBO)
 	return myGL4TexRectVAO
 end
 
