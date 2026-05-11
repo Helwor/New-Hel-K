@@ -24,7 +24,7 @@ out DataVS {
 
 #line 11022
 
-const ivec2 gridSize = ivec2(mapSize.x / 16.0, mapSize.y / 16.0);
+ivec2 gridSize = ivec2(mapSize.x / 16.0, mapSize.y / 16.0);
 
 int ssbo_index;
 void main() {

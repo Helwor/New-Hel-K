@@ -11,7 +11,6 @@
 uniform float intensity;
 uniform float checker;
 uniform float highlight_back;
-const float inv6 = 1 / 1e6;
 // uniform float vehpass; 
 uniform float botpass;
 in DataVS {
@@ -22,7 +21,8 @@ in DataVS {
 
 out vec4 fragColor;
 // const float botpass = 14.5;
-const float vehpass = 6.0;
+float inv6 = 1 / 1e6;
+float vehpass = 6.0;
 vec4 color;
 void main() {
     if (checker > 0.0) {
