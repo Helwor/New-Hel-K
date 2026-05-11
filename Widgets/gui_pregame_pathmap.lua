@@ -417,7 +417,7 @@ local function MakeComputeShader()
 		compShader:Delete()
 	end
 	compShader = LuaShader.CheckShaderUpdates({
-		cssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.comp.old.glsl",
+		cssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.comp.glsl",
 		uniformInt = {
 			heightmapTex = 0,
 		},
@@ -441,8 +441,8 @@ local function MakeMapShader()
 		mapShader:Delete()   
 	end
 	mapShader = LuaShader.CheckShaderUpdates({
-		vssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.vert.old.glsl",
-		fssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.frag.old.glsl",
+		vssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.vert.glsl",
+		fssrcpath = "LuaUI/Widgets/Shaders/pregame_pathmap.frag.glsl",
 		uniformInt = {
 			heightmapTex = 0,
 		},
