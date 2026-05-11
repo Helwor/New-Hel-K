@@ -20,9 +20,9 @@ uniform float force_update;
 #line 11021
 
 // const vec2 uvstep = off_step * invMapSize;
-const ivec2 gridSize = ivec2(mapSize.x/16.0, mapSize.y/16.0);
+ivec2 gridSize = ivec2(mapSize.x/16.0, mapSize.y/16.0);
 // const float texlod = 1.0;
-const vec2 uvstep = off_step * invMapSize;
+vec2 uvstep = off_step * invMapSize;
 
 float GetSlope(vec3 w, vec2 uv) {
 	float height = max(0.0, w.y);
