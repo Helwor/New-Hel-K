@@ -98,11 +98,11 @@ end
 
 function ReplaceMouseMove(w,mx,my,dx,dy,button)
 	local _mx, _my = ClampScreenPosToWorld(mx,my)
-	return OriCF2MouseMove(w,_mx or mx,_my or my,dx,dy,button)
+	return OriCF2MouseMove(w, _mx or mx, _my or my, dx, dy, button)
 end
 function ReplaceMousePress(w,mx,my,button)
 	local _mx, _my
-	if selected>0  then
+	if selected > 0  then
 		_mx, _my = ClampScreenPosToWorld(mx,my)
 		cmdOverride = CMD_RAW_MOVE
 	end
@@ -151,15 +151,15 @@ do
 		local newY = center[5] - height
 		local mx, my = spWorldToScreenCoords(center[4],newY,center[6])
 		local center2 = {center[4],newY,center[6]}
-		local _, test = spTraceScreenRay(mx,my,true,false,true,false, offsetHeight)
+		local _, test = spTraceScreenRay(mx, my, true, false, true, false, offsetHeight)
 		if not test then
 			return
 		end
 		local x2, y2, z2 = test[4], test[5], test[6]
 		for i=1,3 do table.remove(test,1) end
 
-		test[1], test[3] = clamp(test[1],test[3],margin or defaultMargin) -- margin < may fall too often out of map when traced
-		test[2] = spGetGroundHeight(test[1],test[3])
+		test[1], test[3] = clamp(test[1], test[3], margin or defaultMargin) -- margin < may fall too often out of map when traced
+		test[2] = spGetGroundHeight(test[1], test[3])
 		if offsetHeight then
 			-- test[4], test[5], test[6] = x2, offsetHeight, z2
 			test[4], test[5], test[6] = test[1], offsetHeight, test[3]
@@ -290,7 +290,7 @@ end
 
 local CF2
 function widget:Initialize()
-	widget:ViewResize(Spring.GetViewGeometry())
+	widget:ViewResize()
 	-- if Spring.GetSpectatingState() then
 	--     widgetHandler:RemoveWidget(self)
 	--     return
@@ -307,7 +307,7 @@ function widget:Initialize()
 	widget:CommandsChanged()
 end
 function widget:ViewResize(x,y)
-	vsx, vsy = x, y
+	vsx, vsy = Spring.Orig.GetViewSizes()
 end
 function widget:DrawWorld()
 	if debugMe.state then
