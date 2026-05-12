@@ -13,6 +13,17 @@ function widget:GetInfo()
 	}
 end
 
+local isPotatoGpu = false
+local gpuMem = (Platform.gpuMemorySize and Platform.gpuMemorySize or 1000) / 1000
+if Platform ~= nil and Platform.gpuVendor == 'Intel' then
+	isPotatoGpu = true
+end
+
+if gpuMem and gpuMem > 0 and gpuMem < 2100 then
+	isPotatoGpu = true
+end
+
+
 local firstTime = true
 
 -- April 2025
@@ -155,6 +166,10 @@ local mexDefID = UnitDefNames["staticmex"].id
 
 local debugging = false
 
+local luaShaderDir = "LuaUI/Widgets/Include/"
+local LuaShader = VFS.Include(luaShaderDir .. "LuaShader.lua")
+
+
 -- if not shader then
 --     overbumpMode = 1
 --     shader =  glCreateShader(
@@ -212,44 +227,30 @@ local preGameBuildQueue
 
 
 local overbump, moreoverbump, evenmoreoverbump, pushalittle, pullalittle
-local uniShader, unifLoc
+local uniShader
 local div = 1.0
 local function GenerateShaders() -- those shaders will help make the grid appear above little bumps of the map
-	local fragCode = [[
-		#version 120
-		#extension GL_EXT_gpu_shader4 : enable
-		varying vec4 color;
-		uniform float div;
-		void main() {
-			gl_FragData[0].rgba = color;
-			gl_FragDepth = (gl_FragCoord.z) * div ;
-		}
-	]]
-	local vertexCode = [[
-		#version 120
-		varying vec4 color;
-
-		void main() {
-			color = gl_Color.rgba;
-			gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;
-			if (gl_Vertex.y <= 0.0)
-				color.a *=  0.25;
-		   
-		}
-	]]
-	uniShader = glCreateShader(
-		{ 
-			vertex = vertexCode,
-			fragment = fragCode,
-            uniformFloat = { -- specify uniform floats here
-                div = div,
-                -- myFloat4 = {0, 1, 2, 3},
-            },
-		}
-	)
+	uniShader = LuaShader.CheckShaderUpdates({
+		vssrcpath = "LuaUI/Widgets/Shaders/draw_terra.vert.glsl",
+		fssrcpath = "LuaUI/Widgets/Shaders/draw_terra.frag.glsl",
+		uniformInt = {
+		},
+		uniformFloat = {
+			div = div,
+		},
+		shaderConfig = {},
+		shaderName = '['..widget.GetInfo().name..'] Shader'
+	})
 	if not uniShader then
-		Echo('['..widget:GetInfo().name..']: ERROR GENERATING SHADER:', gl.GetShaderLog())
+		Echo('['..widget.GetInfo().name..'] Shader compilation failed')
+		uniShader = {
+			Activate = function() end,
+			Deactivate = function() end,
+			Delete = function() end,
+			SetUniform = function() end,
+		}
 	end
+
 	overbump, moreoverbump, evenmoreoverbump, pushalittle, pullalittle = 
 		0.99998, 0.9999, 0.999, 1.0001, 0.99999
 end
@@ -429,6 +430,7 @@ options_path = 'Hel-K/' .. widget:GetInfo().name
 local hotkeys_path = 'Hotkeys/Construction'
 
 options_order = {
+	'fix_lag',
 	'choice',
 	'show_basic_label','show_slopped_label',
 	'draw_s_contour','draw_s_above_dig','s_fading',
@@ -438,6 +440,15 @@ options_order = {
 	'draw_g_ground_grid', 'draw_g_contour',
 }
 options = {
+	fix_lag = {
+		name = 'Fix Extreme Lag',
+		type = 'bool',
+		description = 'Newer gpu may not like display lists of this widget and can cause extreme lag.\n Check this to stop using display list\n Inversely uncheck it if you want to use display list which fasten the drawing if it doesn\'t cause any problem',
+		value = not isPotatoGpu,
+		OnChange = function(self)
+			isPotatoGpu = not self.value
+		end
+	},
 	choice = {
 		name            = 'Choose Visualization Mode',
 		type            = 'radioButton',
@@ -2804,7 +2815,8 @@ local function DeleteShaders()
 	if not glDeleteShader then
 		return
 	end
-	glDeleteShader(uniShader or 0)
+	uniShader:Delete()
+	-- glDeleteShader(uniShader or 0)
 end
 local function Finish()
 	-- Echo('DT finishing ', os.clock())
@@ -2859,9 +2871,8 @@ end
 
 local function DrawBasicSlope(layers)
 	-- it is the basic cell quality of SLOPE MODE
-	glUseShader(uniShader)
-	unifLoc = gl.GetUniformLocation(uniShader, 'div')
-	glUniform(unifLoc, pushalittle)
+	uniShader:Activate()
+	uniShader:SetUniform("div", pushalittle)
 	glDepthMask(true)
 	glDepthTest(GL.LEQUAL)
 	for i = 1,#layers do
@@ -2876,7 +2887,7 @@ local function DrawBasicSlope(layers)
 	glDepthMask(false)
 
 	if drawContour then -- display the contour at front only, masked by the landscape / static alpha
-		glUniform(unifLoc, evenmoreoverbump)
+		uniShader:SetUniform("div", evenmoreoverbump)
 		glDepthTest(GL.LEQUAL)
 		glColor(s_cont_color)
 		for i = 1,#layers do
@@ -2885,7 +2896,7 @@ local function DrawBasicSlope(layers)
 		end
 		glDepthTest(false)
 	end
-	glUniform(unifLoc, pullalittle)
+	uniShader:SetUniform("div", pullalittle)
 
 	local color_elev = {unpack(s_elev_color)}
 	color_elev[4] = color_elev[4]/3
@@ -2932,11 +2943,11 @@ local function DrawBasicSlope(layers)
 		glDepthMask(false)
 		glPopMatrix()
 	end
-	glUseShader(0)
+	uniShader:Deactivate()
 end
 
 local function DrawSlope(layers)
-
+	uniShader:Activate()
 	--[[if not float then
 		Echo("type(elevMask2D) is ", type(elevMask2D))
 		gl.PushMatrix()
@@ -2964,9 +2975,7 @@ local function DrawSlope(layers)
 		-- end
 
 	end
-	glUseShader(uniShader)
-	unifLoc = gl.GetUniformLocation(uniShader, 'div')
-	glUniform(unifLoc, curPullShader)
+	uniShader:SetUniform("div", curPullShader)
 	 -- it is the BASIC MODE (verticals only)
 	if show_basic then
 		glDepthMask(true)
@@ -3028,7 +3037,7 @@ local function DrawSlope(layers)
 		if drawBaseGroundContour then glColor(0, 1, 0, 1) glBeginEnd(GL_LINE_STRIP, SimpleDrawRect, layers.groundPoints) end
 	end
 
-	glUseShader(0)
+	uniShader:Deactivate()
 	glDepthTest(false)
 
 
@@ -3199,8 +3208,8 @@ local function DrawSlope(layers)
 			end
 			glDepthTest(false)
 		end
-		glUseShader(uniShader)
-		glUniform(unifLoc, curPullShader)
+		uniShader:Activate()
+		uniShader:SetUniform("div", curPullShader)
 		 -- pulling to front
 		if gotElev then --  draw: pushed main elevation above the terrain or the mask, hiding effectively the back part of elevation and grid
 			color[4]= color[4]/2
@@ -3221,7 +3230,7 @@ local function DrawSlope(layers)
 
 		--------- Digging Transition
 		if gotDig then -- for digging we make another mask
-			glUseShader(0)
+			uniShader:Deactivate()
 			color = {unpack(s_dig_color)}
 			--** start of masking **--
 			glDepthMask(true)--***
@@ -3262,16 +3271,17 @@ local function DrawSlope(layers)
 				end
 				glDepthTest(false)
 			end--]]
-			glUseShader(uniShader)
-			glUniform(unifLoc, pushalittle)
+			uniShader:Activate()
+			uniShader:SetUniform("div", pushalittle)
 		 	-- push the grid a little to the back so we see only the back part
 			glDepthTest(GL.GEQUAL) -- slope grid of dig and dig transition / static color
 			DrawGrid(layers.gridDig, layers.gridDigZ, s_dig_color, 1)
 			if gotTrans then DrawGrid(layers.gridTrans, layers.gridTransZ, s_dig_color, 1) end
 			glDepthTest(false)
+			uniShader:Deactivate()
 		end
-		glUseShader(uniShader)
-		glUniform(unifLoc, curPullShader)
+		uniShader:Activate()
+		uniShader:SetUniform("div", curPullShader)
 
 
 		if layers.needTerra and drawSloppedGroundGrid then -- display the ground grid at front only, masked by the landscape // transparency defined through point prop from AddAlpha func
@@ -3307,7 +3317,7 @@ local function DrawSlope(layers)
 		if gotDig and drawAboveDig then
 			DrawGrid(layers.gridDig, layers.gridDigZ, {unpack(s_ground_on_dig_color)}, false, true)
 		end
-		glUseShader(0)
+		uniShader:Deactivate()
 		glDepthTest(GL.ALWAYS)
 		glDepthTest(false)
 		--------------------
@@ -3337,7 +3347,7 @@ local function DrawSlope(layers)
 	glDepthMask(false)
 	glDepthTest(GL.LEQUAL)
 	glDepthTest(false);
-	glUseShader(0)
+	uniShader:Deactivate()
 end
 
 
@@ -3472,12 +3482,13 @@ local function Execute()
 	--layers.buildMask = CreateBuildMask(bx, gy, bz, bw, bh)
 	--timecheck('pause')
 	--Echo("   is ", quality =='automatic' and inc == 8 and timecheck() > 0.25)
-
-	if DrawingList then glDeleteList(DrawingList) DrawingList = false end
-	if needTerra and (quality =='basic' or curcount > 1) then
-		DrawingList = glCreateList(DrawBasicSlope, slopes)
-	else
-		DrawingList = glCreateList(DrawSlope, layers)
+	if isPotatoGpu then
+		if DrawingList then glDeleteList(DrawingList) DrawingList = false end
+		if needTerra and (quality =='basic' or curcount > 1) then
+			DrawingList = glCreateList(DrawBasicSlope, slopes)
+		else
+			DrawingList = glCreateList(DrawSlope, layers)
+		end
 	end
 	if not dwOn then widgetHandler:UpdateCallIn("DrawWorld") end
 
@@ -3589,9 +3600,20 @@ function widget:DrawWorld()
 
 
 
-	if not DrawingList then return end
+	-- if not DrawingList then return end
+	if not WG.DrawTerra.working then
+		return
+	end
 	local timer = firstTime and spGetTimer()
-	glCallList(DrawingList)
+	if isPotatoGpu then
+		glCallList(DrawingList)
+	else
+		if needTerra and (quality =='basic' or curcount > 1) then
+			DrawBasicSlope(slopes)
+		else
+			DrawSlope(layers)
+		end
+	end
 	if timer then
 		if spDiffTimers(spGetTimer(), timer) > 0.15 then
 			Echo(widget:GetInfo().name, 'This widget seems to cause too much lag, shutting down.')
@@ -3915,9 +3937,9 @@ end
 
 function widget:Shutdown()
 	DeleteShaders()
-	if shader then
-		gl.DeleteShader(shader)
-	end
+	-- if shader then
+	-- 	gl.DeleteShader(shader)
+	-- end
 	WG.TerraCost = nil
 	Finish()
 	for k, v in pairs(WG.DrawTerra) do WG.DrawTerra[k]= nil end
