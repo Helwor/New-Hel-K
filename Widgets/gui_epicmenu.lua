@@ -37,6 +37,7 @@ Implementations:
 	- add .updateInPlace for colors option to update the given color table
 	- add .isCheckboxList for table options, self explanatory
 	- add .readOnly for table options, self explanatory
+	- add .version system for the dev to induce a reset on greater version
 Convenience:
 	- added a main menu caption when at root
 	- menu window is minizable (clicking on title bar shrink the window to its title) requires chili_addon
@@ -1504,7 +1505,16 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 	--get spring config setting
 	local valuechanged = false
 	local newval
-	if option.reset and settings.config[fullkey] ~= nil then
+	local reset = option.reset
+	if option.version then
+		local version = settings.config[fullkey..'_version']
+		if not version or version < option.version then
+			settings.config[fullkey..'_version'] = option.version
+			reset = true
+		end
+	end
+
+	if reset and settings.config[fullkey] ~= nil then
 		settings.config[fullkey] = nil
 	end
 	if option.springsetting ~= nil then --nil check as it can be false but maybe not if springconfig only assumes numbers
