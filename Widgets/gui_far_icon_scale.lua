@@ -16,6 +16,7 @@ local on = false
 local spSendCommands = Spring.SendCommands
 local threshold = 6600
 local scale = 1.43
+local oriOn, oriScale, oriFadeVanish, oriFadeStart
 options_path = 'Hel-K/' .. widget.GetInfo().name
 
 options = {
@@ -54,11 +55,33 @@ function widget:Update()
 		on = false
 	end
 end
-
+local wasFiltered
 function widget:Initialize()
+	local pro_console_widget = widgetHandler:FindWidget('Chili Pro Console')
+	if pro_console_widget then
+		local opt = pro_console_widget.options.filter_icons_as_ui
+		if opt then
+			wasFiltered = opt.value
+			if not wasFiltered then
+				opt.value = true
+				opt:OnChange()
+			end
+		end
+	end
 	spSendCommands('IconFadeStart 0', 'IconFadeVanish 0', 'IconScaleUI ' .. scale)
 end
 
 function widget:Shutdown()
 	spSendCommands('IconsAsUI 0')
+	if not wasFiltered then
+		local pro_console_widget = widgetHandler:FindWidget('Chili Pro Console')
+		if pro_console_widget then
+			local opt = pro_console_widget.options.filter_icons_as_ui
+			if opt then
+				opt.value = false
+				opt:OnChange()
+			end
+		end
+	end
+
 end

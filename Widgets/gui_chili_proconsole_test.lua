@@ -341,6 +341,7 @@ options_order = {
 	
 	'hideSpec', 'hideAlly', 'hidePoint', 'hideLabel', 'hideLog',
 	'error_opengl_source',
+	'filter_icons_as_ui',
 	'filter_luaHandleCheckStack',
 	--'pointButtonOpacity',
 	
@@ -504,12 +505,21 @@ options = {
 		path = filter_path ,
 		advanced = true,
 	},
+	filter_icons_as_ui = {
+		name = "Filter out \'Draw unit icons as UI \' echo",
+		type = 'bool',
+		value = false,
+		desc = "This filter out \'Switch of DrawIconsAsUI mode echos\'"
+		.."\nTips: the spam will be written in infolog.txt, if the file get unmanageably large try set it to Read-Only to prevent write.",
+		path = helk_path,
+		advanced = true,
+	},
 	filter_luaHandleCheckStack = {
 		name = "Filter out \'LuaHandle::CheckStack\' error",
 		type = 'bool',
 		value = true,
 		desc = "This filters out a message that appears usesless, and started being spammed in 105.1.1-2511.",
-		path = filter_path ,
+		path = filter_path,
 		advanced = true,
 	},
 	enableConsole = {
@@ -1956,10 +1966,11 @@ local function IsValid(msg)
 	if msg.msgtype == 'other' then
 		local arg = msg.argument
 		if arg:find('Error: OpenGL: source') and options.error_opengl_source.value
+			or arg:find("^Draw unit icons as UI")
 			or arg:find("Warning: [LuaHandle::CheckStack] LuaRules stack-top", 0, true) and options.filter_luaHandleCheckStack.value
 			or arg:find('added point')
-			or arg:find("LuaMenuServerMessage")
-			or arg:find("GroundDetail set to")
+			or arg:find("^LuaMenuServerMessage")
+			or arg:find("^GroundDetail set to")
 		then
 			return false
 		end
