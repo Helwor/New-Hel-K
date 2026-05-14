@@ -23,6 +23,7 @@ local UnitDefs = UnitDefs
 local vec4Zero = {0,0,0,0}
 local DBG_VIS = true
 local f = WG.utilFuncs
+local debugging = false
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
@@ -1443,7 +1444,7 @@ local function FindOrder(fac, tag)
 	end
 end
 function widget:KeyPress(key, mods, isRepeat)
-	if key == 103 and mods.ctrl and not isRepeat then -- ctrl+G
+	if debugging and key == 103 and mods.ctrl and not isRepeat then -- ctrl+G
 		local fac = facs[1]
 		if fac then
 			local qStack = fac.qStack
