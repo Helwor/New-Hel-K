@@ -33,6 +33,9 @@ WG.weapRanges = (function()
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
+				if wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode and (tonumber(wDef.damageAreaOfEffect) or 0) > 0 then
+					weaponRange = tonumber(wDef.damageAreaOfEffect)
+				end
 				if weaponRange <= 32 and wDef.shieldRadius then
 					weaponRange = wDef.shieldRadius
 				end
