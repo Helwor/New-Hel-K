@@ -870,6 +870,12 @@ function widget:DrawScreen()
 			if now - obj.time > 5 then
 				WATCHDOG[name] = nil
 				WATCHDOG_IDX = WATCHDOG_IDX - 1
+				local index = obj.index
+				for name, obj in pairs(WATCHDOG) do
+					if obj.index > index then
+						obj.index = obj.index - 1
+					end
+				end
 			else
 				glText(obj.txt, vsx, 500 - 13 * obj.index, 12, 'rno')
 			end
