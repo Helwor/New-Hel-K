@@ -2,7 +2,7 @@
 --------------------------------------------------------------------------------
 
 function widget:GetInfo()
-  return {
+	return {
 	name      = "Combo Overhead/Free Camera (experimental)", -- FIXME: long-ass name overlaps Alt+F11 checkbox, but changing it would ruin settings
 	desc      = "v0.138 Camera featuring 6 actions",
 	author    = "CarRepairer, msafwan",
@@ -11,7 +11,7 @@ function widget:GetInfo()
 	layer     = 1002,
 	handler   = true,
 	enabled   = false,
-  }
+	}
 end
 local Echo = Spring.Echo
 
@@ -959,15 +959,15 @@ local keys = {
 }
 local MODS = {A='alt',C='ctrl',M='meta',S='shift'}
 local function explode(div,str)
-  if (div=='') then return false end
-  local pos,arr = 0,{}
-  -- for each divider found
-  for st,sp in function() return string.find(str,div,pos,true) end do
+	if (div=='') then return false end
+	local pos,arr = 0,{}
+	-- for each divider found
+	for st,sp in function() return string.find(str,div,pos,true) end do
 	table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
 	pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-  return arr
+	end
+	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+	return arr
 end
 
 local function HotkeyChangeNotification()
@@ -1191,15 +1191,15 @@ local function GetDist(x1,y1,z1, x2,y2,z2)
 end
 
 local function explode(div,str)
-  if (div=='') then return false end
-  local pos,arr = 0,{}
-  -- for each divider found
-  for st,sp in function() return string.find(str,div,pos,true) end do
+	if (div=='') then return false end
+	local pos,arr = 0,{}
+	-- for each divider found
+	for st,sp in function() return string.find(str,div,pos,true) end do
 	table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
 	pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-  return arr
+	end
+	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+	return arr
 end
 
 local function LimitZoom(dx,dy,dz,sp,limit,distFactor)
@@ -1249,6 +1249,7 @@ local function LimitZoom(dx,dy,dz,sp,base,limit,distFactor)
 	--Check if anyone reach max speed
 	local total_distance = sqrt(dx^2+dy^2+dz^2)
 	local mult = CalcSpeed(total_distance,sp,base,distFactor,limit)
+	-- Echo("total_distance, mult is ", total_distance, mult)
 	return dx*mult,dy*mult,dz*mult
 end
 local function GetSmoothOrGroundHeight(x,z,checkFreeMode) --only ScrollCam seems to want to ignore this when FreeMode is on
@@ -1756,6 +1757,7 @@ end
 local lastZoomin
 function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 	value = value or 1
+	-- Echo("value is ", value)
 
 	local maxZoomSpeed = options.maxzoomspeed.value
 	local zoomDistFactor = options.zoomdistfactor.value
@@ -1801,7 +1803,13 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 		local sp = math.abs(value) * (zoomin and options.zoominfactor.value or -options.zoomoutfactor.value) * (shift and 3 or 1)
 		-- Spring.Echo("Zoom Speed: "..sp)
 
-		local zox,zoy,zoz = LimitZoom(dx,dy,dz,sp,zoomBase,maxZoomSpeed,zoomDistFactor)
+		local zox, zoy, zoz = 0, 0, 0
+		for i = 1, value do
+			local _zox, _zoy, _zoz = LimitZoom(dx,dy,dz,sp / value, zoomBase, maxZoomSpeed, zoomDistFactor)
+			zox, zoy, zoz = zox + _zox, zoy + _zoy, zoz + _zoz
+			dx, dy, dz = dx - _zox, dy - _zoy, dz - _zoz
+		end
+		-- Echo('+diff is', zoy, 'sp', sp, 'cs.py', cs.py)
 		local new_px, new_py, new_pz
 		new_px = cs.px + zox --a zooming that get slower the closer you are to the target.
 		new_py = cs.py + zoy
@@ -1882,7 +1890,9 @@ function Zoom(zoomin, shift, forceCenter, value, ignoreLimit)
 		-- else
 		-- 	ls_dist_new = ls_dist + max(min(ls_dist*sp,maxZoomSpeed),-maxZoomSpeed) -- a zoom in that get faster the further away from target (limited to -+2000)
 		-- end
-		ls_dist_new = ls_dist + ls_dist*CalcSpeed(ls_dist,sp,zoomBase,zoomDistFactor,not ignoreLimit and maxZoomSpeed)
+		local diff = ls_dist*CalcSpeed(ls_dist,sp,zoomBase,zoomDistFactor,not ignoreLimit and maxZoomSpeed)
+		-- Echo("-diff is ", -diff, 'sp', sp, 'cs.py', cs.py)
+		ls_dist_new = ls_dist + diff
 		ls_dist_new = max(ls_dist_new, 20)
 
 		if not options.freemode.value and ls_dist_new > maxDistY - gy then --limit camera distance to maximum distance
@@ -2395,7 +2405,7 @@ local function ScrollCam(cs, mxm, mym, smoothlevel)
 	ls_y = GetSmoothOrGroundHeight(ls_x, ls_z, true)
 	local csnew = UpdateCam(cs)
 	if csnew and options.tiltedzoom.value then
-	  csnew.rx = GetZoomTiltAngle(ls_x, ls_z, csnew)
+		csnew.rx = GetZoomTiltAngle(ls_x, ls_z, csnew)
 		csnew = UpdateCam(csnew)
 	end
 	if csnew then
@@ -2403,7 +2413,7 @@ local function ScrollCam(cs, mxm, mym, smoothlevel)
 		csnew = ApplyCenterBounds(csnew) --Should be done since cs.py changes, but stops camera movement southwards. TODO: Investigate this.
 	-- spSetCameraState(csnew, smoothlevel)
 	OverrideSetCameraStateInterpolate(csnew,smoothlevel)
-  end
+	end
 
 end
 
@@ -2955,6 +2965,7 @@ local function FlipCamera()
 	if ls_have then
 		OverrideSetCameraStateInterpolate(cs,options.rotsmoothness.value)
 	end
+	interpolated = false
 end
 function widget:KeyPress(key, modifier, isRepeat)
 	local intercept = GroupRecallFix(key, modifier, isRepeat)
@@ -3055,14 +3066,14 @@ function widget:KeyRelease(key)
 end
 
 local function DrawLine(x0, y0, c0, x1, y1, c1)
-  glColor(c0); glVertex(x0, y0)
-  glColor(c1); glVertex(x1, y1)
+	glColor(c0); glVertex(x0, y0)
+	glColor(c1); glVertex(x1, y1)
 end
 
 local function DrawPoint(x, y, c, s)
-  --FIXME reenable later - ATIBUG glPointSize(s)
-  glColor(c)
-  glBeginEnd(GL_POINTS, glVertex, x, y)
+	--FIXME reenable later - ATIBUG glPointSize(s)
+	glColor(c)
+	glBeginEnd(GL_POINTS, glVertex, x, y)
 end
 
 function widget:DrawScreenEffects(vsx, vsy)
