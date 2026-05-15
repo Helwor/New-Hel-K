@@ -441,14 +441,14 @@ end
 
 function HighlightEBuildsNEW()
 	-- fix map edge extension 2 leaving wrong states
+	if not (options.mergeCircles.value and gl.Utilities.DrawMergedGroundCircles) then
+		return HighlightEBuildsOLD()
+	end
 	gl.Culling(false)
 	gl.DepthTest(GL.LEQUAL)
 	gl.DepthTest(false)
 	--
 	if lastDrawnFrame < lastFrame then
-		if not options.mergeCircles.value then
-			return HighlightEBuildsOLD()
-		end
 		lastDrawnFrame = lastFrame
 		UpdateStatus()
 		gl.DeleteList(drawList or 0)

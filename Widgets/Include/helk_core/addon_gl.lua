@@ -86,6 +86,7 @@ local texFormats = {
 	R11F_G11F_B10F 			= 0x8C3A,
 	COMPRESSED_RGB_ARB 		= 0x84ED,
 	COMPRESSED_RGBA_ARB 	= 0x84EE,
+	COMPRESSED_RGBA_S3TC_DXT1_EXT = 0x83F1,
 }
 for k,v in pairs(texFormats) do
 	GL[k] = v
@@ -336,7 +337,7 @@ local upvalues = GetUpvaluesOf(gl.Utilities.DrawMergedGroundCircle)
 local shapeHeight = upvalues.shapeHeight
 local cylinder = upvalues.cylinder
 local averageGroundHeight = upvalues.averageGroundHeight
-Echo("averageGroundHeight, shapeHeight is ", averageGroundHeight, shapeHeight)
+
 function gl.Utilities.DrawMergedVolumes(vol_dlist) -- really draw merged volumes and not their imprint (misleading name of glVolumes.lua gl.Utilities.DrawMergedVolume)
 	gl.StencilTest(true)
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
@@ -348,64 +349,65 @@ function gl.Utilities.DrawMergedVolumes(vol_dlist) -- really draw merged volumes
 	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 end
 
-function gl.Utilities.DrawMergedGroundCircles(items, createList)
-	if createList then
-		return gl.CreateList(gl.Utilities.DrawMergedGroundCircles, items)
-	end
-	gl.PushMatrix()
-	gl.Translate(0, averageGroundHeight, 0)
-	gl.Utilities.DrawMergedVolumesImprint(
-		function()
-			for _, item in pairs(items) do
-				gl.PushMatrix()
-				gl.Translate(item.x or item[1], 0, item.z or item[2])
-				gl.Scale(item.radius or item[3], shapeHeight, item.radius or item[3])
-				gl.CallList(cylinder)
-				gl.PopMatrix()
-			end
+if gl.StencilOpSeparate then -- strangely enough, some ppl don't have "Separate" variants of stencil funcs, even though the engine is supposed to expose them
+	function gl.Utilities.DrawMergedGroundCircles(items, createList)
+		if createList then
+			return gl.CreateList(gl.Utilities.DrawMergedGroundCircles, items)
 		end
-	)
-	gl.PopMatrix()
-end
-
-function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volumes the equivalent of gl.Utilities.DrawMergedVolume(vol_dlist) but in one call for multiple volumes
-	if createList then
-		return gl.CreateList(gl.Utilities.DrawMergedVolumesImprint, param)
+		gl.PushMatrix()
+		gl.Translate(0, averageGroundHeight, 0)
+		gl.Utilities.DrawMergedVolumesImprint(
+			function()
+				for _, item in pairs(items) do
+					gl.PushMatrix()
+					gl.Translate(item.x or item[1], 0, item.z or item[2])
+					gl.Scale(item.radius or item[3], shapeHeight, item.radius or item[3])
+					gl.CallList(cylinder)
+					gl.PopMatrix()
+				end
+			end
+		)
+		gl.PopMatrix()
 	end
-	gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
-	gl.DepthMask(false)
-	-- fix map edge extension 2 leaving wrong states
-	gl.Culling(false)
-	gl.DepthTest(GL.LEQUAL)
-	--
-	if (gl.DepthClamp) then gl.DepthClamp(true) end
-	gl.ColorMask(false, false, false, false)
-	gl.DepthTest(true)
-	gl.Culling(false)
-	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
-	gl.StencilTest(true)
-	gl.StencilMask(0xff)
-	gl.StencilOpSeparate(GL.BACK, GL.KEEP, GL.INCR_WRAP, GL.KEEP)
-	gl.StencilOpSeparate(GL.FRONT, GL.KEEP, GL.DECR_WRAP, GL.KEEP)
-	gl.StencilFunc(GL.ALWAYS, 0, 0xff)
-	if type(param) == 'function' then
-		param()
-	else
-		gl.CallList(param)
+	function gl.Utilities.DrawMergedVolumesImprint(param, createList) -- multi volumes the equivalent of gl.Utilities.DrawMergedVolume(vol_dlist) but in one call for multiple volumes
+		if createList then
+			return gl.CreateList(gl.Utilities.DrawMergedVolumesImprint, param)
+		end
+		gl.PushAttrib(GL.ENABLE_BIT + GL.COLOR_BUFFER_BIT + GL.DEPTH_BUFFER_BIT + GL.STENCIL_BUFFER_BIT + GL.CURRENT_BIT)
+		gl.DepthMask(false)
+		-- fix map edge extension 2 leaving wrong states
+		gl.Culling(false)
+		gl.DepthTest(GL.LEQUAL)
+		--
+		if (gl.DepthClamp) then gl.DepthClamp(true) end
+		gl.ColorMask(false, false, false, false)
+		gl.DepthTest(true)
+		gl.Culling(false)
+		gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+		gl.StencilTest(true)
+		gl.StencilMask(0xff)
+		gl.StencilOpSeparate(GL.BACK, GL.KEEP, GL.INCR_WRAP, GL.KEEP)
+		gl.StencilOpSeparate(GL.FRONT, GL.KEEP, GL.DECR_WRAP, GL.KEEP)
+		gl.StencilFunc(GL.ALWAYS, 0, 0xff)
+		if type(param) == 'function' then
+			param()
+		else
+			gl.CallList(param)
+		end
+
+
+		gl.ColorMask(true, true, true, true)
+		gl.Culling(GL.BACK)
+		gl.StencilFunc(GL.NOTEQUAL, 0, 0xff)
+		gl.Utilities.DrawFullScreenQuad()
+		gl.Culling(false)
+		gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+		gl.StencilTest(false)
+		gl.DepthTest(false)
+		if (gl.DepthClamp) then gl.DepthClamp(false) end
+		gl.PopAttrib()
+
 	end
-
-
-	gl.ColorMask(true, true, true, true)
-	gl.Culling(GL.BACK)
-	gl.StencilFunc(GL.NOTEQUAL, 0, 0xff)
-	gl.Utilities.DrawFullScreenQuad()
-	gl.Culling(false)
-	gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
-	gl.StencilTest(false)
-	gl.DepthTest(false)
-	if (gl.DepthClamp) then gl.DepthClamp(false) end
-	gl.PopAttrib()
-
 end
 
 
