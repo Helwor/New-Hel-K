@@ -1384,8 +1384,9 @@ function widget:UnitLeftLos(id, teamID)
 	if DESTROYED[id] then
 		return
 	end
+	local unit = Units[id]
 	if spGetUnitIsDead(id) then -- happens sometimes
-		if Units[id] then
+		if unit then
 			Echo('unit', id, 'left LoS but is just dead AND Was registered !')
 			Spring.PlaySoundFile(tickSound, 0.95, 'ui')
 			-- Units[id] = nil
@@ -1398,11 +1399,10 @@ function widget:UnitLeftLos(id, teamID)
 		widget:UnitDestroyed(id, teamID)
 		return
 	end
-	local unit = Units[id]
-	local isDrone = unit and unit.name:find('drone')
+	local isNormal = unit and (unit.name:find('drone') or unit.name == 'wolverine_mine')
 	if not IGNORE_INVALID then --
 		if not spValidUnitID(id) then
-			if isDrone then
+			if isNormal then
 				-- now drone doesnt have anymore radar dot, 
 				--skip
 			elseif warns < MAX_WARNS then
