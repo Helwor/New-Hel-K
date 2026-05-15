@@ -1677,25 +1677,27 @@ do -- TestBuild function
 		UpdateOccupied()
 		if p.PID~=mexDefID then
 			local spots = spots or WG.metalSpots
-			for n = 1,#spots do
-				local spot = spots[n]
-				local ix, iz = spot.x, spot.z
-				local dx,dz = (px - ix)^2, (pz - iz)^2
-				if  dx < (sx+24)^2 and dz < (sz+24)^2 then
-					if not IsOccupied(n, ix, iz) then
-						cantPlace=true
-						local dist = dx + dz
-						bln = bln + 1
-						blockingStruct[bln]={ix, iz, 24, 24, dist, isEmptyMex = true}
-						if dist < cdist then
-							cdist = dist
-							if overlapped then 
-								overlapped[1] = blockingStruct[bln]
+			if spots then
+				for n = 1,#spots do
+					local spot = spots[n]
+					local ix, iz = spot.x, spot.z
+					local dx,dz = (px - ix)^2, (pz - iz)^2
+					if  dx < (sx+24)^2 and dz < (sz+24)^2 then
+						if not IsOccupied(n, ix, iz) then
+							cantPlace=true
+							local dist = dx + dz
+							bln = bln + 1
+							blockingStruct[bln]={ix, iz, 24, 24, dist, isEmptyMex = true}
+							if dist < cdist then
+								cdist = dist
+								if overlapped then 
+									overlapped[1] = blockingStruct[bln]
+								end
+								if remember then 
+									memX[pz]= blockingStruct 
+								end
+								blockingStruct.c = blockingStruct[bln]
 							end
-							if remember then 
-								memX[pz]= blockingStruct 
-							end
-							blockingStruct.c = blockingStruct[bln]
 						end
 					end
 				end
@@ -4486,7 +4488,7 @@ do
 		-- usage
 
 		local fastmap = FastMapper:New()
-		for i, p in ipairs(WG.metalSpots) do
+		for i, p in ipairs(WG.metalSpots or {}) do
 			fastmap:Feed(p.x, p.z)
 		end
 		fastmap:Process()
