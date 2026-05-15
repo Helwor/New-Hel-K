@@ -2,7 +2,7 @@
 
 QUICK GUIDE
 
-You can either directly copy paste all the files in your InstallDir/LuaUI or put only Hel-k_Update.bat in it and run the .bat
+You can either directly copy paste all the files in your InstallDir/LuaUI or put only Hel-K_Update.bat (or Hel-K_Update.sh for Linux) in it and run it.
 
 To stay up to date, use the script at all time, to make life easier. I update the repo very often.
 
