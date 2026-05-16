@@ -387,7 +387,11 @@ local function SetOptionCommands()
 		function(cmd, paramStr, params)
 			local param = params[1]
 			if param == "options" then
-				WG.crude.OpenWidgetOptions(widget)
+				if WG.crude.OpenWidgetOptions then
+					WG.crude.OpenWidgetOptions(widget)
+				else
+					WG.crude.OpenPath(options_path)
+				end
 			elseif param == 'reduce' then
 				if params[2] then
 					local scale = tonumber(params[2])
@@ -426,7 +430,11 @@ local function SetOptionCommands()
 			local defOpt = options['ground_def-'..mapName]
 			local param = params[1]
 			if param == 'options' then
-				WG.crude.OpenWidgetOptions(widget)
+				if WG.crude.OpenWidgetOptions then
+					WG.crude.OpenWidgetOptions(widget)
+				else
+					WG.crude.OpenPath(options_path)
+				end
 			elseif param == 'unicolor' then
 				if params[2] then
 					local color = {}
