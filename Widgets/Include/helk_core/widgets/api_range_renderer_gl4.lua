@@ -107,7 +107,7 @@ local instances = setmetatable({},
 local instance_by_range = setmetatable({},
 	{
 		__index = function(self, range)
-			local divs = clamp(floor((range^0.5 * 6) / 30) * 30, 30, 200)
+			local divs = clamp(floor((range^0.5 * 4) / 30) * 30, 30, 200)
 			local instance = instances[divs]
 			rawset(self, range, instance)
 			return instance
@@ -149,7 +149,7 @@ setmetatable(
 )
 
 local update_sub_mt = {
-	__call = function(self, x, y, z, force_update)
+	__call = function(self, x, y, z, force_update, color)
 		local instance = self.instance
 
 		local id = self.id
@@ -211,7 +211,7 @@ function WG.RenderRangeGL4(unitID, x, y, z, range, wDef, color, force_update)
 	if not obj then
 		obj = NewObject(id, x, y, z, range, wDef, color)
 	end
-	obj(x, y, z, force_update)
+	obj(x, y, z, force_update, color)
 end
 
 function widget:Initialize()
