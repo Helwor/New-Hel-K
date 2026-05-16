@@ -365,7 +365,6 @@ local function CreateSMFOption(namedTex, info)
 			return string.format('%.0f%%', self.value*100)
 		end,
 		noHotkey = true,
-		reset = true,
 	}
 	options_order[#options_order+1] = name
 	options_order[#options_order+1] = name..'_scale'
