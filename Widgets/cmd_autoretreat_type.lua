@@ -42,7 +42,7 @@ for defID, def in pairs(UnitDefs) do
         then 
 			candidateDefID[defID] = humanName
 			local health = def.health
-			if health >= 350 then
+			if health >= 150 then
 				-- ignore valid but unwanted bomb, arty except for Sling 
 				if not (name:find('bomb') or name:find('arty') and name ~= 'cloakarty') then
 					if uniqueStateByType[name] == nil and uniqueStateByType[humanName] == nil then
