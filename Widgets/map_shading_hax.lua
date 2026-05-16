@@ -133,11 +133,11 @@ local fmt_disable = {
 }
 
 
-local fmt_mipmapFormat = {
+local fmt_mipmap = {
 	target = GL.TEXTURE_2D,
 	format = GL.RGBA8,
 	min_filter = GL.LINEAR_MIPMAP_LINEAR,
-	mag_filter = GL.NEAREST,
+	mag_filter = GL.LINEAR,
 	wrap_s = GL.CLAMP_TO_EDGE,
 	wrap_t = GL.CLAMP_TO_EDGE,
 	fbo = true,
@@ -502,7 +502,7 @@ local function ReduceTexture(tex, scale, yReverse, format, noBlending, R,G,B,A) 
 	local newW = math.max(1, math.floor(info.xsize * scale))
 	local newH = math.max(1, math.floor(info.ysize * scale))
 	
-	local newTex = gl.CreateTexture(newW, newH, format or fmt_mipmapFormat)
+	local newTex = gl.CreateTexture(newW, newH, format or fmt_mipmap)
 	
 	if not newTex then
 		Spring.Echo("(ReduceTexture) TEXTURE " .. tex .. " CREATION FAILED")
@@ -575,7 +575,7 @@ end
 local function UniGround()
 	local r, g, b = unpack(options['ground_color-'..mapName].value)
 	if not uniTex then
-		uniTex = gl.CreateTexture(1, 1, fmt_mipmapFormat)
+		uniTex = gl.CreateTexture(1, 1, fmt_mipmap)
 	end
 	gl.RenderToTexture(uniTex, function()
 		gl.Color(r, g, b, 1)
