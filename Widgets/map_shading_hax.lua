@@ -255,7 +255,7 @@ options['ground_color-' .. mapName] = {
 		end
 	end,
 }
-
+options_order[#options_order+1] = 'space'
 
 options.smf_label = {
 	type = 'label',
@@ -782,6 +782,7 @@ function widget:Shutdown()
 		gl.DeleteTexture(uniTex)
 	end
 	widgetHandler.actionHandler:RemoveAction(widget, 'smf')
+	widgetHandler.actionHandler:RemoveAction(widget, 'groundtex')
 end
 
 --
