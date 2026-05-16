@@ -97,6 +97,7 @@ local ground_scale = 0.5
 local mapName = Game.mapName
 local update_rate = 2
 local initialized = false
+local smf_apply_preset, groundtex_apply_preset = false, false
 ----
 options = {}
 local options = options
@@ -114,10 +115,11 @@ options_order = {
 	'smf_label',
 	'space',
 	'find_rgba', -- for debugging
-	'smf_all',
-	'smf_scale',
+	'smf_apply_preset', -- order matters, OnChange will trigger before for the next options to apply à loading!
+	'smf_scale', -- order matters!
+	'smf_all', -- order matters!
 	'space',
-	-- per texture smf options added later
+	-- per texture smf options added later (being after global settings matters!)
 }
 
 -- Tex Formats
@@ -237,7 +239,7 @@ options['ground_scale-' .. mapName] = {
 		end
 	end,
 	tooltipFunction = function(self)
-		return (self.value * 100) .. '%'
+		return math.floor(self.value * 100 + 0.5) .. '%'
 	end,
 }
 options['ground_color-' .. mapName] = {
@@ -262,6 +264,15 @@ options.smf_label = {
 	name = '--- MAP SHADING DEF',
 }
 
+options.smf_apply_preset = {
+	name = 'Apply global by default',
+	desc = 'Check to apply the below global settings for any map, if they haven\'t any custom setting.',
+	type = 'bool',
+	value = smf_apply_preset,
+	OnChange = function(self)
+		smf_apply_preset = self.value
+	end,
+}
 
 options.smf_all = {
 	name = 'Apply to All',
@@ -273,7 +284,7 @@ options.smf_all = {
 	},
 	value = 'original',
 	OnChange = function(self)
-		if initialized then
+		if initialized or smf_apply_preset then
 			local value = self.value
 			for i, namedTex in pairs(mapShadingTextures) do
 				local shortNamed = namedTex:gsub('$ssmf_', '')
@@ -285,7 +296,6 @@ options.smf_all = {
 			end
 		end
 	end,
-	reset = true
 	-- noSave = true,
 }
 
@@ -297,7 +307,7 @@ options.smf_scale = {
 	min = 0, step = 0.01, max = 1,
 	OnChange = function(self)
 		scale = self.value
-		if initialized then
+		if initialized or smf_apply_preset then
 			for i, namedTex in pairs(mapShadingTextures) do
 				local shortNamed = namedTex:gsub('$ssmf_', '')
 				local customScaleOpt = options[shortNamed..'-'..mapName..'_scale']
@@ -309,9 +319,8 @@ options.smf_scale = {
 		end
 	end,
 	tooltipFunction = function(self)
-		return (self.value * 100) .. '%'
+		return math.floor(self.value * 100 + 0.5) .. '%'
 	end,
-	reset = true,
 }
 
 options.find_rgba = { -- for debugging, deactivated
