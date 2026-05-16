@@ -34,7 +34,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-
+local Echo = Spring.Echo
 -- Spring.SetMapRenderingParams({ -- STUDY
 --     splatTexScales = {0, 0, 0, 0},
 --     splatTexMults  = {0, 0, 0, 0},
@@ -778,5 +778,7 @@ function widget:Shutdown()
 end
 
 --
-f.DebugWidget(widget)
+if f then
+	f.DebugWidget(widget)
+end
 
