@@ -100,7 +100,7 @@ local spGetUnitIsDead			= Spring.GetUnitIsDead
 local spGetUnitPosition			= Spring.GetUnitPosition
 
 -- local spuAndBit				= Spring.Utilities.AndBit
-local spuCheckBit				= Spring.Utilities.CheckBit
+-- local spuCheckBit				= Spring.Utilities.CheckBit
 --local spuGetUnitCanBuild		= Spring.Utilities.GetUnitCanBuild -- (id, defID to build)
 local spGetUnitCurrentCommand	= Spring.GetUnitCurrentCommand
 local spIsAboveMiniMap			= Spring.IsAboveMiniMap
@@ -517,6 +517,7 @@ local groundModule = {offsetPH = nil} -- !! offsetPH == nil means it is availabl
 local origHeightMap
 
 local placementHeight = 0
+local placementHeightMex = 0
 
 -- local origHeight = 0
 local height=0
@@ -1810,7 +1811,9 @@ local function reset(shift,keepAcom,force)
 		) and (select(2,spGetActiveCommand()) or 0)<0 then
 			spSetActiveCommand(0)
 		end
+		placementHeightMex = PID == mexDefID and placementHeight or 0
 		PID = false
+		placementHeight = 0
 		myPlatforms.x = false
 		myPlatforms.oriPH = false
 		-- if CI_Disabled then
@@ -2592,7 +2595,7 @@ do
 			doMex = true
 		end
 		if doMex then
-
+			placementHeight = placementHeightMex
 
 			local addLotus = ctrl and alt and shift
 			if not addLotus and (ctrl or alt or shift or g.autoMex) then -- cancelled because not implemented with featured mexing (variant with solars added)
@@ -4135,7 +4138,7 @@ do -- work around to get origHeight on auto generated maps where Spring.GetGroun
 							count = count + 1
 							oriX[z] = spGetGroundHeight(x,z)
 						end
-						if x % 32 == 0 then
+						if x % 8 == 0 then
 							cyield(true)
 						end
 					end
