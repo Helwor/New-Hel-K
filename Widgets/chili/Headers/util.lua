@@ -148,6 +148,7 @@ end
 
 
 function PushScissor(obj, x, y, w, h, myDemand)
+
 	local right  = x + w
 	local bottom = y + h
 	if (right  > curScissor[3]) then right  = curScissor[3] end
@@ -166,7 +167,9 @@ function PushScissor(obj, x, y, w, h, myDemand)
 	end
 
 	if myDemand then
-		Echo('scissor is ok', stackN-1,'=>',obj and obj.name, x, y, w, h,'current:',unpack4(currentScissor))
+		Echo(
+			string.format('scissor is ok %d => %s, x%d y%d w%d h%d, current: %d %d %d %d', stackN-1, tostring(obj and obj.name), x, y, w, h, unpack4(currentScissor))
+		)
 	end
 	curScissor = GetVector4()
 	curScissor[1] = x; curScissor[2] = y; curScissor[3] = right; curScissor[4] = bottom;
@@ -227,11 +230,19 @@ function PushStencilMask(obj, x, y, w, h)
 		-- local contentX, contentY, contentWidth, contentHeight = unpack4(obj.contentArea)
 		-- gl.Rect(0, 0, contentWidth, contentHeight)
 		------
-		
 		local clientX, clientY, clientWidth, clientHeight = unpack4(obj.clientArea)
 		local p_clientX, p_clientY, p_clientWidth, p_clientHeight = unpack4(obj.parent.clientArea)
 		local offY = (p_clientHeight - clientHeight) + (p_clientY - clientY) - obj.y
 		local offX = clientX + p_clientX + obj.x
+		-- if obj.name == 'marker_scrollpanel' then
+		-- 	Echo(
+		-- 		string.format('objY%d, parentClientY%d clientY%d, parentClientHeight%d, clientHeight%d => offY%d, h%d ', obj.y, p_clientY, clientY, p_clientHeight, clientHeight, offY, h)
+		-- 	)
+		-- 	if WG.utilFuncs then
+		-- 		Echo(WG.utilFuncs.GetCalledLine(4))
+		-- 	end
+		-- end
+		h = clientHeight
 		-- if obj.ancestor.name ~= 'ProConsole' then
 		-- 	Echo('p_contentY',p_contentY,'p_clientY',p_clientY,'parent_y',obj.parent.y,'p_clientHeight',p_clientHeight,
 		-- 		"y",y,"obj.y",obj.y,"clientY",clientY,"contentY",contentY,'clientHeight',clientHeight,
