@@ -560,6 +560,9 @@ local function MakeSelector()
 		preserveChildrenOrder = true,
 		OnResize = {
 			function(self)
+				if not win then
+					return
+				end
 				if lastHeight == self.height  or self.height <= 10 then
 					return -- avoid spam
 				end
@@ -1070,6 +1073,7 @@ local function MakeCustomizationPanel()
 	local function CreateMarkerImage()
 	    cp.marker_image = WG.Chili.Image:New{
 			file = '',
+			drawcontrolv2 = true,
 			DrawControl = function(self)
 				-- Echo('draw control', os.clock())
 				local obj = customize
@@ -1936,6 +1940,7 @@ function MarkerMaker:AddControl(index)
 				width = '100%',
 				height = '100%',
 				file = '',
+				drawcontrolv2 = true,
 				DrawControl = function(self)
 					-- Echo('self.width', self.width, obj.midx * 2, obj.midx * 2 / self.width)
 					-- Echo("self.clientArea[4] is ", unpack(self.clientArea))
