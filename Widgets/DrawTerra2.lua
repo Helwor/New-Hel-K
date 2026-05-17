@@ -250,7 +250,6 @@ local function GenerateShaders() -- those shaders will help make the grid appear
 			SetUniform = function() end,
 		}
 	end
-
 	overbump, moreoverbump, evenmoreoverbump, pushalittle, pullalittle = 
 		0.99998, 0.9999, 0.999, 1.0001, 0.99999
 end
@@ -2815,7 +2814,9 @@ local function DeleteShaders()
 	if not glDeleteShader then
 		return
 	end
-	uniShader:Delete()
+	if uniShader then
+		uniShader:Delete()
+	end
 	-- glDeleteShader(uniShader or 0)
 end
 local function Finish()
@@ -3400,9 +3401,7 @@ local function Execute()
 	-- if collectgarbage('count') > 190000 then Echo('collect') collectgarbage('collect') end
 
 --        glDeleteList(DrawingList)
-	if not uniShader then
-		GenerateShaders()
-	end
+
 	if not dwOn then --[[GenerateShaders()--]] end
 
 	--avgcreate('resume')
@@ -3899,11 +3898,12 @@ function widget:Initialize()
 	end
    round = math.round
    dir4 = WG.Cam.dir4
-	if not glCreateShader then 
-		widgetHandler:RemoveWidget(self)
-		Echo('compat mode, DrawTerra 2 removed')
-		return
-	end
+	-- if not glCreateShader then 
+	-- 	widgetHandler:RemoveWidget(self)
+	-- 	Echo('compat mode, DrawTerra 2 removed')
+	-- 	return
+	-- end
+	GenerateShaders()
 	-- if Spring.GetSpectatingState() or Spring.IsReplay() then
 	-- 	Spring.Echo(widget:GetInfo().name..' disabled for spectators')
 	-- 	widgetHandler:RemoveWidget(self)
