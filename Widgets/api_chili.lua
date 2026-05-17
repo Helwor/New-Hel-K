@@ -127,12 +127,12 @@ options.switchChili = {
 	value = Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1,
 	OnChange = function(self)
 		local isOn = Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1
-		Spring.SetConfigInt('ZKUseNewChiliRTT',isOn and 0 or 1)
+		Spring.SetConfigInt('ZKUseNewChiliRTT', isOn and 0 or 1)
 		local myName = Spring.GetPlayerInfo(Spring.GetMyPlayerID())
 		local isAlready = useOld == isOn
 		local msg = 'New Chili set ' .. (isAlready and 'back' or '') .. ' to ' .. (isOn and 'OFF' or 'ON') .. ( not isAlready and ', but you need /luaui reload to apply it.' or '.')
-		Echo(msg, myName, 'w ' .. myName .. ' ' .. msg)
-		Spring.SendCommands('w ' .. myName .. ' ' .. msg)
+		Echo('> ' .. msg) 
+		-- Spring.SendCommands('w ' .. myName .. ' ' .. msg)
 		self.desc = 'New Chili is set ' .. (Spring.GetConfigInt('ZKUseNewChiliRTT',0) == 1 and 'ON' or 'OFF')
 	end,
 	action = 'switchchili',
