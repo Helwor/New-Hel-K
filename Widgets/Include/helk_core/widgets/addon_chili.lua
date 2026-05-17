@@ -777,7 +777,9 @@ local function AddNodeFunctions()
 		-- end
 		-- return ret
 		local ret = inherited.AddChild(self,obj,false, index)
-		self:VerifyIndexation('AFTER TreeViewNode:Add()', index)
+		if self.VerifyIndexation then
+			self:VerifyIndexation('AFTER TreeViewNode:Add()', index)
+		end
 
 		return ret
 
