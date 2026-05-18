@@ -127,6 +127,7 @@ local cfg = { -- default option values
 	min_zoom_back = 5000,
 	min_zoom_back_ratio = 0.50, -- if this is not false, must be a number between 0-1, it replace min_zoom_back by the ratio of the current v.altitude
 	stay_at_zoomed_height = false, -- don't zoom back in/out on release
+	invert = false,
 	amplitude = 2, -- panning speed
 	circleHelper_ratio = 0.85,
 	drift = 1, -- how much the panning drift toward the mouse click
@@ -157,6 +158,7 @@ options_order = {
 	'lbl_auto_zoom_in','zoom_in',
 
 	'lbl_general',
+	'invert',
 	'drift', 'amplitude', 'clamp', 'ignoreMiniMap',
 	'smoothness','smoothness_zoom','smoothness_zoom_back',
 
@@ -266,6 +268,16 @@ options = { -- TODO finish adding options
 		name = 'General options',
 		type = 'label',
 	},
+
+	invert = {
+		name = 'Invert panning direction',
+		type = 'bool',
+		value = cfg.invert,
+		OnChange = function(self)
+			cfg[self.key] = self.value
+		end,
+	},
+
 	ignoreMiniMap = {
 		name = 'Ignore Minimap',
 		type = 'bool',
@@ -1381,6 +1393,9 @@ local dt = 0
 local spGetLastUpdateSeconds = Spring.GetLastUpdateSeconds
 
 local function Move(mx,my,dx,dy)
+	if cfg.invert then
+		dx, dy = -dx, -dy
+	end
 	-- Echo("mx, my is ", mx, my)
 	spSetMouseCursor('none')
 	-- Echo('moving, unit?',unit)
