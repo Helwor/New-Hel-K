@@ -355,7 +355,7 @@ options = { -- TODO finish adding options
 		name = 'Clamp view',
 		desc = 'How much elmos from the edge of map, the panning is clamped to.',
 		type = 'number',
-		min = -500, max = 900, step = 10,
+		min = -500, max = 1500, step = 10,
 		value = cfg.clamp,
 		OnChange = function(self)
 			cfg[self.key] = self.value
@@ -2100,7 +2100,6 @@ function widget:MouseWheel(up,value)
 		else
 			new_altitude_ratio = (cs.relHeight/top_altitude)*(1-value/10)
 		end
-		
 		if cs.mode==1 then
 			-- if value<0 and cfg.altitude_ratio * top_altitude >= cfg.maxTACam then
 			if value<0 and cs.height >= cfg.maxTACam then
