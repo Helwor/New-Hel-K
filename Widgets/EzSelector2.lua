@@ -1743,7 +1743,6 @@ local hotkeysCombos = {
 		same_units = true,
 		same_transported_state = true,
 		same_transporting_state = true,
-		share_radius = 'One Bomb',
 		disable_SM = true,
 		call_on_fail = 'One Bomb',
 		shared_prev = 'One Bomb',
@@ -1760,13 +1759,13 @@ local hotkeysCombos = {
 				{ name = {'gunshiptrans', 'gunshipheavytrans'}, '!isTransporting' }
 			}
 		},
-		keys = {'?AIR', 'N_1', 'LClick', 'longClick', '?doubleLClick', '?spam'},
+		keys = {'?AIR', 'N_1', 'LClick', 'longClick'},
 		prefer = {['!order'] = {CMD.ATTACK, CMD.PATROL, CMD.FIGHT}}, -- don't pickup bomb that have been sent to attack except if it's the only ones available
 		force = true,
 		same_units = true,
 		add_last_acquired = true,
 		share_radius = 'One Bomb',
-		longPressTime = 0.075  ,
+		longPressTime = 0.1  ,
 	}, -- use same 'previous' table as the cited macro
 
 
@@ -2912,7 +2911,7 @@ local hotkeysCombos = {
 		name = 'Alt Riot',
 		method = 'cylinder',
 		from_cursor = true,
-		keys = {'?SPACE', '?AIR', 3, 'doubleTap'},
+		keys = {3, 'doubleTap'},
 		defs = {class = 'riot'},
 		pref_use_prev = true,
 		only_prev_types = true,
