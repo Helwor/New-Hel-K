@@ -710,7 +710,7 @@ local tooltip = {
 				tooltipBox:SetText(text)
 				win:SetVisibility(true)
 				win:BringToFront()
-				win:SetPos(center_x, center_y, nil, nil, true)
+				win:SetPos(center_x - tooltipBox.width, center_y + tooltipBox.height, nil, nil, true)
 			end
 		end
 
@@ -726,6 +726,12 @@ local tooltip = {
 				Screen0.currentTooltip = self.NO_TOOLTIP
 			else
 				Screen0.currentTooltip = nil
+			end
+		else
+			local win = self.win
+			local tooltipBox = win and win.children[1]
+			if tooltipBox then
+				win:SetPos(center_x - tooltipBox.width, center_y + tooltipBox.height, nil, nil, true)
 			end
 		end
 
