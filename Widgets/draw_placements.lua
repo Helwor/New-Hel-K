@@ -3466,7 +3466,7 @@ do
 			firstTime = false
 			firstPose = false
 			useNeat = opt.neatFarm 
-				or PID == solarDefID and scale >1 
+				or PID == solarDefID and scale >= 0
 				or PID == windDefID and scale > 1 
 				or sx ~= sz 
 				or max(sx,sz) > 40 and scale > 1
