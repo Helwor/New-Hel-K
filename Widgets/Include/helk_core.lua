@@ -171,7 +171,7 @@ if this_widget_index then
 		for i = 1, this_widget_index do
 			local file = widgetFiles[i]
 			if VFS.FileExists(file, VFS.RAW) and not IsLocalVersionLoaded(file) then
-				if not GetLuaFileName(file) == this_widget_file then
+				if GetLuaFileName(file) ~= this_widget_file then
 					local index = this_widget_index + 1 + off
 					Echo('Local widget ' .. GetLuaFileName(file) .. ' seemingly crashed before Hel-K, reinserting it at #' .. index)
 					table.insert(widgetFiles, index, file)
