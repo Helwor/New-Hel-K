@@ -159,7 +159,7 @@ local update_sub_mt = {
 		local update = true
 		if not cached then
 			local range, isCannon, heightMod, speed2d, gravity, heightBoost = SetWeaponParams(self.wDef, self.range)
-			local r,g,b,a = unpack(self.color)
+			local r,g,b,a = unpack(color)
 			cached = {
 				-- instance data ...
 				x, y, z, range,
