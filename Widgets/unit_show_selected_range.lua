@@ -33,7 +33,8 @@ local glDeleteList       = gl.DeleteList
 
 local diag = math.diag
 
-
+local myPlayerID = Spring.GetMyPlayerID()
+local myTeamID = Spring.GetMyTeamID()
 local CalcBallisticCircle 		= VFS.Include("LuaUI/Utilities/engine_range_circles.lua")
 local max_selection = 40
 local max_selection_ballistic = 40
@@ -42,6 +43,7 @@ local use_engine = false
 local render_choice = 'ballistic_shader'
 local EMPTY_TABLE = {}
 local dbg = false
+local force_update = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
 options_path = 'Settings/Interface/Defence and Cloak Ranges'
 options = {}
@@ -108,6 +110,7 @@ options.render_choice = {
 	},
 	OnChange = function (self)
 		render_choice = self.value
+		force_update = true
 		if widget.CommandsChanged then
 			widget:CommandsChanged()
 		end
@@ -247,7 +250,7 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		glCallList(cached)
 		return
 	elseif render_choice == 'ballistic_shader'  then
-		WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
+		WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic), force_update)
 	elseif render_choice == 'engine' then
 		local wDef = rangeInfo['weaponDef' .. i]
 		glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
@@ -438,11 +441,20 @@ function widget:CommandsChanged()
 	end
 end
 
+function widget:PlayerChanged(playerID)
+	if playerID == myPlayerID then
+		local newTeamID = Spring.GetMyTeamID()
+		if newTeamID ~= myTeamID then
+			myTeamID = newTeamID
+			force_update = true
+		end
+	end
+end
+
 function widget:DrawWorldPreUnit()
 	if spIsGUIHidden() then
 		return
 	end
-
 	glLineWidth(1.2)
 	local use_ballistic = render_choice == 'engine' or render_choice:find('ballistic')
 	for defID, units in pairs(selUnits) do
@@ -451,6 +463,7 @@ function widget:DrawWorldPreUnit()
 
 	glColor(1, 1, 1, 1)
 	glLineWidth(1.0)
+	force_update = false
 end
 
 function widget:Initialize()
