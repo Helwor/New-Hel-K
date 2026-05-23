@@ -297,9 +297,7 @@ local requiresAlt = {
 	[CMD_UNIT_SET_TARGET_CIRCLE] = true, -- settarget
 	-- [CMD_JUMP] = true,
 }
-local requiresAltRight = { -- requires active command and alt right click drag
-	[CMD_JUMP] = true,
-}
+
 local noPathable = { -- dont make a path for those command when there is only one unit selected
 	[CMD_JUMP] = true,
 	-- [CMD.ATTACK] = true,
@@ -1143,25 +1141,18 @@ function widget:MousePress(mx, my, mButton, byEz)
 	-- Is this command eligible for a custom formation ?
 	local alt, ctrl, meta, shift = GetModKeys()
 	-- If its not ( command elegible for formation AND ((alt is being held or the command doesnt require alt) or (using rmb as alt command and rmb is pressed)))
-
-	if not formationCmds[usingCmd] and (
-			alt or not requiresAlt[usingCmd]
-			or alt and mButton == 3 and requiresAltRight[usingCmd]
-			or (options.RMBLineFormation.value and mButton == 3 and not usingContextCommand)
-		) then
-		-- if mButton == 3 and nameDefCom == 'Attack' then
-		-- 	Echo('CF2 let the Area Attack pass ! 3', usingCmd, WG.contextCmd, WG.cmdOverride,byEz)
-		-- end
+	if not (
+		formationCmds[usingCmd] and (
+			(alt or not requiresAlt[usingCmd])
+			or mButton == 3 and options.RMBLineFormation.value and not usingContextCommand
+		)
+	) then
 		return false
 	end
 
 	-- Get clicked position
 	local _, pos = CulledTraceScreenRay(mx, my, true, inMinimap, throughWater)
 	if not pos then 
-		-- if mButton == 3 and nameDefCom == 'Attack' then
-		-- 	Echo('CF2 let the Area Attack pass ! 4')
-		-- end
-
 		return false
 	end
 
@@ -1175,7 +1166,7 @@ function widget:MousePress(mx, my, mButton, byEz)
 	singlePoint = selCount == 1 and noPathable[usingCmd]
 	-- Is this line a path candidate (We don't do a path off an overridden command)
 	pathCandidate = not singlePoint and not noPathable[usingCmd] and 
-		(not overriddenCmd) and (
+		not overriddenCmd and (
 			selCount==1
 			or (alt and not requiresAlt[usingCmd])
 		)
