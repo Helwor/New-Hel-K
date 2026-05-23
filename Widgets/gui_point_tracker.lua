@@ -37,7 +37,7 @@ local minimapHighlightLineMin = 6
 local minimapHighlightLineMax = 10
 
 local useFade = true
-local animate = true
+local animate = false
 ----------------------------------------------------------------
 --speedups
 ----------------------------------------------------------------
