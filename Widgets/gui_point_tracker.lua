@@ -37,6 +37,7 @@ local minimapHighlightLineMin = 6
 local minimapHighlightLineMax = 10
 
 local useFade = true
+local animate = true
 ----------------------------------------------------------------
 --speedups
 ----------------------------------------------------------------
@@ -91,6 +92,19 @@ local verticlesCache_3 = {
 	{v = {0, 0, 0}},
 	{v = {0, 0, 0}},
 	{v = {0, 0, 0}},
+}
+
+
+options = {}
+options_path = 'Hel-K/'..widget.GetInfo().name
+options.animate = {
+	name = 'Animate',
+	desc = 'Make the point/label more catchy, especially useful if you\'re not using minimap',
+	type = 'bool',
+	value = animate,
+	OnChange = function(self)
+		animate = self.value
+	end
 }
 
 ----------------------------------------------------------------
@@ -156,55 +170,58 @@ function widget:DrawScreen()
 			mapPointCount = mapPointCount - 1
 		else
 			local sx, sy, sz = WorldToScreenCoords(curr[2], curr[3], curr[4])
-
-			local expand_fact = exp_time-time
-			expand_fact = expand_fact 
-			local slow_t = exp_time * 0.8
-			if expand_fact > slow_t then
-				local rem = (expand_fact - slow_t)
-				expand_fact = expand_fact + rem^3
-			end
-			if expand_fact > 0 then
-				glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha) - expand_fact*0.75)
-			else
-				glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha))
-			end
-			verticlesCache_8[1].v[1] = 0
-			verticlesCache_8[2].v[1] = 0
-			verticlesCache_8[3].v[1] = 0
-			verticlesCache_8[4].v[1] = 0
-			verticlesCache_8[5].v[1] = 0 - 0.75
-			verticlesCache_8[6].v[1] = 0 - 1.15
-			verticlesCache_8[7].v[1] = 0 + 0.75
-			verticlesCache_8[8].v[1] = 0 + 1.15
-			
-			verticlesCache_8[1].v[2] = 0 - 0.75
-			verticlesCache_8[2].v[2] = 0 - 1.15
-			verticlesCache_8[3].v[2] = 0 + 0.75
-			verticlesCache_8[4].v[2] = 0 + 1.15
-			verticlesCache_8[5].v[2] = 0
-			verticlesCache_8[6].v[2] = 0
-			verticlesCache_8[7].v[2] = 0
-			verticlesCache_8[8].v[2] = 0
-			
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-			gl.PushMatrix()
-			gl.Translate(sx , sy , 0)
-			local scale = highlightSize
-			if expand_fact > 0 then
-				-- glLineWidth(lineWidth * (1+expand_fact*2))
-				gl.Rotate(-100 * expand_fact, 0, 0, 1)
-				local scr_dist = math.diag(sx - vsx/2, sy - vsy/2)
-				glLineWidth(lineWidth + 7*expand_fact*scr_dist/diagScr)
-				scale = scale * (1 + expand_fact * scr_dist / (highlightSize/2))
-			end
-			gl.Scale(scale, scale, 1)
-			glRect(- 1, - 1, 1, 1)
-			glShape(GL_LINES, verticlesCache_8)
-			gl.PopMatrix()
-			if (sx >= 0 and sy >= 0
-					and sx <= vsx and sy <= vsy) then
+			local inscreen = (sx >= 0 and sy >= 0 and sx <= vsx and sy <= vsy)
+			if inscreen or animate then
 				--in screen
+
+				local expand_fact = 0
+				if animate then
+					expand_fact = exp_time-time
+					expand_fact = expand_fact 
+					local slow_t = exp_time * 0.8
+					if expand_fact > slow_t then
+						local rem = (expand_fact - slow_t)
+						expand_fact = expand_fact + rem^3
+					end
+				end
+				if expand_fact > 0 then
+					glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha) - expand_fact*0.75)
+				else
+					glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha))
+				end
+				verticlesCache_8[1].v[1] = 0
+				verticlesCache_8[2].v[1] = 0
+				verticlesCache_8[3].v[1] = 0
+				verticlesCache_8[4].v[1] = 0
+				verticlesCache_8[5].v[1] = 0 - 0.75
+				verticlesCache_8[6].v[1] = 0 - 1.15
+				verticlesCache_8[7].v[1] = 0 + 0.75
+				verticlesCache_8[8].v[1] = 0 + 1.15
+				
+				verticlesCache_8[1].v[2] = 0 - 0.75
+				verticlesCache_8[2].v[2] = 0 - 1.15
+				verticlesCache_8[3].v[2] = 0 + 0.75
+				verticlesCache_8[4].v[2] = 0 + 1.15
+				verticlesCache_8[5].v[2] = 0
+				verticlesCache_8[6].v[2] = 0
+				verticlesCache_8[7].v[2] = 0
+				verticlesCache_8[8].v[2] = 0
+				
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+				gl.PushMatrix()
+				gl.Translate(sx , sy , 0)
+				local scale = highlightSize
+				if expand_fact > 0 then
+					-- glLineWidth(lineWidth * (1+expand_fact*2))
+					gl.Rotate(-100 * expand_fact, 0, 0, 1)
+					local scr_dist = math.diag(sx - vsx/2, sy - vsy/2)
+					glLineWidth(lineWidth + 7*expand_fact*scr_dist/diagScr)
+					scale = scale * (1 + expand_fact * scr_dist / (highlightSize/2))
+				end
+				gl.Scale(scale, scale, 1)
+				glRect(- 1, - 1, 1, 1)
+				glShape(GL_LINES, verticlesCache_8)
+				gl.PopMatrix()
 			else
 				--out of screen
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
