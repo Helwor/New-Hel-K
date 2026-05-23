@@ -256,7 +256,7 @@ local SMALL_FORMATION_THRESHOLD = 8 -- For guard override.
 -- Alpha loss per second after releasing mouse
 local lineFadeRate = 2.0
 
-
+local selectionChanged = true
 
 
 
@@ -295,9 +295,11 @@ local requiresAlt = {
 	[CMD.UNLOAD_UNIT] = true,
 	[CMD_UNIT_SET_TARGET] = true, -- settarget
 	[CMD_UNIT_SET_TARGET_CIRCLE] = true, -- settarget
+	-- [CMD_JUMP] = true,
+}
+local requiresAltRight = { -- requires active command and alt right click drag
 	[CMD_JUMP] = true,
 }
-
 local noPathable = { -- dont make a path for those command when there is only one unit selected
 	[CMD_JUMP] = true,
 	-- [CMD.ATTACK] = true,
@@ -997,15 +999,51 @@ local function SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarg
 	return usingCmd, pos, cmdOpts
 end
 
-
-
+local lastp, lastm, lastr = 0, 0, 0
+local lastop, lastom, lastor = {}, {}, {}
+local clock = os.clock
+local threshold = 0.001
+local debugging = false 
+local last = 'R'
+local timer = Spring.GetTimer
+local diff = Spring.DiffTimers
 function widget:MousePress(mx, my, mButton, byEz)
+	if debugging then
+		local now = clock()
+		
+		-- if now - lastp <= threshold then
+		-- 	Echo('P problem!, press and last press at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('P last', unpack(lastop))
+		-- end
+
+		-- if now - lastm <= threshold then
+		-- 	Echo('P problem!, press same time with last move', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('P last', unpack(lastom))
+		-- end
+
+		-- if now - lastr <= threshold then
+		-- 	Echo('P problem!, press and last release at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('P last', unpack(lastor))
+		-- end
+		lastp = now
+		lastop = {'press', now, f.GetCalledLine()}
+		if last == 'M' then
+			Echo('P PROBLEM WRONG CLICK ORDER, LAST IS M RELEASE UNDETECTED?')
+		end
+		last = 'P'
+	end
 	-- Where did we click*
 	-- Echo("mx,my is ", mx,my,byEz)
 	acquiredTarget = false
 	local selCount = spGetSelectedUnitsCount()
 	if selCount == 0 then
 		return false
+	end
+	if WG.ClampScreenPosToWorld then
+		local _mx, _my = WG.ClampScreenPosToWorld(mx, my)
+		if _mx then
+			mx, my = _mx, _my
+		end
 	end
 	inMinimap = spIsAboveMiniMap(mx, my)
 	-- Echo("inMinimap, MiniMapFullProxy is ", inMinimap, MiniMapFullProxy)
@@ -1105,7 +1143,12 @@ function widget:MousePress(mx, my, mButton, byEz)
 	-- Is this command eligible for a custom formation ?
 	local alt, ctrl, meta, shift = GetModKeys()
 	-- If its not ( command elegible for formation AND ((alt is being held or the command doesnt require alt) or (using rmb as alt command and rmb is pressed)))
-	if not (formationCmds[usingCmd] and ((alt or not requiresAlt[usingCmd]) or (options.RMBLineFormation.value and mButton == 3 and not usingContextCommand))) then
+
+	if not formationCmds[usingCmd] and (
+			alt or not requiresAlt[usingCmd]
+			or alt and mButton == 3 and requiresAltRight[usingCmd]
+			or (options.RMBLineFormation.value and mButton == 3 and not usingContextCommand)
+		) then
 		-- if mButton == 3 and nameDefCom == 'Attack' then
 		-- 	Echo('CF2 let the Area Attack pass ! 3', usingCmd, WG.contextCmd, WG.cmdOverride,byEz)
 		-- end
@@ -1131,8 +1174,12 @@ function widget:MousePress(mx, my, mButton, byEz)
 	-- end
 	singlePoint = selCount == 1 and noPathable[usingCmd]
 	-- Is this line a path candidate (We don't do a path off an overridden command)
-	pathCandidate = not singlePoint and 
-		(not overriddenCmd) and (selCount==1 or (alt and not requiresAlt[usingCmd]))
+	pathCandidate = not singlePoint and not noPathable[usingCmd] and 
+		(not overriddenCmd) and (
+			selCount==1
+			or (alt and not requiresAlt[usingCmd])
+		)
+
 	-- Echo("noPathable[usingCmd] is ", noPathable[usingCmd])
 
 	-- if pathCandidate and selCount==1 and (noPathable[usingCmd] --[[or meta--]]) then
@@ -1166,7 +1213,35 @@ function widget:MousePress(mx, my, mButton, byEz)
 end
 
 function widget:MouseMove(mx, my, dx, dy, mButton)
-
+	if debugging then
+		local now = clock()
+		-- happens about everytime
+		-- if now - lastp <= threshold then
+		-- 	Echo('M Problem!, move and last press at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('last', unpack(lastop))
+		-- end
+		-- can happen
+		-- if now - lastm <= threshold then
+		-- 	Echo('M problem!, move same time with last move', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('last', unpack(lastom))
+		-- end
+		-- if now - lastr <= threshold then
+		-- 	Echo('M Problem!, move and last release at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('last', unpack(lastor))
+		-- end
+		-- lastm = now
+		-- lastom = {'move', now, f.GetCalledLine()}
+		-- if last == 'M' and not fNodes[1] then
+		-- 	Echo('M PROBLEM WRONG CLICK ORDER, LAST IS M BUT NO NODES!')
+		-- end
+		last = 'M'
+	end
+	if WG.ClampScreenPosToWorld then
+		local _mx, _my = WG.ClampScreenPosToWorld(mx, my)
+		if _mx then
+			mx, my = _mx, _my
+		end
+	end
 	-- It is possible for MouseMove to fire after MouseRelease
 	if not fNodes[1] then
 		return false
@@ -1268,6 +1343,37 @@ local function ReorderGroupsToFirstNode(groups, interpNodes) -- reorder the grou
 end
 
 function widget:MouseRelease(mx, my, mButton)
+	if debugging then
+		local now = clock()
+		-- happens about everytime
+		-- if now - lastm <= threshold then
+		-- 	Echo('R problem!, release same time with last move', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('R last', unpack(lastom))
+		-- end
+		-- if now - lastp <= threshold then
+		-- 	Echo('R Problem!, release and last press at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('R last', unpack(lastop))
+		-- end
+
+		-- if now - lastr <= threshold then
+		-- 	Echo('R Problem!, release and last release at the same time', now - lastm, now, f.GetCalledLine())
+		-- 	Echo('R last', unpack(lastor))
+		-- end
+		lastr = now
+		lastor = {'release', now, f.GetCalledLine()}
+		if last == 'M' and not fNodes[1] then
+			Echo('R PROBLEM WRONG CLICK ORDER, NO NODE BUT LAST IS M')
+		elseif last == 'R' then
+			Echo('R PROBLEM WRONG CLICK ORDER, TWO CONSECUTIVE RELEASES')
+		end
+		last = 'R'
+	end
+	if WG.ClampScreenPosToWorld then
+		local _mx, _my = WG.ClampScreenPosToWorld(mx, my)
+		if _mx then
+			mx, my = _mx, _my
+		end
+	end
 	-- Cancel command by pressing the other mouse button.
 	if (usingRMB) ~= (mButton == 3) then
 		StopCommandAndRelinquishMouse()
@@ -1471,8 +1577,17 @@ for defID, def in pairs(UnitDefs) do
 		rankCandidateDefID[defID] = true
 	end
 end
+
+function widget:SelectionChanged()
+	selectionChanged = true
+end
+
 local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 function widget:CommandsChanged()
+	if not selectionChanged then
+		return
+	end
+	selectionChanged = false
 	local mySelection = mySelection
 	hasImmobile  = mySelection.hasImmobile
 	hasBomber 	 = (mySelection.hasBomber or mySelection.hasBomb or mySelection.hasKrow)
