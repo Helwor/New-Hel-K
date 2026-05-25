@@ -14,6 +14,7 @@ end
 -- requires HasViewChanged
 
 --IMPORTANT NOTE: 
+-- !! drone doesnt exist anymore in radar 
 -- !! Update come before PreUnit, unit visible can be detected in update, BUT ICONIZED STATE IS DETECTED FIRST AT PRE UNIT
 -- !! PreUnit order is reversed, widget having lower layer will NOT COME FIRST FOR THIS CALLIN
 -- so we have to make another with high layer for registering iconized unit
@@ -1405,6 +1406,8 @@ function widget:UnitLeftLos(id, teamID)
 			if isNormal then
 				-- now drone doesnt have anymore radar dot, 
 				--skip
+				widget:UnitLeftRadar(id, teamID)
+				return
 			elseif warns < MAX_WARNS then
 				warns = warns + 1
 				if unit then
@@ -1579,13 +1582,13 @@ function widget:UnitDamaged(id, defID, teamID)
 		return
 	elseif DESTROYED[id] then
 		return -- so it happens often that UnitDamaged get triggered AFTER UnitDestroyed
-	elseif spGetUnitIsDead(id) then -- let's try without it -- in some rarer case it's not the last dead registered 
-		-- FIXME: that might be expensive !
-		-- seems like it never happened so far
-		Echo('id',id, 'get damaged after being dead but its not the last dead! Was registered ?',Units[id])
-		Spring.PlaySoundFile(tickSound, 0.95, 'ui')
-		widget:UnitDestroyed(id, teamID)
-		return
+	-- elseif spGetUnitIsDead(id) then -- let's try without it -- in some rarer case it's not the last dead registered 
+	-- 	-- FIXME: that might be expensive !
+	-- 	-- seems like it never happened so far
+	-- 	Echo('id',id, 'get damaged after being dead but its not the last dead! Was registered ?',Units[id])
+	-- 	Spring.PlaySoundFile(tickSound, 0.95, 'ui')
+	-- 	widget:UnitDestroyed(id, teamID)
+	-- 	return
 	elseif Units[id] then
 		if not ignoreHealthDefID[defID] then
 			Units[id].checkHealth = true
