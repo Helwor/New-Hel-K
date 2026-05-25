@@ -1400,12 +1400,10 @@ function widget:UnitLeftLos(id, teamID)
 		widget:UnitDestroyed(id, teamID)
 		return
 	end
-	local isNormal = unit and (unit.name:find('drone') or unit.name == 'wolverine_mine')
 	if not IGNORE_INVALID then --
 		if not spValidUnitID(id) then
-			if isNormal then
-				-- now drone doesnt have anymore radar dot, 
-				--skip
+			if unit and unit.isStealth then
+				-- units that doesnt appear in radar (unitdef.stealth)
 				widget:UnitLeftRadar(id, teamID)
 				return
 			elseif warns < MAX_WARNS then

@@ -553,7 +553,6 @@ local function CreateUnitModel(defID, def)
 		local class					= classByName[name] or isConDefID[defID] and 'conunit' or 'unknown' 
 		proto.class                 = class
 		proto.family                = familyByName[name] or 'unknown'
-		proto.moveType				= moveType
 		if isPlaneDefID[defID] then
 			proto.isPlane           = true
 			if isBomber[name] then
@@ -581,12 +580,12 @@ local function CreateUnitModel(defID, def)
 		proto.isStructure             = true
 		proto.isMex                   = name == "staticmex" or nil
 		proto.isFactory               = isFactoryDefID[defID]
-		proto.isFakeFac				 = not proto.isFactory and name:find('^factory') -- for zero wars mod
+		proto.isFakeFac               = not proto.isFactory and name:find('^factory') -- for zero wars mod
 		proto.isCaretaker             = name == "staticcon" or nil
 		proto.isDefense               = isDefenseDefID[defID]
 		proto.isSpecialWeapon         = specialWeapons[name]
 		proto.isStorage               = name == "staticstorage" or nil
-		proto.class					 = 'unknown'
+		proto.class					  = 'unknown'
 		proto.family                  = familyByName[name] or 'unknown'
 
 		if isE[name] then
@@ -603,6 +602,7 @@ local function CreateUnitModel(defID, def)
 	proto.isImpulse				 = impulseDefID[defID]
 	proto.moveType				 = moveType
 	proto.model = proto
+	proto.isStealth             = def.stealth or false -- this tells us if the unit will appear in radar
 	return proto
 end
 
@@ -920,7 +920,6 @@ function widget:Initialize()
 	UnitsByDefID = Holder.byDefID
 	MyUnits = Holder.mine
 	MyUnitsByDefID = MyUnits.byDefID
-
 	for defID, def in pairs(UnitDefs) do
 		unitModels[defID] = CreateUnitModel(defID, def)
 		unitModels[defID].mt = {__index = unitModels[defID]}
