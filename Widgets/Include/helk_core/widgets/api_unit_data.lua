@@ -602,7 +602,8 @@ local function CreateUnitModel(defID, def)
 	proto.isImpulse				 = impulseDefID[defID]
 	proto.moveType				 = moveType
 	proto.model = proto
-	proto.isStealth             = def.stealth or false -- this tells us if the unit will appear in radar
+	proto.isStealth              = def.stealth or false -- this tells us if the unit will appear in radar
+	proto.buildeeBuildRadius     = def.buildeeBuildRadius
 	return proto
 end
 

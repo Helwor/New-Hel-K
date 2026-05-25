@@ -37,6 +37,13 @@ local requirements = {
 }
 VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/weap_ranges.lua')
 
+local maxBuildeeRadius = 0
+for defID, def in pairs(UnitDefs) do
+	if (def.buildeeBuildRadius or def.radius) > maxBuildeeRadius then
+		maxBuildeeRadius = (def.buildeeBuildRadius or def.radius)
+	end
+end
+
 local facDefID = {}
 local facDefIDs = {}
 for defID,def in pairs(UnitDefs) do
@@ -1831,13 +1838,13 @@ local function UpdateOrder(bID,b,frame)
 	local AttackReclaim
 
 
-	local nearUnits = GetUnitsInCylinder(b.posX,b.posZ,range)
+	local nearUnits = GetUnitsInCylinder(b.posX, b.posZ, range + maxBuildeeRadius) -- add extra range to take the radius of units into account
 	local EfeaturesCount = 0
 	local recM,recE = false,false
-	if b.extraRange>0 then
+	if b.extraRange > 0 then
 		dist = {}
-		x,z = b.posX, b.posZ
-		table.sort(nearUnits,ByDistUnits) -- the dist table is auto emptied after the sorting, don't ask me why
+		x, z = b.posX, b.posZ
+		table.sort(nearUnits, ByDistUnits) -- the dist table is auto emptied after the sorting, don't ask me why
 	end
 	if nearUnits[2] then
 		local buildSpeed = b.buildSpeed
@@ -1869,174 +1876,181 @@ local function UpdateOrder(bID,b,frame)
 		local somethingToBuild = false
 		local Units = Units
 		local buildTick = res.buildTick
-		for i,id in pairs(nearUnits) do
-			local n=Units[id]
-			if n and n.isInSight--[[(spValidUnitID(id) and n) and not spGetUnitIsDead(id)--]] then
+		local diag = diag
+		local bx, bz = b.posX, b.posZ
+		for i, id in pairs(nearUnits) do
+			local n = Units[id]
+			if bID ~= id and n and n.isInSight--[[(spValidUnitID(id) and n) and not spGetUnitIsDead(id)--]] then
+				local nx, _, nz = n:GetPos(5)
+				local dist = diag(nx - bx, nz - bz)
+				-- Echo(string.format('%s  + range%d + buildeeRad%d (~=rad%d) = %d vs dist%d', n.name, range, n.buildeeBuildRadius, n.radius, n.buildeeBuildRadius + range, dist))
+				if dist <= range + n.buildeeBuildRadius then 
 				-- Echo("n.isEnemy,n.isGtBuilt is ", id,n.isEnemy,n.isGtBuilt)
-				local HP, maxHP, buildP = n.health[1], n.health[2], n.health[5]
-				if n.isEnemy then
-					AttackReclaim = buildP<1--[[n.isGtBuilt--]] and id or AttackReclaim
-				elseif (n.isAllied or n.isMine) and not (bID == id or n.isDrone) then -- and spGetUnitHealth(id) and  (n.isGtBuilt or spGetUnitHealth(id) < (select(2, spGetUnitHealth(id))))
-					-- HP, _,_ ,_ ,buildP    = spGetUnitHealth(id)
-					if HP==maxHP and buildP>=1 then
-						n.dmgFrame = false
-						n.frame = frame
-					else --if canBuild == n.isGtBuilt or canRepair and not n.isGtBuilt or n.isGtReclaimed then
+					local HP, maxHP, buildP = n.health[1], n.health[2], n.health[5]
+					if n.isEnemy then
+						AttackReclaim = buildP < 1--[[n.isGtBuilt--]] and id or AttackReclaim
+					elseif (n.isAllied or n.isMine) and not n.isDrone then -- and spGetUnitHealth(id) and  (n.isGtBuilt or spGetUnitHealth(id) < (select(2, spGetUnitHealth(id))))
+						-- HP, _,_ ,_ ,buildP    = spGetUnitHealth(id)
+						if HP == maxHP and buildP >= 1 then
+							n.dmgFrame = false
+							n.frame = frame
+						else --if canBuild == n.isGtBuilt or canRepair and not n.isGtBuilt or n.isGtReclaimed then
 
 
 
 
-						--Echo(Units[bID].name,"is reChecking",id,Name(id))
-						
-						--Echo("buildP is ", buildP)
-						--Echo("bID is ", Units[bID].name,'frame',(frame-n.frame))
-						-- if not thisRound[n] then
-							thisRound[n] = true
-						--if (frame-n.frame)>29 or not n.started then
-							-- register builders around unit to evaluate buildTime
-							if buildP<1 then
-								-- Build Time Estimation if all builders work on unit n
-								-- registering the total build potential we can get with all builders in reach
-								local buildPotential = n.buildPotential
-								if not n.builders then 
-									n.builders={[bID]=true}
-									buildPotential = b.buildSpeed
-								elseif not n.builders[bID] then
-									n.builders[bID]=true
-									buildPotential = buildPotential+b.buildSpeed
-								end
-								n.buildPotential = buildPotential
-								--
-								if not n.buildTime or frame>n.builders.frame+29 then
-									n.builders.frame = frame
-
-									n.minBuildTime = n.cost/buildPotential
-									local buildPotential = min(res.buildCap,buildPotential)
-
-									local rembuild = (n.cost*(1-buildP))
-
-									-- res.buildCap the maximum possible expense
-									local timeToDeplete = res.buildCap/buildPotential
-									timeToDeplete = timeToDeplete == 1 and 0 or timeToDeplete
-
-									local maxSpeedCapacity = timeToDeplete>0 and res.buildCap + timeToDeplete*buildTick or 0
-									n.canBuildAtMaxSpeed = maxSpeedCapacity>0
-									n.buildTime =  maxSpeedCapacity == 0 and rembuild / buildTick
-												or rembuild < maxSpeedCapacity and rembuild/buildPotential
-												or maxSpeedCapacity/buildPotential + (rembuild-maxSpeedCapacity)/buildTick
-									n.bworth    = n.cost/n.buildTime
-									if n.isAllied then
-										n.bworth = n.bworth*0.7
+							--Echo(Units[bID].name,"is reChecking",id,Name(id))
+							
+							--Echo("buildP is ", buildP)
+							--Echo("bID is ", Units[bID].name,'frame',(frame-n.frame))
+							-- if not thisRound[n] then
+								thisRound[n] = true
+							--if (frame-n.frame)>29 or not n.started then
+								-- register builders around unit to evaluate buildTime
+								if buildP < 1 then
+									-- Build Time Estimation if all builders work on unit n
+									-- registering the total build potential we can get with all builders in reach
+									local buildPotential = n.buildPotential
+									if not n.builders then 
+										n.builders={[bID]=true}
+										buildPotential = b.buildSpeed
+									elseif not n.builders[bID] then
+										n.builders[bID]=true
+										buildPotential = buildPotential+b.buildSpeed
 									end
-									-- n.bworth    = nround(n.bworth,0.001) * 1.000
-									n.bworth       = n.bworth*1000
+									n.buildPotential = buildPotential
+									--
+									if not n.buildTime or frame>n.builders.frame+29 then
+										n.builders.frame = frame
+
+										n.minBuildTime = n.cost/buildPotential
+										local buildPotential = min(res.buildCap,buildPotential)
+
+										local rembuild = (n.cost*(1-buildP))
+
+										-- res.buildCap the maximum possible expense
+										local timeToDeplete = res.buildCap/buildPotential
+										timeToDeplete = timeToDeplete == 1 and 0 or timeToDeplete
+
+										local maxSpeedCapacity = timeToDeplete>0 and res.buildCap + timeToDeplete*buildTick or 0
+										n.canBuildAtMaxSpeed = maxSpeedCapacity>0
+										n.buildTime =  maxSpeedCapacity == 0 and rembuild / buildTick
+													or rembuild < maxSpeedCapacity and rembuild/buildPotential
+													or maxSpeedCapacity/buildPotential + (rembuild-maxSpeedCapacity)/buildTick
+										n.bworth    = n.cost/n.buildTime
+										if n.isAllied then
+											n.bworth = n.bworth*0.7
+										end
+										-- n.bworth    = nround(n.bworth,0.001) * 1.000
+										n.bworth       = n.bworth*1000
+									end
+								elseif n.buildTime then
+									n.builders,n.buildTime,n.bworth = nil,nil,nil
 								end
-							elseif n.buildTime then
-								n.builders,n.buildTime,n.bworth = nil,nil,nil
-							end
-							--
+								--
 
-							--if n.bworth then Echo(n.name..':'..tostring(n.bworth)) end
-							
-							n.started                 = true
-							n.frame                   = frame
-							n.TrueHP                  = HP
-							HP                      = n.isAllied and HP*1.30 or HP
-							n.invested                = n.cost * buildP
+								--if n.bworth then Echo(n.name..':'..tostring(n.bworth)) end
+								
+								n.started                 = true
+								n.frame                   = frame
+								n.TrueHP                  = HP
+								HP                      = n.isAllied and HP*1.30 or HP
+								n.invested                = n.cost * buildP
 
-							-- n.worth                   = nround(n.invested / maxHP,0.001) -- 
-							n.worth                   = n.invested / maxHP
-							if n.isAllied and res.OverMetal then
-								n.worth = n.worth*0.3
-							end
-							
-							n.remb                    = round(n.cost - n.invested)
-							 --Echo("Check", Name(id), id)
-							n.perHP                   = HP / maxHP
-							n.truePerHP               = n.TrueHP / maxHP
-							n.dmgPer                  = buildP - n.perHP
-							n.isDamaged               = n.truePerHP < buildP
-							-- n.isDamaged               = nround(n.truePerHP,0.001) < nround(buildP,0.001)
-							if n.isDamaged then -- determining net percent loss hp per sec
-								if not n.dmgFrame then n.dmgFrame = n.frame end
-								local newtime         = round(n.frame-n.dmgFrame)/30 -- not needed if we keep a main update rate for the whole thing
-								if n.attack_time~=newtime then
-									n.attack_time     = newtime>2 and 2 or newtime
-									n.hpDelta         = n.lastState and n.lastState-n.dmgPer or n.dmgPer
-									n.lastHit         = (not n.lastHit or n.hpDelta<0)  and n.hpDelta or n.lastHit
-									n.dmgRate         = n.dmgPer/(n.attack_time+1) -- average of loss per sec within the last 3 secs
-									n.critical        = n.dmgRate/n.perHP -- proportion of the loss per sec to the remaining hp
-									if n.isComm then n.critical=n.critical*1.3 end
-									if n.isAllied then n.critical=n.critical*0.7 end
-									-- n.critical        = nround(n.critical,0.001)
-									n.lastState       = n.dmgPer
+								-- n.worth                   = nround(n.invested / maxHP,0.001) -- 
+								n.worth                   = n.invested / maxHP
+								if n.isAllied and res.OverMetal then
+									n.worth = n.worth*0.3
 								end
-							else
-								n.hpDelta,n.dmgRate,n.critical,   n.lastHit,n.attack_time,n.lastState = 0,0,false, false,false,false
-							end
-
-							n.dmg                     = n.dmgPer*maxHP
-							n.dmg                     = n.isAllied and n.dmg*0.6 or n.dmg
-							n.dmgCost                 = n.cost * n.dmgPer
-							n.TrueDamage              = n.dmg
-							-- n.rworth                  = n.isDamaged and nround(n.invested / HP / n.perHP, 0.001)
-							-- repair worth, how much metal cost per hp, mult by how much it is damaged
-							n.rworth                  = n.isDamaged and (n.invested / HP / n.perHP )
-							-- Echo(n.name,"n.invested, HP, n.perHP is ", n.invested, HP, n.perHP ,'=>>',n.rworth)
-
-			--Echo(Name(id),"rworth:", n.rworth)
-
-							n.isBurning               = spGetUnitRulesParam(id, "on_fire") == 1
-							n.isHopeless              = n.isBurning and n.cost<90 and n.TrueHP<150
-						--end
-						-- end
-							LeastPercent              = n.perHP < 1 and                   (not LeastPercent  or   n.perHP < Units[LeastPercent].perHP  ) and id or LeastPercent
-							if n.isDamaged and not n.isGtReclaimed and not n.isHopeless then
-								MostDamaged        = n.isDamaged and                                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamaged
-								MostDamagedDefense = n.isDefense and n.isDamaged and                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamagedDefense
-								DmgedComm          = n.isComm and                                          (not DmgedComm     or   HP        < Units[DmgedComm].health[1]            ) and id or DmgedComm
-								Rworthy            = n.rworth and                                          (not Rworthy       or   n.rworth    > Units[Rworthy].rworth          ) and id or Rworthy
-								MostCritical       = n.critical and (n.critical>0) and                     (not MostCritical  or   n.critical  > Units[MostCritical].critical   ) and id or MostCritical
-
-							elseif n.ReallyDamaged then
-								ReallyDamaged = n.dmg>1 and not n.isHopeless  and (not ReallyDamaged or   n.TrueDamage   > Units[ReallyDamaged].TrueDamage) and id or ReallyDamaged
-							end
-
-						if not n.isAllied then
-							if n.isGtBuilt  and not n.isGtReclaimed and not n.isEnemy
-								and (n.defID ~= terraunitDefID or buildP>0.01) -- ignoring terraunit not started to be built yet
-								then 
-								somethingToBuild = true
-								FinishIt      = n.buildTime and n.buildTime<3
-								 and n.cost>200
-								 and (not FinishIt
-										 or   n.buildTime < (Units[FinishIt].buildTime or 100000)        )
-								 and id or FinishIt
-								Mex           = n.isMex           and (not Mex           or   n.remb         < Units[Mex].remb         ) and id or Mex
-								Cheapest      =                       (not Cheapest      or   n.remb         < Units[Cheapest].remb    ) and id or Cheapest
-								CheapStruct   = n.isStructure     and (not CheapStruct   or   n.remb         < Units[CheapStruct].remb ) and id or CheapStruct
-								CheapUnit     = n.isUnit          and (not CheapUnit     or   n.remb         < Units[CheapUnit].remb   ) and id or CheapUnit
-								Bworthy       = n.bworth          and (not Bworthy       or   n.bworth       > Units[Bworthy].bworth   ) and id or Bworthy
-								Faster        = n.buildTime       and (not Faster        or   n.buildTime    < Units[Faster].buildTime ) and id or Faster
-								if not eStalling and not mStalling then
-									Caretaker     = n.isCaretaker     and (not Caretaker     or   n.remb < Units[Caretaker].remb  ) and id or Caretaker
+								
+								n.remb                    = round(n.cost - n.invested)
+								 --Echo("Check", Name(id), id)
+								n.perHP                   = HP / maxHP
+								n.truePerHP               = n.TrueHP / maxHP
+								n.dmgPer                  = buildP - n.perHP
+								n.isDamaged               = n.truePerHP < buildP
+								-- n.isDamaged               = nround(n.truePerHP,0.001) < nround(buildP,0.001)
+								if n.isDamaged then -- determining net percent loss hp per sec
+									if not n.dmgFrame then n.dmgFrame = n.frame end
+									local newtime         = round(n.frame-n.dmgFrame)/30 -- not needed if we keep a main update rate for the whole thing
+									if n.attack_time~=newtime then
+										n.attack_time     = newtime>2 and 2 or newtime
+										n.hpDelta         = n.lastState and n.lastState-n.dmgPer or n.dmgPer
+										n.lastHit         = (not n.lastHit or n.hpDelta<0)  and n.hpDelta or n.lastHit
+										n.dmgRate         = n.dmgPer/(n.attack_time+1) -- average of loss per sec within the last 3 secs
+										n.critical        = n.dmgRate/n.perHP -- proportion of the loss per sec to the remaining hp
+										if n.isComm then n.critical=n.critical*1.3 end
+										if n.isAllied then n.critical=n.critical*0.7 end
+										-- n.critical        = nround(n.critical,0.001)
+										n.lastState       = n.dmgPer
+									end
+								else
+									n.hpDelta,n.dmgRate,n.critical,   n.lastHit,n.attack_time,n.lastState = 0,0,false, false,false,false
 								end
-							end
-							if n.remb>0 then
-								Wind          = n.isWind          and (not Wind          or   n.remb < Units[Wind].remb       ) and id or Wind
-								Solar         = n.isSolar         and (not Solar         or   n.remb < Units[Solar].remb      ) and id or Solar
-								Fusion        = n.isFusion        and (not Fusion        or   n.remb < Units[Fusion].remb     ) and id or Fusion
-								if res.wantM==0 or res.needStorage then
-									 Storage       = n.isStorage     and (not Storage         or   n.remb < Units[Storage].remb  ) and id or Storage
+
+								n.dmg                     = n.dmgPer*maxHP
+								n.dmg                     = n.isAllied and n.dmg*0.6 or n.dmg
+								n.dmgCost                 = n.cost * n.dmgPer
+								n.TrueDamage              = n.dmg
+								-- n.rworth                  = n.isDamaged and nround(n.invested / HP / n.perHP, 0.001)
+								-- repair worth, how much metal cost per hp, mult by how much it is damaged
+								n.rworth                  = n.isDamaged and (n.invested / HP / n.perHP )
+								-- Echo(n.name,"n.invested, HP, n.perHP is ", n.invested, HP, n.perHP ,'=>>',n.rworth)
+
+				--Echo(Name(id),"rworth:", n.rworth)
+
+								n.isBurning               = spGetUnitRulesParam(id, "on_fire") == 1
+								n.isHopeless              = n.isBurning and n.cost<90 and n.TrueHP<150
+							--end
+							-- end
+								LeastPercent              = n.perHP < 1 and                   (not LeastPercent  or   n.perHP < Units[LeastPercent].perHP  ) and id or LeastPercent
+								if n.isDamaged and not n.isGtReclaimed and not n.isHopeless then
+									MostDamaged        = n.isDamaged and                                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamaged
+									MostDamagedDefense = n.isDefense and n.isDamaged and                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamagedDefense
+									DmgedComm          = n.isComm and                                          (not DmgedComm     or   HP        < Units[DmgedComm].health[1]            ) and id or DmgedComm
+									Rworthy            = n.rworth and                                          (not Rworthy       or   n.rworth    > Units[Rworthy].rworth          ) and id or Rworthy
+									MostCritical       = n.critical and (n.critical>0) and                     (not MostCritical  or   n.critical  > Units[MostCritical].critical   ) and id or MostCritical
+
+								elseif n.ReallyDamaged then
+									ReallyDamaged = n.dmg>1 and not n.isHopeless  and (not ReallyDamaged or   n.TrueDamage   > Units[ReallyDamaged].TrueDamage) and id or ReallyDamaged
 								end
+
+							if not n.isAllied then
+								if n.isGtBuilt  and not n.isGtReclaimed and not n.isEnemy
+									and (n.defID ~= terraunitDefID or buildP>0.01) -- ignoring terraunit not started to be built yet
+									then 
+									somethingToBuild = true
+									FinishIt      = n.buildTime and n.buildTime<3
+									 and n.cost>200
+									 and (not FinishIt
+											 or   n.buildTime < (Units[FinishIt].buildTime or 100000)        )
+									 and id or FinishIt
+									Mex           = n.isMex           and (not Mex           or   n.remb         < Units[Mex].remb         ) and id or Mex
+									Cheapest      =                       (not Cheapest      or   n.remb         < Units[Cheapest].remb    ) and id or Cheapest
+									CheapStruct   = n.isStructure     and (not CheapStruct   or   n.remb         < Units[CheapStruct].remb ) and id or CheapStruct
+									CheapUnit     = n.isUnit          and (not CheapUnit     or   n.remb         < Units[CheapUnit].remb   ) and id or CheapUnit
+									Bworthy       = n.bworth          and (not Bworthy       or   n.bworth       > Units[Bworthy].bworth   ) and id or Bworthy
+									Faster        = n.buildTime       and (not Faster        or   n.buildTime    < Units[Faster].buildTime ) and id or Faster
+									if not eStalling and not mStalling then
+										Caretaker     = n.isCaretaker     and (not Caretaker     or   n.remb < Units[Caretaker].remb  ) and id or Caretaker
+									end
+								end
+								if n.remb>0 then
+									Wind          = n.isWind          and (not Wind          or   n.remb < Units[Wind].remb       ) and id or Wind
+									Solar         = n.isSolar         and (not Solar         or   n.remb < Units[Solar].remb      ) and id or Solar
+									Fusion        = n.isFusion        and (not Fusion        or   n.remb < Units[Fusion].remb     ) and id or Fusion
+									if res.wantM==0 or res.needStorage then
+										 Storage       = n.isStorage     and (not Storage         or   n.remb < Units[Storage].remb  ) and id or Storage
+									end
+								end
+							-- else
+								-- MostDamagedAllied        = n.isDamaged and                                       (not MostDamagedAllied   or   n.dmgPer    > Units[MostDamagedAllied].dmgPer      ) and id or MostDamagedAllied
 							end
-						-- else
-							-- MostDamagedAllied        = n.isDamaged and                                       (not MostDamagedAllied   or   n.dmgPer    > Units[MostDamagedAllied].dmgPer      ) and id or MostDamagedAllied
+
 						end
-
+						SpecialReclaim  = SpecialReclaim or n.isGtReclaimed and n.isMine and id
+						--Echo("Units[SpecialReclaim].name is ",SpecialReclaim and  Units[SpecialReclaim].name)
 					end
-					SpecialReclaim  = SpecialReclaim or n.isGtReclaimed and n.isMine and id
-					--Echo("Units[SpecialReclaim].name is ",SpecialReclaim and  Units[SpecialReclaim].name)
 				end
 			end
 		end -- loop end nearunits
