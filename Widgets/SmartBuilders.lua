@@ -841,6 +841,9 @@ local function FindIntersect(x, z, s1, s2, e1, e2) -- actually clamping a point 
 	-- count = (count or 0) + 1
 	local ps = diag(x-s1, z-s2)
 	local se = diag (s1-e1, s2-e2)
+    if se == 0 then
+        return s1, s2
+    end
 	local hyps = diag(se, ps)
 	local pe = diag(x-e1, z-e2)
 	if pe > hyps then
