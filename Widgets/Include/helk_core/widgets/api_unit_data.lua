@@ -36,7 +36,7 @@ local isConDefID = {}
 local minRadius, maxRadius = math.huge, 0
 for defID, def in pairs(UnitDefs) do
 	local name = def.name
-	if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or name:find('comm') or name:find('^hero')) then 
+	if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or (name:find('comm') and not name:find('egg')) or name:find('^hero')) then 
 		isCommDefID[defID] = true
 	elseif not def.isImmobile and def.buildOptions[1] then
 		isConDefID[defID] = true
@@ -603,7 +603,7 @@ local function CreateUnitModel(defID, def)
 	proto.moveType				 = moveType
 	proto.model = proto
 	proto.isStealth              = def.stealth or false -- this tells us if the unit will appear in radar
-	proto.buildeeBuildRadius     = def.buildeeBuildRadius
+	proto.buildeeBuildRadius     = def.buildeeBuildRadius or def.radius
 	return proto
 end
 
