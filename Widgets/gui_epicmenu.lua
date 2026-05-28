@@ -1298,7 +1298,6 @@ end
 
 --create spring action for this option. Note: this is used by AddOption()
 local function CreateOptionAction(path, option)
-
 	local kbfunc = function() return option.OnChange(nil, true) end
 	
 	if option.type == 'bool' then
@@ -1333,7 +1332,6 @@ local function CreateOptionAction(path, option)
 		end
 	end
 	local actionName = GetActionName(path, option)
-
 	if (not option.dontRegisterAction) then
 		AddAction(actionName, kbfunc, nil, "t")
 	end
@@ -2050,6 +2048,8 @@ local function IntegrateWidget(w, addoptions, index)
 	if not addoptions then
 		installed[w] = nil
 		preintegrated[w] = nil
+	elseif installed[w] then
+		return
 	else
 		installed[w] = true
 	end
