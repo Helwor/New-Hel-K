@@ -1,6 +1,5 @@
 -- can use chili_addon.lua
 
-
 --[[ Helwor addings: 
 Implementations:
 	- add 'table' option type to edit a table in widget, table is kept unique, can be directly declared from widget and used at runtime after modifying it by option, 
@@ -828,6 +827,7 @@ end
 
 local function LoadKeybinds()
 	local loaded = false
+	local alreadyBound = keybounditems
 	if VFS.FileExists(keybind_dir .. keybind_file, VFS.RAW) then
 		local file_return = VFS.Include(keybind_dir .. keybind_file, nil, VFS.RAW)
 		if file_return then
@@ -868,6 +868,11 @@ local function LoadKeybinds()
 	
 	if not otvalidate(keybounditems) then
 		keybounditems = {}
+	end
+	for _, elem in ipairs(alreadyBound) do
+		local actionName = elem[1]
+		local hotkey = elem[2]
+		otset( keybounditems, actionName, hotkey )
 	end
 	
 end
