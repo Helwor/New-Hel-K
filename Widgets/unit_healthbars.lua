@@ -25,6 +25,9 @@ end
 local Echo = Spring.Echo
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
+local spGetGroundHeight = Spring.GetGroundHeight
+local spValidFeatureID = Spring.ValidFeatureID
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -265,7 +268,6 @@ end
 
 local paralyzeOnMaxHealth = ((lowerkeys(VFS.Include"gamedata/modrules.lua") or {}).paralyze or {}).paralyzeonmaxhealth
 
-local spGetGroundHeight = Spring.GetGroundHeight
 
 local function IsCameraBelowMaxHeight()
 	return Cam.relDist < options.unitMaxHeight.value
@@ -1261,20 +1263,6 @@ local UpdateDisarmUnits = function()
 		end
 		unit.disarmed = disarmed
 	end
-
-	-- for id in pairs(visibleUnits) do
-	-- 	local disarmed = GetUnitRulesParam(id, "disarmed")
-	-- 	if disarmed and disarmed == 1 then
-	-- 		disarmUnits[id] = false
-	-- 	end
-	-- end
-	-- for id in pairs(visibleIcons) do
-	-- 	local disarmed = GetUnitRulesParam(id, "disarmed")
-	-- 	if disarmed and disarmed == 1 then
-	-- 		disarmUnits[id] = false
-	-- 	end
-	-- end
-
 end
 do
 	local ALL_UNITS            = Spring.ALL_UNITS
@@ -1310,6 +1298,7 @@ do
 
 			--// draw bars of units
 			local unitDefID, unitDef
+			local Units = Units
 			for unitID in pairs(visibleUnits) do
 				-- if (unitDefID) then
 				local unit = Units[unitID]
@@ -1339,7 +1328,7 @@ do
 			for i = 1, #visibleFeatures do
 				featureInfo = visibleFeatures[i]
 
-				valid = Spring.ValidFeatureID(featureInfo.id)
+				valid = spValidFeatureID(featureInfo.id)
 				if (valid) then
 					wx, wy, wz = featureInfo[1], featureInfo[2], featureInfo[3]
 					dx, dy, dz = wx-cx, wy-cy, wz-cz
@@ -1407,7 +1396,7 @@ do
 		blink = (sec%1) < 0.5
 		blink_j = options.flashJump.value and (activeCmdID == CMD_JUMP) and ((sec%0.5) < 0.25)
 
-		sec2 = sec2+dt
+		sec2 = sec2 + dt
 		sec3 = sec3 + dt
 		sec4 = sec4 + dt
 		
@@ -1415,11 +1404,11 @@ do
 			updateRes = true
 			sec4 = 0
 		end
-		if sec3>0.33 then
+		if sec3 > 0.33 then
 			updateFeatures = true
 			sec3 = 0
 		end
-		if (sec2 > 1/3) then
+		if sec2 > 0.33 then
 			sec2 = 0
 			visibleFeatures = GetVisibleFeatures(-1, nil, false, false)
 			local cnt = #visibleFeatures
