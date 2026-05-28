@@ -79,6 +79,7 @@ do
 		cs = cs or spGetCameraState()
 
 		-- cs.px,cs.py,cs.pz = Spring.GetCameraPosition()
+		-- local oldx, oldy, oldz = cs.px, cs.py, cs.pz
 		if cs.mode == 1 then
 			-- ez
 			cs.height = cs.height * cs.fov / newFov
@@ -96,12 +97,15 @@ do
 				(pos[3]-cs.pz) / dist
 			--
 			local newdist = dist  * cs.fov / newFov
+			-- Echo("dist is ", dist, newdist)
 			-- set the new cam pos
 			cs.px = pos[1] + newdist * -cs.dx
 			cs.py = pos[2] + newdist * -cs.dy
 			cs.pz = pos[3] + newdist * -cs.dz
 		end
 		cs.fov = newFov
+		-- Echo(oldy, '=>>', cs.py)
+
 		return cs
 	end
 end
@@ -147,65 +151,6 @@ local function AdjustCOFCfov(value)
 		-- Echo('COFC has already been set this value')
 	end
 end
-local function UpdateOption(key,value,path) -- much faster than reopening the panel
-	local opt = options[key]
-	if not opt then
-		return
-	end
-	if opt.value == value then
-		return
-	end
-	opt.value = value
-	if opt.OnChange then
-		opt:OnChange()
-	end
-	path = path or options_path
-	local panel
-	for _,elem in pairs(WG.Chili.Screen0.children) do
-		if  type(elem)     == 'table'
-		and elem.classname == "main_window_tall"
-		and elem.caption   == path
-		then
-			local scrollpanel,scrollPosY
-			for key,v in pairs(elem.children) do
-				if type(key)=='table' and key.name:match('scrollpanel') then
-					scrollpanel=key
-					break
-				end
-			end
-			if scrollpanel then 
-				scrollPosY = scrollpanel.scrollPosY
-			end
-			panel = scrollpanel
-		end
-	end
-	if not panel then
-		return
-	end
-	local found
-	for i,v in ipairs(panel.children) do
-		if found then break end
-		for i,v in ipairs(v.children) do
-			if found then break end
-			local after
-			for i,child in ipairs(v.children) do
-				if after then
-					found = child
-					break
-				end
-				if child.caption == opt.name then
-					after = true
-				end
-			end
-		end
-	end
-	if not found then
-		return
-	end
-	if found.value and opt.value~=found.value and found.SetValue then
-		found:SetValue(opt.value)
-	end
-end
 
 
 local cnt = 0
@@ -218,7 +163,7 @@ local spDiffTimers = Spring.DiffTimers
 
 
 
-local baseDistIcon = 130
+local baseDistIcon = Spring.GetConfigInt("UnitIconDist", 130) -- base before applying the fov (45 by default)
 --------------------------------------------------------------------------------
 ----------------------------Configuration---------------------------------------
 
@@ -241,71 +186,110 @@ options_order = {
 	--'testnumber',
 	'lbl_collapse',
 	'mapshading',
+	'decals',
+	'draw_sky',
+	'dist_icon',
 	'feature_dist',
 	'fovpow',
 	'fov',
+	'fov_preset',
 	'map_drawer',
 	'adapt_detail',
 	'switch_wire',
 	'map_detail',
 	'shadows',
-	'dist_icon',
-	-- 'gccontrol',
-	-- 'gctimemult',
-	-- 'gcloadmult',
+	'gccontrol',
+	'gctimemult',
+	'gcloadmult',
 	'hardware_cursor',
 	'maxzoomout' ,
 	'maxzoomout_alt',
 }
--- options.testnumber = {
---     type = 'number',
---     value = 3,
---     min = 1, max = 6, step = 1,
---     -- update_on_the_fly = true,
---     OnChange = function(self)
---         Echo('ON CHANGE', os.clock())
---     end,
--- }
+local always_hidden_options = { -- internal options
+	['switch_wire'] = true,
+	['adapt_detail'] = true,
+	['fovpow'] = true,
+	['map_drawer'] = true,
+}
+
+local inactive_options = { -- inactive, they are not dynamic and should be set in the lobby
+	['gccontrol'] = true, -- not 100% sure it's not dynamic
+	['gctimemult'] = true, -- not 100% sure it's not dynamic
+	['gcloadmult'] = true, -- not 100% sure it's not dynamic
+	['min_draw_fps'] = true,
+	['min_sim_draw_balance'] = true,
+	['fov_preset'] = true, -- made for Skel
+}
+
+local i = 1
+local name = options_order[i]
+while name do
+	if inactive_options[name] then
+		table.remove(options_order, i)
+	else
+		i = i + 1
+	end
+	name = options_order[i]
+end
+
 options.lbl_collapse = {
 	type = 'label',
 	name = 'Fast Settings...',
 	value = true,
 	OnChange = function(self)
 		-- self.value = not self.value
-		local hidden = self.value
-		for _, name in pairs({'mapshading',
-			'fov',
-			'dist_icon',
-			'feature_dist',
-			'map_detail',
-			'shadows',
-			-- 'gccontrol',
-			-- 'gctimemult',
-			-- 'gcloadmult',
-			'hardware_cursor',
-			'maxzoomout',
-			'maxzoomout_alt'}) do
-			options[name].hidden = hidden
+		local collapsed = self.value
+		for _, key in ipairs(options_order) do
+			if key ~= self.key and not always_hidden_options[key] then
+				options[key].hidden = collapsed
+			end
 		end
 		-- self.value = not self.value
-		self.name = 'Fast Settings' .. (hidden and '...' or '')
+		self.name = 'Fast Settings' .. (collapsed and '...' or '')
 	end,
 	desc = 'click me to collaspe/develop',
 	clickable = true,
 }
 options.mapshading = {
-		name = 'Toggle Map Shading',
-		-- must be updated/update into the code, must adapt to FOV change
-		desc = 'Might increase a lot the FPS on some maps but also might degrade a lot the look on some maps',
-		type = 'button',
-		slim = true,
-		OnChange = function(self)
-			Spring.SendCommands('AdvMapShading')
-		end,
-		hidden = true, -- collapsable
-	}
+	name = 'Map Shading',
+	type = 'bool',
+	value = Spring.GetConfigInt('AdvMapShading', 1),
+	OnChange = function(self)
+		Spring.SendCommands('AdvMapShading ' .. (self.value and 1 or 0))
+		Spring.GetConfigInt('AdvMapShading', self.value and 1 or 0)
+	end,
+	hidden = true, -- collapsable
+	alwaysOnChange = true,
+}
+
+options.decals = {
+	name = 'Draw Decals',
+	type = 'bool',
+	desc = 'Ground decals, foot prints etc, removing it help fps',
+	value = Spring.GetConfigInt('GroundDecals', 1),
+	OnChange = function(self)
+		Spring.SendCommands('GroundDecals ' .. (self.value and 1 or 0))
+		Spring.GetConfigInt('GroundDecals', self.value and 1 or 0)
+	end,
+	alwaysOnChange = true,
+	hidden = true, -- collapsable
+}
+
+options.draw_sky = {
+	name = 'Draw Sky',
+	desc = 'Disable to improve fps',
+	type = 'bool',
+	value = true,
+	OnChange = function(self)
+		Spring.SendCommands('DrawSky ' .. (self.value and 1 or 0))
+	end,
+	hidden = true, -- collapsable	
+}
+
+
 options.dist_icon = {
-		name = 'Dist Icon',
+		name = 'Icon Distance',
+		desc = 'how far the units must be from your point of view to become icon',
 		type = "number",
 		value = baseDistIcon,
 		min = 1,
@@ -457,7 +441,7 @@ options.fov = {
 			local cs = spGetCameraState()
 			-- Echo('setting FOV',self.value)
 			if cs.fov~=self.value then
-				AdaptDist(cs, self.value)
+				cs = AdaptDist(cs, self.value)
 				cs.fov = self.value
 				spSetCameraState(cs, 0)
 			end
@@ -473,12 +457,12 @@ options.fov = {
 			-- Echo('On Change FOV')
 			local cs = spGetCameraState()
 			if cs.fov~=self.value then
-				AdaptDist(cs, self.value)
+				cs = AdaptDist(cs, self.value)
 				cs.fov = self.value
 				spSetCameraState(cs, 0)
-				-- local newDistIcon = baseDistIcon * 45/cs.fov
-				-- spSetConfigInt('UnitIconDist', newDistIcon)
-				-- spSendCommands('disticon '..newDistIcon)
+				local newDistIcon = baseDistIcon * 45/cs.fov
+				spSetConfigInt('UnitIconDist', newDistIcon)
+				spSendCommands('disticon '..newDistIcon)
 			end
 			options.map_detail:OnChange()
 			options.dist_icon:OnChange()
@@ -486,6 +470,28 @@ options.fov = {
 		end,
 		hidden = true
 	}
+
+options.fov_preset =  {
+	type = 'radioButton',
+	name = 'Fov Preset',
+	value = '45',
+	items = {
+		{key = '15', name = '15°'},
+		{key = '30', name = '30°'},
+		{key = '45', name = '45°'},
+		{key = '60', name = '60°'},
+		{key = '75', name = '75°'},
+		{key = '90', name = '90°'},
+	},
+	OnChange = function(self)
+		options.fov.value = tonumber(self.value)
+		-- options.fov:tooltipFunction()
+		options.fov:OnChange()
+	end,
+	hidden = true,
+	noSave = true,
+
+}
 
 options.maxzoomout = {
 		name = 'Max Zoom Out',
@@ -499,8 +505,7 @@ options.maxzoomout = {
 			-- FIX EPIC MENU it doesn't show 2 digits when above 1
 			return ('%d%%'):format(self.value*100)
 		end,
-		OnChange = function(self)
-		end,
+		-- alwaysOnChange = true,
 		linkOption = {'Settings/Camera/COFC Controls', COFCName .. 'maxzoomout'},
 		hidden = true, -- collapsable
 	}
@@ -520,51 +525,19 @@ options.maxzoomout_alt = {
 		linkOption = {'Settings/Camera/COFC Controls', COFCName .. 'maxzoomout_alt'},
 		hidden = true, -- collapsable
 	}
+
 options.hardware_cursor = {
 	name = 'Hardware Cursor',
 	-- must be updated/update into the code, must adapt to FOV change
 	desc = 'Use OS cursor reactivity',
 	type = 'bool',
-	value = Spring.GetConfigInt("HardwareCursor") == 1,
+	value = Spring.GetConfigInt("DrawSky", 1) == 1,
 	OnChange = function(self)
 		Spring.SendCommands('HardwareCursor ' .. (self.value and 1 or 0))
 		Spring.SetConfigInt('HardwareCursor', self.value and 1 or 0)
 	end,
+	alwaysOnChange = true, -- work around to force it, for some reason you have to reapply it every game to keep it active (maybe chobby resets it).
 	hidden = true, -- collapsable	
-}
-options.min_draw_fps = {
-
-		name = 'Min FPS during Catch Up',
-		desc = 'This option will apply next time Spring is loaded',
-		type = "number",
-		value = 5,
-		min = 2,
-		max = 50,
-		step = 1,
-		simpleMode = true,
-		everyMode = true,
-		OnChange = function(self)
-			Spring.SendCommands('mindrawfps ' .. self.value)
-			Spring.SetConfigInt('MinDrawFPS', self.value)
-		end,
-		hidden = true,
-}
-options.min_sim_draw_balance = {
-
-		name = 'Min Sim/Draw Balance',
-		desc = 'This option will apply next time Spring is loaded',
-		type = "number",
-		value = 0.25,
-		min = 0.1,
-		max = 0.9,
-		step = 0.05,
-		simpleMode = true,
-		everyMode = true,
-		OnChange = function(self)
-			Spring.SetConfigInt('MinSimDrawBalance', self.value)
-			Spring.SetConfigFloat('MinSimDrawBalance', self.value)
-		end,
-		hidden = true,
 }
 --- Always hidden options
 options.fovpow = { -- hidden option, dont touch or retain the best value before
@@ -587,7 +560,7 @@ options.fovpow = { -- hidden option, dont touch or retain the best value before
 	}
 
 
-options.map_drawer = {
+options.map_drawer = { -- hidden option, dont need to change it all the other are less interesting
 		name = 'Map Mesh Drawer',
 		desc = 'Choose your way of processing map mesh',
 		type = "radioButton",
@@ -621,65 +594,101 @@ options.switch_wire = {
 		value = true,
 		hidden = true,
 	}
--- options.gccontrol = {
--- 		name = 'GC Control',
--- 		desc = 'Garbage Collector rate 1/frame (0) or 30/sec (1)',
--- 		type = "number",
--- 		value = 0,
--- 		min = 0,
--- 		max = 1,
--- 		step = 1,
--- 		simpleMode = true,
--- 		everyMode = true,
--- 		tooltipFunction = function(self)
--- 			return (self.value == 0 and '1/frame' or '30/sec')
--- 		end,
--- 		OnChange = function(self)
--- 			-- spSetConfigInt('LuaGCControl', self.value)
--- 			spSendCommands('LuaGCControl '..self.value)
--- 		end,
--- 		hidden = true, -- don't seems to change anything
--- 	}
--- options.gctimemult = {
--- 		name = 'GC Time Mult',
--- 		desc = 'Time Mult Between Cycle',
--- 		type = "number",
--- 		value = Spring.GetConfigFloat('LuaGarbageCollectionRunTimeMult'),
--- 		min = 1,
--- 		max = 5,
--- 		step = 0.1,
--- 		simpleMode = true,
--- 		everyMode = true,
--- 		-- springsetting = 'LuaGarbageCollectionRunTimeMult',
--- 		-- tooltipFunction = function(self)
--- 		-- 	return (self.value == 0 and '1/frame' or '30/sec')
--- 		-- end,
--- 		OnChange = function(self)
--- 			Spring.SetConfigFloat('LuaGarbageCollectionRunTimeMult', self.value)
--- 			spSendCommands('LuaGarbageCollectionRunTimeMult '.. self.value)
--- 		end,
--- 		hidden = true, -- don't seems to change anything
--- 	}
--- options.gcloadmult = {
--- 		name = 'GC Load Mult',
--- 		desc = 'Memory threshold multiplier that will trigger Garbage Collection',
--- 		type = "number",
--- 		value = Spring.GetConfigFloat('LuaGarbageCollectionMemLoadMult'),
--- 		min = 1,
--- 		max = 10,
--- 		step = 0.1,
--- 		simpleMode = true,
--- 		everyMode = true,
--- 		-- springsetting = 'LuaGarbageCollectionMemLoadMult',
--- 		-- tooltipFunction = function(self)
--- 		-- 	return (self.value == 0 and '1/frame' or '30/sec')
--- 		-- end,
--- 		OnChange = function(self)
--- 			Spring.SetConfigFloat('LuaGarbageCollectionMemLoadMult', self.value)
--- 			spSendCommands('LuaGarbageCollectionMemLoadMult '.. self.value)
--- 		end,
--- 		hidden = true, -- don't seems to change anything
--- 	}
+--------------- inactive options, probably not dynamic
+options.gccontrol = {
+		name = 'GC Control',
+		desc = 'Garbage Collector rate 1/frame (0) or 30/sec (1)',
+		type = "number",
+		value = 0,
+		min = 0,
+		max = 1,
+		step = 1,
+		simpleMode = true,
+		everyMode = true,
+		tooltipFunction = function(self)
+			return (self.value == 0 and '1/frame' or '30/sec')
+		end,
+		OnChange = function(self)
+			-- spSetConfigInt('LuaGCControl', self.value)
+			spSendCommands('LuaGCControl '..self.value)
+		end,
+		hidden = true, -- don't seems to change anything
+	}
+options.gctimemult = {
+		name = 'GC Time Mult',
+		desc = 'Time Mult Between Cycle',
+		type = "number",
+		value = Spring.GetConfigFloat('LuaGarbageCollectionRunTimeMult'),
+		min = 1,
+		max = 5,
+		step = 0.1,
+		simpleMode = true,
+		everyMode = true,
+		-- springsetting = 'LuaGarbageCollectionRunTimeMult',
+		-- tooltipFunction = function(self)
+		-- 	return (self.value == 0 and '1/frame' or '30/sec')
+		-- end,
+		OnChange = function(self)
+			Spring.SetConfigFloat('LuaGarbageCollectionRunTimeMult', self.value)
+			spSendCommands('LuaGarbageCollectionRunTimeMult '.. self.value)
+		end,
+		hidden = true,
+	}
+options.gcloadmult = {
+		name = 'GC Load Mult',
+		desc = 'Memory threshold multiplier that will trigger Garbage Collection',
+		type = "number",
+		value = Spring.GetConfigFloat('LuaGarbageCollectionMemLoadMult'),
+		min = 1,
+		max = 10,
+		step = 0.1,
+		simpleMode = true,
+		everyMode = true,
+		-- springsetting = 'LuaGarbageCollectionMemLoadMult',
+		-- tooltipFunction = function(self)
+		-- 	return (self.value == 0 and '1/frame' or '30/sec')
+		-- end,
+		OnChange = function(self)
+			Spring.SetConfigFloat('LuaGarbageCollectionMemLoadMult', self.value)
+			spSendCommands('LuaGarbageCollectionMemLoadMult '.. self.value)
+		end,
+		hidden = true,
+	}
+options.min_draw_fps = {
+
+		name = 'Min FPS during Catch Up',
+		desc = 'This option will apply next game',
+		type = "number",
+		value = 5,
+		min = 2,
+		max = 50,
+		step = 1,
+		simpleMode = true,
+		everyMode = true,
+		OnChange = function(self)
+			Spring.SendCommands('mindrawfps ' .. self.value)
+			Spring.SetConfigInt('MinDrawFPS', self.value)
+		end,
+		hidden = true,
+}
+options.min_sim_draw_balance = {
+
+		name = 'Min Sim/Draw Balance',
+		desc = 'This option will apply next time Spring is loaded',
+		type = "number",
+		value = 0.25,
+		min = 0.1,
+		max = 0.9,
+		step = 0.05,
+		simpleMode = true,
+		everyMode = true,
+		OnChange = function(self)
+			Spring.SetConfigInt('MinSimDrawBalance', self.value)
+			Spring.SetConfigFloat('MinSimDrawBalance', self.value)
+		end,
+		hidden = true,
+}
+
 ---------
 
 local origCOFCFovOnChange
