@@ -19,7 +19,7 @@ local sig = '['..widget.GetInfo().name..'] '
 local luaShaderDir = "LuaUI/Widgets/Include/"
 local LuaShader = VFS.Include(luaShaderDir .. "LuaShader.lua")
 VFS.Include(luaShaderDir .. 'instancevbotable.lua')
-
+local minY, maxY = Spring.GetGroundExtremes()
 local function Draw()
     gl.Color(1, 1, 1, 0.5)
     gl.Rect(-1, -1, 1, 1)
@@ -29,7 +29,7 @@ local decals = {}
 
 function widget:DrawWorldPreUnit()
     gl.Texture(0, "$map_gbuffer_zvaltex")
-    gl.Texture(1, "$map_gbuffer_difftex")
+    -- gl.Texture(1, "$map_gbuffer_difftex")
     for i, decal in pairs(decals) do
         local tex, x, z, w, h, additive, alphaColorMul, userShader = unpack(decal)
 
@@ -41,6 +41,8 @@ function widget:DrawWorldPreUnit()
         shader:Activate()
         shader:SetUniform('decalPos', x, z, w, h)
         shader:SetUniform('alphaColorMul', alphaColorMul or 0)
+        shader:SetUniform('minY', minY)
+        shader:SetUniform('maxY', maxY)
         -- gl.TexRect(-1, -1, 1, 1)
         vao:DrawElements(GL.TRIANGLES, 6)
         shader:Deactivate()

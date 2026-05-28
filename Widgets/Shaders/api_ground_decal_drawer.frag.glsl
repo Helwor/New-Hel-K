@@ -6,6 +6,8 @@ uniform sampler2D mapDepths;
 uniform sampler2D mapColors;
 uniform sampler2D decalTex;
 uniform float alphaColorMul;
+uniform float minY;
+uniform float maxY;
 
 uniform vec4 decalPos;
 #define decalX decalPos.x
@@ -24,9 +26,9 @@ vec3 ScreenToWorld(vec2 screenUV, float depth) {
 void main() {
     float depth = texture2D(mapDepths, screenUV).x;
     vec3 worldPos = ScreenToWorld(screenUV, depth);
-    if (worldPos.x < decalX || worldPos.x > decalX + decalW ||
-        worldPos.z < decalZ || worldPos.z > decalZ + decalH || 
-        worldPos.y < -3000.0)
+    if (worldPos.x < decalX  || worldPos.x > decalX + decalW ||
+        worldPos.z < decalZ  || worldPos.z > decalZ + decalH || 
+        worldPos.y < minY - 1500.0 || worldPos.y > maxY + 1500.0)
         discard;
     vec2 uv = (worldPos.xz - decalPos.xy)  / (decalPos.zw);
     vec4 texColor = texture(decalTex, uv);
