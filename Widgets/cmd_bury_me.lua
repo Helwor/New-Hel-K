@@ -5,7 +5,7 @@ function widget:GetInfo()
 	author    = "Helwor",
 	date      = "Mai 2026",
 	license   = "GNU GPL, v2 or later",
-	layer     = -99999990,
+	layer     = 0,
 	enabled   = true, 
 	}
 end
@@ -133,7 +133,7 @@ function BuryMe()
 							local terra_id = queue[1].params[1]
 							spGiveOrderToUnit(id, CMD.REMOVE, queue[2].tag, 0)
 							if spGetUnitDefID(terra_id) == terraunitDefID then
-								-- self destruct to make sure in case user don't use terra unit handler or a con is assiting
+								-- self destruct later to make sure in case user don't use terra unit handler or a con is assiting
 								toDelete[terra_id] = 30
 							end
 						end
