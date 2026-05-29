@@ -1137,7 +1137,7 @@ do
 					ci.reloadTime = reloadTime
 					-- When weapon is disabled the reload time is constantly set to be almost complete.
 					-- It results in a bunch of units walking around with 99% reload bars.
-					if (reloadFrame > gameFrame + 6) or (GetUnitRulesParam(unitID, "reloadPaused") ~= 1) then -- UPDATE_PERIOD in unit_attributes.lua.
+					if (reloadFrame > gameFrame + 10) or (GetUnitRulesParam(unitID, "reloadPaused") ~= 1) then -- UPDATE_PERIOD in unit_attributes.lua.
 						reload = 1 - ((reloadFrame-gameFrame)/gameSpeed) / ci.reloadTime;
 						if (reload >= 0) then
 							barDrawer.AddPercentBar("reload", reload)
