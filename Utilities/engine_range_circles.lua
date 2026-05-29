@@ -103,7 +103,7 @@ local function CalcBallisticCircle( x, y, z, range, wDef)
 	local projectilespeed = wDef.projectilespeed
 	if wType == "LaserCannon" then
 	    range = max(1.0, floor(range / projectilespeed)) * projectilespeed
-	elseif wName and wType == 'Cannon' and wName:find('blast') then -- for outlaw 
+	elseif wName and wType == 'Cannon' and (wName:find('blast') or wName:find('_death$') or wName:find('_emp$')) then -- for outlaw 
 		wType = 'StarburstLauncher'
 	end
 

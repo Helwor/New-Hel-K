@@ -20,24 +20,38 @@ WG.weapRanges = (function()
 	local WeaponDefs = WeaponDefs
 	local spuGetMoveType = Spring.Utilities.getMovetype
 	for defID, def in pairs(UnitDefs) do
-
 		local weapons = def.weapons
+		if not weapons[1] and (def.canKamikaze or tonumber(def.customParams.instantselfd) == 1) then
+			local weaponName = def.customParams.stats_detonate_weapon or def.deathExplosion:lower()
+			local wDef = WeaponDefNames[weaponName]
+			weapons = {
+				{weaponDef = wDef.id}
+			}
+		end
 		local t
 		local entryIndex = 0
 		local name = def.name
 		local scriptName = def.scriptName:match('/(.*)%....')
-		for i, weap in ipairs(def.weapons) do
+		for i, weap in ipairs(weapons) do
 			local wDef = WeaponDefs[weap.weaponDef]
 
 			if not wDef.name:find('fakegun') then
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
-				if wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode and (tonumber(wDef.damageAreaOfEffect) or 0) > 0 then
+				if (tonumber(wDef.damageAreaOfEffect) or 0) > 0 
+					and (
+						wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode
+						or wDef.name:find('_death$') or wDef.name:find('_emp$') -- bombs or commander egg
+					) then
 					weaponRange = tonumber(wDef.damageAreaOfEffect)
+					-- Echo("def.name, wDef.name is ", def.name, wDef.name)
 				end
 				if weaponRange <= 32 and wDef.shieldRadius then
 					weaponRange = wDef.shieldRadius
+				end
+				if dbg then
+					-- Echo("weaponRange is ",i,  wDef.name, wDef.type, weaponRange)
 				end
 				-- if wType == 'StarburstLauncher' then -- TODO CHECK THIS TYPE
 				--  -- Echo(weaponRange)

@@ -260,7 +260,7 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		return
 	elseif use_ballistic then
 		if render_choice == 'ballistic_shader'  then
-		WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic), force_update)
+			WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic), force_update)
 		elseif render_choice == 'engine' then
 			local wDef = rangeInfo['weaponDef' .. i]
 			glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)

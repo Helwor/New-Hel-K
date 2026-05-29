@@ -17,6 +17,8 @@ local floor = math.floor
 local modf  = math.modf
 local max   = math.max
 
+local GL_LINE_STRIP = GL.LINE_STRIP
+
 local layout = {
 	{id = 1, name = "pos_range", size = 4},
 	{id = 2, name = "wParams", size = 4},
@@ -78,7 +80,7 @@ local function SetWeaponParams(wDef, range)
 	local projectilespeed = wDef.projectilespeed
 	if wType == "LaserCannon" then
 	    range = max(1.0, floor(range / projectilespeed)) * projectilespeed
-	elseif wName and wType == 'Cannon' and wName:find('blast') then -- for outlaw 
+	elseif wName and wType == 'Cannon' and (wName:find('blast') or wName:find('_death$') or wName:find('_emp$')) then -- for outlaw 
 		wType = 'StarburstLauncher'
 	end
 	if wType == 'Shield' or wType == 'StarburstLauncher' then 
@@ -241,7 +243,7 @@ function widget:DrawWorldPreUnit()
 			uploadAllElements(instance)
 		end
 		--
-		instance:draw(GL.LINE_STRIP)
+		instance:draw(GL_LINE_STRIP)
 	end
 	
 	rangeShader:Deactivate()
