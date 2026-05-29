@@ -45,6 +45,15 @@ local EMPTY_TABLE = {}
 local dbg = false
 local force_update = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
+
+local buildRangeColor = {0, 1, 0, 0.35}
+local buildRanges = {}
+for defID, def in pairs(UnitDefs) do
+	if def.canAssist and def.buildDistance then
+		buildRanges[defID] = def.buildDistance
+	end
+end
+
 options_path = 'Settings/Interface/Defence and Cloak Ranges'
 options = {}
 options_order = {
@@ -177,11 +186,11 @@ local function TranslateOffY(bx, by, bz, mx, my, mz, offY)
 	local invDist = 1.0 / diag(dx, dy, dz)
 	return bx + offY * (invDist * dx), by + offY * (invDist * dy), bz + offY * (invDist * dz)
 end
-
+local max = math.max
 local function RangeColor(strengthIdx, color, ballistic)
 	local strength = (1 - strengthIdx/5)
 	if color then
-		glColor(color[1] * strength, color[2] * strength, color[3] - strength, color[4] or 0.35)
+		glColor(max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0))
 	else
 		glColor(strength, ballistic and 0.7 or 0, 0, 0.35)
 	end
@@ -189,7 +198,7 @@ end
 local function GetRangeColor(strengthIdx, color, ballistic)
 	local strength = (1 - strengthIdx/5)
 	if color then
-		return {color[1] * strength, color[2] * strength, color[3] - strength, color[4] or 0.35}
+		return {max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0)}
 	else
 		return {strength, ballistic and 0.7 or 0, 0, 0.35}
 	end
@@ -228,8 +237,8 @@ do
 	end
 end
 local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff)
-	local static = rangeInfo.static
-	if static or render_choice ~= 'ballistic_shader' then
+	local static = rangeInfo and rangeInfo.static
+	if static or not use_ballistic or render_choice ~= 'ballistic_shader' then
 		RangeColor(strengthIdx, color, use_ballistic)
 	end
 	if not dbg and static then
@@ -249,14 +258,16 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		end
 		glCallList(cached)
 		return
-	elseif render_choice == 'ballistic_shader'  then
+	elseif use_ballistic then
+		if render_choice == 'ballistic_shader'  then
 		WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic), force_update)
-	elseif render_choice == 'engine' then
-		local wDef = rangeInfo['weaponDef' .. i]
-		glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
-	elseif render_choice ==	'ballistic' then
-		local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
-		gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+		elseif render_choice == 'engine' then
+			local wDef = rangeInfo['weaponDef' .. i]
+			glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
+		elseif render_choice ==	'ballistic' then
+			local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
+			gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+		end
 	else
 		glDrawGroundCircle(x, y, z, range, 40)
 	end
@@ -313,7 +324,7 @@ do
 		end
 	end
 end
-local function DrawComRanges(defID, units, color, isEnemy, use_ballistic)
+local function DrawComRanges(defID, units, color, isEnemy, use_ballistic, buildDistance, buildRangeColor)
 	for i, unitID in ipairs(units) do
 		local bx, by, bz, mx, my, mz, ax, ay, az = spGetUnitPosition(unitID, true , true)
 		if bx then
@@ -365,6 +376,9 @@ local function DrawComRanges(defID, units, color, isEnemy, use_ballistic)
 					DrawRangeCircle(unitID, bx, by, bz, idx2, range2, rangeInfo, 2, color, use_ballistic)
 				end
 			end
+			if buildDistance and buildDistance > 32 then
+				DrawRangeCircle(unitID, bx, by, bz, 1, buildDistance, false, 2, buildRangeColor, false, true)
+			end
 		end
 	end
 end
@@ -372,7 +386,7 @@ end
 -- which results in a back and forth loop movement of the weapons
 -- Fix would be to test from the weapon's position when it's ready to shoot and not its current position
 -- this rare case is particularily visible with the detriment
-local function DrawUnitsRanges(defID, units, color, use_ballistic)
+local function DrawUnitsRanges(defID, units, color, use_ballistic, buildDistance, buildRangeColor)
 	local rangeInfo = weapRanges[defID]
 	if rangeInfo then
 		for _, unitID in ipairs(units) do
@@ -402,18 +416,23 @@ local function DrawUnitsRanges(defID, units, color, use_ballistic)
 						break
 					end
 				end
+				if buildDistance and buildDistance > 32 then
+					DrawRangeCircle(unitID, bx, by, bz, 1, buildDistance, false, 2, buildRangeColor, false, true)
+				end
 			end
 		end
 	end
 end
+
 local function DrawUnitTypeRanges(defID, units, use_ballistic, color, width, isEnemy)
+	local buildDistance = buildRanges[defID]
 	if width then
 		glLineWidth(width)
 	end
 	if commDefIDs[defID] then -- Dynamic comm have different ranges and different weapons activated
-		DrawComRanges(defID, units, color, isEnemy, use_ballistic)
+		DrawComRanges(defID, units, color, isEnemy, use_ballistic, buildDistance, buildRangeColor)
 	else
-		DrawUnitsRanges(defID, units, color, use_ballistic)
+		DrawUnitsRanges(defID, units, color, use_ballistic, buildDistance, buildRangeColor)
 	end
 	if width then
 		glLineWidth(1)
@@ -450,18 +469,17 @@ function widget:PlayerChanged(playerID)
 		end
 	end
 end
-
 function widget:DrawWorldPreUnit()
 	if spIsGUIHidden() then
 		return
 	end
 	glLineWidth(1.2)
+	glColor(1, 1, 1, 1)
+	gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 	local use_ballistic = render_choice == 'engine' or render_choice:find('ballistic')
 	for defID, units in pairs(selUnits) do
 		DrawUnitTypeRanges(defID, units, use_ballistic --[[and selCount <= max_selection_ballistic]])
 	end
-
-	glColor(1, 1, 1, 1)
 	glLineWidth(1.0)
 	force_update = false
 end
