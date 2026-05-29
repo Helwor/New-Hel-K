@@ -46,7 +46,7 @@ local dbg = false
 local force_update = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
 
-local buildRangeColor = {0, 1, 0, 0.35}
+local buildRangeColor = {0, 1, 0, 0.25}
 local buildRanges = {}
 for defID, def in pairs(UnitDefs) do
 	if def.canAssist and def.buildDistance then
@@ -154,6 +154,8 @@ options.max_selection_ballistic = {
 	end,
 	path = helk_path,
 }
+
+
 
 options.dbg = {
 	name = 'Debug Ranges',
