@@ -205,6 +205,8 @@ local alphaMult = {
 	[UnitDefNames['turretaaheavy'].id] = 0.7,
 	[UnitDefNames['energysingu'].id] = 0.45,
 	[UnitDefNames['turretheavylaser'].id] = 0.8,
+	[UnitDefNames['striderdante'].id] = 0.5,
+	[UnitDefNames['striderdetriment'].id] = 0.5,
 
 }
 
@@ -1063,10 +1065,15 @@ function widget:PlayerChanged(playerID)
 end
 
 local GL_STENCIL_LESS = GL.GREATER  -- NOTE: this is totally bugged GL.GREATER work as GL.LESS for gl.StencilFunc(), and probably GL.LESS work as GL.GREATER
-
+local lastFullview
 function widget:DrawWorld()
-	if Cam.fullview == 1 then
+	local fullview = Cam.fullview
+	if fullview == 1 then
 		return
+	end
+	if fullview ~= lastFullview then
+		myNewAllyTeamID = -1
+		widget:PlayerChanged(myPlayerID)
 	end
 	if shaderObj then
 		glUseShader(shaderObj.shader)
@@ -1127,7 +1134,7 @@ function widget:Initialize()
 	end
 	Units = Cam and Cam.Units
 	inSight = Cam and Cam.inSight
-
+	lastFullview = Cam.fullview
 	WG.ghostUnits = WG.ghostUnits or ghostUnits
 	ghostUnits = WG.ghostUnits
 	if gl.CreateShader then
