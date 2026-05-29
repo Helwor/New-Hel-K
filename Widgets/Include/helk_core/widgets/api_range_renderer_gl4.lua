@@ -227,6 +227,9 @@ function widget:DrawWorldPreUnit()
 	rangeShader:Activate()
 	gl.LineWidth(1.2)
 	gl.DepthTest(true)
+	-- gl.Blending(GL.ONE_MINUS_DST_COLOR, GL.ZERO) -- darken on same color => yellow on yellow become black
+	-- gl.Blending(GL.ONE_MINUS_DST_COLOR, GL.ONE_MINUS_SRC_ALPHA) -- same but softer
+	gl.Blending(false) -- more readable than normal blending
 	for _, instance in pairs(instances) do
 		-- update gpu
 		local live = instance.live
@@ -245,6 +248,7 @@ function widget:DrawWorldPreUnit()
 		--
 		instance:draw(GL_LINE_STRIP)
 	end
+	gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
 	
 	rangeShader:Deactivate()
 	gl.LineWidth(1)
