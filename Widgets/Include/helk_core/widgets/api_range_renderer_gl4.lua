@@ -229,7 +229,8 @@ function widget:DrawWorldPreUnit()
 	gl.DepthTest(true)
 	-- gl.Blending(GL.ONE_MINUS_DST_COLOR, GL.ZERO) -- darken on same color => yellow on yellow become black
 	-- gl.Blending(GL.ONE_MINUS_DST_COLOR, GL.ONE_MINUS_SRC_ALPHA) -- same but softer
-	gl.Blending(false) -- more readable than normal blending
+	-- gl.Blending(false) 
+	-- gl.Blending(GL.ONE, GL.ZERO)
 	for _, instance in pairs(instances) do
 		-- update gpu
 		local live = instance.live
