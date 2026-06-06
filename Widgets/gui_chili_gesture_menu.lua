@@ -226,9 +226,8 @@ local function CanInitialQueue()
 end
 
 
-function widget:MouseMove()
+function widget:MouseMove(mx, my)
     if not menu or KEYBOARD_ONLY or mouselessOpen then return end
-    local mx, my = Spring.GetMouseState()
     ProcessMove(mx,my)
     if hold_pos then
         local dx = mx - hold_pos[1]
