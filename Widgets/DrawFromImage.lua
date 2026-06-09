@@ -128,8 +128,9 @@ local Init, UpdateScreenRatio
 local curScrollPosY = false
 local updateTime = 0
 local updateDelay = 3
-local maxPerUpdate = 10
-local current= 1
+-- local maxPerUpdate = 10
+local maxUpdateTime = 0.05
+local current = 1
 local taskTime = 0
 local taskDelay = 1
 local vsx, vsy = Spring.GetViewGeometry()
@@ -139,7 +140,8 @@ options_order = {
 	'always_up',
 	'placing_frame',
 	'updateDelay',
-	'maxPerUpdate',
+	-- 'maxPerUpdate',
+	'maxUpdateTime',
 	'note',
 	'mode',
 	'pix_detect',
@@ -193,18 +195,27 @@ options.updateDelay = {
 
 }
 
-options.maxPerUpdate = {
-	name = 'Max per Udpate',
+-- options.maxPerUpdate = {
+-- 	name = 'Max per Udpate',
+-- 	desc = 'Helpful for potato comp with many images to update',
+-- 	type = 'number',
+-- 	min = 1, max = 60, step = 1,
+-- 	value = maxPerUpdate,
+-- 	OnChange = function(self)
+-- 		maxPerUpdate = self.value
+-- 	end,
+-- }
+
+options.maxUpdateTime = {
+	name = 'Max time allowed per update',
 	desc = 'Helpful for potato comp with many images to update',
 	type = 'number',
-	min = 1, max = 60, step = 1,
-	value = maxPerUpdate,
+	min = 0.005, max = 0.1, step = 0.005,
+	value = maxUpdateTime,
 	OnChange = function(self)
-		maxPerUpdate = self.value
+		maxUpdateTime = self.value
 	end,
-
 }
-
 options.note = {
 	name = 'NOTE:',
 	type = 'text',
@@ -632,6 +643,7 @@ local function MakeSelector()
 		x = 15,
 		y = 14,
 		width = buttonWidth,
+		name = 'marker_scrollpanel',
 		bottom = 10,
 		padding = {0,0,0,0},
 		itemPadding = {0,0,0,0},
@@ -2248,21 +2260,34 @@ function MarkerMaker:UpdateFile(file, alphaIndex)
 	end
 	return toAdd
 end
-
+local Timer = Spring.GetTimer
+local Diff = Spring.DiffTimers
 function MarkerMaker:UpdateFiles()
 	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}', VFS.RAW)
 	local count = 0
 	if not files[current] then
 		current = 1
 	end
+	local time = 0
+	local timer = Timer()
+	local batchUpdated = 0
 	for i, file in ipairs(files) do
-		count = count + 1
 		files[file] = true
-		if count >= current and count <= current + maxPerUpdate - 1 then
+		count = count + 1
+		-- if count >= current and count <= current + maxPerUpdate - 1 then
+		if count >= current and time <= maxUpdateTime then
 			self:UpdateFile(file, i)
+			local endTimer = Timer()
+			time = time + Diff(endTimer, timer)
+			timer = endTimer
+			current = count + 1
+			batchUpdated = batchUpdated + 1
 		end
+		
+		-- end
 	end
-	current = current + maxPerUpdate
+	-- Echo('batchUpdated', batchUpdated)
+	-- current = current + maxPerUpdate
 	if holder[count + 1] then -- some file got deleted
 		for file, obj in pairs(holder) do
 			if type(file) ~= 'number' then
