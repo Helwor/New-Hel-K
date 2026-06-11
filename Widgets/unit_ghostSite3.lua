@@ -1037,6 +1037,7 @@ end
 
 
 function widget:PlayerChanged(playerID)
+	Echo('playerChanged', math.round(os.clock()))
 	if playerID == myPlayerID then
 		local wasSpec, wasFullRead = isSpec, isFullRead
 		isSpec, isFullRead = Spring.GetSpectatingState()
@@ -1072,8 +1073,9 @@ function widget:DrawWorld()
 		return
 	end
 	if fullview ~= lastFullview then
-		myNewAllyTeamID = -1
+		myAllyTeamID = -1
 		widget:PlayerChanged(myPlayerID)
+		lastFullview = fullview
 	end
 	if shaderObj then
 		glUseShader(shaderObj.shader)
