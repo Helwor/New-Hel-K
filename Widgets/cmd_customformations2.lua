@@ -1147,6 +1147,7 @@ function widget:MousePress(mx, my, mButton, byEz)
 			or mButton == 3 and options.RMBLineFormation.value and not usingContextCommand
 		)
 	) then
+		SendSetWantedMaxSpeed() -- remove eventual speed limitation
 		return false
 	end
 
