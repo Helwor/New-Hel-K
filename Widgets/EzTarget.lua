@@ -139,7 +139,7 @@ local vsx, vsy
 local screen0
 local Units
 local PreSelection_IsSelectionBoxActive
-local floor, round, huge, abs, max = math.floor, math.round, math.huge, math.abs, math.max
+local floor, round, huge, abs, max, diag = math.floor, math.round, math.huge, math.abs, math.max, math.diag
 local round = function(x)
 	return tonumber(round(x))
 end
@@ -1147,7 +1147,7 @@ local function Evaluate(type, id, engineCmd)
 
 		if enemiesByDist[1] == v.moddedTarget then
 			-- better ignore the target if the user click far away offmap, we go for a move command instead
-			if ((v.clamped[1] - mx)^2 + (v.clamped[2] - my)^2)^0.5 > 30 then
+			if diag(v.clamped[1] - mx, v.clamped[2] - my) > 30 then
 				SetColor(v.moddedTarget, nil, true)
 				v.moddedTarget = false
 			end
@@ -1811,7 +1811,7 @@ function widget:Update(dt)
 			-- Echo("( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5 is ", ( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5)
 			-- we give a larger leeway when time since click is very short, so the usermay have slipped the mouse in a rapid click by accident
 			local mult = os.clock() - checkForSelBox < 0.2 and 1.5 or 1
-			if ( (s.last_click_mx-mx)^2 + (s.last_click_my-my)^2 ) ^ 0.5 > opt.mouse_leeway * mult then
+			if diag(s.last_click_mx - mx, s.last_click_my - my) > opt.mouse_leeway * mult then
 				s.acquiredSelect = false
 				checkForSelBox = false
 				reset()
@@ -2062,7 +2062,7 @@ function widget:MousePress(mx, my, button)
 	--     Echo(os.clock(),"Default command is not Raw move !",spGetDefaultCommand())
 	-- end
 	cf2.CF2 = cf2.widget
-	cf2.lastx,cf2.lasty,cf2.lastclock=mx,my,osclock()
+	cf2.lastx, cf2.lasty, cf2.lastclock = mx, my, osclock()
 	-- check if cf2.CF2 want control
 	if cf2.CF2 then
 		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
@@ -2160,7 +2160,7 @@ function widget:MouseRelease(mx,my,button)
 	if not cf2.CF2 then -- 
 		return
 	end
-	if button==1 then
+	if button == 1 then
 		return
 	end
 
@@ -2628,6 +2628,7 @@ do --- EzTarget ---
 		wobbling = 0
 		rMax = rMax + wobbling
 		local fov = Cam.fov
+		local diag = diag
 		for _, id in pairs(spGetUnitsInScreenRectangle(mx - rMax, my - rMax, mx + rMax, my + rMax))  do
 			local unit = Units[id]
 			if unit then
@@ -2640,7 +2641,7 @@ do --- EzTarget ---
 					if x then
 						-- local x,y,z = spGetUnitPosition(id)
 						local gy = spGetGroundHeight(x,z)
-						local distFromCam = ( (cx-x)^2 + (cy-y)^2 + (cz-z)^2 ) ^ 0.5
+						local distFromCam = diag( cx - x,  cy - y, cz - z)
 						distFromCam = distFromCam * fov / 45
 						if distFromCam > opt.ezTargetThreshold then
 
@@ -2652,7 +2653,7 @@ do --- EzTarget ---
 							if IconsAsUI then
 								sy = sy - 3
 							end
-							local scrDist = ((mx-sx)^2 + (my-sy)^2)^0.5
+							local scrDist = diag(mx - sx, my - sy)
 							-- str = str .. ', [' .. id .. '] dist: ' .. round(scrDist)
 							-- local nature, pos = spTraceScreenRay(sx,sy,true,true,true,false)
 							local inMaxRange = scrDist <= rMax
