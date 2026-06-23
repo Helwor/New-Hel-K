@@ -2151,7 +2151,12 @@ function AfterMouseRelease(mx, my, button, from)
 	v.mousePressed = MouseState[3] or MouseState[4] or MouseState[5]
 	-- Echo('mouse release',from,button, v.mousePressed,MouseState[3], MouseState[4], MouseState[5])
 end
-
+local CMD_WANTED_SPEED
+do 
+	local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
+	CMD_WANTED_SPEED = customCmds.WANTED_SPEED
+	customCmds = nil
+end
 function widget:MouseRelease(mx,my,button)
 	Debug.Mouse('Mouse Release '..mx,my,button)
 	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
@@ -2182,6 +2187,10 @@ function widget:MouseRelease(mx,my,button)
 			-- tell CustomFormation2 to cancel the operation by giving it the opposite button
 			local cancel = Execute(mx, my, button)
 			cf2.CF2:MouseRelease(cf2.lastx, cf2.lasty, cancel and (button==1 and 3 or 1) or button)
+			if cancel then
+				-- remove eventual speed limitation
+				Spring.GiveOrderToUnitArray(selection or spGetSelectedUnits(), CMD_WANTED_SPEED, {-1}, 0)
+			end
 			-- local alt, ctrl, meta, shift = spGetModKeyState()
 
 			-- if alt or v.moddedTarget and not v.defaultTarget then
