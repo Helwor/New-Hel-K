@@ -520,7 +520,7 @@ local placementHeight = 0
 local placementHeightMex = 0
 
 -- local origHeight = 0
-local height=0
+local height = 0
 local level = 0
 
 
@@ -911,6 +911,7 @@ function groundModule:UpdateRefHeights(p)
 	-- defining reference height that will be used to apply placementHeight on
 	-- defining max height that will tell us if a building should be leveled
 	local minGround = min(self.origHeight, self.height)
+
 	if not p.underSea then
 		minGround = max(OFF_WATER, minGround)
 	end
@@ -1656,9 +1657,11 @@ do
 		--     level = OFF_WATER
 		-- end
 		local oldlvl = level
-		level = groundModule:UpdateSnap(level, false, false, p)
-		if level == 0 then
+
+		if level == 0 and not (p.floater or p.underSea) then
 			level = OFF_WATER
+		elseif height > p.maxPlacementHeight or level > p.maxPlacementHeight then
+			level = p.maxPlacementHeight
 		end
 		if Debug.elevChange() then
 			Echo("PH, height is ", PH, height, spGetGroundHeight(X, Z), '=>', PH + height)
@@ -1701,7 +1704,6 @@ do
 				pointY = 0
 			end
 		end
-
 		-----
 		if Debug.elevChange() then
 			Echo(

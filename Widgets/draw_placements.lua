@@ -4096,6 +4096,7 @@ do
 			   0 = walking unit undersea,
 			   0.1 = sub, ship or hover,
 			   0.02 = walking unit only on shallow water
+			-def.minWaterDepth if > 0 is a ship/sub type, def.minWaterDepth 15 is for sub and big ship like Shogun or Reef, def.minWaterDepth < 15 and > 0 is actually a min depth of 5 no matter how much the def says
 		--]]
 		local isUnit = spuGetMoveType(def) -- 1 == flying, 2 == on ground/water false = building
 		local depthMod = isUnit and def.moveDef.depthMod
@@ -4104,30 +4105,37 @@ do
 		local underSea = depthMod == 0 or not (isUnit or floatOnWater or def.maxWaterDepth == 0)
 		local reallyFloat = isUnit == 2 and depthMod == 0.1 or floatOnWater and def.name ~= 'turretgauss'
 		local cantPlaceOnWater = not (underSea or reallyFloat)
-		t.footX				= footX
-		t.footZ				= footZ
-		t.oddX				= oddX
-		t.oddZ				= oddZ
-		t.sizeX				= sizeX
-		t.sizeZ				= sizeZ
-		t.terraSizeX		= sizeX-0.1
-		t.terraSizeZ		= sizeZ-0.1
-		t.offfacing			= false
-		t.canSub			= canSub
-		t.floater			= def.floatOnWater or not canSub
-		t.needTerraOnWater	= not canSub and not def.name:match('hover')
-		t.underSea			= underSea
-		t.reallyFloat		= reallyFloat
-		t.cantPlaceOnWater	= cantPlaceOnWater
-		t.gridAboveWater	= gridAboveWater -- following the wrong engine grid 
-		t.floatOnWater		= floatOnWater
-		f.facing 			= 0
-		t.height			= def.height
-		t.name				= def.name
-		t.PID				= PID
-		t.eradius			= E_RADIUS[PID]
-		t.radiusSq			= def.name == "energypylon" and 3877 or (def.radius^2)
-		t.radius			= def.radius
+		local maxPlacementHeight = def.minWaterDepth > 0 and (
+			def.minWaterDepth <= 5 and -5
+			or def.minWaterDepth <= 15 and -15
+			or def.minWaterDepth
+			) or 1e6
+		-- local maxPlacementHeight = reallyFloat and 1e6 or -def.maxWaterDepth
+		t.footX				 = footX
+		t.footZ				 = footZ
+		t.oddX				 = oddX
+		t.oddZ				 = oddZ
+		t.sizeX				 = sizeX
+		t.sizeZ				 = sizeZ
+		t.terraSizeX		 = sizeX-0.1
+		t.terraSizeZ		 = sizeZ-0.1
+		t.offfacing			 = false
+		t.canSub			 = canSub
+		t.floater			 = def.floatOnWater or not canSub
+		t.needTerraOnWater	 = not canSub and not def.name:match('hover')
+		t.underSea			 = underSea
+		t.reallyFloat		 = reallyFloat
+		t.cantPlaceOnWater	 = cantPlaceOnWater
+		t.gridAboveWater	 = gridAboveWater -- following the wrong engine grid 
+		t.floatOnWater		 = floatOnWater
+		f.facing 			 = 0
+		t.height			 = def.height
+		t.name				 = def.name
+		t.PID				 = PID
+		t.eradius			 = E_RADIUS[PID]
+		t.radiusSq			 = def.name == "energypylon" and 3877 or (def.radius^2)
+		t.radius			 = def.radius
+		t.maxPlacementHeight = maxPlacementHeight
 
 		if footX ~= footZ then
 			local off = {}
