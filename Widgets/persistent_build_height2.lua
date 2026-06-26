@@ -1660,8 +1660,10 @@ do
 
 		if level == 0 and not (p.floater or p.underSea) then
 			level = OFF_WATER
-		elseif height > p.maxPlacementHeight or level > p.maxPlacementHeight then
-			level = p.maxPlacementHeight
+		elseif height > p.maxPlacementHeight then
+			level = p.maxPlacementHeight -- dig to max placementHeight
+		elseif level > p.maxPlacementHeight then
+			level = OFF_WATER
 		end
 		if Debug.elevChange() then
 			Echo("PH, height is ", PH, height, spGetGroundHeight(X, Z), '=>', PH + height)
