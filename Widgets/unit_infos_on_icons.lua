@@ -1198,8 +1198,8 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 			local checkFunc = longReloadCheck[defID]
 			if checkFunc and not disallowReloadNotice[defID] then
 				local value, sp = checkFunc(defID, id)
-				if value >= 1 then
-					reloadColor = value >= 1 and green or lightblue
+				if value >= 0.8 then
+					reloadColor = value >= 1 and green or white
 					stockpile = sp and sp <= 100 and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
 				end
 			end
