@@ -2485,7 +2485,7 @@ local function ProcessPreGameQueue(preGameQueue,tasker)
 			-- spGiveOrderToUnit(tasker,CMD_INSERT,{-1,CMD_LEVEL,CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag},CMD_OPT_ALT)
 			spGiveOrderToUnit(tasker, CMD_INSERT, {-1, CMD_LEVEL, CMD_OPT_SHIFT, pointX, pointY, pointZ, commandTag}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 		end
-		spGiveOrderToUnit(tasker, CMD_INSERT, {-1, -PID, CMD_OPT_SHIFT, pointX, pointY, pointZ, facing}, CMD_OPT_ALT + CMD_OPT_SHIFT)
+		spGiveOrderToUnit(tasker, CMD_INSERT, {-1, UnitDefs[PID] and -PID or PID, CMD_OPT_SHIFT, pointX, pointY, pointZ, facing}, CMD_OPT_ALT + CMD_OPT_SHIFT)
 	end
 
 end
@@ -3458,48 +3458,56 @@ do
 			local queue =  WG.preGameBuildQueue
 			local j, n = 1, #queue
 
-			while j<=n do 
+			while j <= n do 
 				local order = queue[j]
-				local id,ix,iy,iz,facing,terra = unpack(order)
-				local ud=UnitDefs[id] 
-				local isx,isz=ud.xsize*4,ud.zsize*4
-				local off=facing==1 or facing==3
-				if off then isx,isz=isz,isx end
+				local id, ix, iy, iz, facing, terra = unpack(order)
+				local ud = UnitDefs[id] 
+				local isx, isz = 20, 20
+				local off = false
+				if ud then
+					isx, isz = ud.xsize*4,ud.zsize*4
+					off = facing==1 or facing==3
+				end
+				if off then
+					isx, isz = isz, isx
+				end
 				if (x-ix)^2 < (sx+isx)^2 and (z-iz)^2 < (sz+isz)^2 then
-					IQ:CommandNotify(-id,{ix,iy,iz,facing},{shift=true})
+					IQ:CommandNotify(ud and -id or id, {ix, iy, iz, facing}, {shift = true})
 					local newn = #queue
-					if newn~=n then 
-						n=newn
+					if newn ~= n then 
+						n = newn
 						erased = true
-						j=j-1
+						j = j - 1
 					end
 				end
-				j=j+1
+				j = j + 1
 			end
 			return erased
 		end
 		local plopped = {}
-		for i=1, #cons do
-			local con=cons[i]
+		for i = 1, #cons do
+			local con = cons[i]
 			if spValidUnitID(con) and not spGetUnitIsDead(con) then
-				local queue=GetQueue(con,-1)
+				local queue = GetQueue(con,-1)
 				if queue then
-					local levelx,levelz,leveltag
-					for j=2,#queue do -- not checking the first command, as the build may have been nanoframed if it is at first order
+					local levelx, levelz, leveltag
+					for j = 2,#queue do -- not checking the first command, as the build may have been nanoframed if it is at first order
 						local command = queue[j]
 						local cmdid = command.id
 						if cmdid < 0 or cmdid == CMD_LEVEL then
 							local params=queue[j].params
 							local ud = cmdid < 0 and UnitDefs[-cmdid]
 							if ud then
-								local tag,ix,iz,facing = command.tag,params[1],params[3],params[4]
-								local isx,isz=ud.xsize*4,ud.zsize*4
-								local off=facing==1 or facing==3
-								if off then isx,isz=isz,isx end
+								local tag, ix, iz, facing = command.tag, params[1], params[3], params[4]
+								local isx, isz = ud.xsize*4, ud.zsize*4
+								local off = facing==1 or facing==3
+								if off then 
+									isx, isz = isz, isx 
+								end
 								-- overlap check
 								if (x-ix)^2 < (sx+isx)^2 and (z-iz)^2 < (sz+isz)^2 then
 									local authorized = true
-									if j==1 then
+									if j == 1 then
 										local ixiz = ix .. iz
 										if plopped[ixiz]==nil then 
 											plopped[ixiz] = sp.GetUnitsInRectangle(ix,iz,ix,iz)[1] or false
@@ -3507,11 +3515,11 @@ do
 										authorized = plopped[ixiz] == false
 									end
 									if authorized then
-										if levelx==ix and levelz==iz then 
+										if levelx == ix and levelz == iz then 
 											pcall(GiveOrder(con,CMD_REMOVE, leveltag, 0))
 										end
 										GiveOrder(con,CMD_REMOVE, tag, 0)
-										erased=true
+										erased = true
 									end
 								end
 							elseif cmdid== CMD_LEVEL then

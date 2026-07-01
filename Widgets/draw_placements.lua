@@ -1363,17 +1363,22 @@ do
 			local IQ = widgetHandler:FindWidget("Initial Queue ZK")
 			if not IQ then return end
 			local queue =  WG.preGameBuildQueue
-			local j,n = 1, #queue
+			local j, n = 1, #queue
 			local optShift = {shift=true}
-			while j<=n do 
+			while j <= n do 
 				local order = queue[j]
 				local defid, ix, iy, iz, facing = unpack(order)
+
 				local info = p:Measure(defid, facing)
+				local isBuild = info
+				if not info then
+					info = {sizeX = 20, sizeZ = 20}
+				end
 				if overlap(rad, x, z, sx, sz, ix, iz, info.sizeX, info.sizeZ, checkSurround) then
 					if checkOnlyOverlap then
 						return true
 					end
-					IQ:CommandNotify(-defid, {ix,iy,iz}, optShift)
+					IQ:CommandNotify(isBuild and -defid or defid, {ix,iy,iz}, optShift)
 
 					local newn = #queue
 					if newn ~= n then 
@@ -1531,24 +1536,26 @@ local function GetPlacements() -- for now, only placements from current cons are
 		end
 		if pid then
 			local s = p:Measure(pid, facing)
-			local sx,sz = s.sizeX,s.sizeZ
+			if s then
+				local sx,sz = s.sizeX,s.sizeZ
 
-			local eradius = s.eradius
-			if pid == mexDefID and GetCloseMex --[[and not g.preGame--]] then
-				local spot = GetCloseMex(x,z)
-				if spot then
-					-- g.cantMex[spot]=not IsMexable(spot)
-					g.cantMex[spot]=true
+				local eradius = s.eradius
+				if pid == mexDefID and GetCloseMex --[[and not g.preGame--]] then
+					local spot = GetCloseMex(x,z)
+					if spot then
+						-- g.cantMex[spot]=not IsMexable(spot)
+						g.cantMex[spot]=true
+					end
 				end
+				length = length + 1
+				local build = {x, z, sx, sz, eradius = eradius, defID = pid, facing = facing}
+				T[length]=build
+				if lookForEbuild and eradius and eradius < 500 then
+					eBuilds[build] = true
+					-- Points[#Points+1] = {x,sp.GetGroundHeight(x,z),z,txt = x..'-'..z}
+				end
+				--Echo("UnitDefs[-order.id].name is ", UnitDefs[-order.id].name,sx,sz)
 			end
-			length = length + 1
-			local build = {x, z, sx, sz, eradius = eradius, defID = pid, facing = facing}
-			T[length]=build
-			if lookForEbuild and eradius and eradius < 500 then
-				eBuilds[build] = true
-				-- Points[#Points+1] = {x,sp.GetGroundHeight(x,z),z,txt = x..'-'..z}
-			end
-			--Echo("UnitDefs[-order.id].name is ", UnitDefs[-order.id].name,sx,sz)
 		end
 	end
 	--connect placements together
@@ -4074,8 +4081,11 @@ do
 	end
 	local spuGetMoveType = Spring.Utilities.getMovetype
 	local function newcache(PID)
-		local t = {}
 		local def = UnitDefs[PID]
+		if not def then
+			return
+		end
+		local t = {}
 		local footX, footZ = def.xsize/2, def.zsize/2
 		local offfacing = false
 		local sizeX, sizeZ = footX * 8, footZ * 8 
@@ -4163,7 +4173,9 @@ do
 		end
 		facing = facing or sp.GetBuildFacing()
 		local cached = cache[PID] or newcache(PID)
-
+		if not cached then
+			return
+		end
 		if facing == 1 or facing == 3 then
 			cached = offed[PID] or cached
 		end
