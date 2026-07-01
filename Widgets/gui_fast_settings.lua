@@ -188,6 +188,7 @@ options_order = {
 	'mapshading',
 	'decals',
 	'draw_sky',
+	'water',
 	'dist_icon',
 	'feature_dist',
 	'fovpow',
@@ -282,6 +283,27 @@ options.draw_sky = {
 	value = true,
 	OnChange = function(self)
 		Spring.SendCommands('DrawSky ' .. (self.value and 1 or 0))
+	end,
+	hidden = true, -- collapsable	
+}
+
+options.water = {
+	name = 'Water Rendering',
+	desc = 'Impact fps, corresponding engine command is /water [0-4]',
+	type = 'number',
+	min = 0, max = 4, step = 1,
+	value = Spring.GetConfigInt('Water', 0),
+	OnChange = function(self)
+		Spring.SendCommands('Water ' .. self.value)
+		Spring.SetConfigInt('Water', self.value)
+	end,
+	alwaysOnChange = true,
+	tooltipFunction = function(self)
+		return self.value == 0 and "Basic"
+			or self.value == 1 and "Reflective"
+			or self.value == 2 and "Dynamic"
+			or self.value == 3 and "Reflective & Refractive"
+			or self.value == 4 and "Bump-mapped"
 	end,
 	hidden = true, -- collapsable	
 }
