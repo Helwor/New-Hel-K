@@ -24,6 +24,8 @@ VFS.Include("LuaRules/Configs/customcmds.h.lua")
 ------------------------------------------------------------
 local altJumpOpt = false
 local altJump = false
+local altHeld = false
+
 options_path = 'Hel-K/'..widget:GetInfo().name
 options = {
 	altJumpOpt = {
@@ -47,6 +49,7 @@ local REDCHAR = string.char(255,255,64,32)
 local animSize = 25
 local timer = 0
 local updateFreq = 0.15
+
 -- Colors
 local buildDistanceColor = {0.3, 1.0, 0.3, 0.7}
 local buildLinesColor = {0.3, 1.0, 0.3, 0.7}
@@ -1289,30 +1292,30 @@ local function GetUnlockedBuildOptions(fullOptions)
 	end
 	return newOptions
 end
-local alt
+
 function widget:KeyPress(key, mods, isRepeat)
 	if isRepeat or not altJumpOpt then
 		return
 	end
-	if alt ~= mods.alt then
+	if altHeld ~= mods.alt then
 		if mods.alt then
 			InitialQueueHandleCommand(CMD_JUMP or nil, {}, {})
 			altJump = true
 		else
 			pseudoActiveCommand = false
 		end
-		alt = mods.alt
+		altHeld = mods.alt
 		return true
 	end
 end
 function widget:KeyRelease(key, mods)
-	if not altJumpOpt then
+	if not altJump then
 		return
 	end
-	if altJump and alt ~= mods.alt then
+	if altJump and altHeld ~= mods.alt then
 		pseudoActiveCommand = false
 		altJump = false
-		alt = mods.alt
+		altHeld = mods.alt
 		return true
 	end
 end
