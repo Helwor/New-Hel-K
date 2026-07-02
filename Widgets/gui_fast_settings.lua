@@ -296,6 +296,7 @@ options.water = {
 	OnChange = function(self)
 		Spring.SendCommands('Water ' .. self.value)
 		Spring.SetConfigInt('Water', self.value)
+		Echo('APPLY WATER', self.value, Spring.GetConfigInt('Water'))
 	end,
 	alwaysOnChange = true,
 	tooltipFunction = function(self)
@@ -799,7 +800,14 @@ function WidgetInitNotify(w,name,preloading)
 
 	-- end
 end
-
+local upd = 0
+function widget:Update(dt)
+	upd = upd + 1
+	if upd == 5 then
+		options.water:OnChange()
+		widgetHandler:RemoveWidgetCallIn('Update', widget)
+	end
+end
 
 function WidgetRemoveNotify(w,name,preloading)
 	-- if COFC and name == COFCName then
