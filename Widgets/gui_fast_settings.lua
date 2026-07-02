@@ -296,7 +296,6 @@ options.water = {
 	OnChange = function(self)
 		Spring.SendCommands('Water ' .. self.value)
 		Spring.SetConfigInt('Water', self.value)
-		Echo('APPLY WATER', self.value, Spring.GetConfigInt('Water'))
 	end,
 	alwaysOnChange = true,
 	tooltipFunction = function(self)
