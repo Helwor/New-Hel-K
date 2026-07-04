@@ -11,6 +11,8 @@
 uniform float intensity;
 uniform float checker;
 uniform float highlight_back;
+uniform float water_lava;
+const float inv6 = 1 / 1e6;
 // uniform float vehpass; 
 uniform float botpass;
 in DataVS {
@@ -21,8 +23,7 @@ in DataVS {
 
 out vec4 fragColor;
 // const float botpass = 14.5;
-float inv6 = 1 / 1e6;
-float vehpass = 6.0;
+const float vehpass = 5.85;
 vec4 color;
 void main() {
     if (checker > 0.0) {
@@ -38,11 +39,13 @@ void main() {
     }
 	if (slope < 2.5 && height > -16.0)
 		discard;
-	float water = step(height, -16.0) * 0.6 + step(height, -22.0) * 0.4;
+	float water = 0.0;
+	if (water_lava == 0.0)
+		water = step(height, -16.0) * 0.6 + step(height, -22.0) * 0.4; // show 2 different water shade where spider can't pass and bots can't pass
 	// fragColor.r = step(-16.0, height) * (pow(min(slope, vehpass) / vehpass, 3.0));
 	color.b = water;
 	if (water == 0.0) {
-		color.r = step(-16.0, height) * (pow(min(slope, vehpass) / vehpass, 3.0));
+		color.r = step(-16.0, height) * (pow(min(slope, vehpass) / vehpass, 4.0));
 		color.b = pow(min(slope - vehpass, botpass - vehpass) / (botpass - vehpass), 3.0) * 1.0;
 	}
 	color.g = water * 0.3;

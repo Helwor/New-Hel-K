@@ -10,7 +10,7 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-
+local water_lava = (Game.waterDamage or 0) > 3 or gl.GetMapRendering('voidWater')
 local sig = '['..widget:GetInfo().name..']: '
 local slowUpdate = 150 -- 150 frames 5 sec
 
@@ -555,6 +555,7 @@ local function CreateHeatmapTex()
 		mapShader:SetUniform("highlight_back", 0)
 		mapShader:SetUniform("intensity", intensity)
 		mapShader:SetUniform("botpass", botpass)
+		mapShader:SetUniform("water_lava", water_lava and 1 or 0)
 
 		local vao, num
 		vao = mapVAO
@@ -608,6 +609,8 @@ local function DrawHeatMap()
 	mapShader:SetUniform("botpass", botpass)
 	mapShader:SetUniform("texlod", botpass)
 	mapShader:SetUniform("texture_mode", 0)
+	mapShader:SetUniform("water_lava", water_lava and 1 or 0)
+
 
 	local vao, num
 	if WG.Cam.relDist < 3000 then
