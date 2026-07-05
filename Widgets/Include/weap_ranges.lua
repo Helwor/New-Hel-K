@@ -33,11 +33,12 @@ WG.weapRanges = (function()
 		local name = def.name
 		local scriptName = def.scriptName:match('/(.*)%....')
 		local hasWaterWeapon = false
+		local hasOnlyWaterWeapon = false
 		for i, weap in ipairs(weapons) do
 			local wDef = WeaponDefs[weap.weaponDef]
 			hasWaterWeapon = hasWaterWeapon or wDef.waterWeapon
+			hasOnlyWaterWeapon = hasWaterWeapon and wDef.waterWeapon
 			if not (wDef.description:lower():find('fake') or wDef.name:lower():find('fake'))  then
-
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
@@ -95,6 +96,7 @@ WG.weapRanges = (function()
 		end
 		if t then
 			t.hasWaterWeapon = hasWaterWeapon
+			t.hasOnlyWaterWeapon = hasOnlyWaterWeapon
 		end
 		weapRanges[defID] = t
 	end

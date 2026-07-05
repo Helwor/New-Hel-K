@@ -262,7 +262,7 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		return
 	elseif use_ballistic then
 		local wDef = rangeInfo['weaponDef' .. i]
-		if not rangeInfo.hasWaterWeapon or wDef.waterWeapon == (y < 0) then
+		if not rangeInfo.hasWaterWeapon or rangeInfo.hasOnlyWaterWeapon or wDef.waterWeapon == (y < 0) then
 			if render_choice == 'ballistic_shader'  then
 				-- Echo('debugMe:',noYoff, unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
 				WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, wDef, GetRangeColor(strengthIdx, color, use_ballistic), force_update)
