@@ -194,7 +194,7 @@ local function RangeColor(strengthIdx, color, ballistic)
 	if color then
 		glColor(max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0))
 	else
-		glColor(strength, --[[ballistic and 0.7 or]] 0, 0, 0.5)
+		glColor(strength, ballistic and 0.5 or 0, 0, 0.5)
 	end
 end
 local function GetRangeColor(strengthIdx, color, ballistic)
@@ -202,7 +202,7 @@ local function GetRangeColor(strengthIdx, color, ballistic)
 	if color then
 		return {max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0)}
 	else
-		return {strength, --[[ballistic and 0.7 or]] 0, 0, 0.5}
+		return {strength, ballistic and 0.5 or 0, 0, 0.5}
 	end
 end
 local function CircleVerts(verts)
@@ -243,7 +243,7 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 	if static or not use_ballistic or render_choice ~= 'ballistic_shader' then
 		RangeColor(strengthIdx, color, use_ballistic)
 	end
-	if not dbg and static then
+	if false and not dbg and static then
 		local cached = lists[unitID .. '-' .. i .. (use_ballistic and 'b' or '')]
 		if not cached then
 			cached = gl.CreateList(
