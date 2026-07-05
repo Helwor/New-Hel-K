@@ -487,7 +487,7 @@ local timeBlockDuplicate -- work around to prevent user spamming mex to get canc
 local Points={} -- debugging
 local PID
 local g = {
-	lava = (Game.waterDamage or 0) > 3,
+	lava = (Game.waterDamage or 0) > 3 or gl.GetMapRendering('voidWater'),
 	noterra = not Game.mapDamage or string.find((Game.modName or ''):lower(), 'arena mod'),
 	modArena = string.find((Game.modName or ''):lower(), 'arena mod'),
 	timeOutNoTerra = 0,
@@ -1595,9 +1595,8 @@ do
 
 		local p = _p or customPid and IdentifyPlacement(pid) or p
 		groundModule:Update(X, Z, p)
-		local height = groundModule.height
+		height = groundModule.height
 		local origHeight = groundModule.origHeight
-
 
 		---- set the pointY
 
@@ -1640,7 +1639,6 @@ do
 		if (p.floater) and height < 0 then
 			level = level - height
 		end
-
 		-- level = PH + (p.floatOnWater and not p.underSea and 0 or height)
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + groundModule.minGround
 		-- level = --[[round(PH) == 0 and groundModule.maxGround or--]]  PH + refHeight
@@ -3882,8 +3880,8 @@ do
 	
 	function widget:DrawScreen()
 		if PID and pointX then
-			if PID==windDefID then
-				local minW,incW,maxW,avgW,mult = GetWindAt(pointY==0.1 and spGetGroundHeight(pointX,pointZ) or pointY)
+			if PID == windDefID then
+				local minW,incW,maxW,avgW,mult = GetWindAt(height <= 0 and level <= 0 and height or pointY)
 				local c
 				local mx,my = ToScreen(pointX,pointY,pointZ-24)
 				local str
