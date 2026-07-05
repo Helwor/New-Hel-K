@@ -1,4 +1,4 @@
-if false and WG.weapRanges then
+if WG.weapRanges then
 	return WG.weapRanges, WG.CalcBallisticCircleOfUnit, WG.CalcBallisticCircleOfModel, WG.CalcBallisticCircleOfModelSpecRange
 end
 local aim_from_pieces = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces.lua')
@@ -21,7 +21,7 @@ WG.weapRanges = (function()
 	local spuGetMoveType = Spring.Utilities.getMovetype
 	for defID, def in pairs(UnitDefs) do
 		local weapons = def.weapons
-		if not weapons[1] and (def.canKamikaze or tonumber(def.customParams.instantselfd) == 1) then
+		if not weapons[1] and (def.canKamikaze or tonumber(def.customParams.instantselfd) == 1) then -- add bombs and commander eggs
 			local weaponName = def.customParams.stats_detonate_weapon or def.deathExplosion:lower()
 			local wDef = WeaponDefNames[weaponName]
 			weapons = {
@@ -32,16 +32,18 @@ WG.weapRanges = (function()
 		local entryIndex = 0
 		local name = def.name
 		local scriptName = def.scriptName:match('/(.*)%....')
+		local hasWaterWeapon = false
 		for i, weap in ipairs(weapons) do
 			local wDef = WeaponDefs[weap.weaponDef]
+			hasWaterWeapon = hasWaterWeapon or wDef.waterWeapon
+			if not (wDef.description:lower():find('fake') or wDef.name:lower():find('fake'))  then
 
-			if not wDef.name:find('fakegun') then
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				if (tonumber(wDef.damageAreaOfEffect) or 0) > 0 
 					and (
-						wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode
+						wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode -- cornea or teleport
 						or wDef.name:find('_death$') or wDef.name:find('_emp$') -- bombs or commander egg
 					) then
 					weaponRange = tonumber(wDef.damageAreaOfEffect)
@@ -90,6 +92,9 @@ WG.weapRanges = (function()
 					t['aimFromUnit' .. entryIndex] = aimFromUnit -- can be a function to fill at query time
 				end
 			end
+		end
+		if t then
+			t.hasWaterWeapon = hasWaterWeapon
 		end
 		weapRanges[defID] = t
 	end

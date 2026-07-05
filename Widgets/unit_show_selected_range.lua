@@ -45,6 +45,7 @@ local EMPTY_TABLE = {}
 local dbg = false
 local force_update = false
 local helk_path = 'Hel-K/' .. widget:GetInfo().name
+local weapRanges
 
 local buildRangeColor = {0, 0.75, 0, 0.25}
 local buildRanges = {}
@@ -178,7 +179,6 @@ WG.commDefIDs = WG.commDefIDs or (function()
 end)()
 VFS.Include(LUAUI_DIRNAME ..'/Widgets/Include/weap_ranges.lua')
 
-local weapRanges = WG.weapRanges
 
 
 local function TranslateOffY(bx, by, bz, mx, my, mz, offY)
@@ -194,7 +194,7 @@ local function RangeColor(strengthIdx, color, ballistic)
 	if color then
 		glColor(max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0))
 	else
-		glColor(strength, ballistic and 0.7 or 0, 0, 0.35)
+		glColor(strength, --[[ballistic and 0.7 or]] 0, 0, 0.5)
 	end
 end
 local function GetRangeColor(strengthIdx, color, ballistic)
@@ -202,7 +202,7 @@ local function GetRangeColor(strengthIdx, color, ballistic)
 	if color then
 		return {max(color[1] * strength, 0), max(color[2] * strength, 0), max(color[3] - strength, 0), max(color[4] or 0.35, 0)}
 	else
-		return {strength, ballistic and 0.7 or 0, 0, 0.35}
+		return {strength, --[[ballistic and 0.7 or]] 0, 0, 0.5}
 	end
 end
 local function CircleVerts(verts)
@@ -238,7 +238,7 @@ do
 		lists[self] = key
 	end
 end
-local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff)
+local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff, debugMe)
 	local static = rangeInfo and rangeInfo.static
 	if static or not use_ballistic or render_choice ~= 'ballistic_shader' then
 		RangeColor(strengthIdx, color, use_ballistic)
@@ -261,14 +261,17 @@ local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx
 		glCallList(cached)
 		return
 	elseif use_ballistic then
-		if render_choice == 'ballistic_shader'  then
-			WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic), force_update)
-		elseif render_choice == 'engine' then
-			local wDef = rangeInfo['weaponDef' .. i]
-			glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
-		elseif render_choice ==	'ballistic' then
-			local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i])
-			gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+		local wDef = rangeInfo['weaponDef' .. i]
+		if not rangeInfo.hasWaterWeapon or wDef.waterWeapon == (y < 0) then
+			if render_choice == 'ballistic_shader'  then
+				-- Echo('debugMe:',noYoff, unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, rangeInfo['weaponDef' .. i], GetRangeColor(strengthIdx, color, use_ballistic))
+				WG.RenderRangeGL4(unitID, x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, wDef, GetRangeColor(strengthIdx, color, use_ballistic), force_update)
+			elseif render_choice == 'engine' then
+				glDrawGroundCircle(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]), z, range, 40, 0, wDef.myGravity, wDef.id)
+			elseif render_choice ==	'ballistic' then
+				local vertices = (WG.CalcBallisticCircle or CalcBallisticCircle)(x, y  + (noYoff and 0 or rangeInfo['offY' .. i]) , z, range, wDef)
+				gl.BeginEnd(GL.LINE_STRIP, CircleVerts, vertices)
+			end
 		end
 	else
 		glDrawGroundCircle(x, y, z, range, 40)
@@ -412,7 +415,7 @@ local function DrawUnitsRanges(defID, units, color, use_ballistic, buildDistance
 						ax, ay, az = TranslateOffY(bx, by, bz, mx, my, mz, rangeInfo['offY'..idx])
 						DrawRangeCircle(unitID, ax, ay, az, idx, range, rangeInfo, idx, color, use_ballistic, true)
 					else
-						DrawRangeCircle(unitID, bx, by, bz, idx, range, rangeInfo, idx, color, use_ballistic)
+						DrawRangeCircle(unitID, bx, by, bz, idx, range, rangeInfo, idx, color, use_ballistic, false)
 					end
 					if dbg then -- that's enough of a spam, let's show only the first weapon
 						break
@@ -490,6 +493,7 @@ function widget:Initialize()
 	widgetHandler:RemoveCallIn("DrawWorldPreUnit")
 	widgetHandler:RemoveCallIn("CommandsChanged")
 	WG.DrawUnitTypeRanges = DrawUnitTypeRanges
+	weapRanges = WG.weapRanges
 end
 
 function widget:Shutdown()
