@@ -240,10 +240,10 @@ do
 end
 local function DrawRangeCircle(unitID, x, y, z, i, range, rangeInfo, strengthIdx, color, use_ballistic, noYoff, debugMe)
 	local static = rangeInfo and rangeInfo.static
-	if static or not use_ballistic or render_choice ~= 'ballistic_shader' then
+	if --[[static or]] not use_ballistic or render_choice ~= 'ballistic_shader' then
 		RangeColor(strengthIdx, color, use_ballistic)
 	end
-	if false and not dbg and static then
+	if not use_ballistic and not dbg and static then
 		local cached = lists[unitID .. '-' .. i .. (use_ballistic and 'b' or '')]
 		if not cached then
 			cached = gl.CreateList(
