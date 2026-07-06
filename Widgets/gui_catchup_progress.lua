@@ -69,7 +69,7 @@ function widget:DrawScreen()
 end
 
 function widget:GetViewSizes(x, y)
-	vsx, vsy = x, y
+	vsx, vsy = Spring.Orig.GetViewSizes()
 	width = vsx
 end
 
