@@ -38,10 +38,10 @@ WG.weapRanges = (function()
 			local wDef = WeaponDefs[weap.weaponDef]
 			hasWaterWeapon = hasWaterWeapon or wDef.waterWeapon
 			hasOnlyWaterWeapon = hasWaterWeapon and wDef.waterWeapon
-			if not (wDef.description:lower():find('fake') or wDef.name:lower():find('fake'))  then
+			if def.name:find('antinuke') or not (wDef.description:lower():find('fake') or wDef.name:lower():find('fake'))  then
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
-				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
+				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or tonumber(wDef.customParams.nuke_coverage) or wDef.range
 				if (tonumber(wDef.damageAreaOfEffect) or 0) > 0 
 					and (
 						wDef.name:find('bogus') and wDef.customParams.attack_aoe_circle_mode -- cornea or teleport
