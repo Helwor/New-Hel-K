@@ -19,6 +19,7 @@ function widget:GetInfo()
 end
 -- SEE ud.customParams.pylonrange for grid range
 widget.requiring = widget.GetInfo().requiring
+
 local Echo = Spring.Echo
 
 
@@ -485,7 +486,8 @@ local timeBlockDuplicate -- work around to prevent user spamming mex to get canc
 --------------------------------------------------------------------------------
 -- local ghosts = WG.ghosts
 local Points={} -- debugging
-local PID
+
+
 local g = {
 	lava = (Game.waterDamage or 0) > 3 or gl.GetMapRendering('voidWater'),
 	noterra = not Game.mapDamage or string.find((Game.modName or ''):lower(), 'arena mod'),
@@ -516,7 +518,7 @@ local groundModule = {offsetPH = nil} -- !! offsetPH == nil means it is availabl
 -- registering the originalHeight, work-around for randomly generated map where Spring.GetGroundOrigHeight cannot be used
 local origHeightMap
 
-local placementHeight = 0
+
 local placementHeightMex = 0
 
 -- local origHeight = 0
@@ -1574,11 +1576,10 @@ do
 	local nround = f.nround
 	local shipFactoryDefID = UnitDefNames.factoryship.id
 
-	WG.CheckTerra = function(X,Z,pid,placed,_p,customElev)-- fixed canFloat and sub placement, also adding some comfort and readiness
+	WG.CheckTerra = function(X, Z, pid, placed, _p, customElev)-- fixed canFloat and sub placement, also adding some comfort and readiness
 		--pointX = floor((pointX + 8 - oddX)/16)*16 + oddX
 		--pointZ = floor((pointZ + 8 - oddZ)/16)*16 + oddZ
 		-- local debugOwnPlat = Debug.platform()
-
 		local PH = placementHeight
 		local customPid = pid
 		if customPid then
@@ -1693,7 +1694,6 @@ do
 
 		-- Echo("modHeight is ", modHeight,'placementHeight',placementHeight)
 		pointY = level
-		
 		-- Echo("PH,pointY is ",PH, pointY,snapOriGround)
 		if g.lava then
 			if pointY < OFF_WATER and PID ~= shipFactoryDefID then
@@ -1759,7 +1759,10 @@ do
 
 		if not mustTerraform and not blockingStruct then 
 			-- mustTerraform = not mol(pointY,groundModule.maxGround,7)
-			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 or g.lava and pointY == OFF_WATER or not mol(pointY, (p.floater) and max(height,0) or height, 7)
+			mustTerraform = specialAboveWaterDefID[p.PID] and level == 4 
+				or g.lava and pointY == OFF_WATER 
+				or not mol(pointY, (p.floater) and max(height,0) or height, 7)
+			-- Echo("mustTerraform is ", mustTerraform, height, pointY, (p.floater) and max(height,0) or height, 7)
 			-- if round(PH)~=0 then
 			--     mustTerraform = p.underSea and pointY>origHeight or digToWater or snapOriGround and not snapGround or not (snapSub or snapFloat or PH==0 or PH==OFF_WATER or snapGround or snapOriGround)
 			-- end
@@ -2013,11 +2016,11 @@ end
 
 
 
-local function ApplyHeight(lot,useBuildHeight, exceptPlatform) -- defining height and duplicating coords that will need terraformation
+local function ApplyHeight(lot, useBuildHeight, exceptPlatform) -- defining height and duplicating coords that will need terraformation
 	local i,n=1,0
 	local items = #lot
-	while i<=items do
-		local X,Z,facing = lot[i+n][1],lot[i+n][2],lot[i+n][4]
+	while i <= items do
+		local X, Z, facing = lot[i+n][1],lot[i+n][2],lot[i+n][4]
 		if facing then -- in case of surrounding, we get the facing from CommandNotify then we have to reupdate for our own facing afterward
 			if facing ~= p.facing then
 				p = IdentifyPlacement(PID,facing)
@@ -2057,12 +2060,11 @@ local function ApplyHeight(lot,useBuildHeight, exceptPlatform) -- defining heigh
 		elseif CheckTerra(X, Z, pid, nil, nil, customElev) then
 			-- replace the table with our y added
 			local newEntry = {X, pointY, Z, facing, pid = pid, mex = isMex, terra=true}
-
 			if not g.preGame then
 				table.insert(lot,i + n, newEntry)
 				n = n + 1
 			end
-			lot[i + n] = {X, pointY, Z, facing, pid = pid, mex = isMex}
+			lot[i + n] = {X, pointY, Z, facing, pid = pid, mex = isMex, wantTerra = true}
 			-- duplicate for sorting terra -- SHOULD JUST ADD .terra instead
 			if ghosts then
 				ghosts.ln = ghosts.ln + 1
@@ -3147,15 +3149,15 @@ function TreatLot(lot,PID, useBuildHeight, exceptPlatform)
 			local prevb
 			for i,b in ipairs(lot) do
 				if not prevb or (prevb[1]~=b[1] or prevb[3]~=b[3]) then -- ignore duplicate
-					IQ:CommandNotify(b.mex and -mexDefID or -PID,{b[1],b[2],b[3],b.facing,b.terra},{alt=alt,ctrl=ctrl,shift=shift,meta=meta})
+					IQ:CommandNotify(b.mex and -mexDefID or -PID, {b[1], b[2], b[3], b.facing, b.wantTerra},{alt=alt,ctrl=ctrl,shift=shift,meta=meta})
 				end
-				prevb=b
+				prevb = b
 			end
 		end
 	else
 		DistributeOrders(lot, PID, meta, shift or lot.shift)
 	end
-	for k in pairs(lot) do lot[k]=nil end
+	for k in pairs(lot) do lot[k] = nil end
 	reset(shift or alt and opt.alt_alone_insert and not (meta or shift or ctrl))
 	conTable.fromPBH = true
 
@@ -3416,7 +3418,7 @@ function widget:Update(dt)
 		PID = -activeCommand
 		-- Echo('set PID',PID,os.clock())
 		myPlatforms.oriPH = false
-		placementHeight= not g.noterra and buildHeight[PID] or 0
+		placementHeight = not g.noterra and buildHeight[PID] or 0
 		local engaged = widgets.drawing_placement and widgets.drawing_placement.dstatus == 'engaged'
 		if not engaged then
 			g.NEW_PID = true
@@ -4232,6 +4234,38 @@ function widget:GameFrame(f)
 	end
 end
 function widget:Initialize()
+	if debugMe then
+		widget.data = {PID = false, placementHeight = 0}
+
+		widget_mt = {}
+		widget_mt.__newindex = function(self, k, v)
+			if k == "PID" then 
+				Echo('PID set to '..tostring(v), f.GetCalledLine())
+				data.PID = v
+			elseif k == 'placementHeight' then
+				Echo('placementHeight set to '..tostring(v), f.GetCalledLine())
+				Echo('in', f.GetCalledLine(4))
+				data.placementHeight = v
+			else
+				rawset(self, k, v)
+			end
+		end
+		widget_mt.__index = function (self, k) 
+			if k == 'PID' then 
+				return data.PID
+			elseif k == 'placementHeight' then
+				return data.placementHeight
+			else
+				return rawget(self, k)
+			end
+		end
+	else
+		placementHeight = 0
+		PID = false
+	end
+
+		
+	setmetatable(widget, widget_mt)
 	-- spSetActiveCommand = function(...)
 	-- 	Echo(...)
 	-- 	Echo(f.GetCalledLine())

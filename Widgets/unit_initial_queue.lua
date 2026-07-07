@@ -937,23 +937,22 @@ local function InitialQueueHandleCommand(cmdID, cmdParams, cmdOptions)
 	end
 	
 	local bx, by, bz = cmdParams[1],cmdParams[2],cmdParams[3]
-	local buildFacing = selDefID and spGetBuildFacing() or 0
+	local buildFacing = selDefID and (cmdParams[4] or spGetBuildFacing() or 0)
 	local msg
 	--local unbuildableTerrain=Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) == 0
-	local needTerra = false
-	if selDefID then
+	local needTerra = cmdParams[5]
+	if selDefID and not needTerra then
 		PBH2 = widgetHandler:FindWidget("Persistent Build Height 2")
 		CheckTerra = PBH2 and WG.CheckTerra
-		if CheckTerra then 
-			needTerra, by = CheckTerra(bx,bz) -- modifying height determined by PBH2. Helwor
-		elseif Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) == 0 then
-			return false
-		end
 
 		if isMex[selDefID] and WG.metalSpots then
 			local bestSpot = GetClosestMetalSpot(bx, bz)
 			bx, bz = bestSpot.x, bestSpot.z
 			by = CheckTerra and (select(2,CheckTerra(bx,bz,selDefID))) or math.max(0, spGetGroundHeight(bx, bz)) -- modifying height determined by PBH2. Helwor
+		elseif CheckTerra then 
+			needTerra, by = CheckTerra(bx,bz) -- modifying height determined by PBH2. Helwor
+		elseif Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) == 0 then
+			return false
 		end
 	end
 	bx, by, bz = math.round(bx), math.round(by), math.round(bz)
