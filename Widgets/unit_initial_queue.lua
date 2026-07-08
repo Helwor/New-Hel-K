@@ -937,7 +937,7 @@ local function InitialQueueHandleCommand(cmdID, cmdParams, cmdOptions)
 	end
 	
 	local bx, by, bz = cmdParams[1],cmdParams[2],cmdParams[3]
-	local buildFacing = selDefID and (cmdParams[4] or spGetBuildFacing() or 0)
+	local buildFacing = selDefID and (cmdParams[4] or spGetBuildFacing()) or 0
 	local msg
 	--local unbuildableTerrain=Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) == 0
 	local needTerra = cmdParams[5]
