@@ -795,7 +795,14 @@ local function GetPlacements() -- for now, only placements from current cons are
 	return T
 end
 local function FindPlacementAround(px,pz,placed,pid,_p,lookingForFlat,customElev,dontRegister)
+	local noP = not p
 	local p = _p or pid and IdentifyPlacement(pid) or p
+	if not p then
+		Echo('NO P FOR ', pid, noP)
+		Echo(f.GetCalledLine())
+		Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+		return
+	end
 	local customPID = pid
 	pid = pid or PID
 	local movedPlacement = movedPlacement
