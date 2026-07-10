@@ -940,7 +940,7 @@ local function InitialQueueHandleCommand(cmdID, cmdParams, cmdOptions)
 	local buildFacing = selDefID and (cmdParams[4] or spGetBuildFacing()) or 0
 	local msg
 	--local unbuildableTerrain=Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) == 0
-	local needTerra = cmdParams[5]
+	local needTerra = cmdParams[5] == 1
 	if selDefID and not needTerra then
 		PBH2 = widgetHandler:FindWidget("Persistent Build Height 2")
 		CheckTerra = PBH2 and WG.CheckTerra

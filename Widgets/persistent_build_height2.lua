@@ -3156,7 +3156,7 @@ function TreatLot(lot,PID, useBuildHeight, exceptPlatform)
 			local prevb
 			for i,b in ipairs(lot) do
 				if not prevb or (prevb[1]~=b[1] or prevb[3]~=b[3]) then -- ignore duplicate
-					IQ:CommandNotify(b.mex and -mexDefID or -PID, {b[1], b[2], b[3], b.facing, b.wantTerra},{alt=alt,ctrl=ctrl,shift=shift,meta=meta})
+					IQ:CommandNotify(b.mex and -mexDefID or -PID, {b[1], b[2], b[3], b.facing, b.wantTerra and 1 or 0},{alt=alt,ctrl=ctrl,shift=shift,meta=meta})
 				end
 				prevb = b
 			end
