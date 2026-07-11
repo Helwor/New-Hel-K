@@ -1210,6 +1210,11 @@ local function detectHighlight(msg)
 	end
 end
 
+local function SanitizeNick(name)
+	return name:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+end
+
+
 local function formatMessage(msg)
 	local format = getOutputFormat(msg.msgtype) or getOutputFormat("other")
 
@@ -1228,9 +1233,11 @@ local function formatMessage(msg)
 		-- we get all the usernames by iterating it and just ignoring the #[aehos] control codes
 		for name, colour in pairs(incolors) do
 			if name:sub(1,1) ~= '#' then
-				local pattern = '([^%w_])(' .. name .. ')([^%w_])'
+				local sanitized = SanitizeNick(name)
+				local pattern = '([^%w_])(' .. sanitized .. ')([^%w_])'
 				local sub = '%1'..colour..'%2'..message_colour..'%3'
 				formatted_arg, _ = formatted_arg:gsub(pattern, sub)
+
 			end
 		end
 		msg.argument = formatted_arg:sub(2, -2)  -- strip added spaces
@@ -2002,7 +2009,10 @@ function widget:AddConsoleMessage(msg, skip)
 	local lastMessage = messages[count]
 	if lastMessage
 		and lastMessage.text == msg.text
-		and (isPoint and options.dedupe_points.value or options.dedupe_messages.value)
+		and (
+			isPoint and options.dedupe_points.value and msg.playername == lastMessage.playername
+			or not isPoint and options.dedupe_messages.value
+		)
 		then
 		
 		if isPoint then
