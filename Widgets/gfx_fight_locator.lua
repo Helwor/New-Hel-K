@@ -102,17 +102,10 @@ function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer)
 	local x, y, z = Spring.GetUnitPosition(unitID)
 	local cellX, cellZ  = math.floor(x/CELL), math.floor(z/CELL)
 	local event
-	for offx = -2, 2 do
-		for offz = -2, 2 do
-			if offx ~= 0 or offz ~= 0 then 
-				local ev = events[(cellX+offx)..'-'..(cellZ+offz)]
-				if ev then
-					if math.diag(x - ev.x/ev.weight, z - ev.z/ev.weight) < CELL then
-						event = ev
-						break
-					end
-				end
-			end
+	for cell_coords, ev in pairs(events) do
+		if math.diag(x - ev.x/ev.weight, z - ev.z/ev.weight) < CELL then
+			event = ev
+			break
 		end
 	end
 	local isNew = false
