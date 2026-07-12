@@ -23,7 +23,7 @@ WG.emotes = {
 	cry = '😭',
 	impassible = '😔', 
 	disturbed = '😕',
-	wicked = '😼',
+	smirk = '😼',
 	thinking = '💭',		-- U+1F4AD - Thinking
 	
 	-- Hearts
