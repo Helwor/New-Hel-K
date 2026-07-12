@@ -2,9 +2,9 @@ WG.emotes = {
 
 	---- single chars
 	-- Music notes
-	note1 = '♩',			-- U+2669 - Quarter note
+	note = '♩',			-- U+2669 - Quarter note
 	note2 = '♪',		-- U+266A - Eighth note
-	notes = '♫',		-- U+266B - Beamed eighth notes
+	note = '♫',		-- U+266B - Beamed eighth notes
 	notes2 = '♬',		-- U+266C - Beamed sixteenth notes
 	
 	-- Faces and emotions
@@ -23,6 +23,7 @@ WG.emotes = {
 	cry = '😭',
 	impassible = '😔', 
 	disturbed = '😕',
+	wicked = '😼',
 	thinking = '💭',		-- U+1F4AD - Thinking
 	
 	-- Hearts
