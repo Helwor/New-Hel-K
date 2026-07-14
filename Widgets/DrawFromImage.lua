@@ -1569,13 +1569,13 @@ function MarkerMaker:SimplifyContours(contours)
 	-- Echo('*--------------------------------------------------')
 	-- Echo('--------------------------------------------------')
 	-- Echo('STEP', step)
+	
 	for c, contour in ipairs(contours) do
 		local len = #contour
-		local DBG = false and c == 1
 		if DBG then
 			Echo('**** CONTOUR '.. c ..'#'..len..' ****')
 		end
-		if len > 2 then
+		if len > 0 then
 			-- local sensitivity = 1.04
 			local i = 1
 			local start = contour[1]
@@ -1652,35 +1652,37 @@ function MarkerMaker:SimplifyContours(contours)
 				end
 			end
 		end
-		local c = 1
-		local contour = contours[c]
-		local tremove = table.remove
-		while contour do
-			local travel = 0
-			local point = contour[1] 
-			local x, z = point[1], point[2]
-			local toRemove = true
-			for i = 2, #contour do
-				local nex_point = contour[i]
-				local nx, nz = nex_point[1], nex_point[2]
-				travel = travel + diag(nx - x, nz - z)
-				if travel > suppress_length then
-					toRemove = false
-					break
-				end
-				x, z = nx, nz
-			end
-			if toRemove then
-				tremove(contours, c)
-			else
-				c = c + 1
-			end
-			contour = contours[c]
-		end
 		-- Echo("COUNT is ", COUNT, 'segments', #contour)
 		-- Echo('contour', c, 'segments', #contour)
 		-- Echo("step is ", step)
 	end
+
+	local c = 1
+	local contour = contours[c]
+	local tremove = table.remove
+	while contour do
+		local travel = 0
+		local point = contour[1] 
+		local x, z = point[1], point[2]
+		local toRemove = true
+		for i = 2, #contour do
+			local nex_point = contour[i]
+			local nx, nz = nex_point[1], nex_point[2]
+			travel = travel + diag(nx - x, nz - z)
+			if travel > suppress_length then
+				toRemove = false
+				break
+			end
+			x, z = nx, nz
+		end
+		if toRemove then
+			tremove(contours, c)
+		else
+			c = c + 1
+		end
+		contour = contours[c]
+	end
+
 	-- Echo('simplified')
 	-- for i, contour in ipairs(contours) do
 	-- 	Echo('contour',i,'#'..#contour)
