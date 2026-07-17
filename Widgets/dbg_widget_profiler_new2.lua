@@ -985,7 +985,9 @@ end
 local buttonSize = 30
 local margin = 5
 function widget:Initialize()
-
+	if widgetHandler:FindWidget("Widget Profiler New") then
+		widgetHandler:DisableWidget("Widget Profiler New")
+	end
 	if WG.GlobalCommandBar then
 		if WG.Chili then
 			local function Toggle(...)
