@@ -4153,30 +4153,59 @@ do
 	end
 	local spGetTeamUnitsByDefs = Spring.GetTeamUnitsByDefs
 	local currentRetreat, timeSet = false, 0
+	local currentRetreatPlane, timeSetPlane = false, 0
 	local possibles = {}
-	SetRetreat = function(id)
+	local indexedAirpadDefID = {
+		UnitDefNames['staticrearm'].id,
+		UnitDefNames['factoryplane'].id,
+	}
+	SetRetreat = function(id, unit)
+		local isPlane = unit.isPlane
 		local time = osclock()
-		if time-timeSet < 0.1 then
+		if isPlane and time-timeSetPlane < 0.1 then
+			return currentRetreatPlane
+		elseif not isPlane and time-timeSet < 0.1 then
 			return currentRetreat
 		end
 		local x, _, z = spGetUnitPosition(id)
-		timeSet = time
-		currentRetreat = false
-		possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+		local wantPad = false
+		if isPlane then
+			timeSetPlane = time
+			currentRetreatPlane = false
+			wantPad = true
+			possibles = spGetTeamUnitsByDefs(myTeamID, indexedAirpadDefID)
+			if possibles[1] then
+				wantPad = true
+			else
+				possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+			end
+		else
+			timeSet = time
+			currentRetreat = false
+			possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+		end
+
 		if not possibles[1] then
 			possibles = spGetTeamUnitsByDefs(myTeamID, indexedCommanderDefID)
 		end
 		if possibles[1] then
 			table.sort(possibles, SortClosest(x, z))
-			currentRetreat = {spGetUnitPosition(possibles[1])}
+			if isPlane then
+				currentRetreatPlane = {spGetUnitPosition(possibles[1])}
+				if wantPad then
+					currentRetreatPlane[4] = possibles[1]
+				end
+				return currentRetreatPlane
+			else
+				currentRetreat = {spGetUnitPosition(possibles[1])}
+				return currentRetreat
+			end
 		end
-		
-		return currentRetreat
 	end
 end
 
 local function KFormat(n, max)
-	return n<max and round(n) or round(n/1000)..'K'
+	return n < max and round(n) or round(n/1000)..'K'
 end
 -- Click status handling to complete detection of MousePress and MouseRelease -- used by Update
 local function CheckClick()--detect missed clicks and release from Update round, also care about long click
@@ -4384,47 +4413,59 @@ local function MergeSelToPrev(prev, sel) -- this is not used and might be broken
 		Echo('prev: merged ' .. count .. ' units to prev' .. (already and ' there was already ' .. already .. ' unit(s) from that selection in prev.' or ''))
 	end
 end
-
-local function TreatOrders(id, cmd, params)
-	if params == 'return' then
-		local unit = Units[id]
-		if not unit then
-			return
-		end
-		local posx, _, posz = spGetUnitPosition(id)
-		local return_pos = SetRetreat(id) or unit.createpos
-		if not return_pos then
-			return
-		end
-		-- get direction from return_pos to current unit position
-		local dirx, dirz = posx-return_pos[1], posz-return_pos[3]
-		local biggest = max(abs(dirx), abs(dirz))
-		local dist = (dirx^2+dirz^2)^0.5
-		dirx, dirz = dirx/biggest, dirz/biggest
-		local send_posx, send_posz = return_pos[1]+dirx*56, return_pos[3]+dirz*56
-		local send_posy = Spring.GetGroundHeight(send_posx, send_posz)
-		-- spGiveOrderToUnit(id, CMD.MOVE, {send_posx, send_posy, send_posz}, 0)
-		spGiveOrderToUnit(id, CMD_RAW_MOVE, {send_posx, send_posy, send_posz}, 0)
-		local en = Spring.GetUnitNearestEnemy(id, 500)
-		if en then
-			-- insert avoidance
-			local ex, ey, ez = spGetUnitPosition(en)
-			if ex then
-				local dirx, dirz = ex - posx, ez - posz
-				local dist = (dirx^2+dirz^2)^0.5
-				dirx, dirz = dirx/dist, dirz/dist
-				local x, z = posx - dirx * 150, posz - dirz * 150
-				local y = Spring.GetGroundHeight(x, z)
-				spGiveOrderToUnit(id, CMD.INSERT, {0, CMD_RAW_MOVE, 0, x, y, z}, CMD.OPT_ALT )
+local TreatOrders
+do
+	local CMD_REARM = Spring.Utilities.CMD.REARM
+	local CMD_REMOVE = CMD.REMOVE
+	local CMD_OPT_INTERNAL = CMD.OPT_INTERNAL
+	function TreatOrders(id, cmd, params)
+		if params == 'return' then
+			local unit = Units[id]
+			if not unit then
+				return
 			end
+			local posx, _, posz = spGetUnitPosition(id)
+			local return_pos = SetRetreat(id, unit) or unit.createpos
+			if not return_pos then
+				return
+			end
+			-- get direction from return_pos to current unit position
+
+			local dirx, dirz = posx-return_pos[1], posz-return_pos[3]
+			local biggest = max(abs(dirx), abs(dirz))
+			local dist = (dirx^2+dirz^2)^0.5
+			dirx, dirz = dirx/biggest, dirz/biggest
+			local padID = return_pos[4]
+			if padID then
+				spGiveOrderToUnit(id, CMD_REMOVE, CMD_REARM, CMD_OPT_ALT)  -- remove all REARM
+				spGiveOrderToUnit(id, CMD_REARM, padID, CMD_OPT_INTERNAL)
+			else
+				local send_posx, send_posz = return_pos[1]+dirx*56, return_pos[3]+dirz*56
+				local send_posy = Spring.GetGroundHeight(send_posx, send_posz)
+				-- spGiveOrderToUnit(id, CMD.MOVE, {send_posx, send_posy, send_posz}, 0)
+				spGiveOrderToUnit(id, CMD_RAW_MOVE, {send_posx, send_posy, send_posz}, 0)
+			end
+
+			local en = Spring.GetUnitNearestEnemy(id, 500)
+			if en then
+				-- insert avoidance
+				local ex, ey, ez = spGetUnitPosition(en)
+				if ex then
+					local dirx, dirz = ex - posx, ez - posz
+					local dist = (dirx^2+dirz^2)^0.5
+					dirx, dirz = dirx/dist, dirz/dist
+					local x, z = posx - dirx * 150, posz - dirz * 150
+					local y = Spring.GetGroundHeight(x, z)
+					spGiveOrderToUnit(id, CMD.INSERT, {0, CMD_RAW_MOVE, 0, x, y, z}, CMD.OPT_ALT )
+				end
+			end
+			unit.returning = dist
+			--spGiveOrderToUnit(id, CMD.MOVE, unpack(Units[id].pos))
+		else
+			spGiveOrderToUnit(id, cmd, unpack(params))
 		end
-		unit.returning = dist
-		--spGiveOrderToUnit(id, CMD.MOVE, unpack(Units[id].pos))
-	else
-		spGiveOrderToUnit(id, cmd, unpack(params))
 	end
 end
-
 local 	function UpdateChain(time)
 	if not call then
 		Echo('EzSelector ' .. ' ERROR, no Call to chain')
