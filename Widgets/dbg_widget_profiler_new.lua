@@ -97,7 +97,7 @@ options = {
 		desc = 'Minimal time spent that trigger a warning in second.',
 		type = 'number',
 		value = watchdog_threshold,
-		min = 0.01, max = 0.3, step = 0.01,
+		min = 0.001, max = 0.2, step = 0.001,
 		update_on_the_fly = true,
 		OnChange = function(self)
 			watchdog_threshold = self.value
@@ -109,7 +109,7 @@ options = {
 		desc = 'Minimal time spent that trigger a warning for Chili Framework.',
 		type = 'number',
 		value = watchdog_threshold_framework,
-		min = 0.01, max = 0.5, step = 0.01,
+		min = 0.001, max = 0.5, step = 0.001,
 		update_on_the_fly = true,
 		OnChange = function(self)
 			watchdog_threshold_framework = self.value
@@ -824,7 +824,7 @@ local function UpdateStats()
 					if not obj then
 						WATCHDOG_IDX = WATCHDOG_IDX + 1
 						WATCHDOG[wname] = {
-							txt = item.fullname .. '- time: ' .. item.tTime,
+							txt = item.fullname .. '- time: ' .. ('%.3f'):format(item.tTime),
 							time = now,
 							index = WATCHDOG_IDX,
 						}
@@ -903,7 +903,11 @@ function Init()
 	for name, wData in pairs(widgetHandler.knownWidgets) do
 		userWidgets[prefixedWnames[name] or ConstructPrefixedName(wData,name)] = (not wData.fromZip)
 	end
-	vsx, vsy = Spring.GetViewGeometry()
+	vsx, vsy = Spring.Orig.GetViewGeometry()
+end
+
+function widget:GetViewSizes()
+	vsx, vsy = Spring.Orig.GetViewGeometry()
 end
 
 function widget:Update()
