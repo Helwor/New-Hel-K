@@ -3,7 +3,7 @@
 
 function widget:GetInfo()
 	return {
-		name      = "Widget Profiler New",
+		name      = "Widget Profiler New 2",
 		desc      = "",
 		author    = "jK, Bluestone, rewrite, improved, and optimized Helwor",
 		version   = "2.0",
@@ -11,7 +11,7 @@ function widget:GetInfo()
 		license   = "GNU GPL, v2 or later",
 		layer     = math.huge,
 		handler   = true,
-		enabled   = false  --  loaded by default?
+		enabled   = true
 	}
 end
 -- April 2025
