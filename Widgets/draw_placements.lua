@@ -4653,9 +4653,13 @@ tick[1],a,b,c,d,e = allow(tick[1],1,Continue, DefineBlocks, "Define")
 else End("Define")
 end
 --]]
-
 	------------------------------
-	if not Drawing then return end
+	if not Drawing then 
+		if drawEnabled then
+			p:UpdateSpacing()
+		end
+		return
+	end
 	------------------------------
 	if dstatus == 'paint_farm' then return end
 	----------------------
