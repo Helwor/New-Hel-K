@@ -873,7 +873,7 @@ local function ClustersToConvexHull()
 			local c = sqrt((x3 - x1)^2 + (z3 - z1)^2)
 			local p = (a + b + c)/2 --half perimeter
 
-			local triangleArea = , sqrt(max(0p * (p - a) * (p - b) * (p - c)))
+			local triangleArea = sqrt(max(0, p * (p - a) * (p - b) * (p - c)))
 			totalArea = totalArea + triangleArea
 			x2, z2 = x3, z3
 			a = c
