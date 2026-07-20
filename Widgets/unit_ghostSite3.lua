@@ -1037,7 +1037,6 @@ end
 
 
 function widget:PlayerChanged(playerID)
-	Echo('playerChanged', math.round(os.clock()))
 	if playerID == myPlayerID then
 		local wasSpec, wasFullRead = isSpec, isFullRead
 		isSpec, isFullRead = Spring.GetSpectatingState()
