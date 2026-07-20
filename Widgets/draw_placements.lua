@@ -5778,6 +5778,7 @@ do
 	end
 	local vsx, vsy
 	function widget:ViewResize(x,y)
+		x, y = Spring.Orig.GetViewSizes()
 		vsx, vsy = x, y
 		g.vsx, g.vsy = x, y
 	end
