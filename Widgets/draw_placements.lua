@@ -4923,7 +4923,7 @@ function widget:MousePress(mx, my, button)
 						Points={}
 					end
 				end
-			elseif dstatus == 'ready' or dstatus == 'engaged' and opt.enableEraser then
+			elseif (dstatus == 'ready' or dstatus == 'engaged') and opt.enableEraser then
 				dstatus = 'erasing'
 				sp.SetActiveCommand(0)
 				WG.force_show_queue_grid = true
