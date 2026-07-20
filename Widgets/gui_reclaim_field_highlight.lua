@@ -759,6 +759,7 @@ local function ClustersToConvexHull()
 	if benchmark then
 		benchmark:Enter("ClustersToConvexHull")
 	end
+	local max = math.max
 	featureConvexHulls = {}
 	--Spring.Echo("#featureClusters", #featureClusters)
 	for fc = 1, #featureClusters do
@@ -834,7 +835,7 @@ local function ClustersToConvexHull()
 
 			local height = clusterPoints[1].y
 			if clusterPoints[2] then
-				height = math.max(height, clusterPoints[2].y)
+				height = max(height, clusterPoints[2].y)
 			end
 
 			convexHull = {
@@ -851,7 +852,7 @@ local function ClustersToConvexHull()
 			local convexHullPoint = convexHull[i]
 			cx = cx + convexHullPoint.x
 			cz = cz + convexHullPoint.z
-			cy = math.max(cy, convexHullPoint.y)
+			cy = max(cy, convexHullPoint.y)
 		end
 
 		if benchmark then
@@ -872,7 +873,7 @@ local function ClustersToConvexHull()
 			local c = sqrt((x3 - x1)^2 + (z3 - z1)^2)
 			local p = (a + b + c)/2 --half perimeter
 
-			local triangleArea = sqrt(p * (p - a) * (p - b) * (p - c))
+			local triangleArea = , sqrt(max(0p * (p - a) * (p - b) * (p - c)))
 			totalArea = totalArea + triangleArea
 			x2, z2 = x3, z3
 			a = c
@@ -1054,7 +1055,9 @@ local function DrawFeatureClusterTextBUFFERED() -- SADLY CANT WORK ENGINE APPLY 
 		local fontSize = fontSizeMin * fontScaling
 		local area = hull.area
 		fontSize = sqrt(area) * fontSize / minDim
-		if fontSize < fontSizeMin then
+		if fontSize ~= fontSize then -- prevent NaN
+			fontSize = fontSizeMin
+		elseif fontSize < fontSizeMin then
 			fontSize = fontSizeMin
 		elseif fontSize > fontSizeMax then
 			fontSize = fontSizeMax
@@ -1092,6 +1095,16 @@ local function DrawFeatureClusterTextBUFFERED() -- SADLY CANT WORK ENGINE APPLY 
 end
 local function CreateTextTexture(text, fontSize, hull, r, g, b)
 	local mulX, mulY = font:GetTextWidth(text), font:GetTextHeight(text)
+	if mulX == 0 or mulY == 0 then
+		Echo('Reclaim Field Highlight Avoid div by 0, Wrong texSize?',text, mulX, mulY, fontSize)
+		Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+		if mulX == 0 then 
+			mulX = 1
+		end
+		if mulY == 0 then 
+			mulY = 1
+		end
+	end
 	local size = fontSize^2 / BASE_FONT_SIZE
 	local texSizeX, texSizeY = mulX * size + 1, mulY * size + 1
 	local texSize = texSizeX * texSizeY
