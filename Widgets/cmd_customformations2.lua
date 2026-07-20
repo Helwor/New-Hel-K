@@ -902,6 +902,9 @@ local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRM
 	if alt and not usingRMB and usingCmd == CMD_ATTACK then
 		return pos
 	end
+	if alt and (usingCMD == CMD_MANUALFIRE or usingCmd == CMD_AIR_MANUALFIRE) then
+		return pos
+	end
 	local id
 	if hasBomber and alt and usingCmd == CMD_ATTACK then
 		return pos
@@ -944,7 +947,6 @@ local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShi
 	-- 	and targType=='ground' then
 	-- 	Echo("shift,ctrl is ", shift,ctrl)
 	-- end
-
 	if (usingCmd == CMD_ATTACK) and not (ctrl or usingRMB) then
 		--
 		if opt.shiftAttackTrailShootToward and shift and not singleNode
@@ -1256,10 +1258,11 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	if not pos then return false end
 
 	-- Add the new formation node
-	if not AddFNode(pos) then return false end
+	if not fNodes[2] and screenTravel <= 4 or not AddFNode(pos) then return false end
 
 	-- Have we started drawing a line?
 	local alt, ctrl, meta, shift = GetModKeys()
+
 	if fNodes[2] and not fNodes[3] then
 		-- We have enough nodes to start drawing now
 		widgetHandler:UpdateWidgetCallIn("DrawInMiniMap", self)
@@ -1377,7 +1380,6 @@ function widget:MouseRelease(mx, my, mButton)
 		StopCommandAndRelinquishMouse()
 		return false
 	end
-
 	-- It is possible for MouseRelease to fire after MouseRelease
 	if not fNodes[1] then
 		return false
