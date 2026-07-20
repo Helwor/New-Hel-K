@@ -61,6 +61,7 @@ local numChiliErrors = 0
 local lastError = 0
 
 local function ChiliErrorHandler(msg, ...)
+	msg = msg or 'nil'
 	local control
 	local _i = 2 --// 1 is this function, so skip it
 	repeat
