@@ -69,6 +69,7 @@ local ENEMY_COLOR = {1, 0, 0, 1}
 local PING_TIMEOUT = 2 -- seconds
 
 local MAX_NAME_LENGTH = 100
+local SHOW_TEAMID = false
 
 local UPDATE_PERIOD = 1
 local DEFAULT_TEXT_HEIGHT = 13
@@ -83,6 +84,12 @@ local CONTINUE_TIME = 10 -- how long last the continued sharing
 local CONTINUE_FREQUENCY = 1 
 local HIDDEN_STORAGE = 10000
 local UPDATE_TOOLTIP = false -- update metal or energy tooltip
+local LAGOUT_FLASH_THRESHOLD = 4 -- ping threshold in seconds where player start to flash
+local BLINK_PERIOD = 1.25 -- total time on/off blink for flashing player
+local BLINK_END = BLINK_PERIOD * 4.5 -- timeout where it stop blinking and stay permanent redish
+local laggingOut = {} -- holder of player's mainControl to colorize
+local time = 0 -- real time spent
+
 local res_tooltip_mod_info = table.concat({
 	"Give " .. defaultamount,
 	"Shift: Give " .. 5 * defaultamount,
@@ -393,6 +400,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if info.name and entryData.name ~= info.name then
 				entryData.name = info.name
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
+
 			end
 			country = country~='' and country or info.country~='' and info.country
 			if country then
@@ -437,6 +445,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if controls then
 				controls.imPing.color = pingCpuColors[entryData.pingBucket]
 				controls.imPing:Invalidate()
+
 			end
 		end
 		
@@ -449,9 +458,24 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			end
 		end
 		
-		if controls then
+		if controls and not (entryData.isDead or entryData.isSpec) then
 			controls.imCpu.tooltip = CpuUsageOut(cpuUsage)
 			controls.imPing.tooltip = PingTimeOut(pingTime)
+			local laggedOut = laggingOut[controls.mainControl]
+			if laggedOut then
+				if pingTime <= LAGOUT_FLASH_THRESHOLD then
+					local bg = controls.mainControl.backgroundColor
+					if bg[1] == 1 then
+						bg[1], bg[4] = 0, 0
+						controls.mainControl:Invalidate()
+					end
+					laggingOut[controls.mainControl] = nil
+				end
+			else
+				if pingTime > LAGOUT_FLASH_THRESHOLD then
+					laggingOut[controls.mainControl] = time + BLINK_END
+				end
+			end
 		end
 
 		newIsLagging = ((pingTime > PING_TIMEOUT) and true) or false
@@ -459,6 +483,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			entryData.isLagging = newIsLagging
 			if controls and not entryData.isDead then
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
+				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 			end
 		end
 		
@@ -480,22 +505,24 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if entryData.isSpec then
 				if controls then
 					-- dark grey when specs are not connected
-					controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
+					controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, true, newIsWaiting)
 					-- controls.textAllyTeam.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
-					controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
+
 					controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-					-- controls.textAllyTeam:SetCaption('0')
-					controls.textTeamID:SetCaption('0')
 
-
-					-- controls.textAllyTeam:Invalidate()
-					controls.textTeamID:Invalidate()
+					controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
 					controls.textName:Invalidate()
+					-- controls.textAllyTeam:SetCaption('0')
+					-- controls.textAllyTeam:Invalidate()
+					if controls.textTeamID then
+						controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
+						controls.textTeamID:SetCaption('0')
+						controls.textTeamID:Invalidate()
+					end
 				end
 			end
 			-- Echo(entryData.name,'is now',newIsWaiting and 'waiting' or 'not waiting','connecting?',newIsConnecting )
 		end
-		
 		newIsAfk = (spGetPlayerRulesParam(entryData.playerID, "lagmonitor_lagging") and true) or false
 		if forceUpdateControls or newIsAfk ~= entryData.isAfk then
 			entryData.isAfk = newIsAfk
@@ -504,7 +531,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
 			end
 		end
-		
+
 		if pingCpuOnly then
 			return false
 		end
@@ -521,9 +548,12 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isDead)
  			controls.textName:Invalidate()
  			if not isSpectator then
-				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
-				controls.textTeamID:SetCaption(entryData.teamID)
-				controls.textTeamID:Invalidate()
+ 				if controls.textTeamID then
+					controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
+					controls.textTeamID:SetCaption(entryData.teamID)
+					controls.textTeamID:Invalidate()
+				end
+				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 				updateColors = true
 			end
 		end
@@ -536,7 +566,10 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 		end
 		if controls then
 			-- controls.textAllyTeam:SetCaption(entryData.allyTeamID + 1)
-			controls.textTeamID:SetCaption(entryData.teamID)
+			if controls.textTeamID then
+				controls.textTeamID:SetCaption(entryData.teamID)
+			end
+			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 		end
 	end
 	
@@ -548,8 +581,11 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 		if controls then
 			-- controls.textAllyTeam.font.color = entryData.allyTeamColor
 			-- controls.textAllyTeam:Invalidate()
-			controls.textTeamID.font.color = entryData.allyTeamColor -- not used anymore to set the header team colors
-			controls.textTeamID:Invalidate()
+			if controls.textTeamID then
+				controls.textTeamID.font.color = entryData.allyTeamColor -- not used anymore to set the header team colors
+				controls.textTeamID:Invalidate()
+			end
+			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 			local shareVisible = myAllyTeamID and entryData.isMyAlly and not entryData.isDead and (entryData.teamID ~= myTeamID) and true or false
 			controls.btnShare:SetVisibility(shareVisible)
 			controls.btnMetal:SetVisibility(shareVisible)
@@ -564,6 +600,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if controls then
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
 				controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isDead)
+				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 				controls.textName:Invalidate()
 			end
 		end
@@ -572,12 +609,14 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 		entryData.isSpec = isSpectator
 		resortRequired = true
 		if controls then
-
-			controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
-			controls.textTeamID:SetCaption(entryData.teamID)
-			controls.textTeamID:Invalidate()
+			if controls.textTeamID then
+				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
+				controls.textTeamID:SetCaption(entryData.teamID)
+				controls.textTeamID:Invalidate()
+			end
 			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, false)
 			controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
+			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
 			controls.textName:Invalidate()
 		end
 
@@ -588,14 +627,16 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if controls then
 				controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
 				-- controls.textAllyTeam.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
-				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
+				if controls.textTeamID then
+					controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
+					controls.textTeamID:SetCaption('0')
+					controls.textTeamID:Invalidate()
+				end
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-				-- controls.textAllyTeam:SetCaption('0')
-				controls.textTeamID:SetCaption('0')
-
+				controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
 				controls.textName:Invalidate()
+				-- controls.textAllyTeam:SetCaption('0')
 				-- controls.textAllyTeam:Invalidate()
-				controls.textTeamID:Invalidate()
 			end
 		end
 
@@ -671,18 +712,17 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 	userControls.entryData = GetEntryData(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec)
 	local entryData = userControls.entryData
 
-	userControls.mainControl = Chili.Control:New {
-		-- name = playerID,
+	userControls.mainControl = Chili.Panel:New {
+		TileImageBK = ":cl:empty.png", -- set no background texture so we can colorize it
+		backgroundColor = {0,0,0,0},
 		x = 0,
 		top = 0,
 		bottom = 0,
 		right = 0,
 		height = height,
 		padding = {0, 0, 0, 0},
-		-- itemPadding = {0, -5, 0, 0},
-		-- borderColor = {1,0,0,1},
-		-- backgroundColor = {0,0,1,1},
-		parent = parent
+		parent = parent,
+		keepAspect = false,
 	}
 
 	offset = offset + 1
@@ -697,7 +737,10 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 			parent = userControls.mainControl,
 			keepAspect = true,
 			file = entryData.country,
+			tooltip = entryData.country and entryData.country:match('.+/([^%.]+)') or nil,
+			HitTest = entryData.country and function(self) return self end or nil,
 		}
+		imCountry = userControls.imCountry
 	-- end
 	offset = offset + text_height + 3
 
@@ -729,6 +772,8 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 			parent = userControls.mainControl,
 			keepAspect = true,
 			file = entryData.clan or '',
+			tooltip = entryData.clan and entryData.clan:match('.+/([^%.]+)') or nil,
+			HitTest = entryData.clan and function(self) return self end or nil,
 		}
 	-- end
 	offset = offset + text_height + 3
@@ -739,61 +784,73 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		name = "elo",
 		x = offset,
 		y = offsetY + 1,
-		right = 0,
+		width = text_height * 1.5,
 		bottom = 3,
 		parent = userControls.mainControl,
 		caption = entryData.elo and ('%.1f'):format(entryData.elo/1000) or '',
 		fontsize = text_height,
 		fontShadow = true,
 		autosize = false,
+		tooltip = entryData.elo,
+		HitTest = entryData.elo and function(self) return self end or nil,
 	}
 	-- end
-	offset = offset + text_height + 3
+	if SHOW_TEAMID then
+		offset = offset + text_height + 3
 
 
-	offset = offset + 15
-	-- userControls.textAllyTeam = Chili.Label:New {
-	-- 	name = "textAllyTeam",
-	-- 	x = offset,
-	-- 	y = offsetY + 1,
-	-- 	right = 0,
-	-- 	bottom = 3,
-	-- 	-- parent = userControls.mainControl,
-	-- 	caption = entryData.allyTeamID + (isSpec and not isDead and 0 or 1),
-	-- 	textColor = entryData.allyTeamColor,
-	-- 	fontsize = text_height,
-	-- 	fontShadow = true,
-	-- 	autosize = false,
-	-- }
-	userControls.textTeamID = Chili.Label:New {
-		name = "textTeamID",
-		x = offset,
-		y = offsetY + 1,
-		right = 0,
-		bottom = 3,
-		parent = userControls.mainControl,
-		caption = isSpec and not isDead and 0 or entryData.teamID,
-		textColor = entryData.allyTeamColor,
-		fontsize = text_height,
-		fontShadow = true,
-		autosize = false,
-	}
-	offset = offset + text_height --+ 3
-	
-	offset = offset + 2
+		offset = offset + 15
+
+
+		-- userControls.textAllyTeam = Chili.Label:New {
+		-- 	name = "textAllyTeam",
+		-- 	x = offset,
+		-- 	y = offsetY + 1,
+		-- 	right = 0,
+		-- 	bottom = 3,
+		-- 	-- parent = userControls.mainControl,
+		-- 	caption = entryData.allyTeamID + (isSpec and not isDead and 0 or 1),
+		-- 	textColor = entryData.allyTeamColor,
+		-- 	fontsize = text_height,
+		-- 	fontShadow = true,
+		-- 	autosize = false,
+		-- }
+
+		userControls.textTeamID = Chili.Label:New {
+			name = "textTeamID",
+			x = offset,
+			y = offsetY + 1,
+			right = 0,
+			bottom = 3,
+			parent = userControls.mainControl,
+			caption = isSpec and not isDead and 0 or entryData.teamID,
+			textColor = entryData.allyTeamColor,
+			fontsize = text_height,
+			fontShadow = true,
+			autosize = false,
+		}
+		offset = offset + text_height --+ 3
+		
+		offset = offset + 2
+	else
+		offset = offset + text_height + 8
+	end
 	userControls.textName = Chili.Label:New {
 		name = "textName",
 		x = offset,
 		y = offsetY + 1,
-		right = 0,
+		-- right = 0,
 		bottom = 3,
 		align = "left",
+		width = MAX_NAME_LENGTH,
 		parent = userControls.mainControl,
 		caption = GetName(entryData.name, nil, entryData),
 		textColor = GetPlayerTeamColor(entryData.teamID, entryData.isDead or entryData.isSpec),
 		fontsize = text_height,
 		fontShadow = true,
 		autosize = false,
+		tooltip = entryData.name,
+		HitTest = function(self) return self end,
 	}
 	userControls.textName:SetCaption(GetName(entryData.name, userControls.textName.font, entryData))
 	offset = offset + MAX_NAME_LENGTH - 15
@@ -1008,19 +1065,17 @@ local function Compare(ac, bc)
 		return a.teamID < b.teamID
 	end
 	--
-
 	
 	if not a.isMyTeam ~= not b.isMyTeam then
 		return b.isMyTeam
 	end
-	
-	if not a.isMyAlly ~= not b.isMyAlly then
-		return b.isMyAlly
-	end
-	
 
 	if not a.isMe ~= not b.isMe then
 		return a.isMe
+	end
+
+	if not a.isMyAlly ~= not b.isMyAlly then
+		return b.isMyAlly
 	end
 	
 	if not a.isAiTeam ~= not b.isAiTeam then
@@ -1207,7 +1262,7 @@ local function InitializePlayerlist()
 		teamByTeamID = {}
 	end
 	local screenWidth, screenHeight = Spring.GetViewGeometry()
-	local windowWidth = MAX_NAME_LENGTH + 10*(options.text_height.value or 13) + 40
+	local windowWidth = MAX_NAME_LENGTH + 10*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 24)
 
 	--// WINDOW
 	scrollPanel = Chili.ScrollPanel:New{
@@ -1407,7 +1462,20 @@ options = {
 --------------------------------------------------------------------------------
 
 local lastUpdate = 0
+
 function widget:Update(dt)
+	time = time + dt
+	if next(laggingOut) then
+		for mainControl, blink_timeout in pairs(laggingOut) do
+			local bg = mainControl.backgroundColor
+			local current_red = bg[1]
+			local red =  time > blink_timeout and 0.5 or time%BLINK_PERIOD < BLINK_PERIOD/2 and 1 or 0
+			if red ~= current_red then
+				bg[1], bg[4] = red, red
+				mainControl:Invalidate()
+			end
+		end
+	end
 	if UPDATE_TOOLTIP then
 		local now = os.clock()
 		if UPDATE_TOOLTIP.next_time < now then
@@ -1564,9 +1632,13 @@ function widget:Initialize()
 	Spring.SendCommands("info 0")
 end
 
---function widget:Shutdown()
---	Spring.SendCommands("info 1")
---end
+function widget:Shutdown()
+	Spring.SendCommands("info 1")
+	for mainControl in pairs(laggingOut) do
+		laggingOut[mainControl] = nil
+	end
+end
+
 if f then
 	f.DebugWidget(widget)
 end
