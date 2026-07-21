@@ -1262,7 +1262,7 @@ local function InitializePlayerlist()
 		teamByTeamID = {}
 	end
 	local screenWidth, screenHeight = Spring.GetViewGeometry()
-	local windowWidth = MAX_NAME_LENGTH + 10*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 24)
+	local windowWidth = MAX_NAME_LENGTH + 10*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 19)
 
 	--// WINDOW
 	scrollPanel = Chili.ScrollPanel:New{
