@@ -465,7 +465,7 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			if laggedOut then
 				if pingTime <= LAGOUT_FLASH_THRESHOLD then
 					local bg = controls.mainControl.backgroundColor
-					if bg[1] == 1 then
+					if bg[1] ~= 0 then
 						bg[1], bg[4] = 0, 0
 						controls.mainControl:Invalidate()
 					end
