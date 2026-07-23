@@ -1230,11 +1230,18 @@ local function UpdatePlayer(playerID, info, connecting)
 		for _, controls in pairs (listControls) do
 			local entryData = controls.entryData
 			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isSpec, entryData.isWaiting)
+			if entryData.isSpec then
+				controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
+			else
+				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
+			end
 			-- controls.textName:SetCaption(controls.textName.caption .. 'A')
 			controls.textName:Invalidate()
-			controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isSpec, entryData.isWaiting)
-			-- controls.textTeamID:SetCaption(controls.textTeamID.caption .. 'B')
-			controls.textTeamID:Invalidate()
+			if controls.textTeamID then
+				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isSpec, entryData.isWaiting)
+				-- controls.textTeamID:SetCaption(controls.textTeamID.caption .. 'B')
+				controls.textTeamID:Invalidate()
+			end
 		end
 	end
 	if toSort or _toSort then
