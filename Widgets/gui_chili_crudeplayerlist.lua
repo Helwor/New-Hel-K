@@ -458,22 +458,24 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 			end
 		end
 		
-		if controls and not (entryData.isDead or entryData.isSpec) then
+		if controls then
 			controls.imCpu.tooltip = CpuUsageOut(cpuUsage)
 			controls.imPing.tooltip = PingTimeOut(pingTime)
-			local laggedOut = laggingOut[controls.mainControl]
-			if laggedOut then
-				if pingTime <= LAGOUT_FLASH_THRESHOLD then
-					local bg = controls.mainControl.backgroundColor
-					if bg[1] ~= 0 then
-						bg[1], bg[4] = 0, 0
-						controls.mainControl:Invalidate()
+			if not (entryData.isDead or entryData.isSpec) then
+				local laggedOut = laggingOut[controls.mainControl]
+				if laggedOut then
+					if pingTime <= LAGOUT_FLASH_THRESHOLD then
+						local bg = controls.mainControl.backgroundColor
+						if bg[1] ~= 0 then
+							bg[1], bg[4] = 0, 0
+							controls.mainControl:Invalidate()
+						end
+						laggingOut[controls.mainControl] = nil
 					end
-					laggingOut[controls.mainControl] = nil
-				end
-			else
-				if pingTime > LAGOUT_FLASH_THRESHOLD then
-					laggingOut[controls.mainControl] = time + BLINK_END
+				else
+					if pingTime > LAGOUT_FLASH_THRESHOLD then
+						laggingOut[controls.mainControl] = time + BLINK_END
+					end
 				end
 			end
 		end
