@@ -4433,6 +4433,9 @@ do
 
 			local dirx, dirz = posx-return_pos[1], posz-return_pos[3]
 			local biggest = max(abs(dirx), abs(dirz))
+			if biggest < 64 then
+				return
+			end
 			local dist = (dirx^2+dirz^2)^0.5
 			dirx, dirz = dirx/biggest, dirz/biggest
 			local padID = return_pos[4]
