@@ -309,6 +309,7 @@ local color_path = options_path .. '/Color Setup'
 options_order = {
 	'use_emotes',
 	'emotes',
+	'copy_console',
 	'lblGeneral',
 	
 	'enableConsole',
@@ -487,6 +488,26 @@ options = {
 		type = 'bool',
 		value = false,
 		path = helk_path,
+	},
+
+	copy_console = {
+		name = 'Copy Console to Clipboard',
+		hotkey = 'Ctrl+f8',
+		type = 'button',
+		path = helk_path,
+		OnChange = function(self)
+			if stack_console then
+				local t = {}
+				for i, child in ipairs(stack_console.children) do
+					if child.text then
+						t[#t+1] = child.text:gsub('\255...', '')
+					end
+				end
+				if t[1] then
+					Spring.SetClipboard(table.concat(t, '\n'))
+				end
+			end
+		end,
 	},
 	--lblFilter = {name='Filtering', type='label', advanced = false},
 	--lblPointButtons = {name='Point Buttons', type='label', advanced = true},
