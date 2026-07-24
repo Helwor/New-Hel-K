@@ -855,7 +855,7 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 		HitTest = function(self) return self end,
 	}
 	userControls.textName:SetCaption(GetName(entryData.name, userControls.textName.font, entryData))
-	offset = offset + MAX_NAME_LENGTH - 15
+	offset = offset + MAX_NAME_LENGTH
 
 	offset = offset + 1
 	userControls.btnShare = Chili.Button:New {
@@ -1271,7 +1271,7 @@ local function InitializePlayerlist()
 		teamByTeamID = {}
 	end
 	local screenWidth, screenHeight = Spring.GetViewGeometry()
-	local windowWidth = MAX_NAME_LENGTH + 10*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 19)
+	local windowWidth = MAX_NAME_LENGTH + 11*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 19)
 
 	--// WINDOW
 	scrollPanel = Chili.ScrollPanel:New{
