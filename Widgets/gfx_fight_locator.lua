@@ -135,13 +135,14 @@ function widget:DrawScreenEffects()
 	-- gl.Text("#events ".. table.size(events) .. ', weights ' .. list, 600, 25)
 	gl.Culling(GL.BACK)
 	local blink = (now%BLINK < BLINK/2)
-	local r, g, b = 0.8, 0.1 + (blink and 0.8 or 0), 0.5
+	local r, g, b = 1, 0.1 + (blink and 1 or 0), 0.5
 	for cell_coord, event in pairs(events) do
 		if event.weight > 0 then
 			local x, z = event.x / event.weight, event.z / event.weight
 			local y = Spring.GetGroundHeight(x, z)
 			if Spring.IsSphereInView(x, y, z, 300) then
 				local a = (event.timeout - now) / TIMEOUT
+				a = a + (1 - a) / 2
 				gl.Color(r, g, b, a)
 				x, y = Spring.WorldToScreenCoords(x, y, z)
 				gl.PushMatrix()
