@@ -2,15 +2,15 @@
 --------------------------------------------------------------------------------
 
 function widget:GetInfo()
-  return {
-    name      = "Chili Economy Panel Default",
-    desc      = "Implements the default resource bars",
-    author    = "jK, Shadowfury333, GoogleFrog",
-    date      = "2014",
-    license   = "GNU GPL, v2 or later",
-    layer     = 0,
-    enabled   = true
-  }
+	return {
+		name      = "Chili Economy Panel Default",
+		desc      = "Implements the default resource bars",
+		author    = "jK, Shadowfury333, GoogleFrog",
+		date      = "2014",
+		license   = "GNU GPL, v2 or later",
+		layer     = 0,
+		enabled   = true
+	}
 end
 
 --------------------------------------------------------------------------------
@@ -115,11 +115,16 @@ local lbl_storage_energy
 local lbl_expense_metal
 local lbl_expense_energy
 local lbl_income_metal
+local lbl_income_reclaim
+local lbl_income_overdrive
 local lbl_income_energy
 
 
 local positiveColourStr
 local negativeColourStr
+local metalColourStr
+local energyColourStr
+local teamWasteColourStr
 local col_income
 local col_expense
 local col_highlight
@@ -138,6 +143,7 @@ local blinkE_status = false
 local excessE = false
 local flashModeEnabled = true
 local externalForceHide = false
+local forceUpdate = false -- force update when game is paused and user reload the widget
 
 local strings = {
 	local_metal_economy = "",
@@ -424,6 +430,9 @@ end
 
 local function option_colourBlindUpdate()
 	positiveColourStr = (options.colourBlind.value and YellowStr) or GreenStr
+	metalColourStr = string.color(col_metal)
+	energyColourStr = string.color(col_energy)
+	teamWasteColourStr = string.color({.9,.1,.9,1})
 	negativeColourStr = (options.colourBlind.value and BlueStr) or RedStr
 	col_income = (options.colourBlind.value and {.9,.9,.2,1}) or {.1,1,.2,1}
 	col_expense = (options.colourBlind.value and {.2,.3,1,1}) or {1,.3,.2,1}
@@ -903,7 +912,6 @@ function widget:GameFrame(n)
 	end
 	
 	UpdateCustomParamResourceData()
-
 	local myTeamID = Spring.GetLocalTeamID()
 	local myAllyTeamID = Spring.GetMyAllyTeamID()
 	local teams = Spring.GetTeamList(myAllyTeamID)
@@ -974,8 +982,9 @@ function widget:GameFrame(n)
 	mStor = math.max(mStor - HIDDEN_STORAGE, MIN_STORAGE)
 	eStor = math.max(eStor - HIDDEN_STORAGE, MIN_STORAGE)
 	
-	-- Waste
 	local teamMetalWaste = math.min(0, teamTotalMetalCapacity - teamTotalMetalStored)
+	local metalWaste = math.min(0, mStor - mCurr)
+	metalWaste = math.max(teamMetalWaste, metalWaste)
 	if teamTotalMetalStored > teamTotalMetalCapacity then
 		teamTotalMetalStored = teamTotalMetalCapacity
 	end
@@ -1057,13 +1066,14 @@ function widget:GameFrame(n)
 	
 	mPercent = math.min(math.max(mPercent, 0), 100)
 	ePercent = math.min(math.max(ePercent, 0), 100)
-
 	bar_metal:SetValue( mPercent )
 	bar_energy:SetValue( ePercent )
 	
 	local metalBase = Format(cp.metalBase)
-	local metalOverdrive = Format(cp.metalOverdrive)
-	local metalReclaim = Format(math.max(0, mInco - cp.metalOverdrive - cp.metalBase - cp.metalMisc - mReci))
+	local rawMetalOverdrive = cp.metalOverdrive
+	local metalOverdrive = Format(rawMetalOverdrive)
+	local rawMetalReclaim = math.max(0, mInco - cp.metalOverdrive - cp.metalBase - cp.metalMisc - mReci)
+	local metalReclaim = Format(rawMetalReclaim)
 	local metalConstructor = Format(cp.metalMisc)
 	local metalShare = Format(mReci - mSent - cp.metalSkim)
 	local metalConstruction = Format(-mExpe)
@@ -1108,74 +1118,84 @@ function widget:GameFrame(n)
 		advice = strings["advie_add_metal"]
 	end
 
-	image_metal.tooltip = strings["local_metal_economy"] ..
-	"\n   " .. strings["resbar_income"] ..
-	"\n      " .. strings["resbar_base_extraction"] .. ": " .. metalBase ..
-	"\n      " .. strings["resbar_overdrive"] .. ": " .. metalOverdrive ..
-	"\n      " .. strings["resbar_reclaim"] .. ": " .. metalReclaim ..
-	"\n      " .. strings["resbar_cons"] .. ": " .. metalConstructor ..
-	"\n   " .. strings["resbar_expenses"] ..
-	"\n      " .. strings["resbar_construction"] .. ": " .. metalConstruction ..
-	"\n      " .. strings["resbar_sharing"] .. ": " .. metalShare ..
-	"\n   " .. strings["resbar_storage"] ..
-    "\n      " .. strings["resbar_reserve"] .. ": " .. math.ceil(cp.metalStorageReserve or 0) ..
-    "\n      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(mCurr, mStor)  ..
-	"\n      " .. strings["resbar_unit_value"] .. ": " .. math.ceil(cp.metalValue or 0) ..
-	"\n      " .. strings["resbar_nano_value"] .. ": " .. math.ceil(cp.nanoframeValue or 0) .. " / " .. math.ceil(cp.nanoframeTotal or 0) ..
-	"\n      " .. strings["resbar_reclaim_total"] .. ": " .. math.ceil(cp.metalReclaimTotal or 0) ..
-	"\n " ..
-	"\n" .. strings["team_metal_economy"] ..
-	"\n   " .. strings["resbar_income"] ..
-	"\n      " .. strings["resbar_inc"] .. ": " .. team_metalTotalIncome ..
-	"\n      " .. strings["resbar_base_extraction"] .. ": " .. team_metalBase ..
-	"\n      " .. strings["resbar_overdrive"] .. ": " .. team_metalOverdrive ..
-	"\n      " .. strings["resbar_reclaim"] .. " : " .. team_metalReclaim ..
-	"\n      " .. strings["resbar_cons"] .. ": " .. team_metalConstructor ..
-	"\n   " .. strings["resbar_expenses"] ..
-	"\n      " .. strings["resbar_pull"] .. ": " .. team_metalPull ..
-	"\n      " .. strings["resbar_construction"] .. ": " .. team_metalConstruction ..
-	"\n      " .. strings["resbar_waste"] .. ": " .. team_metalWaste ..
-	"\n   " .. strings["resbar_storage"] ..
-	"\n      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(teamTotalMetalStored, teamTotalMetalCapacity) ..
-	"\n      " .. strings["resbar_unit_value"] .. ": " .. math.ceil(cp.team_metalValue or 0) ..
-	"\n      " .. strings["resbar_nano_value"] .. ": " .. math.ceil(cp.team_nanoframeValue or 0) .. " / " .. math.ceil(cp.team_nanoframeTotal or 0) ..
-	"\n      " .. strings["resbar_reclaim_total"] .. ": " .. math.ceil(cp.team_metalReclaimTotal or 0) ..
-	"\n      " .. strings["resbar_waste_total"] .. ": " .. math.ceil(cp.team_metalExcess or 0)
-	
-	image_energy.tooltip = strings["local_energy_economy"] ..
-	"\n   " .. strings["resbar_income"] ..
-	"\n      " .. strings["resbar_generators"] .. ": " .. energyGenerators ..
-	"\n      " .. strings["resbar_reclaim"] .. ": " .. energyReclaim ..
-	"\n      " .. strings["resbar_cons"] .. ": " .. energyMisc ..
-	"\n   " .. strings["resbar_expenses"] ..
-	"\n      " .. strings["resbar_sharing_and_overdrive"] .. ": " .. energyOverdrive ..
-	"\n      " .. strings["resbar_construction"] .. ": " .. metalConstruction ..
-	"\n      " .. strings["resbar_other"] .. ": " .. energyOther ..
-	"\n   " .. strings["resbar_storage"] ..
-	"\n      " .. strings["resbar_reserve"] .. ": " .. math.ceil(cp.energyStorageReserve or 0) ..
-	"\n      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(eCurr, eStor)  ..
-	"\n " ..
-	"\n" .. strings["team_energy_economy"] ..
-	"\n   " .. strings["resbar_income"] ..
-	"\n      " .. strings["resbar_inc"] .. ": " .. team_energyIncome ..
-	"\n      " .. strings["resbar_generators"] .. ": " .. team_energyGenerators ..
-	"\n      " .. strings["resbar_reclaim"] .. ": " .. team_energyReclaim ..
-	"\n      " .. strings["resbar_cons"] .. ": " .. team_energyMisc ..
-	"\n   " .. strings["resbar_expenses"] ..
-	"\n      " .. strings["resbar_pull"] .. ": " .. team_energyPull ..
-	"\n      " .. strings["resbar_construction"] .. ": " .. team_metalConstruction ..
-	"\n      " .. strings["resbar_other"] .. ": " .. team_energyOther ..
-	"\n      " .. strings["resbar_waste"] .. ": " .. team_energyWaste ..
-	"\n      " .. strings["resbar_overdrive"] .. ": " .. team_energyOverdrive .. " -> " .. team_metalOverdrive .. " " .. strings["metal"] ..
-	"\n      " .. strings["resbar_overdrive_efficiency"] .. ": " .. odEffStr .. " E/M" ..
-	"\n   " .. strings["resbar_storage"] ..
-	"\n      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(teamTotalEnergyStored, teamTotalEnergyCapacity) ..
-	"\n " ..
-	"\n" .. strings["resbar_economy_advice"] .. ": " .. advice
+	image_metal.tooltip = table.concat({
+		"" .. strings["local_metal_economy"],
+		"   " .. strings["resbar_income"],
+		"      " .. strings["resbar_base_extraction"] .. ": " .. metalBase,
+		"      " .. strings["resbar_overdrive"] .. ": " .. metalOverdrive,
+		"      " .. strings["resbar_reclaim"] .. ": " .. metalReclaim,
+		"      " .. strings["resbar_cons"] .. ": " .. metalConstructor,
+		"   " .. strings["resbar_expenses"],
+		"      " .. strings["resbar_construction"] .. ": " .. metalConstruction,
+		"      " .. strings["resbar_sharing"] .. ": " .. metalShare,
+		"   " .. strings["resbar_storage"],
+		"      " .. strings["resbar_reserve"] .. ": " .. math.ceil(cp.metalStorageReserve or 0),
+		"      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(mCurr, mStor) ,
+		"      " .. strings["resbar_unit_value"] .. ": " .. math.ceil(cp.metalValue or 0),
+		"      " .. strings["resbar_nano_value"] .. ": " .. math.ceil(cp.nanoframeValue or 0) .. " / " .. math.ceil(cp.nanoframeTotal or 0),
+		"      " .. strings["resbar_reclaim_total"] .. ": " .. math.ceil(cp.metalReclaimTotal or 0),
+		"",
+		"" .. strings["team_metal_economy"],
+		"   " .. strings["resbar_income"],
+		"      " .. strings["resbar_inc"] .. ": " .. team_metalTotalIncome,
+		"      " .. strings["resbar_base_extraction"] .. ": " .. team_metalBase,
+		"      " .. strings["resbar_overdrive"] .. ": " .. team_metalOverdrive,
+		"      " .. strings["resbar_reclaim"] .. " : " .. team_metalReclaim,
+		"      " .. strings["resbar_cons"] .. ": " .. team_metalConstructor,
+		"   " .. strings["resbar_expenses"],
+		"      " .. strings["resbar_pull"] .. ": " .. team_metalPull,
+		"      " .. strings["resbar_construction"] .. ": " .. team_metalConstruction,
+		"      " .. strings["resbar_waste"] .. ": " .. team_metalWaste,
+		"   " .. strings["resbar_storage"],
+		"      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(teamTotalMetalStored, teamTotalMetalCapacity),
+		"      " .. strings["resbar_unit_value"] .. ": " .. math.ceil(cp.team_metalValue or 0),
+		"      " .. strings["resbar_nano_value"] .. ": " .. math.ceil(cp.team_nanoframeValue or 0) .. " / " .. math.ceil(cp.team_nanoframeTotal or 0),
+		"      " .. strings["resbar_reclaim_total"] .. ": " .. math.ceil(cp.team_metalReclaimTotal or 0),
+		"      " .. strings["resbar_waste_total"] .. ": " .. math.ceil(cp.team_metalExcess or 0),
+	}, "\n")
 
-	lbl_expense_metal:SetCaption( negativeColourStr..Format(mPull, negativeColourStr.." -") )
+
+	image_energy.tooltip = table.concat({
+		strings["local_energy_economy"],
+		"   " .. strings["resbar_income"],
+		"      " .. strings["resbar_generators"] .. ": " .. energyGenerators,
+		"      " .. strings["resbar_reclaim"] .. ": " .. energyReclaim,
+		"      " .. strings["resbar_cons"] .. ": " .. energyMisc,
+		"   " .. strings["resbar_expenses"],
+		"      " .. strings["resbar_sharing_and_overdrive"] .. ": " .. energyOverdrive,
+		"      " .. strings["resbar_construction"] .. ": " .. metalConstruction,
+		"      " .. strings["resbar_other"] .. ": " .. energyOther,
+		"   " .. strings["resbar_storage"],
+		"      " .. strings["resbar_reserve"] .. ": " .. math.ceil(cp.energyStorageReserve or 0),
+		"      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(eCurr, eStor) ,
+		" ",
+		"" .. strings["team_energy_economy"],
+		"   " .. strings["resbar_income"],
+		"      " .. strings["resbar_inc"] .. ": " .. team_energyIncome,
+		"      " .. strings["resbar_generators"] .. ": " .. team_energyGenerators,
+		"      " .. strings["resbar_reclaim"] .. ": " .. team_energyReclaim,
+		"      " .. strings["resbar_cons"] .. ": " .. team_energyMisc,
+		"   " .. strings["resbar_expenses"],
+		"      " .. strings["resbar_pull"] .. ": " .. team_energyPull,
+		"      " .. strings["resbar_construction"] .. ": " .. team_metalConstruction,
+		"      " .. strings["resbar_other"] .. ": " .. team_energyOther,
+		"      " .. strings["resbar_waste"] .. ": " .. team_energyWaste,
+		"      " .. strings["resbar_overdrive"] .. ": " .. team_energyOverdrive .. " -> " .. team_metalOverdrive .. " " .. strings["metal"],
+		"      " .. strings["resbar_overdrive_efficiency"] .. ": " .. odEffStr .. " E/M",
+		"   " .. strings["resbar_storage"],
+		"      " .. strings["resbar_stored"] .. ": " .. ("%i / %i"):format(teamTotalEnergyStored, teamTotalEnergyCapacity),
+		" ",
+		"" .. strings["resbar_economy_advice"] .. ": " .. advice
+	}, "\n")
+	
+
+	lbl_expense_metal:SetCaption( Format(mPull, negativeColourStr.." -") )
+	lbl_expense_waste:SetCaption( Format(metalWaste, negativeColourStr)  )
+	lbl_expense_team_waste:SetCaption( Format(teamMetalWaste, teamWasteColourStr)   )
 	lbl_expense_energy:SetCaption( negativeColourStr..Format(realEnergyPull, negativeColourStr.." -") )
 	lbl_income_metal:SetCaption( Format(mInco+mReci, positiveColourStr.."+") )
+	lbl_income_reclaim:SetCaption(Format(rawMetalReclaim, metalColourStr))
+	lbl_income_overdrive:SetCaption(Format(rawMetalOverdrive, energyColourStr))
 	lbl_income_energy:SetCaption( Format(eInco, positiveColourStr.."+") )
 	lbl_storage_energy:SetCaption(("%.0f"):format(eCurr))
 	lbl_storage_metal:SetCaption(("%.0f"):format(mCurr))
@@ -1558,10 +1578,16 @@ function widget:Shutdown()
 	WG.ShutdownTranslation(GetInfo().name)
 end
 
+local time = 0
 function widget:Update(dt)
+
 	UpdateBlink(dt)
 	UpdateWindowOpacity()
 	UpdateReserveSentTimer(dt)
+	if forceUpdate then
+		widget:GameFrame(TEAM_SLOWUPDATE_RATE)
+		forceUpdate = false
+	end
 end
 
 function widget:Initialize()
@@ -1576,14 +1602,16 @@ function widget:Initialize()
 
 	WG.InitializeTranslation (languageChanged, GetInfo().name)
 	--widgetHandler:RegisterGlobal("MexEnergyEvent", MexEnergyEvent)
-    --widgetHandler:RegisterGlobal("ReserveState", ReserveState)
+		--widgetHandler:RegisterGlobal("ReserveState", ReserveState)
 	--widgetHandler:RegisterGlobal("SendWindProduction", SendWindProduction)
 	--widgetHandler:RegisterGlobal("PriorityStats", PriorityStats)
 
 	Spring.SendCommands("resbar 0")
 	option_colourBlindUpdate()
-
 	option_recreateWindow()
+	if select(3, Spring.GetGameSpeed()) and Spring.GetGameFrame() > 0 then -- force update when game is paused and user reload the widget in midgame
+		forceUpdate = true
+	end
 end
 
 function CreateWindow(oldX, oldY, oldW, oldH)
@@ -1671,22 +1699,29 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 	}
 	
 	--// Panel configuration
-	local imageX      = "1%"
-	local imageY      = "10%"
-	local imageWidth  = "17%"
-	local imageHeight = "80%"
+	local imageX          = "1%"
+	local imageY          = "10%"
+	local imageWidth      = "17%"
+	local imageHeight     = "80%"
 	
-	local storageX    = "18%"
-	local incomeX     = "44%"
-	local pullX       = "70%"
-	local textY       = "47%"
-	local textWidth   = "45%"
-	local textHeight  = "26%"
-	
-	local barX      = "17%"
-	local barY      = "10%"
-	local barRight  = "4%"
-	local barHeight = "38%"
+	local storageX        = "18%"
+	local incomeX         = "44%"
+	local incomeXsub      = "63%"
+	local pullX           = "70%"
+	local pullXsub        = "89%"
+	local textY           = "47%"
+	local textYsub1       = "46%"
+	local textYsub2       = "58%"
+	local textYsub3       = "69%"
+	local textWidth       = "26%"
+	local textWidthMedium = "19%"
+	local textWidthSmall  = "12%"
+	local textHeight      = "45%"
+	local textHeightSmall = "24%"
+	local barX            = "17%"
+	local barY            = "10%"
+	local barRight        = "4%"
+	local barHeight       = "38%"
 	
 	--// METAL
 	
@@ -1726,8 +1761,8 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		parent = window_metal,
 		x      = storageX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidth,
 		valign = "center",
 		align  = "left",
 		caption = "0",
@@ -1741,8 +1776,8 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		parent = window_metal,
 		x      = incomeX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidthMedium,
 		caption = positiveColourStr.."+0.0",
 		valign = "center",
 		align  = "left",
@@ -1751,13 +1786,47 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 			outline = true, outlineWidth = 2, outlineWeight = 2,
 		}),
 	}
-	
+
+	lbl_income_reclaim = Chili.Label:New{
+		parent = window_metal,
+		parent = window_metal,
+		x      = incomeXsub,
+		y      = textYsub1,
+		height = textHeightSmall,
+		width  = textWidthSmall,
+		caption = metalColourStr.."0.0",
+		valign = "center",
+		align  = "left",
+		autosize = false,
+		tooltip = 'Reclaim income',
+		objectOverrideFont = WG.GetSpecialFont(options.fontSize.value *2/3, "res_outline", {
+			outline = true, outlineWidth = 2, outlineWeight = 2,
+		}),
+	}
+
+	lbl_income_overdrive = Chili.Label:New{
+		parent = window_metal,
+		parent = window_metal,
+		x      = incomeXsub,
+		y      = textYsub3,
+		height = textHeightSmall,
+		width  = textWidthSmall,
+		caption = energyColourStr.."0.0",
+		valign = "center",
+		align  = "left",
+		autosize = false,
+		tooltip = 'Overdrive income',
+		objectOverrideFont = WG.GetSpecialFont(options.fontSize.value *2/3, "res_outline", {
+			outline = true, outlineWidth = 2, outlineWeight = 2,
+		}),
+	}
+
 	lbl_expense_metal = Chili.Label:New{
 		parent = window_metal,
 		x      = pullX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidthMedium,
 		caption = negativeColourStr.."-0.0",
 		valign = "center",
 		align  = "left",
@@ -1767,6 +1836,41 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		}),
 	}
 	
+	lbl_expense_waste = Chili.Label:New{
+		parent = window_metal,
+		parent = window_metal,
+		x      = pullXsub,
+		y      = textYsub1,
+		height = textHeightSmall,
+		width  = textWidthSmall,
+		caption = negativeColourStr.."0.0",
+		valign = "center",
+		align  = "left",
+		autosize = false,
+		tooltip = 'Wasted metal',
+		objectOverrideFont = WG.GetSpecialFont(options.fontSize.value *2/3, "res_outline", {
+			outline = true, outlineWidth = 2, outlineWeight = 2,
+		}),
+	}
+
+	lbl_expense_team_waste = Chili.Label:New{
+		parent = window_metal,
+		parent = window_metal,
+		x      = pullXsub,
+		y      = textYsub3,
+		height = textHeightSmall,
+		width  = textWidthSmall,
+		caption = negativeColourStr.."0.0",
+		valign = "center",
+		align  = "left",
+		autosize = false,
+		tooltip = 'Wasted team metal',
+		objectOverrideFont = WG.GetSpecialFont(options.fontSize.value *2/3, "res_outline", {
+			outline = true, outlineWidth = 2, outlineWeight = 2,
+		}),
+	}
+
+
 	local metalBarHolder = Chili.Control:New{
 		x      = barX,
 		y      = barY,
@@ -1882,8 +1986,8 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		parent = window_energy,
 		x      = storageX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidth,
 		valign = "center",
 		align  = "left",
 		caption = "0",
@@ -1897,8 +2001,8 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		parent = window_energy,
 		x      = incomeX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidth,
 		caption = positiveColourStr.."+0.0",
 		valign = "center",
 		align  = "left",
@@ -1912,8 +2016,8 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 		parent = window_energy,
 		x      = pullX,
 		y      = textY,
-		height = textWidth,
-		width  = textHeight,
+		height = textHeight,
+		width  = textWidth,
 		caption = negativeColourStr.."-0.0",
 		valign = "center",
 		align  = "left",
@@ -1979,7 +2083,7 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 			outlineWeight = 2
 		},
 	}
-    
+		
 	bar_energy = Chili.Progressbar:New{
 		parent = energyBarHolder,
 		color  = col_energy,
@@ -2023,8 +2127,12 @@ function CreateWindow(oldX, oldY, oldW, oldH)
 	function lbl_storage_metal:HitTest(x,y) return self end
 	function lbl_income_energy:HitTest(x,y) return self end
 	function lbl_income_metal:HitTest(x,y) return self end
+	function lbl_income_reclaim:HitTest(x,y) return self end
+	function lbl_income_overdrive:HitTest(x,y) return self end
 	function lbl_expense_energy:HitTest(x,y) return self end
 	function lbl_expense_metal:HitTest(x,y) return self end
+	function lbl_expense_waste:HitTest(x,y) return self end
+	function lbl_expense_team_waste:HitTest(x,y) return self end
 
 	-- set translatable strings
 	languageChanged ()
