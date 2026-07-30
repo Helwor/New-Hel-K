@@ -20,48 +20,29 @@ local GetCameraHeight = f.GetCameraHeight
 local manager = {}
 local debugProps = {'id','isAllied','isMine','isEnemy'}
 local filterProps = {}
-WG.maxUnitRadius = 0
-WG.minUnitRadius = 0
+
 local function Throw(...)
 	Echo(...)
 	error(debug.traceback())
 end
 
--- local debugProps = false
-local isCommDefID = {}
-local isPlaneDefID = {}
-local isFactoryDefID = {}
-local isDefenseDefID = {}
-local isConDefID = {}
-local minRadius, maxRadius = math.huge, 0
-for defID, def in pairs(UnitDefs) do
-	local name = def.name
-	if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or (name:find('comm') and not name:find('egg')) or name:find('^hero')) then 
-		isCommDefID[defID] = true
-	elseif not def.isImmobile and def.buildOptions[1] then
-		isConDefID[defID] = true
-	end
-	if name:match('bomber') or (name:match('plane') and not def.isFactory ) then
-		isPlaneDefID[defID] = true
-	end
-	if def.isFactory and name~='staticrearm' and name~="striderhub" then
-		isFactoryDefID[defID] = true
-	end
-	if name:find("turret") or name=='staticarty' or name=='staticheavyarty' or name=='staticantiheavy' then
-		isDefenseDefID[defID] = true
-	end
+local commDefID = WG.commDefID
+local planeDefID = WG.planeDefID
+local turretDefID = WG.turretDefID
+local bomberDefID = WG.bomberDefID
+local conDefID = WG.conDefID
+local impulseDefID = WG.impulseDefID
+local jumperDefID = WG.jumperDefID
+local bomberDefID = WG.bomberDefID
+local energyDefID = WG.energyDefID
 
-	local radius = def.radius
-	if maxRadius < radius then
-		maxRadius = radius
-	end
-	if minRadius > radius then
-		minRadius = radius
+local factoryDefID = {}
+for defID, def in pairs(UnitDefs) do
+	if def.isFactory and def.name ~= 'staticrearm' and def.name ~= "striderhub" then
+		factoryDefID[defID] = true
 	end
 end
-WG.maxUnitRadius = maxRadius
-WG.minUnitRadius = minRadius
-
+local specialWeapons = {['raveparty']=true,['zenith']=true,['mahlazer']=true,['staticnuke']=true,['staticmissilesilo']=true,['staticheavyarty']=true} -- weapons that often need to be ordered manually
 
 local setPropWindow, setFilterWindow
 options_path = 'Hel-K/'..widget:GetInfo().name
@@ -74,7 +55,7 @@ options_order = {
 local SHOW_UNIT_PROP = false
 options.showprop = {
 	name = 'Show Debug Prop',
-	desc = 'command /sowprop',
+	desc = 'command /showprop',
 	type = 'bool',
 	value = SHOW_UNIT_PROP,
 	OnChange = function(self)
@@ -402,12 +383,9 @@ local myTeamID = Spring.GetMyTeamID()
 -- 	end
 -- end
 
-local checkTime=CheckTime("start")
 
-local shift,meta = false,false
-local isBomber = {['bomberprec']=true,['bomberdisarm']=true,['bomberriot']=true,['bomberheavy']=true}
-local isE = {['energywind']=true,['energysolar']=true,['energyfusion']=true,['energysingu']=true}
-local specialWeapons = {['raveparty']=true,['zenith']=true,['mahlazer']=true,['staticnuke']=true,['staticmissilesilo']=true,['staticheavyarty']=true} -- weapons that often need to be ordered manually
+local shift, meta = false, false
+
 
 local function dumfunc()
 	-- a dummy func
@@ -424,29 +402,7 @@ local function clear(t)
 	end
 end
 
-local function IsImpulseUnit(ud)
-	for _, w in pairs(ud.weapons) do
-		local wd = WeaponDefs[w.weaponDef]
-		if wd and (wd.customParams or EMPTY_TABLE).impulse then
-			return true
-		end
-	end
-	return false
-end
-local impulseDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if IsImpulseUnit(def) then
-		impulseDefID[defID] = true
-	end
-end
-local jumperDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.customParams.canjump then
-	    if not (def.name:match('plate') or def.name:match('factory')) then
-            jumperDefID[defID] = true
-        end
-    end
-end
+
 local CMD_RESURRECT = CMD.RESURRECT
 local CMD_RECLAIM = CMD.RECLAIM
 
@@ -468,16 +424,17 @@ do
 	end
 end
 local function AddToMines(unit, id, defID)
-	MyUnits[id]=unit
-	if not MyUnitsByDefID[defID] then MyUnitsByDefID[defID]={} end
-	MyUnitsByDefID[defID][id]=unit
+	MyUnits[id] = unit
+	if not MyUnitsByDefID[defID] then
+		MyUnitsByDefID[defID] = {}
+	end
+	MyUnitsByDefID[defID][id] = unit
 end
 
 function manager:AddUnit(unit, id)
 	local defID = unit.defID
 	if not defID then 
-		Throw('ASKING TO ADD UNIT WITHOUT DEFID',id,unit)
-		
+		Throw('ASKING TO ADD UNIT WITHOUT DEFID', id, unit)
 		return unit
 	end
 
@@ -490,7 +447,7 @@ function manager:AddUnit(unit, id)
 	return unit
 end
 local function RemoveFromMines(id, defID)
-	MyUnits[id]=nil
+	MyUnits[id] = nil
 	if not defID then 
 		-- Throw('Problem! my unit ' .. id .. " didn't have defID !")
 		Echo('Problem! my unit ' .. id .. " didn't have defID !")
@@ -498,8 +455,10 @@ local function RemoveFromMines(id, defID)
 		return unit 
 	end
 	if MyUnitsByDefID[defID] then
-		MyUnitsByDefID[defID][id]=nil
-		if not next(MyUnitsByDefID[defID],nil) then MyUnitsByDefID[defID]=nil end
+		MyUnitsByDefID[defID][id] = nil
+		if not next(MyUnitsByDefID[defID],nil) then
+			MyUnitsByDefID[defID] = nil
+		end
 	end
 end
 local function RemoveUnit(unit,id)
@@ -550,12 +509,12 @@ local function CreateUnitModel(defID, def)
 		proto.isTransport			= def.isTransport
 		proto.isTransportable		= isTransportable
 		proto.heavy					= heavy
-		local class					= classByName[name] or isConDefID[defID] and 'conunit' or 'unknown' 
+		local class					= classByName[name] or conDefID[defID] and 'conunit' or 'unknown' 
 		proto.class                 = class
 		proto.family                = familyByName[name] or 'unknown'
-		if isPlaneDefID[defID] then
+		if planeDefID[defID] then
 			proto.isPlane           = true
-			if isBomber[name] then
+			if bomberDefID[defID] then
 				proto.isBomber = true
 			end
 		elseif def.isHoveringAirUnit then
@@ -573,22 +532,22 @@ local function CreateUnitModel(defID, def)
 			proto.isCon = true
 		elseif name:match('strider') then
 			proto.isStrider = true
-		elseif isCommDefID[defID] then
+		elseif commDefID[defID] then
 			proto.isComm = true
 		end
 	else
 		proto.isStructure             = true
 		proto.isMex                   = name == "staticmex" or nil
-		proto.isFactory               = isFactoryDefID[defID]
+		proto.isFactory               = factoryDefID[defID]
 		proto.isFakeFac               = not proto.isFactory and name:find('^factory') -- for zero wars mod
 		proto.isCaretaker             = name == "staticcon" or nil
-		proto.isDefense               = isDefenseDefID[defID]
+		proto.isDefense               = turretDefID[defID]
 		proto.isSpecialWeapon         = specialWeapons[name]
 		proto.isStorage               = name == "staticstorage" or nil
 		proto.class					  = 'unknown'
 		proto.family                  = familyByName[name] or 'unknown'
 
-		if isE[name] then
+		if energyDefID[defID] then
 			if name=="energysolar" then
 				proto.isSolar = true
 			elseif name == "energywind" then
@@ -843,7 +802,7 @@ function widget:KeyPress(key,mods)
 	end
 end
 function widget:KeyRelease(key,mods)
-	shift,meta = mods.shift,mods.meta
+	shift, meta = mods.shift,mods.meta
 end
 
 
@@ -858,7 +817,7 @@ function widget:AfterInit(dt) -- this replace widget:Update() for the first roun
 					Echo('[' .. widget:GetInfo().name .. ']: [WARN]: There was a problem reloading' .. w_name)
 				elseif w.UnitUpdate then
 					if not UnitCallins then Units.UnitCallins={} ; UnitCallins=Units.UnitCallins end
-					UnitCallins[w.UnitUpdate]=true
+					UnitCallins[w.UnitUpdate] = true
 				end
 			else
 				Echo('[' .. widget:GetInfo().name .. ']: [WARN]: ' .. 'widget' .. w_name .. " is unknown, couldn't reload it")
@@ -996,7 +955,7 @@ do -- debugging
 			end
 		end
 	end
-	local glLists = {}
+
 	local function firstInTable(t)
 		local k,v = next(t)
 		if k == nil then
@@ -1034,33 +993,32 @@ do -- debugging
 				glTranslate(ix,iy,iz)
 				glBillboard()
 				glColor(unit.isMine and green or unit.isAllied and blue or unit.isEnemy and orange)
-				local off=0
+				local off = 0
 				if showAllProps then
-					
 					for prop_name, prop in pairs(unit) do
 						if not filterProps[prop_name] then
-							off=off-6
+							off = off - 6
 							if type(prop) == 'table' then
 								prop = firstInTable(prop)
 							end
 							glText(prop_name .. ' = ' .. tostring(prop), 0, off, 5,'nho')
 						end
 					end
-
 				else
-					for _,prop_name in pairs(debugProps) do
+					for _, prop_name in pairs(debugProps) do
 						local prop
 						if type(prop_name) == 'string' then
 							if prop_name:find('%.') then
 								local t_name, key = prop_name:match('([%w_]+)%.([%w_]+)')
 								if t_name and type(unit[t_name]) == 'table' then
-									prop = unit[t_name][tonumber(key) or key]
+									prop = unit[t_name]
+									prop = prop and prop[tonumber(key) or key]
 								end
 							else
 								prop = unit[prop_name]
 							end
 							if prop then
-								off=off-6
+								off = off - 6
 
 								if type(prop) == 'table' then
 									prop = firstInTable(prop)

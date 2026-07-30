@@ -207,43 +207,15 @@ local transportDefID = {
 	[UnitDefNames['gunshipheavytrans'].id] = true,   
 }
 
-local lobsterDefID = UnitDefNames['amphlaunch'].id
+local lobsterDefID = WG.lobsterDefID
 
-local defIDCanAttack = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.canAttack then
-		defIDCanAttack[defID]=true
-	end
-end
+local canAttackDefID = WG.canAttackDefID
+local airpadDefID = WG.airpadDefID
 
-local airpadDefID = {}
-do
-	local airpadDefs = VFS.Include("LuaRules/Configs/airpad_defs.lua", nil, VFS.GAME)
-	for defID in pairs(airpadDefs) do
-		airpadDefID[defID] = true
-	end
-end
-local controllableRepairerDefID = {}
-local controllableRepairerDefIDIndex = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.canRepair and not def.isBuilding then -- NOTE: strider hub and caretaker doesn't have .isBuilding, so it's good for us, but if it has in the futur, we need to change this
-		controllableRepairerDefID[defID] = true
-		table.insert(controllableRepairerDefIDIndex, defID)
-	end
-end
+local controllableRepairerDefID, controllableRepairerDefIDIndex = WG.controllableRepairerDefID, WG.controllableRepairerDefIDIndex
 
-local staticBuildingDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if not spuGetMoveType(def) then -- same as def.isImmobile
-		staticBuildingDefID[defID] = true
-	end
-end
-local factoryDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.name=='striderhub' or def.isFactory and def.name ~= 'staticrearm'  then -- NOTE airpad got .isFactory (should FIX)
-		factoryDefID[defID] = true
-	end
-end
+local immobileDefID = WG.immobileDefID
+local factoryDefID = WG.factoryDefID
 
 local EzAlliedDefID = {} -- allied unit's defID we might look for 
 for defID in pairs(airpadDefID) do
@@ -252,7 +224,7 @@ end
 
 
 
-local terraUnitDefID = UnitDefNames['terraunit'].id
+local terraUnitDefID = WG.terraunitDefID
 
 
 local yellow = {unpack(COLORS.yellow)} -- color that is used on the fly during evaluation
@@ -717,7 +689,7 @@ local preferFuncsCheck = {
 				-- not a unit either, look for unit
 				-- for i, id in ipairs(minesByDist) do
 				-- 	local defID = mines[id]
-					if not staticBuildingDefID[secondDefID] then
+					if not immobileDefID[secondDefID] then
 						v.prefer = 'found unit'
 						return secondClosest
 					end
@@ -728,7 +700,7 @@ local preferFuncsCheck = {
 			-- got a fac already selected, look for unit
 			-- for i, id in ipairs(minesByDist) do
 			-- 	local defID = mines[id]
-				if not staticBuildingDefID[secondDefID] then
+				if not immobileDefID[secondDefID] then
 					v.prefer = 'switch to unit'
 					return secondClosest
 				end
@@ -741,7 +713,7 @@ local preferFuncsCheck = {
 			-- case: not an unit, look for unit
 			-- for i, id in ipairs(minesByDist) do
 			-- 	local defID = mines[id]
-				if not staticBuildingDefID[secondDefID] then
+				if not immobileDefID[secondDefID] then
 					v.prefer = 'found unit'
 					return secondClosest
 				end
@@ -777,7 +749,7 @@ local preferFuncsCheck = {
 			local closeUnit
 			-- for i, id in ipairs(minesByDist) do
 			-- 	local defID = mines[id]
-				if not staticBuildingDefID[secondDefID] then
+				if not immobileDefID[secondDefID] then
 					closeUnit = secondClosest
 					-- break
 				end
@@ -828,7 +800,7 @@ local preferFuncsCheck = {
 			local closeBuilding
 			-- for i, id in ipairs(minesByDist) do
 			-- 	local defID = mines[id]
-				if staticBuildingDefID[secondDefID] then
+				if immobileDefID[secondDefID] then
 					closeBuilding = secondClosest
 					-- break
 				end
@@ -1217,10 +1189,10 @@ local function Evaluate(type, id, engineCmd)
 		if opt.forceCtrlMove then
 			if (not opt.allowQueueing or not shift)  then
 				if v.defaultCmd == CMD_ATTACK or v.moddedCmd == CMD_ATTACK then
-						-- force Ctrl Move
-						v.moddedCmd = CMD_RAW_MOVE
-						v.moddedTarget = false
-						return v.moddedCmd
+					-- force Ctrl Move
+					v.moddedCmd = CMD_RAW_MOVE
+					v.moddedTarget = false
+					return v.moddedCmd
 				elseif v.moddedCmd == CMD_RAW_MOVE then
 					return v.moddedCmd
 				end
@@ -1228,8 +1200,6 @@ local function Evaluate(type, id, engineCmd)
 		end
 		-- return v.cmdOverride or v.moddedCmd
 	end
-
-
 	-- if we got a unit that can repair, and a //static// building unfinished around, and no target to attack, we target the //static// building
 	-- when holding alt, point to the nearest builder with another builder and activate the guard command
 	-- when not holding alt, point to the nearest unfinished static build and activate the repair command
@@ -1361,7 +1331,7 @@ local function Evaluate(type, id, engineCmd)
 
 				if opt.selPrefer ~= 'none' and separation < 6 then
 					local preferFunc = preferFuncsCheck[opt.selPrefer]
-					local isStatic = staticBuildingDefID[modSelDefID]
+					local isStatic = immobileDefID[modSelDefID]
 					local isFac = factoryDefID[modSelDefID]
 					newclosest = preferFunc(isStatic, isFac, closest, lastAcquired, secondClosest, mines[secondClosest])
 				end
@@ -1433,9 +1403,9 @@ local function Evaluate(type, id, engineCmd)
 					for i,id in ipairs(minesByDist) do
 						if not controllableRepairersMap[id] or controllableRepairersMap.n>1 then
 							local defID = mines[id]
-							-- if staticBuildingDefID[defID] then
+							-- if immobileDefID[defID] then
 								local hp,maxhp,_,_,bp = spGetUnitHealth(id)
-								if bp < 1 or hp < maxhp and staticBuildingDefID[defID] and not selContext.hasComm then
+								if bp < 1 or hp < maxhp and immobileDefID[defID] and not selContext.hasComm then
 								-- if bp < 1 then
 									buildToFinish = id
 									break
@@ -1464,6 +1434,7 @@ local function Evaluate(type, id, engineCmd)
 	-- 		return v.moddedCmd
 	-- 	end
 	-- end
+
 	v.moddedCmd = (v.moddedTarget or v.defaultTarget) and (
 			(builderToGuard or unitToGuard) and CMD_GUARD
 			or padToRearm and CMD_REARM
@@ -1483,6 +1454,18 @@ local function Evaluate(type, id, engineCmd)
 			)   
 			and CMD_RAW_MOVE
 
+	if alt then
+		if v.moddedCmd == CMD_ATTACK or not v.moddedCmd and v.defaultCmd == CMD_ATTACK then
+			-- remove modded target if attack with alt
+			if v.moddedTarget then
+				SetColor(v.moddedTarget, nil, true)
+				v.moddedTarget = false
+			end
+			v.moddedTarget = false
+			v.moddedCmd = nil
+			return v.cmdOverride or v.moddedCmd
+		end
+	end
 		-- or canTransport and alt and CMD_UNLOAD_UNITS
 	if canTransport and v.moddedCmd == CMD_LOAD_UNITS then
 		return v.cmdOverride or v.moddedCmd
@@ -1570,7 +1553,7 @@ function widget:CommandsChanged()
 			 -- applied only if all units type don't need helper
 			noHelperTarget = NO_HELPER_TARGET[defID]
 		end
-		if not hasAttacker and defIDCanAttack[defID] then
+		if not hasAttacker and canAttackDefID[defID] then
 			if defID~=lobsterDefID and not EXCEPTION_EZ[defID] then
 				hasValidAttacker = true
 			end
@@ -2040,7 +2023,11 @@ function widget:MousePress(mx, my, button)
 				or v.defaultCmd == CMD_REPAIR and opt.cancelWhenDragOnDefault
 				or (selContext.hasControllableRepairer or commandMap[CMD_UNLOAD_UNITS]) and v.moddedTarget
 			)
-			or opt.cancelWhenDragOnDefault and not (v.moddedTarget or v.defaultTarget or v.defaultCmd == CMD_REPAIR)
+			or opt.cancelWhenDragOnDefault and not (
+				v.moddedTarget 
+				or v.defaultTarget 
+				or v.defaultCmd == CMD_REPAIR
+			) and v.defaultCmd ~= CMD_ATTACK
 			then
 				-- if nameDefCom == 'Attack' then
 				--     local t = {'COCO',"nameDefCom is ", nameDefCom, v.moddedTarget, v.defaultTarget,
@@ -2075,7 +2062,7 @@ function widget:MousePress(mx, my, button)
 			-- if namecom=='Attack' then
 			--     Echo('CF2 rejected but namecom is Attack !','actve command is ',activeCommand,namecom,'v.cmdOverride is', v.cmdOverride,'v.moddedCmd',v.moddedCmd)
 			-- end
-			v.cmdOverride=false
+			v.cmdOverride = false
 		end
 	-- elseif cf2.widget then
 	--     Echo('CF2 didnt take this !',os.clock())
@@ -2182,10 +2169,12 @@ function widget:MouseRelease(mx,my,button)
 		Debug.CF2("CF2 took over")
 		return cf2.CF2:MouseRelease(mx,my,button)
 	else
-		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR then
+		-- added condition v.defaultCmd == CMD_ATTACK
+		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR or v.defaultCmd == CMD_ATTACK and not v.moddedCmd then
+
 			Debug.CF2("processing on release...")
-			-- tell CustomFormation2 to cancel the operation by giving it the opposite button
 			local cancel = Execute(mx, my, button)
+			-- tell CustomFormation2 to cancel the operation by giving it the opposite button
 			cf2.CF2:MouseRelease(cf2.lastx, cf2.lasty, cancel and (button==1 and 3 or 1) or button)
 			if cancel then
 				-- remove eventual speed limitation
@@ -2254,8 +2243,8 @@ function widget:KeyRelease(key,m)
 	-- return v.panning
 end
 
-Execute = function(mx, my) -- execute a single target cmd if CF2 didnt take over to make a trail
-	if v.defaultCmd == buildMexDefID then
+Execute = function(mx, my, button) -- execute a single target cmd if CF2 didnt take over to make a trail
+	if v.defaultCmd == buildMexDefID or not v.moddedCmd and v.defaultCmd == CMD_ATTACK then
 		local _, pos = spTraceScreenRay(mx, my, true, true, true, false)
 		if not pos then
 			return
@@ -2283,7 +2272,11 @@ Execute = function(mx, my) -- execute a single target cmd if CF2 didnt take over
 
 	end
 	local cmd = v.moddedCmd or v.defaultCmd
-	if not cmd or (cmd == CMD_RAW_MOVE or cmd == CMD_MOVE) or not v.acquiredTarget or not spValidUnitID(v.acquiredTarget) or spGetUnitIsDead(v.acquiredTarget) then
+	if not cmd
+		or (cmd == CMD_RAW_MOVE or cmd == CMD_MOVE)
+		or not v.acquiredTarget
+		or not spValidUnitID(v.acquiredTarget)
+		or spGetUnitIsDead(v.acquiredTarget) then
 		return
 	end
 	-- Echo("v.acquiredTarget,v.moddedCmd is ", v.acquiredTarget,v.moddedCmd)

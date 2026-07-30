@@ -104,9 +104,9 @@ end
 local source = debug.getinfo(3).source
 local this_widget_file = source:sub(source:find('[%w_]+%.lua'))
 
-Echo('[Hel-K] Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
+Echo('[Hel-K]: Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
 
-
+VFS.Include(HELK_CORE_DIR .. "def_shortcuts.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_register_global_multi.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_cmd_insertwidget.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_sleep_wake.lua")

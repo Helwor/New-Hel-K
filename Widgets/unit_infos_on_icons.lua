@@ -147,29 +147,25 @@ do
 	CreateWindowTableEditer = f.CreateWindowTableEditer
 end
 
-local airpadDefID = {}
-do
-	local airpadDefs = VFS.Include("LuaRules/Configs/airpad_defs.lua", nil, VFS.GAME)
-	for defID in pairs(airpadDefs) do
-		airpadDefID[defID] = true
-	end
-end
+local airpadDefID = WG.airpadDefID
+
+local fakeIDTable = {id = -1}
 local ignoreUnitDefID = {
-	[UnitDefNames['terraunit'].id ] = true,
-	[UnitDefNames['wolverine_mine'].id] = true,
-	[UnitDefNames['shieldscout'].id] = true,
-	[UnitDefNames['starlight_satellite'].id] = true,
+	[WG.terraunitDefID] = true,
+	[(UnitDefNames['wolverine_mine'] or fakeIDTable).id] = true,
+	[(UnitDefNames['shieldscout'] or fakeIDTable).id] = true,
+	[(UnitDefNames['starlight_satellite'] or fakeIDTable).id] = true,
 }
 
 
 local disallowReloadNotice = {
-	[UnitDefNames['shipassault'].id] = true,
-	[UnitDefNames['turretmissile'].id] = true,
+	[(UnitDefNames['shipassault'] or fakeIDTable).id] = true,
+	[(UnitDefNames['turretmissile'] or fakeIDTable).id] = true,
 }
 local canBuildDefID = {}
 local lowCostDefID = {
-	[UnitDefNames['energysolar'].id] = true,
-	[UnitDefNames['energywind'].id] = true,
+	[(UnitDefNames['energysolar'] or fakeIDTable).id] = true,
+	[(UnitDefNames['energywind'] or fakeIDTable).id] = true,
 }
 
 local reloadTimes = {}

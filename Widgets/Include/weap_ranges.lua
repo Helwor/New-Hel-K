@@ -4,16 +4,7 @@ end
 local aim_from_pieces = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces.lua')
 local aim_from_pieces_2 = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces_2.lua')
 local aim_from_poses = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_poses.lua')
-WG.commDefIDs = WG.commDefIDs or (function()
-	local commDefIDs = {}
-	for unitDefID, unitDef in pairs(UnitDefs) do
-		if unitDef.customParams.dynamic_comm or unitDef.customParams.level then
-			commDefIDs[unitDefID] = true
-		end
-	end
-	return commDefIDs
-end)()
-local commDefIDs = WG.commDefIDs
+local commDefID = WG.commDefID
 
 WG.weapRanges = (function()
 	local weapRanges = {}
@@ -63,7 +54,7 @@ WG.weapRanges = (function()
 					if not t then
 						t = {}
 						t.static = not spuGetMoveType(def)
-						t.isComm = commDefIDs[defID]
+						t.isComm = commDefID[defID]
 					end
 					entryIndex = entryIndex + 1
 					t['weaponNum' .. entryIndex] = i

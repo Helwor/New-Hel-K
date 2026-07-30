@@ -34,6 +34,7 @@ local RANGE_COLOR = {1,1,0,ALPHA}
 local MAX_RANGE = 1500
 local MAX_SEL = 10
 local MAX_CIRCLES = 6
+local force_update
 
 local DEBUG_TIME = false
 
@@ -59,17 +60,7 @@ local reused = 0
 local timeCalc = 0
 local timeCalcCount = 0
 local timeCalcAverage = 0
-
-
-WG.commDefIDs = WG.commDefIDs or (function()
-	for unitDefID, unitDef in pairs(UnitDefs) do
-		if unitDef.customParams.dynamic_comm or unitDef.customParams.level then
-			commDefIDs[unitDefID] = true
-		end
-	end
-	return commDefIDs
-end)()
-local commDefIDs = WG.commDefIDs
+local commDefID = WG.commDefID
 
 -- speedups
 local gl 	= gl
@@ -422,7 +413,7 @@ local function ProcessEnemiesFromPoint(ux,uz, max_range)
 					if x then
 						local weapNum1, weapNum2 = thisEnemy.weapNum1, thisEnemy.weapNum2
 						if weapNum1 == nil then
-							if commDefIDs[defID] then
+							if commDefID[defID] then
 								weapNum1 = spGetUnitRulesParam(enemy, "comm_weapon_num_1")
 								weapNum2 = spGetUnitRulesParam(enemy, "comm_weapon_num_2")
 								thisEnemy.weapNum1, thisEnemy.weapNum2 = weapNum1, weapNum2
@@ -536,7 +527,7 @@ function widget:Update(dt)
 			local hasNewNoCalc = false
 
 			-- cache[next(cache)] = nil -- test
-
+			force_update = true
 			local knownUnits = next(cache)
 			if not knownUnits then
 				knownUnits = {wrongs = {}, valids = {}}
@@ -652,7 +643,7 @@ function widget:DrawWorldPreUnit()
 		if toDrawNoCalc and WG.DrawUnitTypeRanges then
 			for defID, units in pairs(toDrawNoCalc) do
 				got = true
-				WG.DrawUnitTypeRanges(defID, units, RANGE_COLOR, 1.3, true)
+				WG.DrawUnitTypeRanges(defID, units, true, RANGE_COLOR, 1.3, true, true)
 			end
 		end
 	end

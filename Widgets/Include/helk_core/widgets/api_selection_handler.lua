@@ -75,87 +75,28 @@ end
 ------
 local morphedComDGUN = {}
 ------
-local puppyDefID = UnitDefNames['jumpscout'].id
-local lobsterDefID = UnitDefNames['amphlaunch'].id
-local widowDefID = UnitDefNames['spiderantiheavy'].id
-local revDefID = UnitDefNames['gunshipassault'].id
-local krowDefID = UnitDefNames['gunshipkrow'].id
-local impalerDefID = UnitDefNames['vehheavyarty'].id
+
+
+local puppyDefID = WG.puppyDefID
+local lobsterDefID = WG.lobsterDefID
+local widowDefID = WG.widowDefID
+local revDefID = WG.revDefID
+local krowDefID = WG.krowDefID
+local impalerDefID = WG.impalerDefID
 --- air stuff
-local airDgunDefID = {
-	[UnitDefNames['bomberassault'].id] = true,   
-}
-local airAttackerDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.isAirUnit and def.canAttack then
-		airAttackerDefID[defID]=true
-	end
-end
-local bomberDefID = {}
-for defID, def in pairs(UnitDefs) do
-	if def.isBomber or def.isBomberAirUnit or def.customParams.reallyabomber then
-		-- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
-		bomberDefID[defID] = true
-	end
-end
-local bombDefID = {}
-for defID, def in pairs(UnitDefs) do
-	if def.name:match('bomb$') then
-		bombDefID[defID] = true
-	end
-end
+local airDgunDefID = WG.airDgunDefID
+local airAttackerDefID = WG.airAttackerDefID
+local bomberDefID = WG.bomberDefID
+local gunshipDefID, planeDefID = WG.gunshipDefID, WG.planeDefID
 
-local gunshipDefID = {}
-local planeDefID = {}
-local GUNSHIP_MOVE_TYPE = 1
-local athenaDefID = UnitDefNames['athena'].id
-local spuGetMoveType = Spring.Utilities.getMovetype
-for defID, def in pairs(UnitDefs) do
-    if def.isBomber or def.isBomberAirUnit or def.customParams.reallyabomber then
-        -- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
-        bomberDefID[defID] = true
-        planeDefID[defID] = true
-    elseif spuGetMoveType(def) == GUNSHIP_MOVE_TYPE then -- def.isHoveringAirUnit can work too
-        gunshipDefID[defID] = true
-    elseif def.canFly then
-    	planeDefID[defID] = true
-    end
-end
-
-----
-
-local jumperDefID = {}
-for defID,def in ipairs(UnitDefs) do
-	if def.customParams.canjump then
-		if not (def.name:match('plate') or def.name:match('factory')) then
-			jumperDefID[defID] = true
-		end
-	end
-end
-
-------
-local transportDefID = UnitDefNames['gunshiptrans'].id
-local heavyTransportDefID = UnitDefNames['gunshipheavytrans'].id
-------
-
-local immobileDefID, turretDefID = {}, {}
-for defID, def in pairs(UnitDefs) do
-	if def.isImmobile then
-		immobileDefID[defID] = true
-		if def.canAttack then
-			turretDefID[defID] = true
-		end
-	end
-end
-
-------
-local isCommDefID = {}
-for defID, def in pairs(UnitDefs) do
-	local name = def.name
-	if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or name:find('comm') or name:find('^hero')) then 
-		isCommDefID[defID] = true
-	end
-end
+--
+local bombDefID = WG.bombDefID
+local athenaDefID = WG.athenaDefID
+local transportDefID = WG.transportDefID
+local heavyTransportDefID = WG.heavyTransportDefID
+local commDefID = WG.commDefID
+local jumperDefID = WG.jumperDefID
+local immobileDefID, turretDefID = WG.immobileDefID, WG.turretDefID
 ------
 
 
@@ -315,7 +256,7 @@ function widget:CommandsChanged()
 			selection[totalCount + i] = id
 			count = count + 1
 		end
-        t.count = count
+		t.count = count
 		totalCount = totalCount + count
 
 
@@ -341,7 +282,7 @@ function widget:CommandsChanged()
 			if not hasTurret and turretDefID[defID] then
 				hasTurret = true
 			end
-		elseif isCommDefID[defID] then
+		elseif commDefID[defID] then
 			hasComm = true
 		elseif gunshipDefID[defID] then
 			hasGunship = true
@@ -464,34 +405,39 @@ function MorphFinished(oldID, newID)
 	if oldID and morphedComDGUN[oldID] then
 		morphedComDGUN[newID] = true
 		morphedComDGUN[oldID] = nil
-		return
 	end
+
 	local defID = spGetUnitDefID(newID)
 	if not defID then
 		return
 	end
-	local def = UnitDefs[defID]
-	local isCom = def.name:match('dyn') or def.name:match('c%d+_base')
 	-- Echo("isCom is ", isCom)
-	if not isCom then
-		return
-	end
 	-- Echo("#def.weapons is ", #def.weapons)
-	for i, weap in ipairs(def.weapons) do
-		local wdefID = spGetUnitRulesParam(newID,'comm_weapon_id_'..i)
-		-- Echo('=>',wdefID, wdefID and WeaponDefs[wdefID], wdefID and WeaponDefs[wdefID] and WeaponDefs[wdefID].customParams.slot)
-		if wdefID then
-			local wdef=WeaponDefs[wdefID]
+	if commDefID[defID] then
+		local def = UnitDefs[defID]
+		for i, weap in ipairs(def.weapons) do
+			local wdefID = spGetUnitRulesParam(newID,'comm_weapon_id_'..i)
+			-- Echo('=>',wdefID, wdefID and WeaponDefs[wdefID], wdefID and WeaponDefs[wdefID] and WeaponDefs[wdefID].customParams.slot)
+			if wdefID then
+				local wdef = WeaponDefs[wdefID]
 
-			if wdef then
-				if tonumber(wdef.customParams.slot) == 3 then
-					morphedComDGUN[newID] = true
-					-- Echo('morphedComDUN', newID, morphedComDGUN[newID])
-					return
+				if wdef then
+					if tonumber(wdef.customParams.slot) == 3 then
+						morphedComDGUN[newID] = true
+						-- Echo('morphedComDUN', newID, morphedComDGUN[newID])
+						break
+					end
 				end
 			end
-		end
 
+		end
+	end
+	if selectionMap[oldID] then
+		local toSelect = {}
+		for id in pairs(selectionMap) do toSelect[id] = true end
+		toSelect[oldID] = nil
+		toSelect[newID] = true
+		Spring.SelectUnitMap(toSelect)
 	end
 	-- widget:CommandsChanged()
 end
