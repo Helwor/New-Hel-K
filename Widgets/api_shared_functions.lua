@@ -69,7 +69,7 @@ local function GetRectangleBuildTexture(udef)
 	if not udef.buildpicname then
 		return false
 	end
-	return "unitpics_9_11/" .. udef.buildpicname
+	return ":l:unitpics_9_11/" .. udef.buildpicname
 end
 
 --------------------------------------------------------------------------------
