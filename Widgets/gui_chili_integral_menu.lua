@@ -477,7 +477,9 @@ options = {
 		OnChange = function(self)
 			SetSmallIcons(self.value)
 			DeleteAllButtons()
-			widget:CommandsChanged()
+			if not firstUpdate then
+				widget:CommandsChanged()
+			end
 		end
 	},
 	applyCustomGrid = {
