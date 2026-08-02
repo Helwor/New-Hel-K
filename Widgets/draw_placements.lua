@@ -5220,12 +5220,11 @@ local OrderPointsByLeastDistance = function(points,startPoint) -- reorder table 
 		current = closest
 	end
 end
-function widget:MouseMove(x, y, _, _, button, recursion)
+function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 	-- if not Drawing --[[and not (warpBack=="ready")--]] then	return	end
 	if useMinimap then
 		x, y = ClampMouseToMinimap(x, y)
 	end
-
 	if not recursion then
 		if prev.firstmx and (PID ~= mexDefID) then
 			if not special and clock() - prev.press_time < 0.09 then -- mouse click leeway
@@ -5252,7 +5251,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 			if clock() - g.unStraightened < 0.3 then 
 				return
 			else
-				g.unStraightened=false
+				g.unStraightened = false
 			end
 		end
 		if not pos then
@@ -5278,20 +5277,18 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 	pos = {_x, _y ,_z, _offMap}
 
 	if not recursion then
-
-		if (PID == mexDefID or special and opt.remote) and prev.pos and button == 1 then -- help to catch mex between mouse move point when going fast
-			local threshold = 200
-			local totalTries = 1000
+		if (PID == mexDefID or special and opt.remote) and prev.pos and button == 1  then -- help to catch mex between mouse move point when going fast
 			local ppos = prev.pos
 			local px, pz, ppx, ppz = pos[1], pos[3], ppos[1], ppos[3]
+			local dirx, dirz = px - ppx, pz - ppz
+			local biggest =  max( abs(dirx), abs(dirz) )
+			dirx, dirz = dirx / biggest, dirz / biggest
+			local threshold = 200
 			local d = ((px - ppx)^2 + (pz - ppz)^2) ^ 0.5
 
 			if d > threshold then
 				local endpos = pos
 				local endmx, endmy = mx, my
-				local dirx, dirz = px - ppx, pz - ppz
-				local biggest =  max( abs(dirx), abs(dirz) )
-				dirx, dirz = dirx / biggest, dirz / biggest
 				local x, y
 				local GetGround, ToScreen = sp.GetGroundHeight, sp.WorldToScreenCoords
 				while d > threshold do
@@ -5315,6 +5312,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 			end
 			-- widget:MouseMove(endmx,endmy, 0, 0, 1, true)
 		end
+
 	end
 
 
@@ -5472,12 +5470,12 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 	-- note: rail.processed can differ from railLen if we used recursion and not using updateRailMM
 	local processed
 	if dstatus ~='paint_farm' and rail.processed == railLen and (not locked or clock() - locked > 0.3) then
-		local x,y,z = unpack(rail[railLen])
+		local x, y, z = unpack(rail[railLen])
 		local factor = Cam.relDist
 		local llasP = specs[specsLen-1]
-		local llasPx,llasPz, llasP_To_Cur
+		local llasPx, llasPz, llasP_To_Cur
 		if llasP then
-			llasPx,llasPz = llasP[1],llasP[2]
+			llasPx, llasPz = llasP[1], llasP[2]
 			llasP_To_Cur = (llasPx-px)^2 + (llasPz-pz)^2 
 		end
 
@@ -5500,7 +5498,7 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 						break
 					end
 				end
-				rail[i]=nil
+				rail[i] = nil
 			end
 			-- if cancelled then
 			-- 	Echo('CANCELLED', math.round(os.clock()))
@@ -5515,8 +5513,8 @@ function widget:MouseMove(x, y, _, _, button, recursion)
 			if not cancelled or cancelled < lasP.r then
 			-- delete the last placement, second last become last
 				if cancelled then
-					Points = {}
-					Points[#Points + 1] = {color = color.white, size = 30, unpack(rail[processed])}	
+					-- Points = {}
+					-- Points[#Points + 1] = {color = color.white, size = 30, unpack(rail[processed])}	
 				end
 				lasP = llasP
 				if special then
@@ -6009,9 +6007,8 @@ do
 
 
 ----------------------------------------
-	
 
-	function widget:DrawWorld()
+	local function DrawWorldFunc()
 		local x, y, z
 		if PID then
 			if special then
@@ -6394,6 +6391,14 @@ do
 			glLineWidth(1.0)
 		end
 		glColor(1, 1, 1, 1)
+	end
+
+
+	function widget:DrawWorld()
+		gl.PushMatrix()
+		gl.LoadMatrix(gl.GetMatrixData("view")) -- fix some wrong matrix left behind in rainy maps that use precipitation widget
+		DrawWorldFunc()
+		gl.PopMatrix()
 	end
 end
 
