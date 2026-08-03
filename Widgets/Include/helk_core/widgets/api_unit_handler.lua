@@ -1771,7 +1771,7 @@ local function TestPosLos(id, struct, complete) -- remove discovered building th
 					-- Echo('struct discovered ' .. id ..', ' .. unit.name .. ' is gone ('..currentFrame - unit.frame..')', 'valid?', spValidUnitID(id),'dead?', spGetUnitIsDead(id))
 				else
 					-- got recycled ?
-					Echo('struct\'s unit no longer exist', unit, unit and unit.defID )
+					-- Echo('struct\'s unit no longer exist', unit, unit and unit.defID )
 					local knownByAlly = struct.knownByAlly
 					knownByAlly[myAllyTeamID] = nil
 					allStructures[id] = nil
