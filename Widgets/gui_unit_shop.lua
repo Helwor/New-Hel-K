@@ -8,8 +8,6 @@ function widget:GetInfo()
 		enabled   = true,
 	}
 end
-Spring.SetClipboard(Game.modName)
-
 if not string.find((Game.modName or ''):lower(), 'arena mod') then
 	return false
 end
