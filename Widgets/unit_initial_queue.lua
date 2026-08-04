@@ -79,7 +79,8 @@ for defID, def in pairs(UnitDefs) do
 		factoryDefID[defID] = true
 	end
 end
-
+local sDefID = Spring.GetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.dyntrainer_strike_base.id-- Starting unit def ID
+local sDef = UnitDefs[sDefID]
 -- Animation Handling
 local pseudoActiveCommand = false
 local allowedCommands = {
@@ -166,14 +167,6 @@ local GL_LINES	= GL.LINES
 local CheckTerra = false
 --++
 
-local factoryDefID = {}
-for defID, def in pairs(UnitDefs) do
-	if def.isFactory then
-		factoryDefID[defID] = true
-	end
-end
-local sDefID = spGetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.dyntrainer_strike_base.id-- Starting unit def ID
-local sDef = UnitDefs[sDefID]
 local buildDistance = sDef.buildDistance
 
 local selDefID = nil -- Currently selected def ID
@@ -1161,6 +1154,9 @@ function widget:GameFrame(n)
 end
 
 function widget:MousePress(mx, my, button)
+	if widgetHandler.hoveredControl then
+		return
+	end
 	if pseudoActiveCommand then
 		if button == 3 then
 			if altJump then
