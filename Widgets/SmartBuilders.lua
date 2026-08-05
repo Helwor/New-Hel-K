@@ -773,7 +773,7 @@ local OrderDraw = function(Type,arg,params)
 			return
 
 		end
-		if arg=='M' then
+		if arg == 'M' then
 			local strM = FormatNum(res.mDelta) --[[.. ':' .. FormatNum(res.needM)--]]
 			local orderM = drawBalance[1]
 			if orderM and myDrawOrders[orderM] then
@@ -2851,7 +2851,10 @@ local dangerousFeatures = setmetatable(
 						local ux, _, uz = u:GetPos(30)
 						local dist =  diag(ux - x, uz - z)
 						local ranges = weapRanges[u.defID]
-						if dist < ((ranges[1] or 0) - minBuildDist) or dist < ((ranges[2] or 0) - minBuildDist) then
+						if not ranges then
+							Echo('NO RANGES?', u.defID, UnitDefs[u.defID] and UnitDefs[u.defID].name)
+						end
+						if ranges and dist < ((ranges[1] or 0) - minBuildDist) or dist < ((ranges[2] or 0) - minBuildDist) then
 							allowed = false
 							break
 						end
@@ -2868,13 +2871,14 @@ local dangerousFeatures = setmetatable(
 		end
 	}
 )
-function CheckFeatures(b,wantM,wantE,needM,needE)
+function CheckFeatures(b, wantM, wantE, needM, needE)
 	local bestFeature
 	local noMoreEfeatures = b.noMoreEfeatures
-	if res.wantE>b.buildSpeed*2 and res.wantM <= b.buildSpeed*2 and noMoreEfeatures then
+	local buildSpeed2 = b.buildSpeed * 2
+	if res.wantE > buildSpeed2 and res.wantM <= buildSpeed2 and noMoreEfeatures then
 		return false,false,false 
 	end
-	local prefered={}
+	local prefered = {}
 	local brokeloop, hasE
 	local range = b.range
 	local nearFeatures = GetFeaturesInCylinder(b.posX,b.posZ,range)
@@ -2882,8 +2886,7 @@ function CheckFeatures(b,wantM,wantE,needM,needE)
 		return
 	end
 	local EfeaturesCount = 0
-	local recM,recE = false,false
-	local buildSpeed = b.buildSpeed
+	local recM, recE = false, false
 	wantM, wantE = res.wantM, res.wantE
 	local matchM, matchE
 	local p = 6
@@ -2893,59 +2896,66 @@ function CheckFeatures(b,wantM,wantE,needM,needE)
 		x,z = b.posX, b.posZ
 		table.sort(nearFeatures,ByDistFeatures)
 	end
+	local reallyNeedE = res.needE > -50
 	x,z = b.posX, b.posZ
 	for i,fID in ipairs(nearFeatures) do
 		if not rezedFeatures[fID] and wantedFeatureDefID[GetFeatureDefID(fID)] and not (b.canRoam) or dangerousFeatures[fID].allowed then
 			local fx,_,fz  = GetFeaturePosition(fID)
 			if diag(fx-x, fz-z) < range then -- GetUnitInCylinder catch some farther feature
-				local fm,_,fe  = GetFeatureResources(fID)
-				recM = fm>0.001
-				recE = fe>0.001
-				matchM, matchE = (res.wantM > b.buildSpeed*2) == recM, (res.wantE > b.buildSpeed*2) == recE
+				local fm, _, fe  = GetFeatureResources(fID)
+				recM = fm > 0.001
+				recE = fe > 0.001
+				matchM, matchE = (res.wantM > buildSpeed2) == recM, (res.wantE > buildSpeed2) == recE
 				if noMoreEfeatures then
 					if matchM then 
-						if not featReclaimed[fID] or fID==b.rec then
+						if not featReclaimed[fID] or fID == b.rec then
 							-- ideal pick, matching and we're already on it or not reclaimed
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
+							p = -1
 							break
 						elseif p > 1 then
 							-- else any other
 							p = 1
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
 						end
 					end
 				else
 					hasE = hasE or recE
+					local moreM = recM and fm > fe
 					--matching want/offer of both M,E
-					if matchM and matchE then
-						if not featReclaimed[fID] or fID==b.rec then
+					if matchM and moreM and not reallyNeedE then
+						if not featReclaimed[fID] or fID == b.rec then
 							-- ideal pick, matching both and we're already on it or is new
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
+							p = -1
 							brokeloop = true
 							break
-						elseif p > 1 then
+						elseif p > 0 then
 							-- else one that is not getting reclaimed
-							p = 1
-							prefered = {fID,recM,recE}
+							p = 0
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
 						end
+					elseif p > 1 and matchM and matchE then
+						p = 1
+						prefered[1], prefered[2], prefered[3] = fID, recM, recE
 					-- only one match
-					elseif (matchM or matchE) and p > 1 then
-						if p > 2 and (recM and wantM>wantE or recE and wantE>wantM) then
+					elseif (matchM or matchE) and p > 2 then
+						if p > 2 and (recM and wantM > wantE or recE and wantE > wantM) then
 							-- the most wanted is matched
 							p = 2
-							prefered = {fID,recM,recE}
-						elseif p > 3 and fID==b.rec then
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
+						elseif p > 3 and fID == b.rec then
 							-- the least wanted is matched
 							-- keep the one we're reclaiming
 							p = 3
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
 						elseif p > 4 and not featReclaimed[fID] then
 							-- or find one that noone is reclaiming
 							p = 4
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
 						elseif p > 5 then
 							p = 5
-							prefered = {fID,recM,recE}
+							prefered[1], prefered[2], prefered[3] = fID, recM, recE
 						end
 					end
 				end
@@ -2955,6 +2965,7 @@ function CheckFeatures(b,wantM,wantE,needM,needE)
 	if not (noMoreEfeatures or hasE or brokeloop or b.canMove) then
 		b.noMoreEfeatures = true
 	end
+	-- Echo("p is ", p, prefered[1] and FeatureDefs[GetFeatureDefID(prefered[1])].name, b.sign .. 'Check Best Feature:',unpack(prefered))
 	-- Echo('res.wantM,res.wantE',res.wantM,res.wantE,'res.needM,res.needE',res.needM,res.needE,"recM,recE is ", recM,recE,bestFeature)
 	Debug.Log(b.sign .. 'Check Best Feature:',unpack(prefered))
 	return unpack(prefered)
