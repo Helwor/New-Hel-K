@@ -280,6 +280,8 @@ local opt = {
 	selPrefer = 'none',
 	selSwitchStatic = true,
 
+	altRightAttackForceGround = false,
+
 	forceJump = true,
 	forceDGUN = true,
 	forceExclude = true,
@@ -320,6 +322,7 @@ options_order = {
 	'overrideLoad',
 
 	'lbl_alt_rclick',
+	'altRightAttackForceGround',
 	'smartLoadUnload',
 	'findBuilderToGuard',
 	'findUnitToGuard',
@@ -506,6 +509,17 @@ options.overrideLoad = {
 options.lbl_alt_rclick = {
 	name = 'Right Click behaviour (with alt)',
 	type = 'label',
+}
+
+options.altRightAttackForceGround = {
+	name = 'Alt + RClick Enemy Force Ground Target',
+	desc = '',
+	type = 'bool',
+	value = opt.altRightAttackForceGround,
+	noHotkey = true,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
 }
 
 options.smartLoadUnload = {
@@ -1454,7 +1468,7 @@ local function Evaluate(type, id, engineCmd)
 			)   
 			and CMD_RAW_MOVE
 
-	if alt then
+	if alt and opt.altRightAttackForceGround then
 		if v.moddedCmd == CMD_ATTACK or not v.moddedCmd and v.defaultCmd == CMD_ATTACK then
 			-- remove modded target if attack with alt
 			if v.moddedTarget then
