@@ -1154,7 +1154,7 @@ function widget:GameFrame(n)
 end
 
 function widget:MousePress(mx, my, button)
-	if widgetHandler.hoveredControl then
+	if WG.Chili and WG.Chili.Screen0.hoveredControl then
 		return
 	end
 	if pseudoActiveCommand then
