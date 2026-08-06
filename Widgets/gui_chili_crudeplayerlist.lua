@@ -18,7 +18,7 @@ if Spring.GetModOptions().singleplayercampaignbattleid then
 
 	return
 end
-
+local countryFull = VFS.Include("LuaMenu/configs/countryShortname.lua")
 local LOG_RES = false
 -- A test game: http://zero-k.info/Battles/Detail/797379
 --------------------------------------------------------------------------------
@@ -402,10 +402,12 @@ local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateCont
 				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
 
 			end
-			country = country~='' and country or info.country~='' and info.country
+			country = country~='' and country or info.country~='' and info.country or nil
 			if country then
-				entryData.country = ("LuaUI/Images/flags/" .. country ..".png")
-				controls.imCountry.file = entryData.country
+				entryData.country = country
+				entryData.countryFlag = ("LuaUI/Images/flags/" .. country ..".png")
+				entryData.countryLong = countryFull[country] or 'Unknown'
+				controls.imCountry.file = entryData.countryFlag
 				controls.imCountry.color = {1,1,1,1} -- remove the transparency, since we made a placeholder for the image (that would have been blank without transparency)
 				controls.imCountry:Invalidate()
 			end
@@ -675,10 +677,15 @@ local function GetEntryData(playerID, teamID, allyTeamID, isAiTeam, isDead, isSp
 		-- if not spectator then
 		-- 	Echo("playerName,customKeys.elo is ", playerName,customKeys.elo)
 		-- end
+		country = country ~= '' and country or nil
+		if country then
+			entryData.country = country
+			entryData.countryFlag = ("LuaUI/Images/flags/" .. country ..".png")
+			entryData.countryLong = countryFull[country] or 'Unknown'
+		end
 		customKeys = customKeys or {}
 		entryData.isMe = (entryData.playerID == myPlayerID)
 		entryData.name = playerName
-		entryData.country = (country and country ~= '' and ("LuaUI/Images/flags/" .. country ..".png"))
 		entryData.rank = ("LuaUI/Images/LobbyRanks/" .. (customKeys.icon or "0_0") .. ".png")
 		entryData.elo = customKeys.elo
 		if customKeys.clan and customKeys.clan ~= "" then
@@ -738,8 +745,9 @@ local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, i
 			height = text_height + 3,
 			parent = userControls.mainControl,
 			keepAspect = true,
-			file = entryData.country,
-			tooltip = entryData.country and entryData.country:match('.+/([^%.]+)') or nil,
+			file = entryData.countryFlag,
+			-- tooltip = entryData.country and entryData.country:match('.+/([^%.]+)') or nil,
+			tooltip = entryData.country and entryData.countryLong,
 			HitTest = entryData.country and function(self) return self end or nil,
 		}
 		imCountry = userControls.imCountry
