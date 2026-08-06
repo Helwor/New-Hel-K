@@ -1790,11 +1790,11 @@ local hotkeysCombos = {
 		call_on_fail = 'Set Cloaker',
 		hasStructure = true,
 		no_prev = true,
-		keep_on_fail = true,
+		-- keep_on_fail = true,
 		-- radius = 300,
 		-- previous_time = 0.2,
 		share_radius = 'Ground Army / GS / ships',
-		ignore_on_fail = true,
+		-- ignore_on_fail = true,
 	},
 
 	{
@@ -1825,6 +1825,7 @@ local hotkeysCombos = {
 		method = 'cylinder',
 		from_cursor = true,
 		keys = {'?AIR', 'N_1', 'RClick', 'longClick', '?doubleRClick', 'mouseStill'},
+		must_have = {    ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
 		defs = {    ['p:cloak_shield'] = 2, [spGetUnitIsActive] = true},
 		prefer = {'isUnit'},
 		force = true,
@@ -1833,6 +1834,7 @@ local hotkeysCombos = {
 		-- previous_time = 0.2,
 		-- shared_prev = 'Cloaker',
 		share_radius = 'Ground Army / GS / ships',
+		-- ignore_on_fail = true,
 		hasStructure = true,
 		no_prev = true,
 		longPressTime = 0.1,
@@ -3245,26 +3247,26 @@ local hotkeysCombos = {
 		name = 'More Special',
 		method = 'cylinder',
 		groups = {
-		{name = 'vehcapture'},
-		{name = 'amphtele'},
-	},
-	-- add_last_acquired = true, 
-	share_radius = 'Special',
-	high_lock_call = true,
-	color = {0.5, 0.9, 0.5, 1},
-	fading = 0.8,
+			{name = 'vehcapture'},
+			{name = 'amphtele'},
+		},
+		-- add_last_acquired = true, 
+		share_radius = 'Special',
+		high_lock_call = true,
+		color = {0.5, 0.9, 0.5, 1},
+		fading = 0.8,
 	},
 
 	{
 		name = 'Shields',
 		method = 'cylinder',
-		keys = {'?AIR', '2', 'RClick'},                     
+		keys = {'?AIR', '2', 'RClick', '?doubleRClick', '?spam'},                     
 		defs = {name = 'shieldshield'},
 		share_radius = 'Ground Army / GS / ships',
-		keep_on_fail = true,
+		-- keep_on_fail = true,
 		color = {0.5, 0.9, 0.5, 1},
 		fading = 0.8,
-		ignore_on_fail = true,
+		-- ignore_on_fail = true,
 	},
 
 	---------------------------------------------------
@@ -4058,7 +4060,43 @@ local possibleKeys = {
 
 }
 
-local currentCombo = {keys = {}, raw = {}}
+local currentCombo = {
+	keys = {},
+	raw = {},
+	Clear = function(self)
+		local keys = self.keys
+		for k in pairs(keys) do
+			keys[k] = nil
+		end
+		local raw = self.raw
+		for k in pairs(raw) do
+			raw[k] = nil
+		end
+	end,
+	GetSortedKeys = function(self)
+		if not next(self.keys) then
+			return ''
+		end
+		local keys = self.keys
+		local tinsert = table.insert
+		local sortedKeys = {}
+		local dbg = not DONE and table.size(self.keys) == 2
+		local function SortNum(a, b)
+			return keys[a] < keys[b]
+		end
+		for k, v in pairs(self.keys) do
+			if v ~= 0 then 
+				tinsert(sortedKeys, k)
+			end
+		end
+		table.sort(sortedKeys, SortNum)
+		for k, v in pairs(self.keys) do 
+			if v == 0 then tinsert(sortedKeys, k) end
+		end
+		return table.concat(sortedKeys, ' | ')
+	end
+
+}
 widget.currentCombo = currentCombo
 local ownedCombos = {} -- for cycling translate combo name to combo index
 
@@ -4481,9 +4519,11 @@ local 	function UpdateChain(time)
 				calledFrom = call.calledFrom, 
 				call = call, 
 				name = call.name, 
+				success = call.success,
 				duration = 0,
 				deltatime = deltatime, 
 				finished = 'unknown', 
+				keyPressedStr = call.calledFrom and call.calledFrom.keyPressedStr or call.keyPressedStr,
 				gameTime = g.FormatTime(g.spGetGameSeconds())
 			}
 		)
@@ -4500,7 +4540,15 @@ local 	function UpdateChain(time)
 		last.chainCount = 1
 		last.time = time
 		for k, v in pairs(last.chained) do last.chained[k] = nil end
-		last.chained[1] = {call = call, name = call.name, duration = 0, finished = 'unknown', gameTime = g.FormatTime(g.spGetGameSeconds()), deltatime = 0}
+		last.chained[1] = {
+			call = call,
+			name = call.name,
+			keyPressedStr = call.keyPressedStr,
+			duration = 0,
+			finished = 'unknown',
+			gameTime = g.FormatTime(g.spGetGameSeconds()),
+			deltatime = 0
+		}
 	end
 end
 
@@ -5806,7 +5854,9 @@ do
 		-- pick directly the right combo memorized by string of key pressed, if we wrote them down already
 		local str = '' 
 		for key, pushed_N in pairs(pressedKeys) do str = str..key..pushed_N end
-		-- Echo("str is ", str)
+		-- if pressedKeys['doubleRClick'] then
+		-- 	Echo(str, valids[str] or wrongs[str] and 'Wrong' or 'undefined')
+		-- end
 		local found, wrong = valids[str], wrongs[str]
 		if found then return self[found] elseif wrong then return end
 		--
@@ -5820,86 +5870,59 @@ do
 		local valid
 		local name
 		-- local txt = '' for k, v in pairs(pressedKeys) do txt = txt..'|'..k..':'..v end
-		local function isValidKey(key, i)
+		local function HasRequiredKey(key, i)
 			local keyIsOptional, key = key:match('?'), key:gsub('?', '') -- remove the '?' and note it is optional 
-
 			local pushed_N = pressedKeys[key]
 			if keyIsOptional then
-				if not pushed_N then req_N = req_N-1 end
+				if not pushed_N then
+					req_N = req_N - 1
+				end
 				valid = true
 			elseif pushed_N then
 				if notOrdered or pushed_N == 0 or last_pushed_N < pushed_N then
 					valid = true
-				-- elseif debug then
-				-- 	Echo("last_pushed_N, pushed_N, last_pushed_N < pushed_N is ", last_pushed_N, pushed_N, last_pushed_N < pushed_N)
 				end
 				if pushed_N > 0 then
 					last_pushed_N = pushed_N
 				end
 				
 			end
-			-- if name == 'Raiders' then
-			-- 	for k, v in pairs(pressedKeys) do
-			-- 		Echo(k, v)
-			-- 	end
-			-- 	Echo("keyIsOptional, key is ", keyIsOptional, key, pushed_N, 'valid', valid)
-			-- end
 			return valid
 		end
 		-- Echo("---- length:", length, 'txt: '.. txt)
 
 		for i = 1, #self do
-			-- local debug = tell and self[i].name and self[i].name:match('More Likho')
-			name = self[i].name
-			keys = self[i].keys
+			local macro = self[i]
+			name = macro.name
+			keys = macro.keys
 			req_N = 0
-			notOrdered = self[i].no_key_order
+			notOrdered = macro.no_key_order
 			last_pushed_N = 0
-
 
 			for n, key in ipairs(keys) do -- browse through keys required by the macro
 				reqKey = key
 				valid = false
-				req_N = req_N+1
+				req_N = req_N + 1
 				-- unused, not sure it's working - treating OR operator signified by the presence of a subtable containing keys
-				-- if debug then
-				-- 	Echo('required key', reqKey)
-				-- end
 				if type(reqKey)== 'table' then -- 
 					for _, orKey in ipairs(reqKey) do
-						if isValidKey(orKey) then
+						if HasRequiredKey(orKey, i) then
 							break
 						end
 					end
-				-- 
 				else
-					isValidKey(reqKey)
+					HasRequiredKey(reqKey, i)
 				end
-				-- if debug then
-				-- end
-				-- if self[i].name == 'All Commandos' then
-				-- 	Echo('--', osclock())
-				-- 	Echo('key asked: ' .. reqKey)
-				-- 	local keyIsOptional, key = reqKey:match('?'), reqKey:gsub('?', '') -- remove the '?' and note it is optional 
-				-- 	Echo('pressed?', pressedKeys[key])
-				-- 	if not pressedKeys[key] and keyIsOptional then
-				-- 		Echo('ok, not required...')
-
-				-- 	else
-				-- 		Echo('req_N is ', req_N)
-
-				-- 	end
-				-- 	Echo('valid?', valid, valid and self[valid].name or '')
-				-- end
-				if not valid then break end
+				if not valid then
+					break
+				end
 			end
 			-- verify that we are not dealing with a macro that need less keys than we have pressed, and we're good to go
 			if valid and req_N == length then
 				if not dontRmb then
 					valids[str] = i -- memorize for faster indexing
 				end
-				-- Echo('RETURN', self[valid].name)
-				return self[i]
+				return macro
 			end
 		end
 		if not dontRmb then
@@ -6212,6 +6235,9 @@ do
 				then
 					g.gotNewCall = false
 					return isCtrlGroup
+				end
+				if Debug.currentCombo() then
+					newcall.keyPressedStr = currentCombo:GetSortedKeys()
 				end
 			end
 			if call then
@@ -8305,7 +8331,7 @@ do
 				end
 				-- return true
 			end
-			-- currentCombo = {keys = {}}
+			-- currentCombo:Clear()
 			-- longPress.key = nil
 			return
 		end -- Pan View widget take over
@@ -8363,13 +8389,13 @@ do
 		g.inTweakMode = g.inTweakMode or widgetHandler.tweakMode
 		if g.inTweakMode and not widgetHandler.tweakMode then
 			g.inTweakMode = false
-			currentCombo = {keys = {}, raw = {}}
+			currentCombo:Clear()
 		-----------------------------
 		-- Same for when user is adding label by double click, the mapdrawing hotkey release will not be registered
 		elseif next(currentCombo.raw) and Spring.IsUserWriting() then
 			longPress.key = false
 			longPress.active = false
-			currentCombo = {keys = {}, raw = {}}
+			currentCombo:Clear()
 		end
 		-- Completing ClickHandling, MousePress is not enough
 		-- CheckClick()
@@ -9388,7 +9414,6 @@ end
 		local dName, dSelName, dR, dG, dB, dAlpha, dFader, dFaderTxt, dPosX, dPosY, dSize, noFadeIn
 		local dTextAlpha
 		local masked_id
-		local combo_display = ''
 		local color = COLORS
 		local vsx, vsy
 		function widget:GetViewSizes(x, y)
@@ -9461,9 +9486,7 @@ end
 		local lLock, lname, lR, lG, lB, lalpha, lx, ly, lsize, lSet
 		local done
 		local t = {}
-		local sortNum = function(a, b)
-			return t[a] < t[b]
-		end
+
 		local gluDrawScreenCircle = gl.Utilities.DrawScreenCircle
 
 		function widget:DrawScreen()
@@ -9541,30 +9564,6 @@ end
 		  --   end
 			-- Showing Combo in bottom left if wanted
 			if Debug.currentCombo() then
-
-				combo_display = ''
-				local box = {}
-				for k, v in pairs(currentCombo.keys) do
-					if v~= 0 then 
-						table.insert(box, k)
-						table.insert(t, v)
-					end
-				end
-				table.sort(box, sort)
-
-
-				for k, v in pairs(currentCombo.keys) do 
-					if v == 0 then table.insert(box, k) end
-				end
-				for i, v in ipairs(box) do
-					combo_display = combo_display.. (i == 1 and '' or ' | ') ..v
-				end
-				combo_display = combo_display .. '\n'
-				for k, v in pairs(currentCombo.raw) do
-					combo_display = combo_display .. (KEYCODES[k] or k)
-				end
-				-- combo_display = table.concat(box, ' | ')
-
 				local num = 8
 				glColor(color.grey)
 				local lasts = ''
@@ -9579,22 +9578,22 @@ end
 							glColor(color.grey)
 						end
 						local str = ('[%.3f]: %s%s'):format(thiscall.deltatime, thiscall.calledFrom and ' o => ' or '', thiscall.name )
-						glText(str, 20, 200 + (i) * 15, 15)
+						if thiscall.keyPressedStr then
+							str = str .. ' - ' .. thiscall.keyPressedStr 
+						end
+						glText(str, 20, 200 + (i) * 15, 15, 'no')
 						-- lasts = lasts .. '[' .. thiscall.gameTime .. ']' .. (thiscall.name .. ' %.2f'):format(thiscall.duration)
 					end
 					-- lasts = lasts .. '\n'
 				end
 
-				-- glText(lasts, 60, 220 + (num) * 15, 15)
 				if call then 
 					glColor(color.lime)
-					glText(call.name, 20, 200 + 15, 15)
+					glText(call.name, 20, 200 + 15, 15, 'no')
 				end
 
 				glColor(color.white)
-			-- glText(format(kConcat(currentCombo.keys)), 60, 220, 15)
-
-				glText(combo_display, 20, 200, 15)
+				glText(currentCombo:GetSortedKeys(), 20, 200, 15, 'no')
 			end
 			glColor(1, 1, 1, 1)
 
