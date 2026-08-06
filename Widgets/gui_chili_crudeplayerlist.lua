@@ -1068,9 +1068,9 @@ local function Compare(ac, bc)
 	end
 	--
 	
-	if not a.isMyTeam ~= not b.isMyTeam then
-		return b.isMyTeam
-	end
+	-- if not a.isMyTeam ~= not b.isMyTeam then
+	-- 	return b.isMyTeam
+	-- end
 
 	if not a.isMe ~= not b.isMe then
 		return a.isMe
