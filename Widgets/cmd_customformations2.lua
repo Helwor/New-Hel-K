@@ -402,12 +402,20 @@ function TrailHandler:StartDrawing()
 	if not self.drawing then
 		self.drawing = true
 		TrailHandler.drawing = TrailHandler.drawing + 1
+		if TrailHandler.drawing > 0 then
+			widgetHandler:UpdateWidgetCallIn("DrawInMiniMap", self)
+			widgetHandler:UpdateWidgetCallIn("DrawWorld", self)
+		end
 	end
 end
 function TrailHandler:StopDrawing()
 	if self.drawing then
 		self.drawing = false
 		TrailHandler.drawing = TrailHandler.drawing - 1
+		if TrailHandler.drawing <= 0 then
+			widgetHandler:RemoveWidgetCallIn("DrawInMiniMap", self)
+			widgetHandler:RemoveWidgetCallIn("DrawWorld", self)
+		end
 	end
 end
 
@@ -498,7 +506,7 @@ local spGetSelectedUnits = Spring.GetSelectedUnits
 local spGetUnitDefID = Spring.GetUnitDefID
 local spGiveOrder = Spring.GiveOrder
 local spGetUnitIsTransporting = Spring.GetUnitIsTransporting
-local spGetCommandQueue = Spring.GetCommandQueue
+local spGetUnitCommands = Spring.GetUnitCommands
 local spGetUnitPosition = Spring.GetUnitPosition
 local spGetGroundHeight = Spring.GetGroundHeight
 local spGetFeaturePosition = Spring.GetFeaturePosition
@@ -581,18 +589,15 @@ local function CulledTraceScreenRay(mx, my, coords, minimap, throughWater)
 end
 
 local function GetModKeys()
-
 	local alt, ctrl, meta, shift = spGetModKeyState()
-
 	if spGetInvertQueueKey() then -- Shift inversion
 		shift = not shift
 	end
-
 	return alt, ctrl, meta, shift
 end
-local function GetUnitFinalPosition(uID)
 
-	local cmds = spGetCommandQueue(uID, -1)
+local function GetUnitFinalPosition(uID)
+	local cmds = spGetUnitCommands(uID)
 	if not cmds then
 		return 0, 0, 0
 	end
@@ -645,7 +650,7 @@ local function CanUnitExecute(uID, cmdID, cheating)
 
 	if cmdID == CMD_UNLOADUNIT then
 		local transporting = spGetUnitIsTransporting(uID)
-		return (transporting--[[ and transporting[1]--]])
+		return (transporting and transporting[1])
 	end
 	if cheating and not spIsUnitAllied(uID) or spFindUnitCmdDesc(uID, cmdID) then
 		return true
@@ -655,24 +660,29 @@ end
 local function GetExecutingUnits(cmdID)
 
 	local units, n = {}, 0
-	-- local selUnits = spGetSelectedUnits()
-	-- for i = 1, #selUnits do
-	-- 	local uID = selUnits[i]
-	-- 	if CanUnitExecute(uID, cmdID) then
-	-- 		n = n + 1
-	-- 		units[n] = uID
-	-- 	end
-	-- end
-	local total = 0
-	local selTypes = WG.selectionDefID or spGetSelectedUnitsSorted()
-	local cheating = Spring.IsCheatingEnabled()
-	for defID, u in pairs(selTypes) do
-		if CanUnitExecute(u[1], cmdID, cheating) then
-			units[defID] = u
-			total = total + 1
+	local typeCount
+	if cmdID == CMD_UNLOADUNIT then
+		local selUnits = WG.selection or spGetSelectedUnits()
+		for i = 1, #selUnits do
+			local uID = selUnits[i]
+			if CanUnitExecute(uID, cmdID) then
+				n = n + 1
+				units[n] = uID
+			end
+		end
+		units = {units}
+	else
+		typeCount = 0
+		local selTypes = WG.selectionDefID or spGetSelectedUnitsSorted()
+		local cheating = Spring.IsCheatingEnabled()
+		for defID, u in pairs(selTypes) do
+			if CanUnitExecute(u[1], cmdID, cheating) then
+				units[defID] = u
+				typeCount = typeCount + 1
+			end
 		end
 	end
-	return units, total
+	return units, typeCount
 end
 
 
@@ -1125,7 +1135,7 @@ local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShi
 		tweaked = true
 	elseif hasPuppy then
 		ctrl = true
-		tweakd = true
+		tweaked = true
 	end
 	-- Echo('tweaked',tweaked,'alt', forceAlt,'ctrl', ctrl,'meta', meta,'shift', forceShift)
 	return tweaked, usingCmd, forceAlt, ctrl, meta, forceShift, usingRMB
@@ -1388,12 +1398,12 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 		return false
 	end
 
-	local screenTravel = diag(dx, dy^2)
+	local screenTravel = diag(dx, dy)
 	cf2Nodes.totalScreenTravel = cf2Nodes.totalScreenTravel + screenTravel
 	cf2Nodes.lastNodeScreenTravel = cf2Nodes.lastNodeScreenTravel + screenTravel
 	-- Minimap-specific checks
 	if inMinimap then
-		if (cf2Nodes.lastNodeScreenTravel < 5) or not spIsAboveMiniMap(mx, my) then
+		if (cf2Nodes.lastNodeScreenTravel < 2.5) or not spIsAboveMiniMap(mx, my) then
 			return false
 		end
 	end
@@ -1541,7 +1551,7 @@ function widget:MouseRelease(mx, my, mButton)
 	-- Are we going to use the drawn formation?
 	local usingFormation = true
 	-- Override checking
-	if overriddenCmd and (not overrideCmdSingleUnit[overriddenCmd] or not cf2Nodes[SMALL_FORMATION_THRESHOLD + 1]) then
+	if overriddenCmd and (not overrideCmdSingleUnit[overriddenCmd] or not cf2Nodes[SMALL_FORMATION_THRESHOLD]) then
 		local targetID
 		local targType, targID = CulledTraceScreenRay(mx, my, false, inMinimap)
 		if targType == 'unit' then
@@ -1614,8 +1624,8 @@ function widget:MouseRelease(mx, my, mButton)
 		else
 			-- Order is a formation
 			-- Are any units able to execute it?
-			local mUnits, total = GetExecutingUnits(usingCmd)
-			local toReorder = opt.reorderGroups and total > table.size(mUnits)
+			local mUnits, typeCount = GetExecutingUnits(usingCmd)
+			local toReorder = opt.reorderGroups and typeCount and typeCount > table.size(mUnits)
 			if next(mUnits) then
 				cf2Nodes.update = true
 				local ranks = GetFormationRanks(mUnits, usingCmd)
@@ -1707,7 +1717,7 @@ function widget:SelectionChanged()
 	selectionChanged = true
 end
 
-local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
+
 function widget:CommandsChanged()
 	if cf2Nodes[2] and not cf2Nodes.fadeout then
 		cf2Nodes.update = true
@@ -2289,11 +2299,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 		distances[i] = {}
 		local dists = distances[i]
 		for j = 1, unitCount do
-
 			local nodePos = nodes[j]
-			if not nodePos then
-				Echo('NO NODE POS', debug.traceback())
-			end
 			local dx, dz = nodePos[1] - ux, nodePos[3] - uz
 			dists[j] = floor(sqrt(dx*dx + dz*dz) + 0.5)
 			-- dists[j] = floor(diag(dx, dz) + 0.5)
