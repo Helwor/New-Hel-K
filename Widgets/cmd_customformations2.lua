@@ -1413,23 +1413,23 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	if not pos then return false end
 
 	-- Add the new formation node
-	if not cf2Nodes[2] and screenTravel <= 4 or not cf2Nodes:AddRawPos(pos) then return false end
+	if not cf2Nodes[2] and cf2Nodes.totalScreenTravel <= 4 or not cf2Nodes:AddRawPos(pos) then return false end
 	-- Have we started drawing a line?
 	local alt, ctrl, meta, shift = GetModKeys()
-
 	if cf2Nodes[2] and not cf2Nodes[3] then
 		-- We have enough nodes to start drawing now
 		-- If the line is a path, start the units moving to this node
 		if pathCandidate then
-			lastPathPos = pos
 			local cmdOpts
 			local forceShift, forceAlt = shift, false
 			local tweakTarget = true
-			usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarget, mx, my, acquiredTarget, false)
-			GiveNotifyingOrder(usingCmd, pos, cmdOpts)
+			local params
+			usingCmd, params, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, cf2Nodes[1], tweakTarget, mx, my, acquiredTarget, false)
+			GiveNotifyingOrder(usingCmd, params, cmdOpts)
 
 			draggingPath = true
 			SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
+			lastPathPos = cf2Nodes[1]
 		end
 	else
 		-- Are we dragging a path?
@@ -1439,7 +1439,6 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 			local distSq = (dx*dx + dz*dz)
 			local minTravel = (spacingByCmd[usingCmd] or minPathSpacingSqDefault)
 			if distSq > minTravel then
-				lastPathPos = pos
 				-- Echo("usingCmd, CMD_UNIT_SET_TARGET, targType is ", usingCmd, CMD_UNIT_SET_TARGET_CIRCLE, targType)
 				local usingRMB = usingRMB
 				local forceShift, forceAlt = true, false
@@ -1448,12 +1447,14 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 				if cf2Nodes[4] then
 					acquiredTarget = false
 				end
-				usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarget, mx, my, acquiredTarget, false)
+				local params
+				usingCmd, params, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarget, mx, my, acquiredTarget, false)
 				if meta then
-					WG.CommandInsert(usingCmd, pos, cmdOpts)
+					WG.CommandInsert(usingCmd, params, cmdOpts)
 				else
-					GiveNonNotifyingOrder(usingCmd, pos, cmdOpts)
+					GiveNonNotifyingOrder(usingCmd, params, cmdOpts)
 				end
+				lastPathPos = pos
 			end
 		end
 	end
