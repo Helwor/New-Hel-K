@@ -339,21 +339,115 @@ local throughWater
 -- from -HasViewChanged.lua
 local Units
 --
+local auto_table_mt = {
+	__index = function(self, key)
+		local t = {}
+		rawset(self, key, t)
+		return t
+	end
+}
 
 --------------------------------------------------------------------------------
 -- Globals
 --------------------------------------------------------------------------------
 local maxHungarianUnits = defaultHungarianUnits -- Also set when loading config
+local TrailHandler = { -- Formation nodes API
+	trails = {},
+	drawing = 0
+}
+function TrailHandler:AddRawPos(pos) end -- Add raw pos, update self array and self.dists
+function TrailHandler:GetInterpNodes(number, offset, noReset) end -- get interpolated nodes from raw poses, given number or nodes to place, update self.interpNodes array
+function TrailHandler:MatchUnitsToNodes(units, arePositions, shifted, nodes) end -- units array or positions array, use self.interpolated or specified nodes, to get orders {unitID or posIndex, nodeIndex}
+-- used internally
+function TrailHandler:DrawFormationLines(vertFunction, lineStipple) end
+function TrailHandler:DrawFormationDots(zoomY, nodes) end -- give cam Distance from gound, use self.interpolated or specified nodes
+-----
+function TrailHandler:Process(pos, units, arePositions) -- for simple and easy trail making TrailHandler:Process(newRawpos, units, arePositions)
+	if self:AddRawPos(pos) then
+		if self[2] then
+			self:GetInterpNodes(#units, arePositions)
+			self:MatchUnitsToNodes(units, arePositions)
+			self:StartDrawing()
+		end
+	end
+end
 
-local fNodes = {} -- Formation nodes, filled as we draw
-local fDists = {} -- fDists[i] = distance from node 1 to node i
-local lastNodeScreenTravel = 0 -- Measure of distance mouse has moved, used to unjag lines drawn in minimap
-local totalScreenTravel = 0
-local lineLength = 0 -- Total length of the line
+function TrailHandler:New(key)
+	local nodes = self.trails[key]
+	if nodes then
+		nodes:Clear()
+	else
+		nodes = {
+			dists = {}, -- distance from node 1 to node i
+			interpolated = {},
+			subInterpolated = setmetatable({}, auto_table_mt),
+			order = {},
+			drawing = false,
+			fadeout = false,
+			cmd = false,
+			alpha = 1,
+			lastNodeScreenTravel = 0, -- Measure of distance mouse has moved, used to unjag lines drawn in minimap
+			totalScreenTravel = 0,
+			lineLength = 0,
+			update = false,
+		}
+		self.trails[key] = nodes
+	end
+	setmetatable(nodes, {__index = TrailHandler})
+	return nodes
+end
+function TrailHandler:StartDrawing()
+	if not self.drawing then
+		self.drawing = true
+		TrailHandler.drawing = TrailHandler.drawing + 1
+	end
+end
+function TrailHandler:StopDrawing()
+	if self.drawing then
+		self.drawing = false
+		TrailHandler.drawing = TrailHandler.drawing - 1
+	end
+end
 
-local dimmCmd = nil -- The dimming command (Used for color)
-local dimmNodes = {} -- The current nodes of dimming line
-local dimmAlpha = 0 -- The current alpha of dimming line
+function TrailHandler:Clear()
+	if self == TrailHandler then
+		for k, nodes in pairs(self.trails) do
+			nodes:Clear()
+		end
+	else
+		self:StopDrawing()
+		self.fadeout = false
+		self.cmd = false
+		self.alpha = 1
+		self.lastNodeScreenTravel = 0
+		self.totalScreenTravel = 0
+		self.lineLength = 0
+		self.update = false
+		for i in ipairs(self) do
+			self[i] = nil
+		end
+		local dists = self.dists
+		for i in ipairs(dists) do
+			dists[i] = nil
+		end
+		local interpolated = self.interpolated
+		for i in ipairs(interpolated) do
+			interpolated[i] = nil
+		end
+		local subInterpolated = self.subInterpolated
+		for i in pairs(subInterpolated) do
+			subInterpolated[i] = nil
+		end
+		local order = self.order
+		for i in ipairs(order) do
+			order[i] = nil
+		end
+	end
+end
+
+local cf2Nodes = TrailHandler:New('cf2')
+
+
 
 local pathCandidate = false -- True if we should start a path on mouse move
 local draggingPath = false -- True if we are dragging a path for unit(s) to follow
@@ -431,6 +525,9 @@ local cos 		= math.cos
 local max 		= math.max
 local huge 		= math.huge
 local pi2 		= 2*math.pi
+local halfpi	= math.pi/2
+local diag      = math.diag
+local atan2    = math.atan2
 
 local CMD_INSERT 		= CMD.INSERT
 local CMD_MOVE 			= CMD.MOVE
@@ -456,6 +553,22 @@ local myTeamID = spGetMyTeamID()
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------
+
+
+local function copy(t)
+	local c = {}
+	for i, v in ipairs(t) do
+		c[i] = v
+	end
+	return c
+end
+
+local function clear(t)
+	for k in pairs(t) do
+		t[k] = nil
+	end
+end
+
 local function CulledTraceScreenRay(mx, my, coords, minimap, throughWater)
 	local targetType, params = spTraceScreenRay(mx, my, coords, minimap,nil,throughWater)
 	if targetType == "ground" then
@@ -575,7 +688,7 @@ local function GetFormationRanks(mUnits, cmdID)
 	if not movementCmds[cmdID] then
 		return {merge({}, mUnits)}
 	end
-	if totalScreenTravel > 40 then
+	if cf2Nodes.totalScreenTravel > 40 then
 		local singleInEachType = true
 		for defID, u in pairs(mUnits) do
 			if u[2] then
@@ -621,19 +734,19 @@ end
 
 -- 	return ranks
 -- end
-local function AddFNode(pos)
+function TrailHandler:AddRawPos(pos)
 
 	local px, pz = pos[1], pos[3]
 	if px < 0 or pz < 0 or px > mapSizeX or pz > mapSizeZ then
 		return false
 	end
 
-	local n = #fNodes
+	local n = #self
 	if n == 0 then
-		fNodes[1] = pos
-		fDists[1] = 0
+		self[1] = pos
+		self.dists[1] = 0
 	else
-		local prevNode = fNodes[n]
+		local prevNode = self[n]
 		local dx, dz = px - prevNode[1], pz - prevNode[3]
 		local distSq = dx*dx + dz*dz
 		if distSq == 0.0 then -- Don't add if duplicate
@@ -642,46 +755,59 @@ local function AddFNode(pos)
 
 		local dis = sqrt(distSq)
 
-		fNodes[n + 1] = pos
-		fDists[n + 1] = fDists[n] + dis
-		lineLength = lineLength + dis
+		self[n + 1] = pos
+		self.dists[n + 1] = self.dists[n] + dis
+		self.lineLength = self.lineLength + dis
 	end
 
-	lastNodeScreenTravel = 0
+	self.lastNodeScreenTravel = 0
+	self.update = true
 	return true
 end
 
-local function GetInterpNodes(number, offset)
+function TrailHandler:GetInterpNodes(number, offset, subIndex)
+	offset = offset or 0
+	local unique = false
 	if number == 1 then
-		return { GetInterpNodes(3, offset)[2] }
+		unique = true
+		number = 3
 	end
+	local spacing = self.dists[#self] / (number - 1)
 
-	local spacing = fDists[#fNodes] / (number - 1)
-
-	local interpNodes = {}
-
-	local sPos = fNodes[1]
+	local interpNodes
+	if self.update then 
+		clear(self.subInterpolated)
+		clear(self.interpolated)
+		self.update = false
+	end
+	if subIndex then
+		interpNodes = self.subInterpolated[subIndex]
+	else
+		interpNodes = self.interpolated
+	end
+	local sPos = self[1]
 	local sX = sPos[1]
 	local sZ = sPos[3]
 	local sDist = 0
 
 	local eIdx = 2
-	local ePos = fNodes[2]
+	local ePos = self[2]
 	local eX = ePos[1]
 	local eZ = ePos[3]
-	local eDist = fDists[2]
+	local eDist = self.dists[2]
 
 	local nA = 0
 	if offset ~= 0 then
-		nA = math.atan2(sX - eX, sZ - eZ) + math.pi / 2
-		sX = sX + math.sin(nA) * offset
-		sZ = sZ + math.cos(nA) * offset
+		nA = atan2(sX - eX, sZ - eZ) + halfpi
+		sX = sX + sin(nA) * offset
+		sZ = sZ + cos(nA) * offset
 	end
-	local sY = math.max(0, spGetGroundHeight(sX,sZ))
+	local sY = max(0, spGetGroundHeight(sX,sZ))
 
 	interpNodes[1] = {sX, sY, sZ}
 
-	for n = 1, number - 2 do
+
+	for n = 1, unique and 1 or number - 2 do
 		local reqDist = n * spacing
 		while (reqDist > eDist) do
 
@@ -690,12 +816,12 @@ local function GetInterpNodes(number, offset)
 			sDist = eDist
 
 			eIdx = eIdx + 1
-			ePos = fNodes[eIdx]
+			ePos = self[eIdx]
 			eX = ePos[1]
 			eZ = ePos[3]
-			eDist = fDists[eIdx]
+			eDist = self.dists[eIdx]
 			if offset ~= 0 then
-				nA = math.atan2(sX - eX, sZ - eZ) + math.pi / 2
+				nA = atan2(sX - eX, sZ - eZ) + halfpi
 			end
 		end
 
@@ -703,24 +829,36 @@ local function GetInterpNodes(number, offset)
 		local nX = sX * (1 - nFrac) + eX * nFrac
 		local nZ = sZ * (1 - nFrac) + eZ * nFrac
 		if offset ~= 0 then
-			nX = nX + math.sin(nA) * offset
-			nZ = nZ + math.cos(nA) * offset
+			nX = nX + sin(nA) * offset
+			nZ = nZ + cos(nA) * offset
 		end
-		local nY = math.max(0, spGetGroundHeight(nX, nZ))
+		local nY = max(0, spGetGroundHeight(nX, nZ))
 		interpNodes[n + 1] = {nX, nY, nZ}
 	end
 
-	ePos = fNodes[#fNodes]
+	ePos = self[#self]
 	eX = ePos[1]
 	eZ = ePos[3]
 	if offset ~= 0 then
-		nA = math.atan2(sX - eX, sZ - eZ) + math.pi / 2
-		eX = eX + math.sin(nA) * offset
-		eZ = eZ + math.cos(nA) * offset
+		nA = atan2(sX - eX, sZ - eZ) + halfpi
+		eX = eX + sin(nA) * offset
+		eZ = eZ + cos(nA) * offset
 	end
-	local eY = math.max(0, spGetGroundHeight(eX, eZ))
-	interpNodes[number] = {eX, eY, eZ}
+	local eY = max(0, spGetGroundHeight(eX, eZ))
+	if unique then
+		table.remove(interpNodes, 1)
+	else
+		interpNodes[number] = {eX, eY, eZ}
+	end
 
+	if subIndex then
+		local allInterp = self.interpolated
+		local a = #allInterp
+
+		for i = 1, number do
+			allInterp[a + i] = interpNodes[i]
+		end
+	end
 	--DEBUG for i=1,number do Spring.Echo(interpNodes[i]) end
 
 	return interpNodes
@@ -729,12 +867,11 @@ end
 local function GetFormationNodes(ranks)
 	local maxRank = nil
 	local nodes = {}
-
 	for rank = 3, 0, -1 do
 		local units = ranks[rank]
 		if units then
 			maxRank = maxRank or rank
-			nodes[rank] = GetInterpNodes(#units, options.rank_gap.value * (maxRank - rank))
+			nodes[rank] = cf2Nodes:GetInterpNodes(#units, options.rank_gap.value * (maxRank - rank), rank, rank == 3)
 		end
 	end
 
@@ -778,7 +915,7 @@ local function SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
 	local wantedSpeed = 99999 -- High enough to exceed all units speed, but not high enough to cause errors (i.e. vs math.huge)
 	local speeds ={}
 	if ctrl then
-		local selUnits = spGetSelectedUnits()
+		local selUnits = WG.selection or spGetSelectedUnits()
 		for i = 1, #selUnits do
 			local ud = UnitDefs[spGetUnitDefID(selUnits[i])]
 			local uSpeed = ud and ud.speed
@@ -802,10 +939,14 @@ local function SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
 	-- Directly giving speed order appears to work perfectly, including with shifted orders ...
 	-- ... But other widgets CMD.INSERT the speed order into the front (Posn 1) of the queue instead (which doesn't work with shifted orders)
 	if REMOVED_SET_WANTED_MAX_SPEED then
-		local units = Spring.GetSelectedUnits()
-		Spring.GiveOrderToUnitArray(units, CMD_WANTED_SPEED, {wantedSpeed}, 0) -- give order to unit Array provoke a little halt
-		-- Spring.GiveOrder(CMD_WANTED_SPEED, {wantedSpeed}, 0)
-		-- Echo('set wanted speed to',wantedSpeed)
+		local units = WG.selection or spGetSelectedUnits()
+		local param = {wantedSpeed}
+		for i, unitID in ipairs(units) do -- avoid clogging
+			spGiveOrderToUnit(unitID, CMD_WANTED_SPEED, param, 0)
+		end
+		-- Spring.GiveOrderToUnitArray(units, CMD_WANTED_SPEED, {wantedSpeed}, 0) -- give order to unit Array provoke a little halt
+		-- -- Spring.GiveOrder(CMD_WANTED_SPEED, {wantedSpeed}, 0)
+		-- -- Echo('set wanted speed to',wantedSpeed)
 	else
 		local speedOpts = GetCmdOpts(alt, ctrl, meta, shift, true)
 		GiveNotifyingOrder(CMD_SET_WANTED_MAX_SPEED, {wantedSpeed / 30}, speedOpts)
@@ -880,8 +1021,7 @@ local function StopCommandAndRelinquishMouse()
 		widgetHandler.mouseOwner = nil
 	end
 	-- Cancel the command
-	fNodes = {}
-	fDists = {}
+	cf2Nodes:Clear()
 	-- Modkeys / command reset
 	if not usingContextCommand then
 		local alt, ctrl, meta, shift = GetModKeys()
@@ -937,6 +1077,7 @@ local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRM
 
 	return pos
 end
+
 local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShift, forceAlt, usingRMB, singleNode)
 	local tweaked 
 	-- if hasImmobile then
@@ -1050,12 +1191,12 @@ function widget:MousePress(mx, my, mButton, byEz)
 	if inMinimap and not MiniMapFullProxy then
 		return false
 	end
-	if (mButton == 1 or mButton == 3) and fNodes and fNodes[1] then
+	if (mButton == 1 or mButton == 3) and cf2Nodes[1] and not cf2Nodes.fadeout then
 		-- already issuing command
 		return true
 	end
 	clickTime = os.clock()
-	totalScreenTravel = 0
+	cf2Nodes.totalScreenTravel = 0
 
 	local nameDefCom
 	-- Get command that would've been issued
@@ -1160,7 +1301,9 @@ function widget:MousePress(mx, my, mButton, byEz)
 	end
 
 	-- Setup formation node array
-	if not AddFNode(pos) then return false end
+	cf2Nodes:Clear()
+	if not cf2Nodes:AddRawPos(pos) then return false end
+	cf2Nodes:StartDrawing()
 	-- if selCount==1 and alt and mButton==3 and usingCmd == CMD_UNLOADUNIT then
 	-- 	Echo('ok')
 	-- 	StopCommandAndRelinquishMouse()
@@ -1186,8 +1329,7 @@ function widget:MousePress(mx, my, mButton, byEz)
 	-- 	-- -- 	-- StopCommandAndRelinquishMouse()
 
 			
-	-- 	-- -- 	-- fNodes = {}
-	-- 	-- -- 	-- fDists = {}
+	-- 	-- -- 	-- cf2Nodes:Clear()
 	-- 	-- -- 	return true
 
 
@@ -1225,7 +1367,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 		-- end
 		-- lastm = now
 		-- lastom = {'move', now, f.GetCalledLine()}
-		-- if last == 'M' and not fNodes[1] then
+		-- if last == 'M' and not cf2Nodes[1] then
 		-- 	Echo('M PROBLEM WRONG CLICK ORDER, LAST IS M BUT NO NODES!')
 		-- end
 		last = 'M'
@@ -1237,18 +1379,19 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 		end
 	end
 	-- It is possible for MouseMove to fire after MouseRelease
-	if not fNodes[1] then
+	if not cf2Nodes[1] then
 		return false
 	end
 	if singlePoint then
 		return false
 	end
-	local screenTravel = (dx^2 + dy^2) ^ 0.5
-	totalScreenTravel = totalScreenTravel + screenTravel
-	lastNodeScreenTravel = lastNodeScreenTravel + screenTravel
+
+	local screenTravel = diag(dx, dy^2)
+	cf2Nodes.totalScreenTravel = cf2Nodes.totalScreenTravel + screenTravel
+	cf2Nodes.lastNodeScreenTravel = cf2Nodes.lastNodeScreenTravel + screenTravel
 	-- Minimap-specific checks
 	if inMinimap then
-		if (lastNodeScreenTravel < 5) or not spIsAboveMiniMap(mx, my) then
+		if (cf2Nodes.lastNodeScreenTravel < 5) or not spIsAboveMiniMap(mx, my) then
 			return false
 		end
 	end
@@ -1258,16 +1401,12 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	if not pos then return false end
 
 	-- Add the new formation node
-	if not fNodes[2] and screenTravel <= 4 or not AddFNode(pos) then return false end
-
+	if not cf2Nodes[2] and screenTravel <= 4 or not cf2Nodes:AddRawPos(pos) then return false end
 	-- Have we started drawing a line?
 	local alt, ctrl, meta, shift = GetModKeys()
 
-	if fNodes[2] and not fNodes[3] then
+	if cf2Nodes[2] and not cf2Nodes[3] then
 		-- We have enough nodes to start drawing now
-		widgetHandler:UpdateWidgetCallIn("DrawInMiniMap", self)
-		widgetHandler:UpdateWidgetCallIn("DrawWorld", self)
-
 		-- If the line is a path, start the units moving to this node
 		if pathCandidate then
 			lastPathPos = pos
@@ -1292,7 +1431,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 				local usingRMB = usingRMB
 				local forceShift, forceAlt = true, false
 				local tweakTarget = true
-				if fNodes[4] then
+				if cf2Nodes[4] then
 					acquiredTarget = false
 				end
 				usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarget, mx, my, acquiredTarget, false)
@@ -1326,7 +1465,7 @@ local function ReorderGroupsToFirstNode(groups, interpNodes) -- reorder the grou
 		for i, id in ipairs(group) do
 			local x,y,z = spGetUnitPosition(id)
 			if x then
-				local dist = ((x - nx)^2 + (z - nz)^2)^0.5
+				local dist = diag(x - nx, z - nz)
 				if dist < minDist then
 					minDist = dist
 				end
@@ -1356,7 +1495,7 @@ function widget:MouseRelease(mx, my, mButton)
 		-- end
 		lastr = now
 		lastor = {'release', now, f.GetCalledLine()}
-		if last == 'M' and not fNodes[1] then
+		if last == 'M' and not cf2Nodes[1] then
 			Echo('R PROBLEM WRONG CLICK ORDER, NO NODE BUT LAST IS M')
 		elseif last == 'R' then
 			Echo('R PROBLEM WRONG CLICK ORDER, TWO CONSECUTIVE RELEASES')
@@ -1376,12 +1515,12 @@ function widget:MouseRelease(mx, my, mButton)
 	end
 
 	-- Cancel RMB line formations for selected commands if no formation has been drawn.
-	if (not usingContextCommand) and usingRMB and options.RMBLineFormation.value and not fNodes[2] then
+	if (not usingContextCommand) and usingRMB and options.RMBLineFormation.value and not cf2Nodes[2] then
 		StopCommandAndRelinquishMouse()
 		return false
 	end
 	-- It is possible for MouseRelease to fire after MouseRelease
-	if not fNodes[1] then
+	if not cf2Nodes[1] then
 		return false
 	end
 	-- Modkeys / command reset
@@ -1398,7 +1537,7 @@ function widget:MouseRelease(mx, my, mButton)
 	-- Are we going to use the drawn formation?
 	local usingFormation = true
 	-- Override checking
-	if overriddenCmd and (not overrideCmdSingleUnit[overriddenCmd] or not fNodes[SMALL_FORMATION_THRESHOLD + 1]) then
+	if overriddenCmd and (not overrideCmdSingleUnit[overriddenCmd] or not cf2Nodes[SMALL_FORMATION_THRESHOLD + 1]) then
 		local targetID
 		local targType, targID = CulledTraceScreenRay(mx, my, false, inMinimap)
 		if targType == 'unit' then
@@ -1407,7 +1546,7 @@ function widget:MouseRelease(mx, my, mButton)
 			targetID = targID + maxUnits
 		end
 		if targetID and targetID == overriddenTarget then
-			local selectedUnits = Spring.GetSelectedUnits()
+			local selectedUnits = WG.selection or spGetSelectedUnits()
 			-- The overridden commands cannot be self-issued, so give a move command instead.
 			if not (selectedUnits[1] == targetID and not selectedUnits[2]) then
 				-- Signal that we are no longer using the drawn formation
@@ -1429,7 +1568,6 @@ function widget:MouseRelease(mx, my, mButton)
 			local tweakTarget = true
 			usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingContextCommand, pos, tweakTarget, mx, my, acquiredTarget, true)
 			GiveNotifyingOrder(usingCmd, pos, cmdOpts)
-
 		end
 	end
 	-- Using path? If so then we do nothing
@@ -1442,14 +1580,14 @@ function widget:MouseRelease(mx, my, mButton)
 		local targType, pos = CulledTraceScreenRay(mx, my, true, inMinimap, throughWater)
 		if (not inMinimap) or spIsAboveMiniMap(mx, my) then
 			if pos then
-				AddFNode(pos)
+				cf2Nodes:AddRawPos(pos)
 			end
 		end
 		local clickLength = os.clock() - clickTime
 		local mult = math.clamp(0.10 / (clickLength)  , 0.5, 4)
 		local tolerance = opt.singlePointTolerance * mult 
-		-- Echo("length: " .. clickLength, 'travel: ' .. totalScreenTravel,'base: '.. opt.singlePointTolerance,' mult: '.. mult ..' ===> '.. tolerance)
-		local singleNode = fDists[#fNodes] < minFormationLength or totalScreenTravel < tolerance
+		-- Echo("length: " .. clickLength, 'travel: ' .. cf2Nodes.totalScreenTravel,'base: '.. opt.singlePointTolerance,' mult: '.. mult ..' ===> '.. tolerance)
+		local singleNode = cf2Nodes.dists[#cf2Nodes] < minFormationLength or cf2Nodes.totalScreenTravel < tolerance
 		-- Get command options
 
 		local cmdOpts = GetCmdOpts(alt, ctrl, meta, shift, usingContextCommand)
@@ -1465,7 +1603,7 @@ function widget:MouseRelease(mx, my, mButton)
 		if singleNode then
 			-- We should check if any units are able to execute it,
 			-- but the order is small enough network-wise that the tiny bug potential isn't worth it.
-			local params = TweakTarget(fNodes[1], mx, my, acquiredTarget, true, alt, false)
+			local params = TweakTarget(cf2Nodes[1], mx, my, acquiredTarget, true, alt, false)
 			GiveNotifyingOrder(usingCmd, params, cmdOpts)
 
 		else
@@ -1474,9 +1612,9 @@ function widget:MouseRelease(mx, my, mButton)
 			local mUnits, total = GetExecutingUnits(usingCmd)
 			local toReorder = opt.reorderGroups and total > table.size(mUnits)
 			if next(mUnits) then
+				cf2Nodes.update = true
 				local ranks = GetFormationRanks(mUnits, usingCmd)
 				local formationNodes = GetFormationNodes(ranks)
-
 				for rank = 0, 3 do
 					local units = ranks[rank]
 					if units then
@@ -1491,40 +1629,36 @@ function widget:MouseRelease(mx, my, mButton)
 							groupNodes[i] = {}
 						end
 						-- Echo("#interpNodes is ", #interpNodes)
-						for i = 1, #interpNodes do
-							local node = interpNodes[i]
-							local minPosId = false
+						for _, node in ipairs(interpNodes) do
+							local index = false
 							local minPos = false
-							for j = 1, #groups do
-								local len, nodelen = #groups[j], #groupNodes[j]
+							for i = 1, #groups do
+								local len, nodelen = #groups[i], #groupNodes[i]
 								if nodelen < len then
 									local halfGap = len > 0 and 0.5/len or 0
 									local nextPos = nodelen*(1 + halfGap) / (len + 1) + halfGap
 									if (not minPos) or nextPos < minPos then
 										minPos = nextPos
-										minPosId = j
+										index = i
 									end
 								end
 							end
 							if minPos then
-								groupNodes[minPosId][#groupNodes[minPosId] + 1] = node
+								groupNodes[index][#groupNodes[index] + 1] = node
 							end
 						end
 
 						-- Match units to nodes and issue orders
 						local altOpts = meta and GetCmdOpts(true, false, false, false, false)
 						for i = 1, #groups do
-							local orders = MatchUnitsToNodes(groupNodes[i], groups[i], shift and not meta)
+							local order = cf2Nodes:MatchUnitsToNodes(groups[i], false, shift and not meta, groupNodes[i])
 							if meta then
-								for i = 1, #orders do
-									local orderPair = orders[i]
-									local orderPos = orderPair[2]
-									GiveNotifyingOrderToUnit(orderPair[1], CMD_INSERT, {0, usingCmd, cmdOpts.coded, orderPos[1], orderPos[2], orderPos[3]}, altOpts)
+								for unitID, pos in pairs(order) do
+									GiveNotifyingOrderToUnit(unitID, CMD_INSERT, {0, usingCmd, cmdOpts.coded, pos[1], pos[2], pos[3]}, altOpts)
 								end
 							else
-								for i = 1, #orders do
-									local orderPair = orders[i]
-									GiveNotifyingOrderToUnit(orderPair[1], usingCmd, orderPair[2], cmdOpts)
+								for unitID, pos in pairs(order) do
+									GiveNotifyingOrderToUnit(unitID, usingCmd, pos, cmdOpts)
 								end
 							end
 						end
@@ -1535,16 +1669,8 @@ function widget:MouseRelease(mx, my, mButton)
 
 		SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
 	end
-
-	if fNodes[2] then
-		dimmCmd = usingCmd
-		dimmNodes = fNodes
-		dimmAlpha = 1.0
-		widgetHandler:UpdateWidgetCallIn("Update", self)
-	end
-
-	fNodes = {}
-	fDists = {}
+	cf2Nodes.fadeout = true
+	
 	local ownerName = widgetHandler.mouseOwner and widgetHandler.mouseOwner.GetInfo and widgetHandler.mouseOwner.GetInfo()
 	ownerName = ownerName and ownerName.name
 	if ownerName == "CustomFormations2" then
@@ -1578,6 +1704,19 @@ end
 
 local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 function widget:CommandsChanged()
+	if cf2Nodes[2] and not cf2Nodes.fadeout then
+		cf2Nodes.update = true
+	end
+	for defID, units in pairs(WG.selectionDefID or spGetSelectedUnitsSorted()) do
+		if rankCandidateDefID[defID] then
+			local unitID = units[1]
+			local rank = formationRank[unitID] or defaultRank[defID] or 2
+			local customCommands = widgetHandler.customCommands
+			formationRankCmdDesc.params[1] = rank
+			table.insert(customCommands, formationRankCmdDesc)
+			break
+		end
+	end
 	if not selectionChanged then
 		return
 	end
@@ -1589,17 +1728,6 @@ function widget:CommandsChanged()
 	hasImpaler 	 = mySelection.hasImpaler
 	hasPuppy	 = mySelection.hasPuppy
 	throughWater = mySelection.hasNoFloater
-
-	for defID, units in pairs(WG.selectionDefID or spGetSelectedUnitsSorted()) do
-		if rankCandidateDefID[defID] then
-			local unitID = units[1]
-			local rank = formationRank[unitID] or defaultRank[defID] or 2
-			local customCommands = widgetHandler.customCommands
-			formationRankCmdDesc.params[1] = rank
-			table.insert(customCommands, formationRankCmdDesc)
-			break
-		end
-	end
 end
 
 
@@ -1611,7 +1739,7 @@ function widget:CommandNotify(id, params, options)
 	if options.right then
 		newRank = (newRank + 2)%4
 	end
-	local selectedUnits = Spring.GetSelectedUnits()
+	local selectedUnits = WG.selection or spGetSelectedUnits()
 	for i = 1, #selectedUnits do
 		formationRank[selectedUnits[i]] = newRank
 	end
@@ -1660,15 +1788,11 @@ end
 -- 	glPopMatrix()
 -- end
 
-local function DrawFilledCircleOutFading(pos, size, cornerCount)
+local function DrawFilledCircleOutFading(pos, size, list, cornerCount)
 	glPushMatrix()
 	glTranslate(pos[1], pos[2], pos[3])
 	glScale(size, 1, size)
-	local cmd = usingCmd
-	if filledCircleOutFading[usingCmd] == nil then
-		cmd = 0
-	end
-	gl.CallList(filledCircleOutFading[cmd])
+	gl.CallList(list)
 	-- glBeginEnd(GL.TRIANGLE_FAN, function()
 		-- glVertex(0,0,0)
 		-- for t = 0, pi2, pi2 / cornerCount do
@@ -1689,62 +1813,57 @@ local function DrawFilledCircleOutFading(pos, size, cornerCount)
 	glPopMatrix()
 end
 
-local function DrawFormationDots(zoomY, nodes)
+function TrailHandler:DrawFormationDots(zoomY, nodes)
+	nodes = nodes or self.interpolated
 	gl.PushAttrib( GL.ALL_ATTRIB_BITS )
 	local dotSize = sqrt(zoomY*0.1)*options.dotsize.value
-  for i=1, #nodes do
-		DrawFilledCircleOutFading(nodes[i], dotSize, 8)
+	local list = filledCircleOutFading[self.cmd] or filledCircleOutFading[0]
+	for i = 1, #nodes do
+		DrawFilledCircleOutFading(nodes[i], dotSize, list, 8)
 	end
 --[[
 	local currentLength = 0
-	local lengthPerUnit = lineLength / (unitCount-1)
+	local lengthPerUnit = self.lineLength / (unitCount-1)
 	local lengthUnitNext = lengthPerUnit
-	if (#fNodes > 1) and (unitCount > 1) then
+	if (#cf2Nodes > 1) and (unitCount > 1) then
 		SetColor(usingCmd, 1)
-		if (#fNodes > 2) then
-			for i=1, #fNodes-2 do -- first and last circle are drawn before and after the for loop
-				local x = fNodes[i][1]
-				local y = fNodes[i][3]
-				local x2 = fNodes[i+1][1]
-				local y2 = fNodes[i+1][3]
+		if (#cf2Nodes > 2) then
+			for i=1, #cf2Nodes-2 do -- first and last circle are drawn before and after the for loop
+				local x = cf2Nodes[i][1]
+				local y = cf2Nodes[i][3]
+				local x2 = cf2Nodes[i+1][1]
+				local y2 = cf2Nodes[i+1][3]
 				local dx = x - x2
 				local dy = y - y2
 				local length = sqrt((dx*dx)+(dy*dy))
 				while (currentLength + length >= lengthUnitNext) do
 					local factor = (lengthUnitNext - currentLength) / length
 					local factorPos =
-						{fNodes[i][1] + ((fNodes[i+1][1] - fNodes[i][1]) * factor),
-						fNodes[i][2] + ((fNodes[i+1][2] - fNodes[i][2]) * factor),
-						fNodes[i][3] + ((fNodes[i+1][3] - fNodes[i][3]) * factor)}
+						{cf2Nodes[i][1] + ((cf2Nodes[i+1][1] - cf2Nodes[i][1]) * factor),
+						cf2Nodes[i][2] + ((cf2Nodes[i+1][2] - cf2Nodes[i][2]) * factor),
+						cf2Nodes[i][3] + ((cf2Nodes[i+1][3] - cf2Nodes[i][3]) * factor)}
 					DrawFilledCircleOutFading(factorPos, dotSize, 8)
 					lengthUnitNext = lengthUnitNext + lengthPerUnit
 				end
 				currentLength = currentLength + length
 			end
 		end
-		DrawFilledCircleOutFading(fNodes[#fNodes], dotSize, 8)
+		DrawFilledCircleOutFading(cf2Nodes[#cf2Nodes], dotSize, 8)
 	end
 --]]
 	gl.PopAttrib( GL.ALL_ATTRIB_BITS )
 
 end
 
-local function DrawFormationLines(vertFunction, lineStipple)
+function TrailHandler:DrawFormationLines(vertFunction, lineStipple)
 	glLineStipple(lineStipple, 4095)
 	glLineWidth(options.linewidth.value)
 
-	if fNodes[2] then
-		SetColor(usingCmd, 1.0)
-		glBeginEnd(GL_LINE_STRIP, vertFunction, fNodes)
+	if self[2] then
+		SetColor(self.cmd or CMD_RAW_MOVE, self.alpha)
+		glBeginEnd(GL_LINE_STRIP, vertFunction, self)
 		glColor(1,1,1,1)
 	end
-
-	if dimmNodes[2] then
-		SetColor(dimmCmd, dimmAlpha)
-		glBeginEnd(GL_LINE_STRIP, vertFunction, dimmNodes)
-		glColor(1,1,1,1)
-	end
-
 	glLineWidth(1.0)
 	glLineStipple(false)
 end
@@ -1757,52 +1876,82 @@ function widget:ViewResize(viewSizeX, viewSizeY)
 end
 
 function widget:DrawWorld()
-	-- Draw lines when a path is drawn instead of a formation, OR when drawmode_v2 for formations is not "dots" only
-	if pathCandidate or options.drawmode_v2.value ~= "dots" then
-		DrawFormationLines(tVerts, 2)
-	end
-	-- Draw dots when no path is drawn AND nodenumber is high enough AND drawmode_v2 for formations is not "lines" only AND command not canceled
-	if not pathCandidate and fNodes[2] and options.drawmode_v2.value ~= "lines" and lineLength > 0 then
-		local camX, camY, camZ = spGetCameraPosition()
-		local at, p = CulledTraceScreenRay(Xs,Ys,true,false,false)
-		if at == "ground" then
-			local dx, dy, dz = camX-p[1], camY-p[2], camZ-p[3]
-			--zoomY = ((dx*dx + dy*dy + dz*dz)*0.01)^0.25	--tests show that sqrt(sqrt(x)) is faster than x^0.25
-			zoomY = sqrt(dx*dx + dy*dy + dz*dz)
-		else
-			--zoomY = sqrt((camY - max(spGetGroundHeight(camX, camZ), 0))*0.1)
-			zoomY = camY - max(spGetGroundHeight(camX, camZ), 0)
-		end
-		if zoomY < 6 then
-			zoomY = 6
-		end
-		local mUnits = GetExecutingUnits(usingCmd)
-		local ranks = GetFormationRanks(mUnits, usingCmd)
-		local nodes = GetFormationNodes(ranks)
-		for rank = 0, 3 do
-			local units = ranks[rank]
-			if units then
-				DrawFormationDots(zoomY, nodes[rank])
+	if TrailHandler.drawing > 0 then
+		local at, p
+		local onlyDrawingDots = options.drawmode_v2.value == "dots"
+		local onlyDrawingLines = options.drawmode_v2.value == "lines"
+		for key, nodes in pairs(TrailHandler.trails) do
+			local isPath = false
+			if nodes.drawing then
+				if nodes == cf2Nodes then
+					isPath = pathCandidate
+					cf2Nodes.cmd = usingCmd
+				end
+				-- Draw lines when a path is drawn instead of a formation, OR when drawmode_v2 for formations is not "dots" only
+				if not onlyDrawingDots or isPath then
+					nodes:DrawFormationLines(tVerts, 2)
+				end
+				-- Draw dots when no path is drawn AND nodenumber is high enough AND drawmode_v2 for formations is not "lines" only AND command not canceled
+				if not onlyDrawingLines and not isPath and nodes[2] and nodes.dists[2] > 0 then
+					if not at then
+						if WG.Cam.relDist then
+							at = 'ground'
+							zoomY = WG.Cam.relDist
+						else
+							local camX, camY, camZ = spGetCameraPosition()
+							at, p = CulledTraceScreenRay(Xs,Ys,true,false,false)
+							if at == "ground" then
+								-- local dx, dy, dz = camX-p[1], camY-p[2], camZ-p[3]
+								-- --zoomY = ((dx*dx + dy*dy + dz*dz)*0.01)^0.25	--tests show that sqrt(sqrt(x)) is faster than x^0.25
+								-- zoomY = sqrt(dx*dx + dy*dy + dz*dz)
+								zoomY = diag(camX-p[1], camY-p[2], camZ-p[3])
+							else
+								--zoomY = sqrt((camY - max(spGetGroundHeight(camX, camZ), 0))*0.1)
+								zoomY = camY - max(spGetGroundHeight(camX, camZ), 0)
+							end
+						end
+						if zoomY < 6 then
+							zoomY = 6
+						end
+					end
+					if not nodes.fadeout then
+						if nodes == cf2Nodes then
+							if cf2Nodes.update then
+								local mUnits = GetExecutingUnits(usingCmd)
+								local ranks = GetFormationRanks(mUnits, usingCmd)
+								GetFormationNodes(ranks)
+								cf2Nodes.update = false
+							end
+							nodes:DrawFormationDots(zoomY)
+						else
+							nodes:DrawFormationDots(zoomY)
+						end
+					end
+				end
 			end
 		end
 	end
 end
 
 function widget:DrawInMiniMap()
+	if TrailHandler.drawing > 0 then
+		glPushMatrix()
+			glLoadIdentity()
 
-	glPushMatrix()
-		glLoadIdentity()
-
-		if GetMiniMapFlipped() then
-			glTranslate(1, 0, 0)
-			glScale(-1 / mapSizeX, 1 / mapSizeZ, 1)
-		else
-			glTranslate(0, 1, 0)
-			glScale(1 / mapSizeX, -1 / mapSizeZ, 1)
-		end
-
-		DrawFormationLines(tVertsMinimap, 1)
-	glPopMatrix()
+			if GetMiniMapFlipped() then
+				glTranslate(1, 0, 0)
+				glScale(-1 / mapSizeX, 1 / mapSizeZ, 1)
+			else
+				glTranslate(0, 1, 0)
+				glScale(1 / mapSizeX, -1 / mapSizeZ, 1)
+			end
+			for key, nodes in pairs(TrailHandler.trails) do
+				if nodes.drawing then
+					nodes:DrawFormationLines(tVertsMinimap, 1)
+				end
+			end
+		glPopMatrix()
+	end
 end
 
 function InitFilledCircle(cmdID)
@@ -1836,7 +1985,7 @@ function widget:Initialize()
 
 	local sig = '[' .. widget:GetInfo().name ..']:'
 	local status
-	if not WG.mySelection then
+	if not WG.selection then
 		status = 'Requires -SelectionAPI.lua'
 	elseif not WG.Cam then
 		status = 'Requires -HasViewChanged.lua'
@@ -1852,22 +2001,28 @@ function widget:Initialize()
 	commandMap = WG.commandMap
 	widget:CommandsChanged()
 	Units = WG.Cam.Units
+	WG.TrailHandler = TrailHandler
 end
 
 function widget:Update(deltaTime)
-	if dimmAlpha > 0 then
-		dimmAlpha = dimmAlpha - lineFadeRate * deltaTime
-
-		if dimmAlpha <= 0 then
-
-			dimmNodes = {}
-			widgetHandler:RemoveWidgetCallIn("Update", self)
-
-			if not fNodes[1] then
-				widgetHandler:RemoveWidgetCallIn("DrawWorld", self)
-				widgetHandler:RemoveWidgetCallIn("DrawInMiniMap", self)
+	if TrailHandler.drawing > 0 then
+		for key, nodes in pairs(TrailHandler.trails) do
+			if nodes.drawing then
+				if nodes.fadeout then
+					nodes.alpha = nodes.alpha - lineFadeRate * deltaTime
+					if nodes.alpha <= 0 then
+						nodes:Clear()
+					end
+				end
 			end
 		end
+	end
+end
+
+function widget:Shutdown()
+	WG.TrailHandler = nil
+	for k, list in pairs(filledCircleOutFading) do
+		gl.DeleteList(list)
 	end
 end
 
@@ -1887,24 +2042,32 @@ end
 -- Matching Algorithms
 ---------------------------------------------------------------------------------------------------------
 
-function MatchUnitsToNodes(nodes, units, shifted)
+function TrailHandler:MatchUnitsToNodes(units, arePositions, shifted, nodes)
+	nodes = nodes or self.interpolated
+	local new_order
 	if (not units[2]) then
-		return {{units[1], nodes[1]}}
+		new_order = {{units[1], nodes[1]}}
 	elseif opt.forceAlg == 'noX' or opt.forceAlg == 'disabled' and units[maxHungarianUnits + 1] then
-		return GetOrdersNoX(nodes, units, #units, shifted)
+		new_order = GetOrdersNoX(nodes, units, #units, shifted, arePositions)
 	else
-		return GetOrdersHungarian(nodes, units, #units, shifted)
+		new_order = GetOrdersHungarian(nodes, units, #units, shifted, arePositions)
 	end
+	local order = self.order
+	clear(order)
+	for i, t in ipairs(new_order) do
+		order[t[1]] = t[2]
+	end
+	return order
 end
 
 
-function GetOrdersNoX(nodes, units, unitCount, shifted)
+function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 
 	-- Remember when we start
 	-- This is for capping total time
 	-- Note: We at least complete initial assignment
 	local startTime = osclock()
-
+	local diag, floor, sqrt = diag, floor, sqrt
 	---------------------------------------------------------------------------------------------------------
 	-- Find initial assignments
 	---------------------------------------------------------------------------------------------------------
@@ -1916,7 +2079,9 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 		local unitID = units[u]
 		-- Get unit position
 		local ux, uz
-		if shifted then
+		if arePositions then
+			ux, uz = unitID[1], unitID[3] or unitID[2]
+		elseif shifted then
 			ux, _, uz = GetUnitFinalPosition(unitID)
 		else
 			ux, _, uz = spGetUnitPosition(unitID)
@@ -1924,7 +2089,7 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 				ux, uz = 0, 0
 			end
 		end
-		unitSet[u] = {ux, unitID, uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
+		unitSet[u] = {ux, arePositions and u or unitID, uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
 
 		-- Work on finding furthest points (As we have ux/uz already)
 		for i = u - 1, 1, -1 do
@@ -1932,6 +2097,8 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 			local up = unitSet[i]
 			local vx, vz = up[1], up[3]
 			local dx, dz = vx - ux, vz - uz
+			-- local dist = floor(sqrt(dx*dx + dz*dz) + 0.5)
+			-- local dist = floor(diag(dx*dx + dz*dz) + 0.5)
 			local dist = dx*dx + dz*dz
 
 			if (dist > fdist) then
@@ -1996,8 +2163,10 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 	stChkCnt = unitCount
 
 	-- Begin algorithm
-	while ((stChkCnt > 0) and (osclock() - startTime < maxNoXTime)) do
-
+	local rounds = 0
+	local force = opt.forceAlg == 'noX'
+	while ((stChkCnt > 0) and (force or osclock() - startTime < maxNoXTime)) do
+		rounds = rounds + 1
 		-- Get unit, extract position and matching node position
 		local u = stChk[stChkCnt]
 		local ud = unitSet[u]
@@ -2063,7 +2232,8 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 			Cs[u] = Cu
 		end
 	end
-
+	-- local time = osclock() - startTime
+	-- Echo("delay is ", time, 'rounds', rounds, 'Per', ('%.3f'):format(time*1000/rounds))
 	---------------------------------------------------------------------------------------------------------
 	-- Return orders
 	---------------------------------------------------------------------------------------------------------
@@ -2075,7 +2245,7 @@ function GetOrdersNoX(nodes, units, unitCount, shifted)
 	return orders
 end
 
-function GetOrdersHungarian(nodes, units, unitCount, shifted)
+function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 	-------------------------------------------------------------------------------------
 	-------------------------------------------------------------------------------------
 	-- (the following code is written by gunblob)
@@ -2090,15 +2260,19 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted)
 	--------------------------------------------------------------------------------------------
 	-- cache node<->unit distances
 
+	-- local distances = distances
+	-- clear(distances)
 	local distances = {}
 	--for i = 1, unitCount do distances[i] = {} end
-
+	local diag, floor, sqrt = diag, floor, sqrt
 	for i = 1, unitCount do
 
 		local uID = units[i]
 		local ux, uz
 
-		if shifted then
+		if arePositions then
+			ux, uz = uID[1], uID[3] or uID[2]
+		elseif shifted then
 			ux, _, uz = GetUnitFinalPosition(uID)
 		else
 			ux, _, uz = spGetUnitPosition(uID)
@@ -2112,8 +2286,12 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted)
 		for j = 1, unitCount do
 
 			local nodePos = nodes[j]
+			if not nodePos then
+				Echo('NO NODE POS', debug.traceback())
+			end
 			local dx, dz = nodePos[1] - ux, nodePos[3] - uz
 			dists[j] = floor(sqrt(dx*dx + dz*dz) + 0.5)
+			-- dists[j] = floor(diag(dx, dz) + 0.5)
 			 -- Integer distances = greatly improved algorithm speed
 		end
 	end
@@ -2128,7 +2306,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted)
 	-- determine needed time and optimize the maxUnits limit
 
 	local delay = osclock() - t
-
+	-- Echo("delay is ", delay)
 	if (delay > maxHngTime) and (maxHungarianUnits > minHungarianUnits) and opt.forceAlg ~= 'hungarian' then
 
 		-- Delay is greater than desired, we have to reduce units
@@ -2137,7 +2315,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted)
 		-- Delay is less than desired, so thats OK
 		-- To make judgements we need number of units to be close to max
 		-- Because we are making predictions of time and we want them to be accurate
-		if (#units > maxHungarianUnits*unitIncreaseThresh) then
+		if (units[maxHungarianUnits*unitIncreaseThresh + 1]) then
 
 			-- This implementation of Hungarian algorithm is O(n3)
 			-- Because we have less than maxUnits, but are altering maxUnits...
@@ -2160,7 +2338,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted)
 	local orders = {}
 	for i = 1, unitCount do
 		local rPair = result[i]
-		orders[i] = {units[rPair[1]], nodes[rPair[2]]}
+		orders[i] = {arePositions and rPair[1] or units[rPair[1]], nodes[rPair[2]]}
 	end
 
 	return orders
