@@ -597,7 +597,7 @@ local function GetModKeys()
 end
 
 local function GetUnitFinalPosition(uID)
-	local cmds = spGetUnitCommands(uID)
+	local cmds = spGetUnitCommands(uID, -1)
 	if not cmds then
 		return 0, 0, 0
 	end
