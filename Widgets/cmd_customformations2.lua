@@ -331,6 +331,8 @@ local acquiredTarget
 local selectionDefID
 local mySelection
 local commandMap
+local hasImmobile = false
+local hasWidow = false
 local hasPuppy = false
 local hasLobster = false
 local hasImpaler = false
@@ -356,7 +358,7 @@ local TrailHandler = { -- Formation nodes API
 	drawing = 0
 }
 function TrailHandler:AddRawPos(pos) end -- Add raw pos, update self array and self.dists
-function TrailHandler:GetInterpNodes(number, offset, noReset) end -- get interpolated nodes from raw poses, given number or nodes to place, update self.interpNodes array
+function TrailHandler:GetInterpNodes(number, offset, subIndex) end -- get interpolated nodes from raw poses, given number or nodes to place, update self.interpNodes array
 function TrailHandler:MatchUnitsToNodes(units, arePositions, shifted, nodes) end -- units array or positions array, use self.interpolated or specified nodes, to get orders {unitID or posIndex, nodeIndex}
 -- used internally
 function TrailHandler:DrawFormationLines(vertFunction, lineStipple) end
@@ -439,7 +441,7 @@ function TrailHandler:Clear()
 			subInterpolated[i] = nil
 		end
 		local order = self.order
-		for i in ipairs(order) do
+		for i in pairs(order) do
 			order[i] = nil
 		end
 	end
@@ -855,7 +857,7 @@ function TrailHandler:GetInterpNodes(number, offset, subIndex)
 		local allInterp = self.interpolated
 		local a = #allInterp
 
-		for i = 1, number do
+		for i = 1, unique and 1 or number do
 			allInterp[a + i] = interpNodes[i]
 		end
 	end
@@ -871,7 +873,7 @@ local function GetFormationNodes(ranks)
 		local units = ranks[rank]
 		if units then
 			maxRank = maxRank or rank
-			nodes[rank] = cf2Nodes:GetInterpNodes(#units, options.rank_gap.value * (maxRank - rank), rank, rank == 3)
+			nodes[rank] = cf2Nodes:GetInterpNodes(#units, options.rank_gap.value * (maxRank - rank), rank)
 		end
 	end
 
@@ -1042,13 +1044,13 @@ local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRM
 	if alt and not usingRMB and usingCmd == CMD_ATTACK then
 		return pos
 	end
-	if alt and (usingCMD == CMD_MANUALFIRE or usingCmd == CMD_AIR_MANUALFIRE) then
+	if alt and (usingCmd == CMD_MANUALFIRE or usingCmd == CMD_AIR_MANUALFIRE) then
 		return pos
 	end
-	local id
 	if hasBomber and alt and usingCmd == CMD_ATTACK then
 		return pos
 	end
+	local id
 	local ezTarget = WG.EzTarget
 	if ezTarget then
 		local v = ezTarget.v
@@ -1410,6 +1412,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 		-- If the line is a path, start the units moving to this node
 		if pathCandidate then
 			lastPathPos = pos
+			local cmdOpts
 			local forceShift, forceAlt = shift, false
 			local tweakTarget = true
 			usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingRMB, pos, tweakTarget, mx, my, acquiredTarget, false)
@@ -1430,6 +1433,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 				-- Echo("usingCmd, CMD_UNIT_SET_TARGET, targType is ", usingCmd, CMD_UNIT_SET_TARGET_CIRCLE, targType)
 				local usingRMB = usingRMB
 				local forceShift, forceAlt = true, false
+				local cmdOpts
 				local tweakTarget = true
 				if cf2Nodes[4] then
 					acquiredTarget = false
@@ -1566,6 +1570,7 @@ function widget:MouseRelease(mx, my, mButton)
 		-- If the line is a path, start the units moving to this node
 			local forceShift, forceAlt = shift, false
 			local tweakTarget = true
+			local cmdOpts
 			usingCmd, pos, cmdOpts = SetOrder(targType, forceShift, forceAlt, usingContextCommand, pos, tweakTarget, mx, my, acquiredTarget, true)
 			GiveNotifyingOrder(usingCmd, pos, cmdOpts)
 		end
