@@ -359,16 +359,17 @@ local TrailHandler = { -- Formation nodes API
 }
 function TrailHandler:AddRawPos(pos) end -- Add raw pos, update self array and self.dists
 function TrailHandler:GetInterpNodes(number, offset, subIndex) end -- get interpolated nodes from raw poses, given number or nodes to place, update self.interpNodes array
-function TrailHandler:MatchUnitsToNodes(units, arePositions, shifted, nodes) end -- units array or positions array, use self.interpolated or specified nodes, to get orders {unitID or posIndex, nodeIndex}
+function TrailHandler:MatchUnitsToNodes(units, subnodes, arePositions, x, z, meta, shift, insertPositions) end -- units array or positions array, use self.interpolated or subnodes, when subnodes is given, self.order is not cleared, to get orders {unitID or posIndex, nodeIndex}, additional x, z, shift, meta to shift when needed to have order position instead of unit position (insert and shift inset), insertPositions is a given empty table to be filled by insertPos in case of shift + meta
 -- used internally
 function TrailHandler:DrawFormationLines(vertFunction, lineStipple) end
 function TrailHandler:DrawFormationDots(zoomY, nodes) end -- give cam Distance from gound, use self.interpolated or specified nodes
+function TrailHandler:MatchCF2UnitsToNodes(x, z, meta, shift, insertPositions) end -- insertPositions is a given empty table to be filled by insertPos in case of shift + meta
 -----
 function TrailHandler:Process(pos, units, arePositions) -- for simple and easy trail making TrailHandler:Process(newRawpos, units, arePositions)
 	if self:AddRawPos(pos) then
 		if self[2] then
 			self:GetInterpNodes(#units, arePositions)
-			self:MatchUnitsToNodes(units, arePositions)
+			self:MatchUnitsToNodes(units, false, arePositions)
 			self:StartDrawing()
 		end
 	end
@@ -596,41 +597,7 @@ local function GetModKeys()
 	return alt, ctrl, meta, shift
 end
 
-local function GetUnitFinalPosition(uID)
-	local cmds = spGetUnitCommands(uID, -1)
-	if not cmds then
-		return 0, 0, 0
-	end
-	local ux, uy, uz = spGetUnitPosition(uID)
-	for i = #cmds, 1, -1 do
 
-		local cmd = cmds[i]
-		if (cmd.id < 0) or positionCmds[cmd.id] then
-
-			local params = cmd.params
-			if params[3] then
-				return params[1], params[2], params[3]
-			else
-				if not params[2] then
-
-					local pID = params[1]
-					local px, py, pz
-
-					if pID > maxUnits then
-						px, py, pz = spGetFeaturePosition(pID - maxUnits)
-					else
-						px, py, pz = spGetUnitPosition(pID)
-					end
-
-					if px then
-						return px, py, pz
-					end
-				end
-			end
-		end
-	end
-	return ux, uy, uz
-end
 
 
 local function SetColor(cmdID, alpha)
@@ -726,6 +693,171 @@ local function GetFormationRanks(mUnits, cmdID)
 	end
 	return ranks
 end
+
+local spGetFeaturePosition = Spring.GetFeaturePosition
+local function GetOrderPos(cmdID, params)
+	local len = #params
+	local x, y, z
+	if len == 3 then
+		x, y, z = unpack(params)
+	elseif len == 5 or len == 1 then
+		local id = params[1]
+		if id > maxUnits then
+			x, y, z = spGetFeaturePosition(id - maxUnits)
+		else
+			x, y, z = spGetUnitPosition(id)
+		end
+	elseif len == 4 then
+		local id = params[1]
+		if id > maxUnits then
+			x, y, z = spGetFeaturePosition(id - maxUnits)
+		else
+			x, y, z = spGetUnitPosition(id)
+		end
+		if not x then
+			x, y, z = params[1], params[2], params[3]
+		end
+	end
+	return x, y, z
+end
+-- local function GetUnitFinalPosition(uID)
+-- 	local cmds = spGetUnitCommands(uID, -1)
+-- 	if not cmds then
+-- 		return
+-- 	end
+-- 	local ux, uy, uz = spGetUnitPosition(uID)
+-- 	for i = #cmds, 1, -1 do
+
+-- 		local cmd = cmds[i]
+-- 		if (cmd.id < 0) or positionCmds[cmd.id] then
+
+-- 			local params = cmd.params
+-- 			if params[3] then
+-- 				return params[1], params[2], params[3]
+-- 			else
+-- 				if not params[2] then
+
+-- 					local pID = params[1]
+-- 					local px, py, pz
+
+-- 					if pID > maxUnits then
+-- 						px, py, pz = spGetFeaturePosition(pID - maxUnits)
+-- 					else
+-- 						px, py, pz = spGetUnitPosition(pID)
+-- 					end
+
+-- 					if px then
+-- 						return px, py, pz
+-- 					end
+-- 				end
+-- 			end
+-- 		end
+-- 	end
+-- 	return ux, uy, uz
+-- end
+
+local function GetUnitFinalPosition(unitID, queue)
+	local len = #(queue or {})
+	for i = len, 1, -1 do
+		local order = queue[i]
+		local x, y, z = GetOrderPos(order.id, order.params)
+		if x then
+			return x, y, z
+		end
+	end
+	return spGetUnitPosition(unitID)
+end
+
+
+local function FindInsertPosInUnitQueue(X, Z, unitID, queue)
+	local pos
+	local insertPos = 0
+	local start = 0
+	local diag = diag
+	local pos = {
+		[0] = {i = 0, spGetUnitPosition(unitID)}
+	}
+	if not queue[1] then
+		return pos[0], nil, 0
+	end
+	for i, order in ipairs(queue or {}) do
+		local x, y, z = GetOrderPos(order.id, order.params)
+		if x then
+			pos[#pos + 1] = {i = i, x, y, z}
+			-- Echo('good', i, unpack(order.params))
+		else
+			-- Echo('noop', i, unpack(order.params))
+		end
+	end
+	if not pos[1] then
+		return pos[0], nil, 0
+	end
+
+
+		-- Echo('unit #'.. (conRef or unitID) ..' pos ref:',unitPosX, unitPosZ)
+	local bestDist = math.huge
+	-- getting insert point that add the least distance
+	local insertPos = 0
+	local new_next -- we don't need to recalculate 'this_new' as it is the previous 'new_next'
+	for i = start, #pos do 
+		-- Echo('iter',i, pos.n)
+		local this, next = pos[i], pos[i+1]
+		local thisX, thisZ = this[1], this[3]
+		if not next or thisX ~= next[1] or thisZ ~= next[3] then -- to gain some cpu we don't consider order that have same poses than its next (happening mostly when terraforming)
+			local this_new = new_next or diag(thisX - X, thisZ - Z)
+			local this_next
+			if next then
+				local nextX, nextZ = next[1], next[3]
+				this_next = diag(nextX - thisX, nextZ - thisZ)
+				new_next = diag(X - nextX, Z - nextZ)
+			else
+				this_next, new_next = 0, 0
+			end
+			-- Echo(i,this[1],next and next[1] or 0,this[2])
+			
+			local newDist = this_new + new_next - this_next
+			-- Echo('i', i,'=', this_new, new_next, this_next, 'dist', newDist)
+			if newDist <= bestDist then 
+				bestDist = newDist
+				insertPos = i
+			end
+		end
+	end
+	local p = pos[insertPos]
+	return p, queue[p.i], p.i
+end
+
+local function GetStartPositions(units, x, z, meta, shift, insertPositions)
+	local positions = table.new(#units)
+	if meta and shift then
+		for i, unitID in ipairs(units) do
+			local pos, _, insPos = FindInsertPosInUnitQueue(x, z, unitID, spGetUnitCommands(unitID, -1))
+			if not pos[1] then
+				pos[1], pos[2], pos[3] = {0, 0, 0}
+			end
+			positions[i] = pos
+			if insertPositions then
+				insertPositions[unitID] = insPos
+			end
+		end
+	elseif shift then
+		for i, unitID in ipairs(units) do
+			positions[i] = {GetUnitFinalPosition(unitID, spGetUnitCommands(unitID, -1))}
+		end
+	else
+		for i, unitID in ipairs(units) do
+			local x, y, z = spGetUnitPosition(unitID)
+			if not x then
+				x, y, z = 0, 0, 0
+			end
+			positions[i] = {x, y, z}
+		end
+	end
+	return positions
+end
+
+
+
 -- local function GetFormationRanks(mUnits, cmdID)
 -- 	if not movementCmds[cmdID] then
 -- 		return {mUnits}
@@ -777,6 +909,18 @@ function TrailHandler:AddRawPos(pos)
 	return true
 end
 
+function TrailHandler:ClearNodes()
+	if self.interpolated[1] then
+		clear(self.interpolated)
+	end
+	if self.subInterpolated[1] then
+		clear(self.subInterpolated)
+	end
+	if next(self.order) then
+		clear(self.order)
+	end
+end
+
 function TrailHandler:GetInterpNodes(number, offset, subIndex)
 	offset = offset or 0
 	local unique = false
@@ -787,14 +931,11 @@ function TrailHandler:GetInterpNodes(number, offset, subIndex)
 	local spacing = self.dists[#self] / (number - 1)
 
 	local interpNodes
-	if self.update then 
-		clear(self.subInterpolated)
-		clear(self.interpolated)
-		self.update = false
-	end
+
 	if subIndex then
 		interpNodes = self.subInterpolated[subIndex]
 	else
+		self:ClearNodes()
 		interpNodes = self.interpolated
 	end
 	local sPos = self[1]
@@ -879,6 +1020,7 @@ end
 local function GetFormationNodes(ranks)
 	local maxRank = nil
 	local nodes = {}
+	cf2Nodes:ClearNodes()
 	for rank = 3, 0, -1 do
 		local units = ranks[rank]
 		if units then
@@ -1462,8 +1604,6 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	return false
 end
 
-
-
 local function ReorderGroupsToFirstNode(groups, interpNodes) -- reorder the groups so the closest unit of each group goes to the first nodes
 	if not groups[2] then
 		return
@@ -1489,6 +1629,56 @@ local function ReorderGroupsToFirstNode(groups, interpNodes) -- reorder the grou
 		closestGroups[group] = minDist
 	end
 	table.sort(groups, sortClosestGroups)
+end
+
+function cf2Nodes:MatchCF2UnitsToNodes(x, z, meta, shift, insertPositions)
+	local T = insertPositions
+	local mUnits, typeCount = GetExecutingUnits(usingCmd)
+	if next(mUnits) then
+		local toReorder = opt.reorderGroups and typeCount and typeCount > table.size(mUnits)
+		local ranks = GetFormationRanks(mUnits, usingCmd)
+		local formationNodes = GetFormationNodes(ranks)
+		for rank = 0, 3 do
+			local units = ranks[rank]
+			if units then
+				local interpNodes = formationNodes[rank]
+				local groups = GetFormationGroups(usingCmd, units)
+				if toReorder then
+					ReorderGroupsToFirstNode(groups, interpNodes)
+				end
+				-- Assign nodes to groups
+				local groupNodes = {}
+				for i = 1, #groups do
+					groupNodes[i] = {}
+				end
+				-- Echo("#interpNodes is ", #interpNodes)
+				for _, node in ipairs(interpNodes) do
+					local index = false
+					local minPos = false
+					for i = 1, #groups do
+						local len, nodelen = #groups[i], #groupNodes[i]
+						if nodelen < len then
+							local halfGap = len > 0 and 0.5/len or 0
+							local nextPos = nodelen*(1 + halfGap) / (len + 1) + halfGap
+							if (not minPos) or nextPos < minPos then
+								minPos = nextPos
+								index = i
+							end
+						end
+					end
+					if minPos then
+						groupNodes[index][#groupNodes[index] + 1] = node
+					end
+				end
+
+				-- Match units to nodes and issue orders
+				
+				for i = 1, #groups do
+					cf2Nodes:MatchUnitsToNodes(groups[i], groupNodes[i], false, x, z, meta, shift, insertPositions)
+				end
+			end
+		end
+	end
 end
 
 function widget:MouseRelease(mx, my, mButton)
@@ -1625,60 +1815,20 @@ function widget:MouseRelease(mx, my, mButton)
 		else
 			-- Order is a formation
 			-- Are any units able to execute it?
-			local mUnits, typeCount = GetExecutingUnits(usingCmd)
-			local toReorder = opt.reorderGroups and typeCount and typeCount > table.size(mUnits)
-			if next(mUnits) then
-				cf2Nodes.update = true
-				local ranks = GetFormationRanks(mUnits, usingCmd)
-				local formationNodes = GetFormationNodes(ranks)
-				for rank = 0, 3 do
-					local units = ranks[rank]
-					if units then
-						local interpNodes = formationNodes[rank]
-						local groups = GetFormationGroups(usingCmd, units)
-						if toReorder then
-							ReorderGroupsToFirstNode(groups, interpNodes)
-						end
-						-- Assign nodes to groups
-						local groupNodes = {}
-						for i = 1, #groups do
-							groupNodes[i] = {}
-						end
-						-- Echo("#interpNodes is ", #interpNodes)
-						for _, node in ipairs(interpNodes) do
-							local index = false
-							local minPos = false
-							for i = 1, #groups do
-								local len, nodelen = #groups[i], #groupNodes[i]
-								if nodelen < len then
-									local halfGap = len > 0 and 0.5/len or 0
-									local nextPos = nodelen*(1 + halfGap) / (len + 1) + halfGap
-									if (not minPos) or nextPos < minPos then
-										minPos = nextPos
-										index = i
-									end
-								end
-							end
-							if minPos then
-								groupNodes[index][#groupNodes[index] + 1] = node
-							end
-						end
-
-						-- Match units to nodes and issue orders
-						local altOpts = meta and GetCmdOpts(true, false, false, false, false)
-						for i = 1, #groups do
-							local order = cf2Nodes:MatchUnitsToNodes(groups[i], false, shift and not meta, groupNodes[i])
-							if meta then
-								for unitID, pos in pairs(order) do
-									GiveNotifyingOrderToUnit(unitID, CMD_INSERT, {0, usingCmd, cmdOpts.coded, pos[1], pos[2], pos[3]}, altOpts)
-								end
-							else
-								for unitID, pos in pairs(order) do
-									GiveNotifyingOrderToUnit(unitID, usingCmd, pos, cmdOpts)
-								end
-							end
-						end
+			local insertPositions = meta and shift and {}
+			cf2Nodes:MatchCF2UnitsToNodes(pos[1], pos[3], meta, shift, insertPositions)
+			if meta then
+				local altOpts = meta and GetCmdOpts(true, false, false, false, false)
+				for unitID, pos in pairs(cf2Nodes.order) do
+					local insPos = 0
+					if shift then
+						insPos = insertPositions[unitID]
 					end
+					GiveNotifyingOrderToUnit(unitID, CMD_INSERT, {insPos, usingCmd, cmdOpts.coded, pos[1], pos[2], pos[3]}, altOpts)
+				end
+			else
+				for unitID, pos in pairs(cf2Nodes.order) do
+					GiveNotifyingOrderToUnit(unitID, usingCmd, pos, cmdOpts)
 				end
 			end
 		end
@@ -2015,6 +2165,7 @@ function widget:Initialize()
 	mySelection = WG.mySelection
 	selectionDefID = WG.selectionDefID
 	commandMap = WG.commandMap
+	selectionChanged = true
 	widget:CommandsChanged()
 	Units = WG.Cam.Units
 	WG.TrailHandler = TrailHandler
@@ -2058,54 +2209,58 @@ end
 -- Matching Algorithms
 ---------------------------------------------------------------------------------------------------------
 
-function TrailHandler:MatchUnitsToNodes(units, arePositions, shifted, nodes)
-	nodes = nodes or self.interpolated
+function TrailHandler:MatchUnitsToNodes(units, subnodes, arePositions, x, z, meta, shift, insertPositions)
+	local nodes
+	if subnodes then
+		nodes = subnodes
+	else
+		clear(self.order)
+		nodes = self.interpolated
+	end
+	local positions
+	if arePositions then
+		positions = units
+	else 
+		positions = GetStartPositions(units, x, z, meta, shift, insertPositions)
+	end
+
 	local new_order
 	if (not units[2]) then
-		new_order = {{units[1], nodes[1]}}
+		new_order = {nodes[1]}
 	elseif opt.forceAlg == 'noX' or opt.forceAlg == 'disabled' and units[maxHungarianUnits + 1] then
-		new_order = GetOrdersNoX(nodes, units, #units, shifted, arePositions)
+		new_order = GetOrdersNoX(nodes, positions)
 	else
-		new_order = GetOrdersHungarian(nodes, units, #units, shifted, arePositions)
+		new_order = GetOrdersHungarian(nodes, positions)
 	end
+
 	local order = self.order
-	clear(order)
-	for i, t in ipairs(new_order) do
-		order[t[1]] = t[2]
+	for idx, pos in pairs(new_order) do
+		local unitID = units[idx]
+		order[unitID] = pos
 	end
 	return order
 end
 
-
-function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
+local table_new = table.new
+function GetOrdersNoX(nodes, units)
 
 	-- Remember when we start
 	-- This is for capping total time
 	-- Note: We at least complete initial assignment
 	local startTime = osclock()
 	local diag, floor, sqrt = diag, floor, sqrt
+	local count = #units
 	---------------------------------------------------------------------------------------------------------
 	-- Find initial assignments
 	---------------------------------------------------------------------------------------------------------
-	local unitSet = {}
+	local unitSet = table_new(count)
 	local fdist = -1
 	local fm
 
-	for u = 1, unitCount do
-		local unitID = units[u]
-		-- Get unit position
-		local ux, uz
-		if arePositions then
-			ux, uz = unitID[1], unitID[3] or unitID[2]
-		elseif shifted then
-			ux, _, uz = GetUnitFinalPosition(unitID)
-		else
-			ux, _, uz = spGetUnitPosition(unitID)
-			if not ux then
-				ux, uz = 0, 0
-			end
-		end
-		unitSet[u] = {ux, arePositions and u or unitID, uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
+	for u = 1, count do
+		local pos = units[u]
+		local ux, uz = pos[1], pos[3] or pos[2]
+		unitSet[u] = {ux, u, uz, -1} -- Such that x/z are in same place as in nodes (So we can use same sort function)
 
 		-- Work on finding furthest points (As we have ux/uz already)
 		for i = u - 1, 1, -1 do
@@ -2125,12 +2280,12 @@ function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 	end
 
 	-- Maybe nodes are further apart than the units
-	for i = 1, unitCount - 1 do
+	for i = 1, count - 1 do
 
 		local node = nodes[i]
 		local nx, nz = node[1], node[3]
 
-		for j = i + 1, unitCount do
+		for j = i + 1, count do
 
 			local nexNode = nodes[j]
 			local mx, mz = nexNode[1], nexNode[3]
@@ -2154,7 +2309,7 @@ function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 	tsort(unitSet, sortFunc)
 	tsort(nodes, sortFunc)
 
-	for u = 1, unitCount do
+	for u = 1, count do
 		unitSet[u][4] = nodes[u]
 	end
 
@@ -2173,10 +2328,10 @@ function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 	local stChkCnt = 0
 
 	-- Add all units to check stack
-	for u = 1, unitCount do
+	for u = 1, count do
 		stChk[u] = u
 	end
-	stChkCnt = unitCount
+	stChkCnt = count
 
 	-- Begin algorithm
 	local rounds = 0
@@ -2202,17 +2357,18 @@ function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 			-- Get opposing unit and matching node position
 			local f = stFin[i]
 			local fd = unitSet[f]
-			local tn = fd[4]
+			local fdx, fdz, tn = fd[1], fd[3], fd[4]
 
 			-- Get collision point
 			local ix = (Cs[f] - Cu) / (Mu - Ms[f])
 			local iz = Mu * ix + Cu
 
-			-- Check bounds
-			if ((ux - ix) * (ix - nx) >= 0) and
-				((uz - iz) * (iz - nz) >= 0) and
-				((fd[1] - ix) * (ix - tn[1]) >= 0) and
-				((fd[3] - iz) * (iz - tn[3]) >= 0) then
+			if ux == fdx and uz == fdz then
+				-- skip or it will be endless
+			elseif (ux - ix) * (ix - nx) > 0 and
+				 (uz - iz) * (iz - nz) > 0 and
+				 (fdx - ix) * (ix - tn[1]) > 0 and
+				 (fdz - iz) * (iz - tn[3]) > 0 then
 
 				-- Lines cross
 
@@ -2253,15 +2409,15 @@ function GetOrdersNoX(nodes, units, unitCount, shifted, arePositions)
 	---------------------------------------------------------------------------------------------------------
 	-- Return orders
 	---------------------------------------------------------------------------------------------------------
-	local orders = {}
-	for i = 1, unitCount do
+	local orders = table_new(count)
+	for i = 1, count do
 		local unit = unitSet[i]
-		orders[i] = {unit[2], unit[4]}
+		orders[unit[2]] = unit[4]
 	end
 	return orders
 end
 
-function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
+function GetOrdersHungarian(nodes, units)
 	-------------------------------------------------------------------------------------
 	-------------------------------------------------------------------------------------
 	-- (the following code is written by gunblob)
@@ -2271,35 +2427,24 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 	-------------------------------------------------------------------------------------
 	-------------------------------------------------------------------------------------
 	local t = osclock()
-
 	--------------------------------------------------------------------------------------------
 	--------------------------------------------------------------------------------------------
 	-- cache node<->unit distances
 
 	-- local distances = distances
 	-- clear(distances)
-	local distances = {}
-	--for i = 1, unitCount do distances[i] = {} end
+	local distances = table_new(count)
+	local count = #units
+	--for i = 1, count do distances[i] = {} end
 	local diag, floor, sqrt = diag, floor, sqrt
-	for i = 1, unitCount do
+	for i = 1, count do
 
 		local uID = units[i]
-		local ux, uz
+		local ux, uz = uID[1], uID[3] or uID[2]
 
-		if arePositions then
-			ux, uz = uID[1], uID[3] or uID[2]
-		elseif shifted then
-			ux, _, uz = GetUnitFinalPosition(uID)
-		else
-			ux, _, uz = spGetUnitPosition(uID)
-			if not ux then
-				ux, uz = 0, 0
-			end
-		end
-
-		distances[i] = {}
-		local dists = distances[i]
-		for j = 1, unitCount do
+		local dists = table_new(count)
+		distances[i] = dists
+		for j = 1, count do
 			local nodePos = nodes[j]
 			local dx, dz = nodePos[1] - ux, nodePos[3] - uz
 			dists[j] = floor(sqrt(dx*dx + dz*dz) + 0.5)
@@ -2311,7 +2456,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 	--------------------------------------------------------------------------------------------
 	--------------------------------------------------------------------------------------------
 	-- find optimal solution and send orders
-	local result = findHungarian(distances, unitCount)
+	local result = findHungarian(distances, count)
 
 	--------------------------------------------------------------------------------------------
 	--------------------------------------------------------------------------------------------
@@ -2319,7 +2464,7 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 
 	local delay = osclock() - t
 	-- Echo("delay is ", delay)
-	if (delay > maxHngTime) and (maxHungarianUnits > minHungarianUnits) and opt.forceAlg ~= 'hungarian' then
+	if delay > 5 or (delay > maxHngTime) and (maxHungarianUnits > minHungarianUnits) and (opt.forceAlg ~= 'hungarian') then
 
 		-- Delay is greater than desired, we have to reduce units
 		maxHungarianUnits = maxHungarianUnits - 1
@@ -2347,10 +2492,10 @@ function GetOrdersHungarian(nodes, units, unitCount, shifted, arePositions)
 	end
 
 	-- Return orders
-	local orders = {}
-	for i = 1, unitCount do
+	local orders = table_new(count)
+	for i = 1, count do
 		local rPair = result[i]
-		orders[i] = {arePositions and rPair[1] or units[rPair[1]], nodes[rPair[2]]}
+		orders[rPair[1]] = nodes[rPair[2]]
 	end
 
 	return orders
@@ -2359,10 +2504,10 @@ end
 function findHungarian(array, n)
 
 	-- Vars
-	local colcover = {}
-	local rowcover = {}
-	local starscol = {}
-	local primescol = {}
+	local colcover = table_new(n)
+	local rowcover = table_new(n)
+	local starscol = table_new(n)
+	local primescol = table_new(n)
 
 	-- Initialization
 	for i = 1, n do
@@ -2563,3 +2708,5 @@ function stepFiveStar(colcover, rowcover, row, col, n, starscol, primescol)
 		end
 	end
 end
+
+f.DebugWidget(widget)
