@@ -23,8 +23,6 @@ VFS.Include("LuaRules/Configs/customcmds.h.lua")
 -- Config
 ------------------------------------------------------------
 local altJumpOpt = false
-local altJump = false
-local altHeld = false
 
 options_path = 'Hel-K/'..widget:GetInfo().name
 options = {
@@ -40,7 +38,7 @@ options = {
 }
 
 local debugging = false
-local Echo = Spring.Echo
+
 local buildOptions = VFS.Include("gamedata/buildoptions.lua")
 
 local MAX_QUEUE = 30
@@ -81,8 +79,13 @@ for defID, def in pairs(UnitDefs) do
 end
 local sDefID = Spring.GetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.dyntrainer_strike_base.id-- Starting unit def ID
 local sDef = UnitDefs[sDefID]
+
 -- Animation Handling
+local altJump = false
+local altHeld = false
 local pseudoActiveCommand = false
+WG.preGamePseudoCommand = false
+
 local allowedCommands = {
 	[CMD_JUMP] = true,
 	[CMD_RAW_MOVE] = true,
@@ -738,7 +741,6 @@ end
 
 
 function widget:Update(dt) 
-	-- Echo("#buildQueue is ", #buildQueue)
 	if pseudoActiveCommand then
 		Spring.SetMouseCursor(commandCursor[pseudoActiveCommand] or 'none')
 	end
@@ -905,6 +907,8 @@ local function InitialQueueHandleCommand(cmdID, cmdParams, cmdOptions)
 		return false
 	end
 	pseudoActiveCommand = false
+	WG.preGamePseudoCommand = false
+
 	local command
 	if cmdID == CMD_STOP then
 		-- This only handles pressing the stop button in integral menu.
@@ -918,6 +922,7 @@ local function InitialQueueHandleCommand(cmdID, cmdParams, cmdOptions)
 				command = cmdID
 			else
 				pseudoActiveCommand = cmdID
+				WG.preGamePseudoCommand = cmdID
 				SetSelDefID(nil)
 				return false
 			end
@@ -1166,9 +1171,11 @@ function widget:MousePress(mx, my, button)
 					pos[2] = pos[2] + 5
 					InitialQueueHandleCommand(pseudoActiveCommand, pos, {alt = alt, ctrl = ctrl, meta = meta, shift = shift})
 					pseudoActiveCommand = CMD_JUMP
+					WG.preGamePseudoCommand = CMD_JUMP
 				end
 			else
 				pseudoActiveCommand = false
+				WG.preGamePseudoCommand = false
 			end
 			return true
 		elseif button == 1 and not altJump then
@@ -1180,6 +1187,7 @@ function widget:MousePress(mx, my, button)
 			end
 			if not shift then
 				pseudoActiveCommand = false
+				WG.preGamePseudoCommand = false
 			end
 			return true
 		end
@@ -1298,6 +1306,7 @@ function widget:KeyPress(key, mods, isRepeat)
 			altJump = true
 		else
 			pseudoActiveCommand = false
+			WG.preGamePseudoCommand = false
 		end
 		altHeld = mods.alt
 		return true
@@ -1309,6 +1318,7 @@ function widget:KeyRelease(key, mods)
 	end
 	if altJump and altHeld ~= mods.alt then
 		pseudoActiveCommand = false
+		WG.preGamePseudoCommand = false
 		altJump = false
 		altHeld = mods.alt
 		return true

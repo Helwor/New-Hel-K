@@ -22,7 +22,6 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-local Echo = Spring.Echo
 -- Automatically generated local definitions
 
 local CMD_ATTACK               = CMD.ATTACK
@@ -41,8 +40,10 @@ local spGetGameFrame           = Spring.GetGameFrame
 local spGetModKeyState         = Spring.GetModKeyState
 local spGetMouseState          = Spring.GetMouseState
 local spGetSelectedUnits       = Spring.GetSelectedUnits
+local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 local spGetUnitDefID           = Spring.GetUnitDefID
 local spGetUnitPosition        = Spring.GetUnitPosition
+local spGetFeaturePosition     = Spring.GetFeaturePosition
 local spTraceScreenRay         = Spring.TraceScreenRay
 local spTestMoveOrder          = Spring.TestMoveOrder
 local spTestBuildOrder         = Spring.TestBuildOrder
@@ -51,12 +52,20 @@ local spGetGroundNormal        = Spring.GetGroundNormal
 local spIsPosInLos             = Spring.IsPosInLos
 local spGetUnitRulesParam	   = Spring.GetUnitRulesParam
 
+local maxUnits = Game.maxUnits
+local diag = math.diag
+local pairs = pairs
+local WG = WG
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
-local pairs = pairs
 
+local myPlayerID = Spring.GetMyPlayerID()
+local myTeamID = false
+local startChosen = false
+local startDefID = false
+local preGameJumper = false
 
 local glVertex = glVertex
 local green      = {0.5,   1, 0.5,   1}
@@ -64,18 +73,21 @@ local greenred   = {  0.8, 0.5, 0.5,   1}
 local yellow     = {  1,   1, 0.5,   1}
 local orange     = { 0.9, 0.5,   0,   1}
 local red        = {  1,   0,   0,   1}
+local purple     = {  1,   0,   0.5,   1}
 
 
 -- Types of passibility.
 local V_PASS = 0
 local V_STRUCTURE = 1
 local V_FOG = 2
+local V_SINK = 3
 
 -- First in range, then out of range
 local viabilityColours = {
 	[V_PASS] = {green, greenred},
 	[V_STRUCTURE] = {yellow, orange},
 	[V_FOG] = {greenred, greenred},
+	[V_SINK] = {purple, purple},
 }
 -- local faintedColors = {}
 -- faintedColors[red] = {}
@@ -97,7 +109,12 @@ local viabilityColours = {
 
 
 local jumpDefs  = VFS.Include"LuaRules/Configs/jump_defs.lua"
-
+for defID, def in pairs(jumpDefs) do
+	local ud = UnitDefs[defID]
+	def.maxWaterDepth = ud.maxWaterDepth
+	def.midy = ud.model.midy
+	def.id = defID
+end
 local function spTestMoveOrderX(unitDefID, x, y, z)
 	return spTestMoveOrder(unitDefID, x, y, z, 0, 0, 0, true, true, true)
 end
@@ -119,7 +136,8 @@ local function CheckTerrainBlock(bx, by, bz, finish, height)
 	return false
 end
 
-local function GetJumpViabilityLevel(unitDefID, bx, by, bz, finish, height)
+local function GetJumpViabilityLevel(unitDefID, start, finish, height, maxWaterDepth)
+	local bx, by, bz = start[1], start[2], start[3]
 	local x, y, z = finish[1], finish[2], finish[3]
 
 	if spTestMoveOrderX(unitDefID, x, y, z) then
@@ -133,18 +151,16 @@ local function GetJumpViabilityLevel(unitDefID, bx, by, bz, finish, height)
 		end
 		
 		local blockStep = CheckTerrainBlock(bx, by, bz, finish, height)
-		
-		local height = spGetGroundHeight(x, z)
-		if (not UnitDefs[unitDefID]) or height < -UnitDefs[unitDefID].maxWaterDepth then
+		if spGetGroundHeight(x, z) < -maxWaterDepth then
 			-- Water too deep for the unit to walk on
-			return V_STRUCTURE, blockStep
+			return V_SINK
 		end
 		
 		-- Ground is fine, must contain a blocking structure or
 		-- be out of LOS. Spring.TestMoveOrder returns false in
 		-- widgets for all out of LOS locations.
 		
-		if spIsPosInLos(x, y, z) then
+		if spIsPosInLos(x, y, z) or WG.InitialQueue then
 			return V_STRUCTURE, blockStep
 		else
 			return V_FOG, blockStep
@@ -160,12 +176,13 @@ local function ListToSet(t)
 	return new
 end
 
-local ignore = {
+local ignoreOrder = {
 	[CMD_SET_WANTED_MAX_SPEED or 70] = true,
+	[CMD.STOP] = true,
 }
 
-local curve = ListToSet({CMD_MOVE, CMD_RAW_MOVE, CMD_JUMP, CMD_FIGHT})
-local line = ListToSet({CMD_ATTACK})
+local accurate = ListToSet({CMD_MOVE, CMD_RAW_MOVE, CMD_JUMP, CMD_FIGHT})
+
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -226,30 +243,154 @@ local function GetArcColor(viability, inRange, jumpReload)
 	return col
 end
 
-local function DrawArc(unitID, unitDefID, start, bx, by, bz, finish, inRange, range, isEstimate, quality, jumpReload)
+local function FindInsertPosInPreGame(X, Z, startPos)
+	local pos
+	local insertPos = 0
+	local start = 1
+	local pos = WG.preGameBuildQueue
+	local diag = math.diag
+
+	if startPos then
+		pos[0] = {false, unpack(startPos)}
+		start = 0
+		-- Echo('unit #'.. (conRef or unitID) ..' pos ref:',unitPosX, unitPosZ)
+	end
+	local bestDist = math.huge
+	-- getting insert point that add the least distance
+	--  NOTE sqrt is mandatory 
+	local new_next -- we don't need to recalculate 'this_new' as it is the previous 'new_next'
+	for i = start, #pos do 
+		-- Echo('iter',i, pos.n)
+		local this, next = pos[i], pos[i+1]
+		local thisX, thisZ = this[2], this[4]
+		if not next or thisX ~= next[2] or thisZ ~= next[4] then -- to gain some cpu we don't consider order that have same poses than its next (happening mostly when terraforming)
+			local this_new = new_next or diag(thisX - X, thisZ - Z)
+			local this_next
+			if next then
+				local nextX, nextZ = next[2], next[4]
+				this_next = diag(nextX - thisX, nextZ - thisZ)
+				new_next = diag(X - nextX, Z - nextZ)
+			else
+				this_next, new_next = 0, 0
+			end
+			-- Echo(i,this[1],next and next[1] or 0,this[2])
+			
+			local newDist = this_new + new_next - this_next
+			-- Echo('i', i,'=', this_new, new_next, this_next, 'dist', newDist)
+			if newDist <= bestDist then 
+				bestDist = newDist
+				insertPos = i
+			end
+		end
+	end
+	pos[0] = nil
+	return insertPos
+end
+
+
+local function GetOrderPos(cmdID, params)
+	local len = #params
+	local x, y, z
+	if len == 3 then
+		x, y, z = unpack(params)
+	elseif len == 5 or len == 1 then
+		local id = params[1]
+		if id > maxUnits then
+			x, y, z = spGetFeaturePosition(id - maxUnits)
+		else
+			x, y, z = spGetUnitPosition(id)
+		end
+	elseif len == 4 then
+		local id = params[1]
+		if id > maxUnits then
+			x, y, z = spGetFeaturePosition(id - maxUnits)
+		else
+			x, y, z = spGetUnitPosition(id)
+		end
+		if not x then
+			x, y, z = params[1], params[2], params[3]
+		end
+	end
+	return x, y, z
+end
+
+local function FindInsertPosInUnitQueue(X, Z, unitID, queue)
+	local pos
+	local insertPos = 0
+	local start = 0
+	local diag = diag
+	local pos = {
+		[0] = {i = 0, spGetUnitPosition(unitID)}
+	}
+	for i, order in ipairs(queue) do
+		if not ignoreOrder[order.id] then
+			local x, y, z = GetOrderPos(order.id, order.params)
+			if x then
+				pos[#pos + 1] = {i = i, x, y, z}
+				-- Echo('good', i, unpack(order.params))
+			else
+				-- Echo('noop', i, unpack(order.params))
+			end
+		end
+	end
+
+
+		-- Echo('unit #'.. (conRef or unitID) ..' pos ref:',unitPosX, unitPosZ)
+	local bestDist = math.huge
+	-- getting insert point that add the least distance
+	local insertPos = 0
+	local new_next -- we don't need to recalculate 'this_new' as it is the previous 'new_next'
+	for i = start, #pos do 
+		-- Echo('iter',i, pos.n)
+		local this, next = pos[i], pos[i+1]
+		local thisX, thisZ = this[1], this[3]
+		if not next or thisX ~= next[1] or thisZ ~= next[3] then -- to gain some cpu we don't consider order that have same poses than its next (happening mostly when terraforming)
+			local this_new = new_next or diag(thisX - X, thisZ - Z)
+			local this_next
+			if next then
+				local nextX, nextZ = next[1], next[3]
+				this_next = diag(nextX - thisX, nextZ - thisZ)
+				new_next = diag(X - nextX, Z - nextZ)
+			else
+				this_next, new_next = 0, 0
+			end
+			-- Echo(i,this[1],next and next[1] or 0,this[2])
+			
+			local newDist = this_new + new_next - this_next
+			-- Echo('i', i,'=', this_new, new_next, this_next, 'dist', newDist)
+			if newDist <= bestDist then 
+				bestDist = newDist
+				insertPos = i
+			end
+		end
+	end
+	local p = pos[insertPos]
+	return p, queue[p.i]
+end
+
+
+local function DrawArc(def, start, finish, dist, range, isEstimate, quality, jumpReload, drawRange)
 	-- todo: display lists
-	unitDefID = unitDefID or spGetUnitDefID(unitID)
-	local height       = jumpDefs[unitDefID].height
-	
-	local by = math.max(by, spGetGroundHeight(bx, bz))
-	local viability, blockStep = GetJumpViabilityLevel(unitDefID, bx, by, bz, finish, height)
-	local color = GetArcColor(viability, inRange, jumpReload)
+	local height = def.height
+	local viability, blockStep = GetJumpViabilityLevel(def.id, start, finish, height, def.maxWaterDepth)
+	local color = GetArcColor(viability, dist < range, jumpReload)
 
 	quality = quality or 1
 	
-	local vector       = {}
+	local vector = {}
 	for i = 1, 3 do
-		vector[i]        = finish[i] - start[i]
+		vector[i] = finish[i] - start[i]
 	end
 
-	if (range) then
+	if drawRange then
 		local col = isEstimate and orange or yellow
 		glColor(col[1], col[2], col[3], col[4])
 		glDrawGroundCircle(start[1], start[2], start[3], range, 100*quality)
 	end
 
-	local progress         = 0
-	local step             = 0.01/quality
+
+	local progress = 0
+	local step = 0.01/quality
 
 	glLineStipple('')
 	glBeginEnd(GL_LINE_STRIP, DrawLoop, start, vector, color, progress, step, height, blockStep, red)
@@ -262,52 +403,155 @@ local function DrawArc(unitID, unitDefID, start, bx, by, bz, finish, inRange, ra
 	end
 end
 
-local function DrawMouseArc(unitID, shift, groundPos, quality)
-	local unitDefID = spGetUnitDefID(unitID)
-	if (not groundPos or not jumpDefs[unitDefID]) then
-		return
-	end
-	local jumpReload = spGetUnitRulesParam(unitID, "jumpReload") or 1
-	groundPos[2] = Spring.GetGroundHeight(groundPos[1], groundPos[3])
-	local queueCount = spGetCommandQueue(unitID, 0)
-	local passIf = (not queueCount or queueCount == 0 or not shift)
-	
-	local range = jumpDefs[unitDefID].range * (Spring.GetUnitRulesParam(unitID, "jumpRangeMult") or 1)
-	if passIf then
-		local bx,by,bz,ux,uy,uz = spGetUnitPosition(unitID,true)
-		local unitPos = {ux,uy,uz}
-		local dist = GetDist2(unitPos, groundPos)
-		DrawArc(unitID, unitDefID, unitPos, bx, by, bz, groundPos, range > dist, range, false, quality, jumpReload)
-	elseif (shift) then
-		local queue = spGetCommandQueue(unitID, -1)
-		local i = #queue
-		while queue[i] and ((ignore[queue[i].id]) and i > 0) do
+local function DrawMouseArc(unitID, def, finish, shift, meta, quality)
+	local range = def.range * (spGetUnitRulesParam(unitID, "jumpRangeMult") or 1)
+	local queueCount = spGetCommandQueue(unitID, 0) or 0
+	local queue, order
+	if shift and queueCount > 0 then
+		queue = spGetCommandQueue(unitID, -1)
+		local i = queueCount
+		while i > 0 and queue[i] and ignoreOrder[queue[i].id] do
+			queue[i] = nil
 			i = i - 1
 		end
-		if (curve[queue[i].id]) or (queue[i].id < 0) or (#queue[i].params == 3) or (#queue[i].params == 4) then
-			local isEstimate = not (curve[queue[i].id] or queue[i].id<0)
-			local dist  = GetDist2(queue[i].params, groundPos)
-			DrawArc(unitID, unitDefID, queue[i].params, queue[i].params[1], queue[i].params[2], queue[i].params[3], groundPos, range > dist, range, isEstimate, quality, 1)
+		order = queue[i]
+	end
+	if order then -- shifted
+		-- Echo("order, #queue is ", order, #queue)
+		local from
+		if meta then
+			from, order = FindInsertPosInUnitQueue(finish[1], finish[3], unitID, queue)
+		else
+			local x, y, z = GetOrderPos(order.id, order.params)
+			if x then
+				from = {x, y, z}
+			end
+		end
+		if from then
+			local isEstimate = order and not accurate[order.id]
+			from[2] = from[2] + def.midy
+			local dist  = diag(finish[1] - from[1], finish[3] - from[3])
+			DrawArc(def, from, finish, dist, range, isEstimate, quality, 1, true)
+		end
+	else
+		local jumpReload = spGetUnitRulesParam(unitID, "jumpReload") or 1
+		local from = {select(4,spGetUnitPosition(unitID, true))}
+		local dist = diag(finish[1] - from[1], finish[3] - from[3])
+		DrawArc(def, from, finish, dist, range, false, quality, jumpReload, true)
+	end
+end
+
+function widget:PlayerChanged(playerID)
+	if playerID == myPlayerID then
+		myTeamID = Spring.GetMyTeamID()
+		startChosen = false
+		startDefID = false
+	end
+end
+
+function widget:GameFrame()
+	preGame = WG.InitialQueue
+end
+
+function widget:Initialize()
+	widget:PlayerChanged(myPlayerID)
+	for i, comm in pairs(WG.ModularCommAPI and WG.ModularCommAPI.GetPlayerCommProfiles(myPlayerID, true) or {}) do
+		if not comm.notStarter then
+			local defID = comm.baseUnitDefID
+			if jumpDefs[defID] then
+				preGameJumper = jumpDefs[defID]
+			end
 		end
 	end
 end
+
 
 function widget:DrawWorld()
 	local _, activeCommand = spGetActiveCommand()
-	if (activeCommand == CMD_JUMP or WG.contextCmd == CMD_JUMP) then
-		local mouseX, mouseY   = spGetMouseState()
-		local category, arg    = spTraceScreenRay(mouseX, mouseY, true)
-		local _, _, _, shift   = spGetModKeyState()
-		local units = spGetSelectedUnits()
-		local quality = 1
-		if #units > 50 then
-			quality = 0.5
+	if WG.InitialQueue then
+		local preGameQueue = WG.preGameBuildQueue
+		if preGameQueue  and preGameJumper then
+			local def = preGameJumper
+			local range = def.range
+			local sx, sy, sz
+			if not startChosen then
+				sx, sy, sz = Spring.GetTeamStartPosition(myTeamID) -- Returns -100, -100, -100 when none chosen
+				if sx > 0 then
+					sy = spGetGroundHeight(sx, sz)
+					startChosen = {sx, sy, sz}
+				end
+			else
+				sx, sy, sz = unpack(startChosen)
+			end
+			local lastOrder
+			-- Draw queued jumps in preGame
+			for i, order in ipairs(preGameQueue) do
+				if order[1] == CMD_JUMP then
+					if i == 1 then
+						if startChosen then
+							local to = {order[2], order[3], order[4]}
+							local dist = diag(to[1] - startChosen[1], to[3] - startChosen[3])
+							local jumpReload = 0.65
+							local quality = 1
+							DrawArc(def, startChosen, to, dist, range, true, quality, jumpReload, false)
+
+						end
+					else
+						local to = {order[2], order[3], order[4]}
+						local from = {lastOrder[2], lastOrder[3], lastOrder[4]}
+						local dist = diag(to[1] - from[1], to[3] - from[3])
+						local jumpReload = 0.65
+						local quality = 1
+						DrawArc(def, from, to, dist, range, true, quality, jumpReload, false)
+					end
+				end
+				lastOrder = order
+				
+			end
+			-- Draw user jump in preGame
+			if WG.preGamePseudoCommand == CMD_JUMP then
+				local mouseX, mouseY   = spGetMouseState()
+				local category, to    = spTraceScreenRay(mouseX, mouseY, true)
+				if category == 'ground' then
+					local from
+					local _, _, meta, shift   = spGetModKeyState()
+					if shift and lastOrder then
+						if meta then
+							local insertPos = FindInsertPosInPreGame(to[1], to[3], startChosen)
+							local order = preGameQueue[insertPos]
+							from = order and {order[2], order[3], order[4]} or startChosen
+						else
+							from = {lastOrder[2], lastOrder[3], lastOrder[4]}
+						end
+					else
+						from = startChosen
+					end
+					if from then
+						local dist = diag(to[1] - from[1], to[3] - from[3])
+						local range = jumpDefs[preGameJumperDefID].range
+						local jumpReload = 1
+						local quality = 1
+						DrawArc(def, from, to, dist, range, true, quality, jumpReload, true)
+					end
+				end
+			end
 		end
-		for i=1,#units do
-			DrawMouseArc(units[i], shift, category == 'ground' and arg, quality)
+	elseif (activeCommand == CMD_JUMP or WG.contextCmd == CMD_JUMP) then
+		local mouseX, mouseY   = spGetMouseState()
+		local category, to    = spTraceScreenRay(mouseX, mouseY, true, false ,false, true)
+		if category == 'ground' then
+			local _, _, meta, shift   = spGetModKeyState()
+			for defID, units in pairs(WG.selectionDefID or spGetSelectedUnitsSorted()) do
+				if jumpDefs[defID] then
+					for _, unitID in ipairs(units) do
+						DrawMouseArc(unitID, jumpDefs[defID], to, shift, meta, math.max(1-#units/50, 0.3))
+					end
+				end
+			end
 		end
 	end
 end
 
+f.DebugWidget(widget)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
