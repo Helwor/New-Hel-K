@@ -464,6 +464,55 @@ function widget:Initialize()
 		end
 	end
 end
+local currentNodeOrder
+local function GetMultiPos(x, z, shift, meta)
+	if meta and shift and not x then
+		return false
+	end
+	local multiPos = false
+	local cf2Nodes = WG.TrailHandler and WG.TrailHandler.trails.cf2
+	if cf2Nodes and cf2Nodes.interpolated[2] and not cf2Nodes.interpolated[50] then
+		local now = os.clock()
+		if not currentNodeOrder
+			or not currentNodeOrder.final and (
+				cf2Nodes.fadeout
+				or now > currentNodeOrder.time and cf2Nodes[currentNodeOrder.rawlength + 1]
+			)
+		then
+			currentNodeOrder = {}
+			cf2Nodes:MatchCF2UnitsToNodes(x, z, shift, meta)
+			local ok = false
+			for unitID, pos in pairs(cf2Nodes.order) do
+				for i, p in ipairs(cf2Nodes.interpolated) do
+					if p == pos then
+						ok = true
+						currentNodeOrder[unitID] = i
+						break
+					end
+				end
+			end
+			currentNodeOrder.time = now + 0.3
+			currentNodeOrder.rawlength = #cf2Nodes
+			currentNodeOrder.final = cf2Nodes.fadeout
+			if ok then
+				multiPos = cf2Nodes.interpolated
+			end
+			-- DIFFERS VOLUNTARILY FROM THE MISSILE TRAJECTORY WIDGET:
+			if currentNodeOrder.final then
+				currentNodeOrder = false
+				multiPos = false
+			end			
+		else
+			multiPos = cf2Nodes.interpolated
+		end
+		
+	else
+		currentNodeOrder = false
+	end
+
+	return multiPos
+end
+
 
 
 function widget:DrawWorld()
@@ -536,15 +585,33 @@ function widget:DrawWorld()
 				end
 			end
 		end
-	elseif (activeCommand == CMD_JUMP or WG.contextCmd == CMD_JUMP) then
+	elseif activeCommand == CMD_JUMP or select(2, Spring.GetDefaultCommand()) == CMD_JUMP then
+		local to
+		local _, _, meta, shift   = spGetModKeyState()
 		local mouseX, mouseY   = spGetMouseState()
-		local category, to    = spTraceScreenRay(mouseX, mouseY, true, false ,false, true)
-		if category == 'ground' then
-			local _, _, meta, shift   = spGetModKeyState()
+		if WG.ClampScreenPosToWorld then
+			local _mx, _my
+			local _mx, _my, pos = WG.ClampScreenPosToWorld(mouseX, mouseY, false, true)
+			if pos then
+				to = pos
+			end
+		end
+		if not to then
+			local category, pos    = spTraceScreenRay(mouseX, mouseY, true, false ,false, true)
+			if category == 'ground' then
+				to = pos
+			end
+		end
+
+		local multiPos = GetMultiPos(to and to[1], to and to[3], meta, shift)
+		if (multiPos or to) then
 			for defID, units in pairs(WG.selectionDefID or spGetSelectedUnitsSorted()) do
 				if jumpDefs[defID] then
 					for _, unitID in ipairs(units) do
-						DrawMouseArc(unitID, jumpDefs[defID], to, shift, meta, math.max(1-#units/50, 0.3))
+						local to = multiPos and currentNodeOrder[unitID] and multiPos[ currentNodeOrder[unitID] ] or to
+						if to then
+							DrawMouseArc(unitID, jumpDefs[defID], to, shift, meta, math.max(1-#units/50, 0.3))
+						end
 					end
 				end
 			end
