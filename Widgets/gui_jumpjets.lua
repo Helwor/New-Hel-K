@@ -577,7 +577,7 @@ function widget:DrawWorld()
 					end
 					if from then
 						local dist = diag(to[1] - from[1], to[3] - from[3])
-						local range = jumpDefs[preGameJumperDefID].range
+						local range = preGameJumper.range
 						local jumpReload = 1
 						local quality = 1
 						DrawArc(def, from, to, dist, range, true, quality, jumpReload, true)
