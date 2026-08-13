@@ -332,7 +332,7 @@ function widget:UnitCmdDone(unitID, defID, teamID, cmdDone, paramsDone, optionsD
 		-- an insertion has just pushed the "done" order (bug of UnitCmdDone)
 		return
 	end
-	if cmdID == CMD.STOP then
+	if cmdDone == CMD.STOP then
 		if watching[unitID] then
 			if debugging then
 				Echo('stop watching', watching[unitID].targetID, 'STOP done')
@@ -354,15 +354,15 @@ function widget:UnitCmdDone(unitID, defID, teamID, cmdDone, paramsDone, optionsD
 			watching[unitID] = nil
 		end
 	end
-	if cmd == CMD.RECLAIM then
-		if p5 then 
-			-- watching[unitID] = p1
-			-- Echo('nextFeature to watch', watching[unitID], 'from unitCmdDone')
-		elseif p4 then
-			-- Echo('next order is reclaim area, get command...')
-			-- checkForCommand = unitID
-		end
-	end
+	-- if cmdDone == CMD.RECLAIM then
+	-- 	if p5 then 
+	-- 		watching[unitID] = p1
+	-- 		Echo('nextFeature to watch', watching[unitID], 'from unitCmdDone')
+	-- 	elseif p4 then
+	-- 		Echo('next order is reclaim area, get command...')
+	-- 		checkForCommand = unitID
+	-- 	end
+	-- end
 end
 
 
