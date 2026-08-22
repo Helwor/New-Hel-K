@@ -131,7 +131,7 @@ local Debug = { -- default values
 
 }
 
-debugVars = {'res',res}
+debugVars = {'res', res}
 
 
 
@@ -672,7 +672,6 @@ local FeatureDefs = FeatureDefs
 
 
 local selBuilders = {}
-
 local g = {}
 -- local cntleft,cntright,cntafterleft,cntafterright = 0,0,0,0
 
@@ -1170,24 +1169,6 @@ function builderClass:CheckSmartConjurer()
 	Debug.allowed(humanName .. ' #' .. id .. ' is Allowed.')
 	return true
 end
-do
-	local PARAMS = {}
-	local INSERT_PARAMS = {0,false,CMD_OPT_SHIFT + SB_INTERNAL,false}
-	local OPTS = SB_INTERNAL + CMD_OPT_SHIFT
-	local INSERT_OPTS = CMD_OPT_ALT + CMD_OPT_SHIFT + SB_INTERNAL
-	function builderClass:GiveOrder(cmd,target)
-		if self.isDumb and cmd == CMD_GUARD then
-			PARAMS[1], PARAMS[2], PARAMS[3] = b.posX, b.posY, b.posZ
-			GiveOrderToUnit(self.id,CMD.FIGHT,PARAMS,SB_INTERNAL)
-		elseif self.fighting or self.unit.isFighting and b.canMove then
-			INSERT_PARAMS[2], INSERT_PARAMS[4] = cmd, target
-			GiveOrderToUnit(self.id,CMD_INSERT,INSERT_PARAMS,INSERT_OPTS)
-		else
-			PARAMS[1], PARAMS[2], PARAMS[3] = target, nil, nil
-			GiveOrderToUnit(self.id,cmd,PARAMS,OPTS)
-		end
-	end
-end
 function builderClass:New(id, unitDefID, unitTeam, def)
 	if CommandTracker and not trackedUnits[id] then
 		CommandTracker.SetTrackedUnit(id, true)
@@ -1222,6 +1203,7 @@ function builderClass:New(id, unitDefID, unitTeam, def)
 		posX = posX,
 		posY = posY,
 		posZ = posZ,
+		size = def.xsize * 8,
 		canMove = def.canMove,
 		idleTime = 0,
 		moveState = moveState,
@@ -1241,15 +1223,14 @@ function builderClass:New(id, unitDefID, unitTeam, def)
 		name = def.name,
 		creation = currentFrame,
 		sign = '[' .. Name(id) .. '#' .. id ..']:',
-
 	}
-	setmetatable(builder,{__index=builderClass})
+	setmetatable(builder,{__index = builderClass})
 
 	builder:UpdateRoam()
 	-- Echo("builder.humanName,builder.canRoam,builder.range is ", builder.humanName,builder.canRoam,builder.range)
 	builders[id] = builder
 
-	OrderDraw('pos',id,Debug.pos() and {posX,posY,posZ})
+	OrderDraw('pos', id, Debug.pos() and {posX,posY,posZ})
 	n_builders = n_builders+1
 	CHECK_DELAY = max(1,round(UPDATE_RATE/n_builders)) --* lag[1]
 	BUILDERS_PER_FRAME = min (round(1/(UPDATE_RATE/n_builders)), MAX_BUILDERS_PER_FRAME)
@@ -1271,6 +1252,26 @@ function builderClass:New(id, unitDefID, unitTeam, def)
 
 end
 
+do
+	local PARAMS = {}
+	local INSERT_PARAMS = {0, false, CMD_OPT_SHIFT + SB_INTERNAL, false}
+	local OPTS = SB_INTERNAL + CMD_OPT_SHIFT
+	local INSERT_OPTS = CMD_OPT_ALT + CMD_OPT_SHIFT + SB_INTERNAL
+	function builderClass:GiveOrder(cmd,target)
+		if self.isDumb and cmd == CMD_GUARD then
+			PARAMS[1], PARAMS[2], PARAMS[3] = b.posX + b.size, b.posY, b.posZ + b.size -- Important, position must be out of  unit footprint! 
+			-- GiveOrderToUnit(self.id, CMD_INSERT, {0, CMD.FIGHT, CMD_OPT_SHIFT + SB_INTERNAL, b.posX, b.posY, b.posZ}, INSERT_OPTS)
+			GiveOrderToUnit(self.id, CMD.FIGHT, PARAMS, OPTS)
+		elseif self.fighting or self.unit.isFighting and b.canMove then
+			INSERT_PARAMS[2], INSERT_PARAMS[4] = cmd, target
+			GiveOrderToUnit(self.id, CMD_INSERT, INSERT_PARAMS, INSERT_OPTS)
+		else
+			PARAMS[1], PARAMS[2], PARAMS[3] = target, nil, nil
+			GiveOrderToUnit(self.id, cmd, PARAMS,OPTS)
+		end
+	end
+end
+
 function widget:UnitFinished(id, unitDefID, unitTeam)
 	if (unitTeam ~= myTeamID) then 
 		return
@@ -1284,7 +1285,7 @@ end
 -------------------------------------------------------------------------------
 ---------------------- Getting Manual Command  --------------------------------
 
-function widget:CommandNotify(cmd,params)
+function widget:CommandNotify(cmd,params, opt)
 	if cmd == CMD_WANT_CLOAK then
 		local applied
 		if gotBuilders then
@@ -1337,7 +1338,9 @@ end
 
 function widget:CommandsChanged()
 	local sel = spGetSelectedUnits()
-	selBuilders={}
+	for k in pairs(selBuilders) do
+		selBuilders[k] = nil
+	end
 	gotBuilders = false
 	local n = 0
 	for i=1,#sel do
@@ -1476,7 +1479,7 @@ local function PutOnListening(b)
 	b.tag = tagConv[b.currentAction]
 	-- b.maincmd, b.mainparams = false, EMPTY_TABLE
 	local actBefore, eBefore, mBefore = b.action, res.eDelta, res.mDelta
-	local newaction = UpdateAction(b,false)
+	local newaction = UpdateAction(b, false)
 	if Debug.prevision() and newaction then
 		Echo(
 			b.sign .. 
@@ -1543,6 +1546,7 @@ function NotifyIdle(id,unit)
 end
 
 function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,realparams,realopts,realtag,maincmd,mainparams)
+
 	local b = builders[id]
 	if not b then
 		return
@@ -1659,12 +1663,12 @@ function NotifyExecute(unit,id,cmd,params,opts,tag,fromCmdDone,fromLua,realcmd,r
 		or (b.fighting and b.canMove) and not b.canRoam then
 		-- widget don't act upon builder if currentAction == 'manual'
 		-- Echo("unit is manual or fighting but builder is not allowed",b.currentAction .. ' => ' .. 'manual')
+		-- Echo('set manual', unit.manual, not isOwn, (b.fighting and b.canMove) and not b.canRoam)
 		b.currentAction = 'manual'
 		b.tag = tagConv[b.currentAction]
 		b.fighting = false
 	elseif b.action and b.currentAction~='manual' then
 		-- Echo('b.action exist and currentAction is not manual',b.currentAction .. ' => ' .. b.action)
-		b.currentAction = b.action
 		b.tag = tagConv[b.currentAction]
 	elseif b.canRoam then
 		-- Echo('canRoam, reset unit')
@@ -1733,7 +1737,7 @@ local function UpdateOrder(bID,b,frame)
 	if b.toRemoveOrder then
 		local queue = spGetCommandQueue(bID,-1)
 		for i,order in ipairs(queue) do
-			if order.id~=CMD_RAW_BUILD and IsOwnOrder(order.options.coded) then
+			if order.id ~= CMD_RAW_BUILD and IsOwnOrder(order.options.coded) then
 				GiveOrderToUnit(bID, CMD_REMOVE, {order.tag}, SB_INTERNAL)
 				if Debug.sequence() then
 					Echo('removing useless auto order',order.tag)
@@ -1751,7 +1755,7 @@ local function UpdateOrder(bID,b,frame)
 			if tgtX then
 				local dist = diag( (b.posX-tgtX),(b.posZ-tgtZ) )
 				if dist > range then
-					spGiveOrderToUnit(bID, CMD_REMOVE,{order.tag}, SB_INTERNAL)
+					GiveOrderToUnit(bID, CMD_REMOVE, {order.tag}, SB_INTERNAL)
 					PutOnListening(b)
 				end
 			else
@@ -1814,7 +1818,10 @@ local function UpdateOrder(bID,b,frame)
 	b.isDumb = not b.canMove and res.mPer > 0.5 and res.ePer > 0.5
 
 	if wasDumb and not b.isDumb then
-		spGiveOrderToUnit(b.id, CMD.REMOVE, CMD.FIGHT, CMD.OPT_ALT)
+		-- if selBuilders[b.id] then
+		-- 	Echo('remove bc not dumb anymore')
+		-- end
+		GiveOrderToUnit(b.id, CMD.REMOVE, CMD.FIGHT, CMD.OPT_ALT)
 	end
 
 	local mChange, eChange
@@ -2083,10 +2090,10 @@ local function UpdateOrder(bID,b,frame)
 				or MostCritical and Units[MostCritical].critical>0.25 and ( not (res.OverMetal and somethingToBuild) or Units[MostCritical].rworth>1.5)  and    debug(1,'MostCritical>0.25',MostCritical,'critical')    and MostCritical
 
 				or Mex and                                                                                                    debug(1, 'Mex',                 Mex                         )   and (Mex)      
-				or res.needE and (Wind or Solar or Fusion and Faster==Fusion) and                                                 debug(1, 'Energy',              (Wind or Solar or Fusion)   )   and (Wind or Solar or Fusion)      
+				or res.needE > 0 and (Wind or Solar or Fusion and Faster == Fusion) and                                             debug(1, 'Energy',              (Wind or Solar or Fusion)   )   and (Wind or Solar or Fusion)      
 				-- or (Caretaker or Storage) and (res.OverMetal or res.OverEnergy) and                                           debug(1, 'CareTaker/Storage',   (Caretaker or Storage)      )   and (Caretaker or Storage) 
-				or (Storage) and (res.OverMetal or res.OverEnergy) and                                           debug(1, 'Storage',   (Storage)      )   and (Storage) 
-				or (Caretaker) and (res.wantM<res.mMax*0.8 and res.wantE<res.eMax*0.8) and                                           debug(1, 'CareTaker',   (Caretaker)      )   and (Caretaker) 
+				or (Storage) and (res.OverMetal or res.OverEnergy) and                                                        debug(1, 'Storage',   (Storage)      )   and (Storage) 
+				or (Caretaker) and (res.wantM<res.mMax*0.8 and res.wantE<res.eMax*0.8) and                                    debug(1, 'CareTaker',   (Caretaker)      )   and (Caretaker) 
 
 
 			--[[        or  LeastPercent and Units[LeastPercent].perHP<0.25 and LeastPercent and                                debug(":Prio1: Percent<25", LeastPercent, Name(LeastPercent))                                                                          and LeastPercent
@@ -2286,7 +2293,7 @@ local function UpdateOrder(bID,b,frame)
 			--     b.priority = "normal"
 			-- end
 			-- Echo(b.humanName,'reclaim')
-			b:GiveOrder(CMD_RECLAIM,toReclaim)
+			b:GiveOrder(CMD_RECLAIM, toReclaim)
 			b.currentAction = action
 			b.tag = tagConv[b.currentAction]
 			-- b.rec = toReclaim
@@ -2333,31 +2340,35 @@ local function UpdateOrder(bID,b,frame)
 				local builtBy = Units[new_target] and Units[new_target].builtBy
 				if builtBy then
 					if b.isDumb and unit.isFighting then
+						b.currentAction = 'building'
+						b.tag = tagConv[b.currentAction]
 						-- let it be dumb
-					elseif (cmdID==CMD_GUARD) and curID==builtBy then
+					elseif (cmdID == CMD_GUARD) and curID == builtBy then
 						-- let it guard the fac/builder
 						-- if bID == 3509 then
 						--     Echo('let it guard')
 						-- end
 					elseif Units[builtBy] and Units[builtBy].isFactory then
+						b.currentAction = 'building'
+						b.tag = tagConv[b.currentAction]
 						-- else make it guard, if factory
 						--     Echo('make it guard')
 						-- TABLE_PARAM[1] = builtBy
 						-- GiveOrderToUnit(bID,CMD_GUARD,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
-						b:GiveOrder(CMD_GUARD,builtBy)
+						b:GiveOrder(CMD_GUARD, builtBy)
 					else
-						b:GiveOrder(CMD_REPAIR,new_target)
+						b:GiveOrder(CMD_REPAIR, new_target)
 					end
 				else
 					--     Echo('build it directly')
 					-- TABLE_PARAM[1] = new_target
 					-- GiveOrderToUnit(bID,CMD_REPAIR,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
-					b:GiveOrder(CMD_REPAIR,new_target)
+					b:GiveOrder(CMD_REPAIR, new_target)
 				end
 			else
 				-- TABLE_PARAM[1] = new_target
 				-- GiveOrderToUnit(bID,CMD_REPAIR,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
-				b:GiveOrder(CMD_REPAIR,new_target)
+				b:GiveOrder(CMD_REPAIR, new_target)
 			end
 		end
 	elseif cmdID == CMD_RECLAIM and (
@@ -2377,7 +2388,7 @@ local function UpdateOrder(bID,b,frame)
 			x, z = Units[curID]:GetPos(3)
 		end
 		if not x or diag(b.posX-x, b.posZ-z) > range then
-			Stop(bID,isFighting,tag)
+			Stop(bID, isFighting, tag)
 			-- Echo('stop')
 			return true
 		end
@@ -2385,13 +2396,18 @@ local function UpdateOrder(bID,b,frame)
 	end -- end bestFeature? and order
 	--Echo("bd:"..num.building,"rec:"..num.reclaiming,"rep:"..num.repairing)
 	-- Echo("res.mDelta is ", res.mDelta,res.buildCap)
-
+	-- if selBuilders[bID] then
+	-- 	Echo('end', 'b.isDumb', b.isDumb, 'isFighting', isFighting)
+	-- end
 	-- Echo("res.eDelta,res.mDelta is ", res.eDelta,res.mDelta)
 	-- checkpass('average',50,'say')
 	return true
 end
 local CMD_FIRE_STATE = CMD.FIRE_STATE
 function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, playerID, fromSynced, fromLua)
+	-- if selBuilders[id] then
+	-- 	f.DebugUnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, playerID, fromSynced, fromLua)
+	-- end
 	local b = builders[id]
 	if b then
 		-- Echo("newCmd,opts.coded is ", newCmd,opts.coded,(newCmd==1 and 'insert newCmd ' .. params[2] .. 'coded: ' .. params[3] or ''))
@@ -2599,7 +2615,7 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 			elseif manualCommand == "building"  and unit then unit.isGtReclaimed = false
 			end
 			if b.priority == "high" then
-				GiveOrderToUnit(id, CMD_PRIORITY, TABLE_1,SB_INTERNAL)
+				GiveOrderToUnit(id, CMD_PRIORITY, TABLE_1, SB_INTERNAL)
 				b.priority = 'normal'
 			end
 		end
@@ -2972,10 +2988,13 @@ function CheckFeatures(b, wantM, wantE, needM, needE)
 end
 
 function Stop(bID, isFighting, tag)
-	if isFighting then
+	local b = builders[bID]
+	-- if selBuilders[bID] then
+	-- 	Echo('stopped', 'isDumb?', b.isDumb, 'isFighting?', isFighting, f.GetCalledLine())
+	-- end
+	if isFighting and not b.isDumb then
 		GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
 	else
-		local b = builders[bID]
 		if b.canMove then
 			local x, _, z = Units[bID]:GetPos(3)
 			if diag(x - b.posX, z - b.posZ) > 320 then
@@ -2989,7 +3008,9 @@ function Stop(bID, isFighting, tag)
 				return true
 			end
 		end
-		GiveOrderToUnit(bID, CMD_STOP, TABLE_ZERO, SB_INTERNAL)
+		if not b.isDumb then
+			GiveOrderToUnit(bID, CMD_STOP, TABLE_ZERO, SB_INTERNAL)
+		end
 		-- Echo(bID, 'stop -', os.clock())
 
 	end
@@ -3323,7 +3344,7 @@ function widget:Initialize()
 	-- end
 	--
 
-	Debug = f.CreateDebug(Debug,widget,options_path)
+	Debug = f.CreateDebug(Debug, widget, options_path)
 	-- if WG.DebugCenter then
 	--     WG.DebugCenter.Add(widget,{varDebug={'res',res}})
 	-- end
@@ -3350,7 +3371,7 @@ function widget:Initialize()
 	trackedUnits = WG.TrackedUnits
 	CommandTracker = widgetHandler:FindWidget('API Command Tracker')
 
-	GiveOrderToUnit = function(id,cmd,params,opt)
+	GiveOrderToUnit = function(id, cmd, params, opt)
 		local b = builders[id]
 		if cmd == 0 then
 			b.auto = true
@@ -3363,7 +3384,18 @@ function widget:Initialize()
 		if Debug.sequence() then
 			Echo('order given',cmd, 'opt', opt)
 		end
-		spGiveOrderToUnit(id,cmd,params,opt)
+		local _cmd, _opt, _tag, _p1, _p2, _p3 = spGetUnitCurrentCommand(id)
+		-- if selBuilders[id] then
+		-- 	if type(params) == 'table' then
+		-- 		Echo('give', cmd, unpack(params))
+		-- 	else
+		-- 		Echo('give', cmd, params)
+		-- 	end
+		-- 	Echo('cur', _cmd, _opt, _tag, _p1, _p2, _p3)
+		-- end
+		if _cmd ~= cmd or _opt ~= opt or _p1 ~= params[1] or _p2 ~= params[2] or _p3 ~= params[3] then
+			spGiveOrderToUnit(id,cmd,params,opt)
+		end
 	end
 
 	Units = WG.UnitsIDCard.units
