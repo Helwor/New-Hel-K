@@ -293,7 +293,7 @@ local HasViewChanged = function()
 		Cam.frame = frame
 		changed = true
 	end
-	local needRetrace
+
 	if not CompareVarargAndCopy(Cam.pos, spGetCameraPosition()) then
 		NewView[2] = NewView[2] + 1
 		changed = true
@@ -312,7 +312,7 @@ local HasViewChanged = function()
 	if changed then
 		Cam.trace = SafeTrace()
 		Cam.dist = GetDist()
-		Cam.relDist = Cam.dist * (Cam.fov / 45)
+		Cam.relDist = Cam.dist * (fov / 45)
 	end
 	local oldfullview = fullview
 	local newfullview = HaveFullView()
@@ -346,10 +346,12 @@ local lastFrame = spGetGameFrame()
 
 local dt = 0
 local update = false
+local updateRate = 1/75
+local updateTime = 0
+local max = math.max
 function widget:Update(delta)
 
 	dt = delta
-	NOW = osclock()
 
 	if count then
 		count = count + 1
@@ -360,16 +362,16 @@ function widget:Update(delta)
 	total = total - lags[cnt] + dt
 	lags[cnt] = dt
 	local avg = (total / lagCounts)
-	lag[1] = math.max(1, avg / lagref )
-
-
+	lag[1] = max(1, avg / lagref )
 
 	-- Echo("=>>>#Spring.GetVisibleUnits(-1, nil, false) is ", #Spring.GetVisibleUnits(-1, nil, false), #spGetVisibleUnits(-1, nil, false) )
 
 	-- for i=1,5000000 do	i = i +1	end
 
 	local newFrame = currentFrame ~= Cam.frame
-	update = HasViewChanged()
+	if updateTime > updateRate or newFrame then
+		update = HasViewChanged()
+	end
 	if not update and requestUpdate then
 		NewView[5] = NewView[5] + 1
 		update = true

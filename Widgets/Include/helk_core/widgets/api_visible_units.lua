@@ -226,12 +226,15 @@ function NewUpdateVisibleUnits() -- this is faster
 	-- 	Visibles.test = {}
 	-- end
 	clear()
-
+	local inSight = inSight
 	local anyMap, not_iconsMap, iconsMap = Visibles.anyMap, Visibles.not_iconsMap, Visibles.iconsMap
 	-- origGetVisibleUnits is cached and doesnt give 100% of the time the correct units when icons just appear
 
 	-- asking for visible units that are not icons
-	for _, id in ipairs(origGetVisibleUnits(ALL_UNITS,radius,false)) do 
+	-- local units = origGetVisibleUnits(ALL_UNITS, radius, false)
+	-- for i = 1, #units do
+	-- 	local id = units[i]
+	for _, id in ipairs(origGetVisibleUnits(ALL_UNITS, radius, false)) do 
 		if inSight[id] then
 			if not spIsUnitIcon(id) then
 				n2 = n2 + 1
@@ -241,7 +244,10 @@ function NewUpdateVisibleUnits() -- this is faster
 		end
 	end
 	local no_rendered = n2 == 0
-	for _, id in ipairs(origGetVisibleUnits(ALL_UNITS,radius,true)) do -- 
+	-- local units = origGetVisibleUnits(ALL_UNITS, radius, true)
+	-- for i = 1, #units do
+	-- 	local id = units[i]
+	for _, id in ipairs(origGetVisibleUnits(ALL_UNITS, radius, true)) do
 		if inSight[id] then -- purge from  dead unit and invalidate
 			if no_rendered or not not_iconsMap[id] then
 				iconsMap[id] = true
@@ -260,7 +266,8 @@ function NewUpdateVisibleUnitsTEST() -- this is faster
 	-- 	Visibles.test = {}
 	-- end
 	clear()
-
+	local inSight = inSight
+	local Unit = Units
 	local anyMap, not_iconsMap, iconsMap = Visibles.anyMap, Visibles.not_iconsMap, Visibles.iconsMap
 	local n, n2, n3 = 0, 0, 0
 	-- asking for visible units that are not icons
@@ -295,11 +302,12 @@ function NewUpdateVisibleUnits2()
 	-- 	Visibles.test = {}
 	-- end
 	clear()
-
+	local Units = Units
 	local anyMap, not_iconsMap, iconsMap = Visibles.anyMap, Visibles.not_iconsMap, Visibles.iconsMap
 	local n, n2, n3 = 0, 0, 0
-
-	for _, id in pairs(origGetVisibleUnits(ALL_UNITS, radius, true)) do
+	local units = origGetVisibleUnits(ALL_UNITS, radius, true)
+	for i = 1, #units do
+		local id = units[i]
 		if Units[id] then
 			anyMap[id] = true
 			if spIsUnitIcon(id) then
