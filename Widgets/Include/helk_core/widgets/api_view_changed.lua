@@ -367,10 +367,11 @@ function widget:Update(delta)
 	-- Echo("=>>>#Spring.GetVisibleUnits(-1, nil, false) is ", #Spring.GetVisibleUnits(-1, nil, false), #spGetVisibleUnits(-1, nil, false) )
 
 	-- for i=1,5000000 do	i = i +1	end
-
+	updateTime = updateTime + delta
 	local newFrame = currentFrame ~= Cam.frame
 	if updateTime > updateRate or newFrame then
 		update = HasViewChanged()
+		updateTime = 0
 	end
 	if not update and requestUpdate then
 		NewView[5] = NewView[5] + 1
