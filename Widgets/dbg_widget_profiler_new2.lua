@@ -673,8 +673,8 @@ local fullList = {}
 local deltaTime
 local redStrength = {}
 
-local minPerc = 0.005 -- above this value, we fade in how red we mark a widget
-local maxPerc = 0.8 -- above this value, we mark a widget as red
+local minPerc = 0.0025 -- above this value, we fade in how red we mark a widget
+local maxPerc = 0.05 -- above this value, we mark a widget as red
 local minSpace = 10 -- Kb
 local maxSpace = 1000
 
