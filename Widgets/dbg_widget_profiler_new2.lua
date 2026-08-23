@@ -20,6 +20,9 @@ end
 local WATCHDOG_MODE = false
 local watchdog_threshold = 0.1
 local watchdog_threshold_framework = 0.3
+local WANT_MEM_USAGE = false
+local SORT_ALPHABETICAL = false
+local MIN_TIME_PER = 5
 local tick = 2
 local averageTime = 4
 local upd_round = 0
@@ -33,8 +36,8 @@ local COL_SPACING = 420
 local WATCHDOG = {}
 local WATCHDOG_IDX = 0
 local hooked
-local boxes = {}
-local recapbox
+local winObjects = {}
+local recapWin
 local Echo = Spring.Echo
 local Chili
 local Start, Stop
@@ -115,7 +118,37 @@ options = {
 			watchdog_threshold_framework = self.value
 		end,
 
-	}
+	},
+	show_mem = {
+		name = 'Show Memory Usage',
+		type = 'bool',
+		value = WANT_MEM_USAGE,
+		OnChange = function(self)
+			WANT_MEM_USAGE = self.value
+		end
+	},
+	sort_alpha = {
+		name = 'Sort Alphabetically',
+		desc = 'Getting widgets at fixed position.',
+		type = 'bool',
+		value = SORT_ALPHABETICAL,
+		OnChange = function(self)
+			SORT_ALPHABETICAL = self.value
+		end
+	},
+	min_filter = {
+		name = 'Filter Min Time % Consumers',
+		desc = 'Filter out unconsequential widgets',
+		min = 0, max = 0.8, step = 0.01,
+		type = 'number',
+		value = MIN_TIME_PER,
+		OnChange = function(self)
+			MIN_TIME_PER = self.value
+		end,
+		tooltipFunction = function(self)
+			return ('%.2f%%'):format(self.value)
+		end,
+	},
 }
 
 --------------------------------------------------------------------------------
@@ -172,12 +205,12 @@ local function ArrayRemove(t, g)
 end
 
 local function RemoveWindows()
-	if recapbox then
-		recapbox.win:Dispose()
-		recapbox = nil
-		for name, box in pairs(boxes) do
-			box.win:Dispose()
-			boxes[name] = nil
+	if recapWin then
+		recapWin.win:Dispose()
+		recapWin = nil
+		for name, winObj in pairs(winObjects) do
+			winObj.win:Dispose()
+			winObjects[name] = nil
 		end
 	end
 end
@@ -186,7 +219,7 @@ end
 
 -- TextBox
 
-local function newbox(name,height,caption, shutdown)
+local function UpdateWindow(name,height,caption, shutdown)
 	local win = Chili.Window:New{
 		parent = Chili.Screen0,
 		y = 35,
@@ -223,8 +256,8 @@ local function newbox(name,height,caption, shutdown)
 	-- 	-- workaround to trigger the text updating on scroll, but there's probably a more decent way to do it
 	-- 	,Update = function(self,...) self.children[1]:Invalidate() self.inherited.Update(self,...)   end
 	-- }
-	-- local box = Chili.TextBox:New{
-	local box = Chili.Label:New{
+	-- local winObj = Chili.TextBox:New{
+	local winObj = Chili.Label:New{
 		parent = win,
 		top=15,
 		x=15,y=30,
@@ -270,20 +303,21 @@ local function newbox(name,height,caption, shutdown)
 					StartHook()
 					newcaption = 'Stop'
 				end
-				for k, v in pairs(boxes) do
+				for k, v in pairs(winObjects) do
 					v.button.caption = newcaption
 					v.button:Invalidate()
 				end
-				recapbox.button.caption = newcaption
-				recapbox.button:Invalidate()
+				recapWin.button.caption = newcaption
+				recapWin.button:Invalidate()
 
 			end
 		},
 		parent = win,
 	}
 
-	local function ImplementLinkedTrackBar(option)
+	local function ImplementLinkedTrackBar(option, off)
 		local numberPanel = WG.Chili.Panel:New{
+			x = (5 + (off or 0))..'%',
 			width = "28%",
 			height = 35,
 			backgroundColor = {0, 0, 0, 0},
@@ -309,7 +343,7 @@ local function newbox(name,height,caption, shutdown)
 			tooltipFunction = function(self, ...) -- TODO: imperfect work around because we add something to the tooltip, if we add tooltipFunction while there is none in the original option the default behaviour of gui_epicmenu for formatting will not be respected
 				local ret = option.name .. ': '
 				if option.tooltipFunction then
-					ret = ret .. option.tooltipFunction(option, ...)
+					ret = ret .. option:tooltipFunction(...)
 				elseif option.tooltip_format then
 					ret = ret .. (option.tooltip_format):format(self.value)
 				else
@@ -342,12 +376,13 @@ local function newbox(name,height,caption, shutdown)
 
 	end
 	ImplementLinkedTrackBar(options.updateRate)
+	ImplementLinkedTrackBar(options.min_filter, 50)
 	if WG.MakeMinizable then
 		WG.MakeMinizable(win, true)
 	end
-	box.win = win
-	box.button = button
-	return box
+	winObj.win = win
+	winObj.button = button
+	return winObj
 end
 
 --------------------------------------------------------------------------------
@@ -378,9 +413,9 @@ local function Hook(w,name) -- name is the callin
 	local realFunc = w[name]
 	w["_old" .. name] = realFunc
 
-	if (widgetName=="Widget Profiler New") then
-		-- return realFunc -- don't profile the profilers callins (it works, but it is better that our DrawScreen call is unoptimized and expensive anyway!)
-	end
+	-- if (widgetName=="Widget Profiler New") then
+	-- 	-- return realFunc -- don't profile the profilers callins (it works, but it is better that our DrawScreen call is unoptimized and expensive anyway!)
+	-- end
 
 	local widgetCallinTime = callinStats[wname] or {}
 	callinStats[wname] = widgetCallinTime
@@ -555,9 +590,6 @@ local totalMem = 0
 local totalSpace = {}
 
 local sortedList = {}
-local function SortFunc(a,b)
-	return a.wname < b.wname
-end
 
 local deltaTime
 local redStrength = {}
@@ -585,7 +617,7 @@ function ColourString(R,G,B)
 	return "\255"..string.char(R255)..string.char(G255)..string.char(B255)
 end
 
-function GetRedColourStrings(v) --tLoad is %
+function GetRedColourStrings(v, want_mem) --tRatio is %
 	local tTime = v.tTime
 	local sLoad = v.sLoad
 	local name = v.wname
@@ -602,75 +634,96 @@ function GetRedColourStrings(v) --tLoad is %
 	v.timeColourString = ColourString(r,g,b)
 	
 	-- space
-	new_r = math.max(0,math.min(1,(sLoad-minSpace)/(maxSpace-minSpace)))
-	redStrength[name..'_space'] = redStrength[name..'_space'] or 0
-	redStrength[name..'_space'] = u*redStrength[name..'_space'] + (1-u)*new_r
-	g = 1-redStrength[name.."_space"]*((255-64)/255)
-	b = g
-	v.spaceColourString = ColourString(r,g,b)
-end
-
-
-local sortByTime = function(a,b)
-	local aload, bload = a.tLoad, b.tLoad
-	if aload < 0.1 and bload < 0.1 or aload == bload then
-		return a.fullname < b.fullname
-	else
-		return aload > bload
+	if want_mem then
+		new_r = math.max(0,math.min(1,(sLoad-minSpace)/(maxSpace-minSpace)))
+		redStrength[name..'_space'] = redStrength[name..'_space'] or 0
+		redStrength[name..'_space'] = u*redStrength[name..'_space'] + (1-u)*new_r
+		g = 1-redStrength[name.."_space"]*((255-64)/255)
+		b = g
+		v.spaceColourString = ColourString(r,g,b) -- FIXME, not working properly?
 	end
 end
-function DrawWidgetList(list,name,x,y,j)
-	local str, line = '', ''
-	-- glText(title, x+152, y-1-(12)*j, 10, "no")
+
+
+local function SortByTime(a,b)
+	local aratio, bratio = a.tRatio, b.tRatio
+	if aratio < 0.1 and bratio < 0.1 or aratio == bratio then
+		return a.wname:lower() < b.wname:lower()
+	else
+		return aratio > bratio
+	end
+end
+local function SortAlpha(a, b)
+	return a.wname:lower() < b.wname:lower()
+end
+function DrawWidgetList(list, name)
 	local part1 = ('%.2f%%'):format(list.totalTime)
-	local part2 = WANT_MEM and (('%.0f'):format(list.totalMem) .. 'kB/s') or ''
+	local part2 = WANT_MEM_USAGE and (('%.0f'):format(list.totalMem) .. 'kB/s') or ''
 	local caption = title_colour..name.." WIDGETS ".. part1 .. ' ' .. part2
 	local t = {
 		title_colour..name.." WIDGETS".. '\n'
 			.. title_colour..part1..('  '):rep(16-part1:len())
 			.. title_colour..part2
 	}
-	boxes[name] = boxes[name] or newbox(name, nil, caption)
-	local box = boxes[name]
-	if caption ~= box.win.caption then
-		box.win.caption = caption
-		-- if box.win.InvalidateSelf then
-		-- 	box.win:InvalidateSelf()
+	winObjects[name] = winObjects[name] or UpdateWindow(name, nil, caption)
+	local winObj = winObjects[name]
+	if caption ~= winObj.win.caption then
+		winObj.win.caption = caption
+		-- if winObj.win.InvalidateSelf then
+		-- 	winObj.win:InvalidateSelf()
 		-- else
-		-- 	box.win:Invalidate()
+		-- 	winObj.win:Invalidate()
 		-- end
-		-- box.win:RequestUpdate()
+		-- winObj.win:RequestUpdate()
 	end
-	-- box.win:UpdateClientArea()
+	-- winObj.win:UpdateClientArea()
 
 	local want_mem = WANT_MEM_USAGE
-	-- box.win:Resize(box.win.width,box.win.height)
-	-- Echo("box.classname is ", box.parent.parent.caption)
-	table.sort(list, sortByTime)
+	local min_time = MIN_TIME_PER
+	-- winObj.win:Resize(winObj.win.width,winObj.win.height)
+	-- Echo("winObj.classname is ", winObj.parent.parent.caption)
+	
+
 	local j = 0
-	for i=1,#list do
+	for i = 1, #list do
 		local v = list[i]
-		--local name = v.wname
-		-- local part1 = ('%.2f%%'):format(v.tLoad)
-		-- local part2 = ('%.0f'):format(v.sLoad) .. 'kB/s'
-		-- t[i+1] =  v.timeColourString .. part1..('  '):rep(16-part1:len())
-		-- 		.. v.spaceColourString .. part2..('\t'):rep(16-part2:len())
-		-- 		.. v.fullname
-		if v.tLoad >= 0.5 then
+		local tRatio = v.tRatio
+		if tRatio >= min_time then
 			j = j + 1
 			-- with mem
-			-- t[j] = (' %s%.2f%% %-18s%s%-18.0fkB/s %-16s %s'):format(v.timeColourString, v.tLoad, '', v.spaceColourString, v.sLoad,'', v.fullname)
+			-- t[j] = (' %s%.2f%% %-18s%s%-18.0fkB/s %-16s %s'):format(v.timeColourString, v.tRatio, '', v.spaceColourString, v.sLoad,'', v.fullname)
 			-- without
-			t[j] = (' %s%-18.2f%% %-10s %s'):format(v.timeColourString, v.tLoad, '', v.fullname)
+			-- engine bug float cannot be aligned at all, and alignement of strings of numbers are not good enough, '\t' is just the space needed to adjust per number missing
+			local off0 = tRatio < 10 and 1 or 0
+			tRatio = ('\t'):rep(off0)..('%.2f'):format(tRatio)
+			local tTime = v.tTime * 1000
+			local off1 = tTime < 10 and 3 or tTime < 100 and 2 or tTime < 1000 and 1 or 0
+			tTime = ('\t'):rep(off1)..('%d'):format(tTime)
+			----- decomposing
+			-- local part1 = ('%10s%%'):format(tRatio)
+			-- local part2 = ('%7sms'):format(tTime)
+			-- local part3 = ('%11skB'):format(sLoad)
+			-- local part4 = ('%10s'):format(v.spaceColourString)
+			-- local part4 = ('%s'):format(v.fullname)
+			-- t[j] = v.timeColourString .. part1 .. part2 .. part3 .. part4 .. part5
+			-----
+			if want_mem then
+				local sLoad = v.sLoad
+				local off2 = sLoad < 10 and 4 or sLoad < 100 and 3 or sLoad < 1000 and 2 or sLoad < 10000 and 1 or 0
+				sLoad = ('\t'):rep(off2)..('%.1f'):format(sLoad)
+				t[j] = ('%s%10s%%%7sms%11skB%10s%s'):format(v.timeColourString, tRatio, tTime, sLoad, v.spaceColourString, v.fullname)
+			else
+				t[j] = ('%s%10s%%%7sms%10s%s'):format(v.timeColourString, tRatio, tTime, '', v.fullname)
+			end
 		end
 
 
 	end
 
-	-- box:SetText(concat(t, '\n'))
-	box:SetCaption(concat(t, '\n'))
+	-- winObj:SetText(concat(t, '\n'))
+	winObj:SetCaption(concat(t, '\n'))
 
-	-- box.win:Invalidate()
+	-- winObj.win:Invalidate()
 	return
 end
 
@@ -679,14 +732,15 @@ local function UpdateRecap()
 	local line, part = '', ''
 
 
-	-- Echo("recapbox.win.caption is ", recapbox.win.caption)
+	-- Echo("recapWin.win.caption is ", recapWin.win.caption)
 	-- glText(str, x+152, y-1-(12)*j, 10, "no")
+	local want_mem = WANT_MEM_USAGE
 	local t = {
 		title_colour.."ALL",
 		totals_colour.."total percentage of running time spent in luaui callins",
 		totals_colour..('%.1f%%'):format(totalTime),
 		totals_colour.."total rate of mem allocation by luaui callins",
-		totals_colour..('%.0f'):format(totalMem) .. 'kB/s',
+		want_mem and totals_colour..('%.0f'):format(totalMem) .. 'kB/s' or '<Enable "Show Memory Usage in options>',
 	}
 	local i = 5
 	if gm then
@@ -706,12 +760,12 @@ local function UpdateRecap()
 	i=i+1 t[i] = title_colour.."Tick time: " .. tick .. "s"
 	i=i+1 t[i] = title_colour.."Smoothing time: " .. averageTime .. "s"
 
-	-- recapbox:SetText(concat(t,'\n'))
+	-- recapWin:SetText(concat(t,'\n'))
 	local txt = concat(t,'\n')
-	recapbox:SetCaption(concat(t,'\n'))
-	-- recapbox.caption = txt
-	-- recapbox._caption = txt
-	-- recapbox:Invalidate()
+	recapWin:SetCaption(concat(t,'\n'))
+	-- recapWin.caption = txt
+	-- recapWin._caption = txt
+	-- recapWin:Invalidate()
 end
 
 function Start()
@@ -727,6 +781,8 @@ end
 
 local started
 
+
+
 local function UpdateStats()
 	started = true
 	startTimer = spGetTimer()
@@ -736,6 +792,7 @@ local function UpdateStats()
 	totalMem = 0
 	local n = 1
 	-- get the time per widget and slowest callin per widget
+	local want_mem = WANT_MEM_USAGE
 	for wname, callins in pairs(callinStats) do
 		local t = 0 -- would call it time, but protected
 		local cmax_t = 0
@@ -750,33 +807,37 @@ local function UpdateStats()
 				cmaxname_t = cname
 			end
 			c[1] = 0
-			
-			space = space + c[3]
-			if c[4] > cmax_space then
-				cmax_space = c[4]
-				cmaxname_space = cname
+			if want_mem then
+				space = space + c[3]
+				if c[4] > cmax_space then
+					cmax_space = c[4]
+					cmaxname_space = cname
+				end
 			end
 			c[3] = 0
 		end
 
 		local relTime = 100 * t / deltaTime
 		timeLoadAverages[wname] = CalcLoad(timeLoadAverages[wname] or relTime, relTime, averageTime)
-		
-		local relSpace = space / deltaTime
-		spaceLoadAverages[wname] = CalcLoad(spaceLoadAverages[wname] or relSpace, relSpace, averageTime)
-
+		local tRatio = timeLoadAverages[wname]
 		allOverTimeSec = allOverTimeSec + t
 
-		local tLoad = timeLoadAverages[wname]
-		local sLoad = spaceLoadAverages[wname]
+		local sLoad = 0
+		if want_mem then
+			local relSpace = space / deltaTime
+			spaceLoadAverages[wname] = CalcLoad(spaceLoadAverages[wname] or relSpace, relSpace, averageTime)
+			sLoad = spaceLoadAverages[wname]
+		end
+
 		sortedList[n] = {
 			wname = wname,
 			fullname = wname ..' \255\200\200\200('..cmaxname_t..','..cmaxname_space..')',
-			tLoad = tLoad,
+			tRatio = tRatio,
 			sLoad = sLoad,
-			tTime = t / deltaTime
+			tTime = t / deltaTime,
 		}
-		totalTime = totalTime + tLoad
+		GetRedColourStrings(sortedList[n], want_mem)
+		totalTime = totalTime + tRatio
 		totalMem = totalMem + sLoad
 
 		n = n + 1
@@ -784,14 +845,8 @@ local function UpdateStats()
 	if not sortedList[1] then
 		return
 	end
-	if SORT_ALPHABETICAL then
-		table.sort(sortedList, SortFunc)
-	end
-	
-	for i = 1, #sortedList do
-		GetRedColourStrings(sortedList[i])
-	end
 
+	
 	lm,_,gm,_,um,_,sm,_ = spGetLuaMemUsage()
 
 	if (not sortedList[1]) then
@@ -811,7 +866,7 @@ local function UpdateStats()
 		local wname = item.wname
 		if userWidgets[wname] then
 			userList[#userList+1] = item
-			userTime = userTime + item.tLoad
+			userTime = userTime + item.tRatio
 			if WATCHDOG_MODE then
 				local trigger = false
 				if wname:find('Chili Framework') then
@@ -838,17 +893,27 @@ local function UpdateStats()
 			userMem = userMem + item.sLoad
 		else
 			gameList[#gameList+1] = item
-			gameTime = gameTime + item.tLoad
+			gameTime = gameTime + item.tRatio
 			gameTime = gameTime + item.sLoad
+			if want_mem then
+				gameMem = gameMem + item.sLoad
+			end
 		end
+	end
+	if SORT_ALPHABETICAL then
+		table.sort(gameList, SortAlpha)
+		table.sort(userList, SortAlpha)
+	else
+		table.sort(gameList, SortByTime)
+		table.sort(userList, SortByTime)
 	end
 	userList.totalTime = userTime
 	userList.totalMem = userMem
 	gameList.totalTime = gameTime
 	gameList.totalMem = gameMem
 	if not WATCHDOG_MODE then
-		x, j = DrawWidgetList(gameList, "GAME", x, y, j)
-		DrawWidgetList(userList, "USER", x, y, j)
+		DrawWidgetList(gameList, "GAME")
+		DrawWidgetList(userList, "USER")
 		UpdateRecap()
 	end
 
@@ -898,7 +963,7 @@ function Init()
 	if WATCHDOG_MODE then
 		RemoveWindows()
 	else
-		recapbox = recapbox or newbox('recap', 165, title_colour .. 'Widget Profiler', true)
+		recapWin = recapWin or UpdateWindow('recap', 165, title_colour .. 'Widget Profiler', true)
 	end
 	for name, wData in pairs(widgetHandler.knownWidgets) do
 		userWidgets[prefixedWnames[name] or ConstructPrefixedName(wData,name)] = (not wData.fromZip)
