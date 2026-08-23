@@ -16,9 +16,7 @@ function widget:GetInfo()
 end
 local profilerName = widget.GetInfo().name
 local profilerStats = {''}
--- April 2025
-	-- WATCHDOG MODE implemented
-	-- options implemented
+
 local WATCHDOG_MODE = false
 local watchdog_threshold = 0.1
 local watchdog_threshold_framework = 0.3
@@ -83,6 +81,7 @@ options = {
 		update_on_the_fly = true,
 		OnChange = function(self)
 			tick = self.value
+			averageTime = math.max(averageTime, tick)
 		end,
 		linkToControls = {},
 
@@ -94,7 +93,7 @@ options = {
 		min = 0.5, max = 10, step = 0.5,
 		update_on_the_fly = true,
 		OnChange = function(self)
-			averageTime = self.value
+			averageTime = math.max(self.value, tick)
 		end
 	},
 	watchdog_threshold = {
@@ -156,22 +155,6 @@ options = {
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local prefixedWnames = {}
-local function ConstructPrefixedName (ghInfo, name)
-	local gadgetName = name or ghInfo.name
-	local baseName = ghInfo.basename
-	local _pos = baseName:find("_", 1)
-	-- local prefix = ((_pos and usePrefixedNames) and "["..(baseName:sub(1, _pos-1).."] ") or "[--] ")
-	local prefix = ((_pos and usePrefixedNames) and (baseName:sub(1, _pos-1)..": ") or "")
-	local prefixedWidgetName = "\255\200\200\200" .. prefix .. "\255\255\255\255" .. gadgetName
-	
-	prefixedWnames[gadgetName] = prefixedWidgetName
-	return prefixedWnames[gadgetName]
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
 local callinStats = {}
 
 local spGetTimer = Spring.GetTimer
@@ -191,12 +174,12 @@ local function ArrayInsert(t, f, g)
 		local layer = g.whInfo.layer
 		local index = 1
 		for i,v in ipairs(t) do
-		if (v == g) then
-			return -- already in the table
-		end
-		if (layer >= v.whInfo.layer) then
-			index = i + 1
-		end
+			if (v == g) then
+				return -- already in the table
+			end
+			if (layer >= v.whInfo.layer) then
+				index = i + 1
+			end
 		end
 		table.insert(t, index, g)
 	end
@@ -206,8 +189,8 @@ end
 local function ArrayRemove(t, g)
 	for k,v in ipairs(t) do
 		if (v == g) then
-		table.remove(t, k)
-		-- break
+			table.remove(t, k)
+			-- break
 		end
 	end
 end
@@ -223,11 +206,46 @@ local function RemoveWindows()
 	end
 end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+local prefixedWnames = {}
+local prefixes = {}
+local function ConstructPrefixedName (whInfo, name)
+	local widgetName = name or whInfo.name
+	local baseName = whInfo.basename
+	local _pos = baseName:find("_", 1)
+	-- local prefix = ((_pos and usePrefixedNames) and "["..(baseName:sub(1, _pos-1).."] ") or "[--] ")
+	local prefix = ((_pos and usePrefixedNames) and (baseName:sub(1, _pos-1)..": ") or "")
+	local prefixedWidgetName = "\255\200\200\200" .. prefix .. "\255\255\255\255" .. widgetName
+	
+	prefixedWnames[widgetName] = prefixedWidgetName
+	return prefixedWidgetName
+end
+
+local function GetPrefix(whInfo, name)
+	local widgetName = name or whInfo.name
+	local baseName = whInfo.basename
+	local _pos = baseName:find("_", 1)
+	-- local prefix = ((_pos and usePrefixedNames) and "["..(baseName:sub(1, _pos-1).."] ") or "[--] ")
+	local prefix = ((_pos and usePrefixedNames) and (baseName:sub(1, _pos-1)..": ") or "")
+	if prefix == ": " then
+		prefix = ""
+	else
+		prefix = "\255\200\200\200" .. prefix .. "\255\255\255\255"
+	end
+	
+	prefixes[widgetName] = prefix
+	return prefix
+end
+
+
+
 
 
 -- TextBox
 
-local function UpdateWindow(name,height,caption, shutdown)
+local function CreateWindow(name,height,caption, shutdown)
 	local win = Chili.Window:New{
 		parent = Chili.Screen0,
 		y = 35,
@@ -248,6 +266,7 @@ local function UpdateWindow(name,height,caption, shutdown)
 		-- ,width = 800
 
 	}
+
 	-- local scroll = Chili.ScrollPanel:New{
 	-- 	parent = win
 	-- 	,x = 0
@@ -264,14 +283,52 @@ local function UpdateWindow(name,height,caption, shutdown)
 	-- 	-- workaround to trigger the text updating on scroll, but there's probably a more decent way to do it
 	-- 	,Update = function(self,...) self.children[1]:Invalidate() self.inherited.Update(self,...)   end
 	-- }
-	-- local winObj = Chili.TextBox:New{
-	local winObj = Chili.Label:New{
+	-- local textControl = Chili.TextBox:New{
+	local profHeader = Chili.Label:New{
 		parent = win,
-		top=15,
-		x=15,y=30,
+		x= 15,y = 40,
 		autosize = false,
 		width = 1000,
-		height = 1500,
+		valign = 'top',
+		autoArrangeH = false,
+		autoArrangeV = false,
+		-- parent = scroll,
+		-- autosize = true,
+		-- text=name..'\nTEXT...',
+		caption = 'Profiler Consumption: -',
+		OnParentPost = {function(self) self.font.size = 10 end }
+	}
+
+	local scrollPanel = Chili.ScrollPanel:New{
+		parent = win,
+		backgroundColor = {0, 0, 0, 0},
+		color = {0, 0, 0, 0},
+		borderColor = {0, 0, 0, 0},
+		-- border = {0,0,0,0},
+		width = '100%',
+		height = '100%',
+		y = profHeader.y + profHeader.height + 1, 
+		bottom = 13,
+		-- top = 13,
+
+		-- minHeight = 100,
+		-- autosize = true,
+		-- scrollbarSize = 6,
+		horizontalScrollbar = false,
+        padding = {0,-7,0,0},
+        -- itemPadding = {0,-7,0,0},
+        -- itemMargin = {0,-7,0,0},
+        -- margin =  {0,-7,0,0},
+        -- itemPadding = {0,-25,0,0},
+	}
+
+	local label = Chili.Label:New{
+		parent = scrollPanel,
+		x = 15,
+		y = 5,
+		autosize = true,
+		width = 1000,
+		height = 50,
 		valign = 'top',
 		autoArrangeH = false,
 		autoArrangeV = false,
@@ -281,6 +338,8 @@ local function UpdateWindow(name,height,caption, shutdown)
 		caption = name..'\nTEXT...',
 		OnParentPost = {function(self) self.font.size = 10 end }
 	}
+
+
 	local shutdown = Chili.Button:New{
 		x = -25,
 		width = 25,
@@ -326,6 +385,7 @@ local function UpdateWindow(name,height,caption, shutdown)
 	local function ImplementLinkedTrackBar(option, off)
 		local numberPanel = WG.Chili.Panel:New{
 			x = (5 + (off or 0))..'%',
+			y = 5,
 			width = "28%",
 			height = 35,
 			backgroundColor = {0, 0, 0, 0},
@@ -385,11 +445,16 @@ local function UpdateWindow(name,height,caption, shutdown)
 	end
 	ImplementLinkedTrackBar(options.updateRate)
 	ImplementLinkedTrackBar(options.min_filter, 50)
+
 	if WG.MakeMinizable then
 		WG.MakeMinizable(win, true)
 	end
+	local winObj = {}
+	winObj.text = label
 	winObj.win = win
+	winObj.scrollPanel = scrollPanel
 	winObj.button = button
+	winObj.profHeader = profHeader
 	return winObj
 end
 
@@ -413,12 +478,13 @@ local function IsHook(func)
 	return listOfHooks[func]
 end
 
-local function Hook(w,name) -- name is the callin
-	local widgetName = w.whInfo.name
+local function Hook(w, cname) -- cname is the callin
+	local wname = w.whInfo.name
 
-	local wname = prefixedWnames[widgetName] or ConstructPrefixedName(w.whInfo)
-	local realFunc = w[name]
-	w["_old" .. name] = realFunc
+	-- wname = prefixedWnames[widgetName] or ConstructPrefixedName(w.whInfo)
+
+	local realFunc = w[cname]
+	w["_old" .. cname] = realFunc
 
 	-- if (widgetName=="Widget Profiler New") then
 	-- 	-- return realFunc -- don't profile the profilers callins (it works, but it is better that our DrawScreen call is unoptimized and expensive anyway!)
@@ -429,10 +495,10 @@ local function Hook(w,name) -- name is the callin
 		widgetCallinTime = {}
 		callinStats[wname] = widgetCallinTime
 	end
-	local c = widgetCallinTime[name]
+	local c = widgetCallinTime[cname]
 	if not c then
 		c = {0,0,0,0}
-		widgetCallinTime[name] = c
+		widgetCallinTime[cname] = c
 	end
 
 	local t
@@ -508,7 +574,7 @@ StartHook = function()
 			local func = w[name]
 			if (type(func) == 'function') then
 				if (not IsHook(func)) then
-				w[name] = Hook(w,name)
+					w[name] = Hook(w,name)
 				end
 				ArrayInsert(ciList, func, w)
 			else
@@ -534,7 +600,7 @@ StartHook = function()
 		if (widget == nil) then
 			return
 		end
-
+		GetPrefix(widget.whInfo)
 		oldInsertWidget(self,widget)
 
 		for _,callin in ipairs(CallInsList) do
@@ -602,25 +668,20 @@ local allOverTimeSec = 0 -- currently unused
 local totalMem = 0
 local totalSpace = {}
 
-local sortedList = {}
+local fullList = {}
 
 local deltaTime
 local redStrength = {}
 
 local minPerc = 0.005 -- above this value, we fade in how red we mark a widget
-local maxPerc = 0.02 -- above this value, we mark a widget as red
+local maxPerc = 0.8 -- above this value, we mark a widget as red
 local minSpace = 10 -- Kb
-local maxSpace = 100
+local maxSpace = 1000
 
 local title_colour = "\255\160\255\160"
 local totals_colour = "\255\200\200\255"
-local maxLines = 50
-
-local function CalcLoad(old_load, new_load, t)
-	return old_load * exp(-tick/t) + new_load*(1 - exp(-tick/t))
-end
-
-function ColourString(R,G,B)
+local STRING_COL_MUL = ((255-64)/255)
+local function ColourString(R,G,B)
 	local R255 = floor(R*255)
 	local G255 = floor(G*255)
 	local B255 = floor(B*255)
@@ -629,8 +690,7 @@ function ColourString(R,G,B)
 	if (B255%10 == 0) then B255 = B255+1 end
 	return "\255"..char(R255)..char(G255)..char(B255)
 end
-local STRING_COL_MUL = ((255-64)/255)
-function GetRedColourStrings(v, want_mem) --tRatio is %
+local function GetRedColourStrings(v, max_w_space) --tRatio is %
 	local tTime = v.tTime
 	local sLoad = v.sLoad
 	local name = v.wname
@@ -647,7 +707,7 @@ function GetRedColourStrings(v, want_mem) --tRatio is %
 	v.timeColourString = ColourString(r,g,b)
 	redStrength[name..'_time'] = redStrT
 	-- space
-	if want_mem then -- FIXME, not working properly?
+	if max_w_space then
 		local redStrS = redStrength[name..'_space'] or 0
 		new_r = max(0, min(1,(sLoad-minSpace)/(maxSpace-minSpace)))
 		redStrS = u * redStrS + (1-u)*new_r
@@ -656,6 +716,9 @@ function GetRedColourStrings(v, want_mem) --tRatio is %
 		v.spaceColourString = ColourString(r,g,b)
 		redStrength[name..'_space'] = redStrS
 	end
+end
+local function CalcLoad(old_load, new_load, t)
+	return old_load * exp(-tick/t) + new_load*(1 - exp(-tick/t))
 end
 
 
@@ -679,7 +742,7 @@ function DrawWidgetList(list, name)
 			.. title_colour..part1..('  '):rep(16-part1:len())
 			.. title_colour..part2
 	}
-	winObjects[name] = winObjects[name] or UpdateWindow(name, nil, caption)
+	winObjects[name] = winObjects[name] or CreateWindow(name, nil, caption)
 	local winObj = winObjects[name]
 	if caption ~= winObj.win.caption then
 		winObj.win.caption = caption
@@ -695,18 +758,14 @@ function DrawWidgetList(list, name)
 	local want_mem = WANT_MEM_USAGE
 	local min_time = MIN_TIME_PER
 	-- winObj.win:Resize(winObj.win.width,winObj.win.height)
-	-- Echo("winObj.classname is ", winObj.parent.parent.caption)
+	-- Echo("winObj.text.classname is ", winObj.parent.parent.caption)
 	
-
-	local j = 1
+	local j = 0
 	for i = 1, #list do
 		local v = list[i]
 		local tRatio = v.tRatio
-		if tRatio >= min_time  or v.wname == profilerName then
+		if tRatio >= min_time and v.wname ~= profilerName then
 			j = j + 1
-			-- with mem
-			-- t[j] = (' %s%.2f%% %-18s%s%-18.0fkB/s %-16s %s'):format(v.timeColourString, v.tRatio, '', v.spaceColourString, v.sLoad,'', v.fullname)
-			-- without
 			-- engine bug float cannot be aligned at all, and alignement of strings of numbers are not good enough, '\t' is just the space needed to adjust per number missing
 			local off0 = tRatio < 10 and 1 or 0
 			tRatio = ('\t'):rep(off0)..('%.2f'):format(tRatio)
@@ -716,29 +775,26 @@ function DrawWidgetList(list, name)
 			----- decomposing
 			-- local part1 = ('%10s%%'):format(tRatio)
 			-- local part2 = ('%7sms'):format(tTime)
-			-- local part3 = ('%11skB'):format(sLoad)
-			-- local part4 = ('%10s'):format(v.spaceColourString)
-			-- local part4 = ('%s'):format(v.fullname)
+			-- local part3 = ('%10s'):format(v.spaceColourString)
+			-- local part4 = ('%11skB'):format(sLoad)
+			-- local part6 = ('%s'):format(v.fullname)
 			-- t[j] = v.timeColourString .. part1 .. part2 .. part3 .. part4 .. part5
 			-----
 			if want_mem then
 				local sLoad = v.sLoad
 				local off2 = sLoad < 10 and 4 or sLoad < 100 and 3 or sLoad < 1000 and 2 or sLoad < 10000 and 1 or 0
 				sLoad = ('\t'):rep(off2)..('%.1f'):format(sLoad)
-				t[j] = ('%s%10s%%%7sms%11skB%10s%s'):format(v.timeColourString, tRatio, tTime, sLoad, v.spaceColourString, v.fullname)
+				t[j] = ('%s%10s%%%7sms%13skB%10s%s'):format(v.timeColourString, tRatio, tTime, v.spaceColourString..sLoad, '', v.fullname)
 			else
 				t[j] = ('%s%10s%%%7sms%10s%s'):format(v.timeColourString, tRatio, tTime, '', v.fullname)
-			end
-			if v.wname:find(profilerName) then
-				profilerStats[1] = t[j]:sub(1, t[j]:find(v.fullname))
 			end
 		end
 
 
 	end
-	t[1] = 'Profiler Consumption ' .. profilerStats[1]..'\n'
+	winObj.profHeader:SetCaption('Profiler Consumption ' .. profilerStats[1])
 	-- winObj:SetText(concat(t, '\n'))
-	winObj:SetCaption(concat(t, '\n'))
+	winObj.text:SetCaption(concat(t, '\n'))
 
 	-- winObj.win:Invalidate()
 	return
@@ -780,7 +836,7 @@ local function UpdateRecap()
 
 	-- recapWin:SetText(concat(t,'\n'))
 	local txt = concat(t,'\n')
-	recapWin:SetCaption(concat(t,'\n'))
+	recapWin.text:SetCaption(concat(t,'\n'))
 	-- recapWin.caption = txt
 	-- recapWin._caption = txt
 	-- recapWin:Invalidate()
@@ -804,13 +860,14 @@ local started
 local function UpdateStats()
 	started = true
 	startTimer = spGetTimer()
-	sortedList = {}
+	fullList = {}
 
 	totalTime = 0
 	totalMem = 0
 	local n = 1
 	-- get the time per widget and slowest callin per widget
 	local want_mem = WANT_MEM_USAGE
+	local max_w_space = 0
 	for wname, callins in pairs(callinStats) do
 		local t = 0 -- would call it time, but protected
 		local cmax_t = 0
@@ -834,6 +891,9 @@ local function UpdateStats()
 			end
 			c[3] = 0
 		end
+		if space > max_w_space then
+			max_w_space = space
+		end
 
 		local relTime = 100 * t / deltaTime
 		timeLoadAverages[wname] = CalcLoad(timeLoadAverages[wname] or relTime, relTime, averageTime)
@@ -847,27 +907,30 @@ local function UpdateStats()
 			sLoad = spaceLoadAverages[wname]
 		end
 
-		sortedList[n] = {
+		fullList[n] = {
 			wname = wname,
-			fullname = wname ..' \255\200\200\200('..cmaxname_t..','..cmaxname_space..')',
 			tRatio = tRatio,
 			sLoad = sLoad,
 			tTime = t / deltaTime,
 			isProfiler = wname:find(profilerName),
+			fullname = prefixes[wname] .. wname ..' \255\200\200\200('..cmaxname_t..','..cmaxname_space..')',
 		}
-		GetRedColourStrings(sortedList[n], want_mem)
+		
 		totalTime = totalTime + tRatio
 		totalMem = totalMem + sLoad
 		n = n + 1
 	end
-	if not sortedList[1] then
+	if not fullList[1] then
 		return
+	end
+	for i = 1, #fullList do
+		GetRedColourStrings(fullList[i], want_mem and max_w_space)
 	end
 
 	
 	lm,_,gm,_,um,_,sm,_ = spGetLuaMemUsage()
 
-	if (not sortedList[1]) then
+	if (not fullList[1]) then
 		return --// nothing to do
 	end
 
@@ -879,8 +942,8 @@ local function UpdateStats()
 	local gameTime = 0
 	local gameMem = 0
 	local now = os.clock()
-	for i = 1, #sortedList do
-		local item = sortedList[i]
+	for i = 1, #fullList do
+		local item = fullList[i]
 		local wname = item.wname
 		if userWidgets[wname] then
 			userList[#userList+1] = item
@@ -981,10 +1044,12 @@ function Init()
 	if WATCHDOG_MODE then
 		RemoveWindows()
 	else
-		recapWin = recapWin or UpdateWindow('recap', 165, title_colour .. 'Widget Profiler', true)
+		recapWin = recapWin or CreateWindow('recap', 165, title_colour .. 'Widget Profiler', true)
 	end
 	for name, wData in pairs(widgetHandler.knownWidgets) do
-		userWidgets[prefixedWnames[name] or ConstructPrefixedName(wData,name)] = (not wData.fromZip)
+		-- userWidgets[prefixedWnames[name] or ConstructPrefixedName(wData,name)] = (not wData.fromZip)
+		GetPrefix(wData,name)
+		userWidgets[name] = not wData.fromZip
 	end
 	vsx, vsy = Spring.Orig.GetViewGeometry()
 end
