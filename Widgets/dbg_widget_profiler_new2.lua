@@ -738,14 +738,16 @@ function DrawWidgetList(list, name)
 	local part2 = WANT_MEM_USAGE and (('%.0f'):format(list.totalMem) .. 'kB/s') or ''
 	local caption = title_colour..name.." WIDGETS ".. part1 .. ' ' .. part2
 	local t = {
-		title_colour..name.." WIDGETS".. '\n'
-			.. title_colour..part1..('  '):rep(16-part1:len())
-			.. title_colour..part2
+		-- title_colour..name.." WIDGETS".. '\n'
+		-- 	.. title_colour..part1..('  '):rep(16-part1:len())
+		-- 	.. title_colour..part2
+
 	}
 	winObjects[name] = winObjects[name] or CreateWindow(name, nil, caption)
 	local winObj = winObjects[name]
 	if caption ~= winObj.win.caption then
 		winObj.win.caption = caption
+		winObj.win:Invalidate()
 		-- if winObj.win.InvalidateSelf then
 		-- 	winObj.win:InvalidateSelf()
 		-- else
@@ -764,8 +766,7 @@ function DrawWidgetList(list, name)
 	for i = 1, #list do
 		local v = list[i]
 		local tRatio = v.tRatio
-		if tRatio >= min_time and v.wname ~= profilerName then
-			j = j + 1
+		if tRatio >= min_time or v.wname == profilerName then
 			-- engine bug float cannot be aligned at all, and alignement of strings of numbers are not good enough, '\t' is just the space needed to adjust per number missing
 			local off0 = tRatio < 10 and 1 or 0
 			tRatio = ('\t'):rep(off0)..('%.2f'):format(tRatio)
@@ -780,13 +781,20 @@ function DrawWidgetList(list, name)
 			-- local part6 = ('%s'):format(v.fullname)
 			-- t[j] = v.timeColourString .. part1 .. part2 .. part3 .. part4 .. part5
 			-----
+			local str
 			if want_mem then
 				local sLoad = v.sLoad
 				local off2 = sLoad < 10 and 4 or sLoad < 100 and 3 or sLoad < 1000 and 2 or sLoad < 10000 and 1 or 0
 				sLoad = ('\t'):rep(off2)..('%.1f'):format(sLoad)
-				t[j] = ('%s%10s%%%7sms%13skB%10s%s'):format(v.timeColourString, tRatio, tTime, v.spaceColourString..sLoad, '', v.fullname)
+				str = ('%s%10s%%%7sms%13skB%10s%s'):format(v.timeColourString, tRatio, tTime, v.spaceColourString..sLoad, '', v.fullname)
 			else
-				t[j] = ('%s%10s%%%7sms%10s%s'):format(v.timeColourString, tRatio, tTime, '', v.fullname)
+				str = ('%s%10s%%%7sms%10s%s'):format(v.timeColourString, tRatio, tTime, '', v.fullname)
+			end
+			if v.wname == profilerName then
+				profilerStats[1] = str
+			else
+				j = j + 1
+				t[j] = str
 			end
 		end
 
@@ -975,7 +983,6 @@ local function UpdateStats()
 		else
 			gameList[#gameList+1] = item
 			gameTime = gameTime + item.tRatio
-			gameTime = gameTime + item.sLoad
 			if want_mem then
 				gameMem = gameMem + item.sLoad
 			end
