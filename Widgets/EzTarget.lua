@@ -315,6 +315,7 @@ options_order = {
 	'allowQueueing',
 
 	'lbl_rclick',
+	'target_mouse_leeway',
 	'findPad',
 	'suppressRepairCloaked',
 	'findStaticRepair',
@@ -511,6 +512,18 @@ options.lbl_alt_rclick = {
 	type = 'label',
 }
 
+options.target_mouse_leeway = {
+	name = 'Target Leeway',
+	desc = 'How far until right click target transform into line move\nLeeway is upped by 50% when release happen before 0.2 sec',
+	type = 'number',
+	value = opt.target_mouse_leeway,
+	min = 0, max = 15, step = 0.25,
+	noHotkey = true,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+
+}
 options.altRightAttackForceGround = {
 	name = 'Alt + RClick Enemy Force Ground Target',
 	desc = '',
@@ -2110,9 +2123,9 @@ function widget:MouseMove(mx,my,dx,dy,button)
 	if cf2.CF2_TakeOver then
 		return cf2.CF2:MouseMove(mx,my,dx,dy,button)
 	else
-		local off = max(abs(mx-cf2.lastx),abs(my-cf2.lasty))
-
-		if  osclock()-cf2.lastclock<0.2 and off<opt.target_mouse_leeway * 1.5 -- up the leeway by 50% if the release occured fast
+		local off = math.diag(mx-cf2.lastx, my-cf2.lasty)
+		-- Echo('trig', osclock()-cf2.lastclock<0.2 and off<opt.target_mouse_leeway * 1.5, off<opt.target_mouse_leeway)
+		if osclock()-cf2.lastclock<0.2 and off<opt.target_mouse_leeway * 1.5 -- up the leeway by 50% if the release occured fast
 		or off<opt.target_mouse_leeway
 		then
 			if mempoints.n==0 then
