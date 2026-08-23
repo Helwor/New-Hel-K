@@ -14,6 +14,8 @@ function widget:GetInfo()
 		enabled   = true
 	}
 end
+local profilerName = widget.GetInfo().name
+local profilerStats = {''}
 -- April 2025
 	-- WATCHDOG MODE implemented
 	-- options implemented
@@ -159,6 +161,7 @@ local function ConstructPrefixedName (ghInfo, name)
 	local gadgetName = name or ghInfo.name
 	local baseName = ghInfo.basename
 	local _pos = baseName:find("_", 1)
+	-- local prefix = ((_pos and usePrefixedNames) and "["..(baseName:sub(1, _pos-1).."] ") or "[--] ")
 	local prefix = ((_pos and usePrefixedNames) and (baseName:sub(1, _pos-1)..": ") or "")
 	local prefixedWidgetName = "\255\200\200\200" .. prefix .. "\255\255\255\255" .. gadgetName
 	
@@ -169,12 +172,17 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local callinStats       = {}
+local callinStats = {}
 
 local spGetTimer = Spring.GetTimer
 local spDiffTimers = Spring.DiffTimers
 local spGetLuaMemUsage = Spring.GetLuaMemUsage
 local concat = table.concat
+local exp = math.exp
+local floor = math.floor
+local char = string.char
+local max = math.max
+local min = math.min
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -409,7 +417,6 @@ local function Hook(w,name) -- name is the callin
 	local widgetName = w.whInfo.name
 
 	local wname = prefixedWnames[widgetName] or ConstructPrefixedName(w.whInfo)
-
 	local realFunc = w[name]
 	w["_old" .. name] = realFunc
 
@@ -417,10 +424,16 @@ local function Hook(w,name) -- name is the callin
 	-- 	-- return realFunc -- don't profile the profilers callins (it works, but it is better that our DrawScreen call is unoptimized and expensive anyway!)
 	-- end
 
-	local widgetCallinTime = callinStats[wname] or {}
-	callinStats[wname] = widgetCallinTime
-	widgetCallinTime[name] = widgetCallinTime[name] or {0,0,0,0}
+	local widgetCallinTime = callinStats[wname]
+	if not widgetCallinTime then
+		widgetCallinTime = {}
+		callinStats[wname] = widgetCallinTime
+	end
 	local c = widgetCallinTime[name]
+	if not c then
+		c = {0,0,0,0}
+		widgetCallinTime[name] = c
+	end
 
 	local t
 
@@ -469,9 +482,9 @@ StartHook = function()
 	local wh = widgetHandler
 
 	local CallInsList = {}
-	for name,e in pairs(wh) do
+	for name, e in pairs(wh) do
 		local i = name:find("List")
-		if (i)and(type(e)=="table") then
+		if i and type(e) == "table" then
 			CallInsList[#CallInsList+1] = name:sub(1,i-1)
 		end
 	end
@@ -547,7 +560,7 @@ StopHook = function()
 	local CallInsList = {}
 	for name,e in pairs(wh) do
 		local i = name:find("List")
-		if (i)and(type(e)=="table") then
+		if i and type(e) == "table" then
 			CallInsList[#CallInsList+1] = name:sub(1,i-1)
 		end
 	end
@@ -566,13 +579,13 @@ StopHook = function()
 
 	--// unhook the UpdateCallin and InsertWidget functions
 	wh.UpdateWidgetCallIn = oldUpdateWidgetCallIn
-	Spring.Echo("unhooked UpdateCallin")
+	Spring.Echo("unhooked Handler UpdateCallin")
 	if wh.OriginalInsertWidget then
 		wh.OriginalInsertWidget = oldInsertWidget
 	else
 		wh.InsertWidget = oldInsertWidget
 	end
-	Spring.Echo("unhooked InsertWidget")
+	Spring.Echo("unhooked Handler InsertWidget")
 	hooked = false
 end
 --------------------------------------------------------------------------------
@@ -604,43 +617,44 @@ local totals_colour = "\255\200\200\255"
 local maxLines = 50
 
 local function CalcLoad(old_load, new_load, t)
-	return old_load*math.exp(-tick/t) + new_load*(1 - math.exp(-tick/t))
+	return old_load * exp(-tick/t) + new_load*(1 - exp(-tick/t))
 end
 
 function ColourString(R,G,B)
-	local R255 = math.floor(R*255)
-	local G255 = math.floor(G*255)
-	local B255 = math.floor(B*255)
+	local R255 = floor(R*255)
+	local G255 = floor(G*255)
+	local B255 = floor(B*255)
 	if (R255%10 == 0) then R255 = R255+1 end
 	if (G255%10 == 0) then G255 = G255+1 end
 	if (B255%10 == 0) then B255 = B255+1 end
-	return "\255"..string.char(R255)..string.char(G255)..string.char(B255)
+	return "\255"..char(R255)..char(G255)..char(B255)
 end
-
+local STRING_COL_MUL = ((255-64)/255)
 function GetRedColourStrings(v, want_mem) --tRatio is %
 	local tTime = v.tTime
 	local sLoad = v.sLoad
 	local name = v.wname
-	local u = math.exp(-deltaTime/5) --magic colour changing rate
+	local u = exp(-deltaTime/5) --magic colour changing rate
 
 	if tTime > maxPerc then tTime = maxPerc end
 	if tTime < minPerc then tTime = minPerc end
 
 	-- time
-	local new_r = ((tTime-minPerc)/(maxPerc-minPerc))
-	redStrength[name..'_time'] = redStrength[name..'_time'] or 0
-	redStrength[name..'_time'] = u*redStrength[name..'_time'] + (1-u)*new_r
-	local r,g,b = 1, 1-redStrength[name.."_time"]*((255-64)/255), 1-redStrength[name.."_time"]*((255-64)/255)
+	local new_r = (tTime-minPerc) / (maxPerc-minPerc)
+	local redStrT = redStrength[name..'_time'] or 0
+	redStrT = u*redStrT + (1-u)*new_r
+	local r,g,b = 1, 1-redStrT * STRING_COL_MUL, 1-redStrT * STRING_COL_MUL
 	v.timeColourString = ColourString(r,g,b)
-	
+	redStrength[name..'_time'] = redStrT
 	-- space
-	if want_mem then
-		new_r = math.max(0,math.min(1,(sLoad-minSpace)/(maxSpace-minSpace)))
-		redStrength[name..'_space'] = redStrength[name..'_space'] or 0
-		redStrength[name..'_space'] = u*redStrength[name..'_space'] + (1-u)*new_r
-		g = 1-redStrength[name.."_space"]*((255-64)/255)
+	if want_mem then -- FIXME, not working properly?
+		local redStrS = redStrength[name..'_space'] or 0
+		new_r = max(0, min(1,(sLoad-minSpace)/(maxSpace-minSpace)))
+		redStrS = u * redStrS + (1-u)*new_r
+		g = 1-redStrS * STRING_COL_MUL
 		b = g
-		v.spaceColourString = ColourString(r,g,b) -- FIXME, not working properly?
+		v.spaceColourString = ColourString(r,g,b)
+		redStrength[name..'_space'] = redStrS
 	end
 end
 
@@ -684,11 +698,11 @@ function DrawWidgetList(list, name)
 	-- Echo("winObj.classname is ", winObj.parent.parent.caption)
 	
 
-	local j = 0
+	local j = 1
 	for i = 1, #list do
 		local v = list[i]
 		local tRatio = v.tRatio
-		if tRatio >= min_time then
+		if tRatio >= min_time  or v.wname == profilerName then
 			j = j + 1
 			-- with mem
 			-- t[j] = (' %s%.2f%% %-18s%s%-18.0fkB/s %-16s %s'):format(v.timeColourString, v.tRatio, '', v.spaceColourString, v.sLoad,'', v.fullname)
@@ -715,11 +729,14 @@ function DrawWidgetList(list, name)
 			else
 				t[j] = ('%s%10s%%%7sms%10s%s'):format(v.timeColourString, tRatio, tTime, '', v.fullname)
 			end
+			if v.wname:find(profilerName) then
+				profilerStats[1] = t[j]:sub(1, t[j]:find(v.fullname))
+			end
 		end
 
 
 	end
-
+	t[1] = 'Profiler Consumption ' .. profilerStats[1]..'\n'
 	-- winObj:SetText(concat(t, '\n'))
 	winObj:SetCaption(concat(t, '\n'))
 
@@ -759,6 +776,7 @@ local function UpdateRecap()
 	i=i+1 t[i] = title_colour.."Callins in brackets are heaviest per widget for (time,allocs)"
 	i=i+1 t[i] = title_colour.."Tick time: " .. tick .. "s"
 	i=i+1 t[i] = title_colour.."Smoothing time: " .. averageTime .. "s"
+	i=i+1 t[i] = title_colour.."Profiler comsumption: " .. profilerStats[1]
 
 	-- recapWin:SetText(concat(t,'\n'))
 	local txt = concat(t,'\n')
@@ -835,11 +853,11 @@ local function UpdateStats()
 			tRatio = tRatio,
 			sLoad = sLoad,
 			tTime = t / deltaTime,
+			isProfiler = wname:find(profilerName),
 		}
 		GetRedColourStrings(sortedList[n], want_mem)
 		totalTime = totalTime + tRatio
 		totalMem = totalMem + sLoad
-
 		n = n + 1
 	end
 	if not sortedList[1] then
