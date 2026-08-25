@@ -1787,6 +1787,9 @@ function widget:MouseRelease(mx, my, mButton)
 		if (not inMinimap) or spIsAboveMiniMap(mx, my) then
 			if pos then
 				cf2Nodes:AddRawPos(pos)
+			else
+				pos = cf2Nodes[#cf2Nodes]
+				targType = 'ground'
 			end
 		end
 		local clickLength = os.clock() - clickTime
