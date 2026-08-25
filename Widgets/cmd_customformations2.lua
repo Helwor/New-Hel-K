@@ -1707,8 +1707,10 @@ function widget:MouseRelease(mx, my, mButton)
 		end
 		last = 'R'
 	end
+	local _pos
 	if WG.ClampScreenPosToWorld then
-		local _mx, _my = WG.ClampScreenPosToWorld(mx, my)
+		local _mx, _my
+		_mx, _my, _pos = WG.ClampScreenPosToWorld(mx, my)
 		if _mx then
 			mx, my = _mx, _my
 		end
@@ -1765,7 +1767,10 @@ function widget:MouseRelease(mx, my, mButton)
 	if singlePoint then
 		usingFormation = false
 		local targType, pos = CulledTraceScreenRay(mx, my, true, inMinimap, throughWater)
-
+		if not pos then
+			pos = _pos
+			targType = 'ground'
+		end
 		if pos then
 			local alt, ctrl, meta, shift = GetModKeys()
 		-- If the line is a path, start the units moving to this node
@@ -1785,6 +1790,10 @@ function widget:MouseRelease(mx, my, mButton)
 		-- Add final position (Sometimes we don't get the last MouseMove before this MouseRelease)
 		local targType, pos = CulledTraceScreenRay(mx, my, true, inMinimap, throughWater)
 		if (not inMinimap) or spIsAboveMiniMap(mx, my) then
+			if not pos then
+				pos = _pos
+				targType = 'ground'
+			end
 			if pos then
 				cf2Nodes:AddRawPos(pos)
 			else
