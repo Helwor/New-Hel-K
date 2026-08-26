@@ -1759,9 +1759,19 @@ end
 
 
 
+v.lastmx, v.lastmy = -1, -1
 
+v.lastView = WG.NewView[5]
 function widget:Update(dt)
 	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
+	local mouseMoved = 	v.lastmx ~= mx or v.lastmy ~= my
+
+	local thisView = WG.NewView[5]
+	local isNewView = thisView ~= v.lastView
+
+	v.lastmx, v.lastmy = mx, my
+	v.lastView = thisView
+
 	aboveMinimap = spIsAboveMiniMap(mx, my)
 	IconsAsUI = Spring.GetConfigInt('UnitIconsAsUI', 0) == 1
 	local realMousePress = lmb or mmb or rmb
@@ -1853,6 +1863,7 @@ function widget:Update(dt)
 		return
 	end
 	local _,defaultCommand = spGetDefaultCommand()
+
 	-- WG.contextCmd = defaultCommand -- NOT IMPLEMENTED YET
 	-- Echo("defaultCommand is ", defaultCommand,round(os.clock()))
 	if defaultCommand == nil or defaultCommand == buildMexDefID then
@@ -1872,7 +1883,9 @@ function widget:Update(dt)
 		-- end
 		-- local _ze
 		-- _, s.moddedSelect = EzTarget(false,true)
-		Evaluate(nature, id)
+		if isNewView or mouseMoved then
+			Evaluate(nature, id)
+		end
 	end
 	-- v.moddedTarget = selContext.hasValidAttacker and (opt.ezTarget or Debug.EZ()) and EzTarget()
 	-- Echo(" owner: "..(wh.mouseOwner and wh.mouseOwner:GetInfo().name or 'none'))
@@ -2186,7 +2199,7 @@ function widget:MouseRelease(mx,my,button)
 	if opt.clampToWorld then
 		local _mx, _my
 		_mx,_my = ClampScreenPosToWorld(mx,my)
-		if mx~=_mx or my~=_my then
+		if mx ~=_mx or my ~=_my then
 			v.clamped = {_mx,_my}
 			mx, my = _mx, _my
 		end
@@ -2197,7 +2210,7 @@ function widget:MouseRelease(mx,my,button)
 		return cf2.CF2:MouseRelease(mx,my,button)
 	else
 		-- added condition v.defaultCmd == CMD_ATTACK
-		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR or v.defaultCmd == CMD_ATTACK and not v.moddedCmd then
+		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR or v.defaultCmd == CMD_ATTACK and not v.moddedCmd or v.moddedCmd == CMD_RAW_MOVE then
 
 			Debug.CF2("processing on release...")
 			local cancel = Execute(mx, my, button)
