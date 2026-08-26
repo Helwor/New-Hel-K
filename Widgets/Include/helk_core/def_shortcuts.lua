@@ -55,7 +55,7 @@ for defID, def in pairs(UnitDefs) do
 		elseif def.name:find('^energy') then -- TODO make it more accurate
 			energyDefID[defID] = true
 		end
-		if def.canAttack then
+		if def.canAttack and def.weapons[1] then
 			turretDefID[defID] = true
 		end
 	---- JUMPER
