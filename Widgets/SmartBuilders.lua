@@ -1896,7 +1896,8 @@ local function UpdateOrder(bID,b,frame)
 				-- Echo(string.format('%s  + range%d + buildeeRad%d (~=rad%d) = %d vs dist%d', n.name, range, n.buildeeBuildRadius, n.radius, n.buildeeBuildRadius + range, dist))
 				if dist <= range + n.buildeeBuildRadius then 
 				-- Echo("n.isEnemy,n.isGtBuilt is ", id,n.isEnemy,n.isGtBuilt)
-					local HP, maxHP, buildP = n.health[1], n.health[2], n.health[5]
+					local health = n.health
+					local HP, maxHP, buildP = health[1], health[2], health[5]
 					if n.isEnemy then
 						AttackReclaim = buildP < 1--[[n.isGtBuilt--]] and id or AttackReclaim
 					elseif (n.isAllied or n.isMine) and not n.isDrone then -- and spGetUnitHealth(id) and  (n.isGtBuilt or spGetUnitHealth(id) < (select(2, spGetUnitHealth(id))))
@@ -2169,7 +2170,6 @@ local function UpdateOrder(bID,b,frame)
 	local wantedAction = (not Units[new_target] or (new_target==SpecialReclaim or new_target==AttackReclaim)) and 'listening'
 						 or Units[new_target].isGtBuilt and "building"
 						 or "repairing"
-
 	if bestFeature and b.action == 'reclaiming' and (wantedAction == 'building' or wantedAction=='repairing') then
 		-- check if we can afford the change
 		mChange   = - METAL_BALANCE[b.action] - METAL_BALANCE[b.recM] + METAL_BALANCE[wantedAction]
@@ -2223,6 +2223,7 @@ local function UpdateOrder(bID,b,frame)
 		-- elseif wantedAction=="repairing" and not canRepair and not recE then bestFeature,recM,recE = false,false,false
 		-- end
 	end
+
 	-- Echo("new_target, bestFeature is ", new_target, bestFeature)
 	--
 	local manualTarget = manualTarget
@@ -2259,6 +2260,9 @@ local function UpdateOrder(bID,b,frame)
 		or manualTarget     and spValidFeatureID(manualTarget-maxUnits) and debug(manualTarget-maxUnits,'manualTarget') and manualTarget
 		or bestFeature      and debug(bestFeature,'bestFeature', FeatureDefs[GetFeatureDefID(bestFeature)].name) and bestFeature + maxUnits 
 	)
+	-- if selBuilders[bID] then
+	-- 	Echo('wantedAction', wantedAction, 'new_target', new_target, 'canBuild', canBuild, 'bestFeature', bestFeature, 'toReclaim', toReclaim)
+	-- end
 
 	if toReclaim -- and
 		 -- (not new_target
@@ -2319,6 +2323,9 @@ local function UpdateOrder(bID,b,frame)
 		
 
 		local isNew = IsNewAction(b,CMD_REPAIR,{new_target})
+		-- if selBuilders[bID] then
+		-- 	Echo('isNew', isNew, 'isDumb', b.isDumb)
+		-- end
 		if isNew then
 		-- if (new_target~=curID or cmdID~=CMD_REPAIR)   --[[or Units[new_target].isGtBuilt~=(wantedAction=="building")--]] then
 			local actBefore, mBefore, eBefore, needMBefore, needEBefore = b.action, res.mDelta, res.eDelta, res.needM, res.needE
@@ -2870,7 +2877,7 @@ local dangerousFeatures = setmetatable(
 						if not ranges then
 							Echo('NO RANGES?', u.defID, UnitDefs[u.defID] and UnitDefs[u.defID].name)
 						end
-						if ranges and dist < ((ranges[1] or 0) - minBuildDist) or dist < ((ranges[2] or 0) - minBuildDist) then
+						if ranges and (dist < ((ranges[1] or 0) - minBuildDist) or dist < ((ranges[2] or 0) - minBuildDist)) then
 							allowed = false
 							break
 						end
