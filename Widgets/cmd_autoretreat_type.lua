@@ -18,24 +18,25 @@ local Echo = Spring.Echo
 -- human name of game name of units are both accepted
 -- on load it will complete the table by unit health >= 350 and < 500 for 65% retreat, and > 500 with 30% retreat, excluding arty except for sling
 -- both 
+
 local uniqueStateByType = {
 	-- example
 	Ronin = 2, -- human name
 	Glaive = 3, 
-	spideremp = false, -- game name of Venom 
+	-- spideremp = false, -- game name of Venom 
 
 }
-
 local candidateDefID = {}
 for defID, def in pairs(UnitDefs) do
 	if def.canMove and not def.isFactory then
 		local name, humanName = def.name, def.humanName
 		-- ignore comms, drone, chicken, ...
 		if not (
-            name:find('dyn')
-            or name:find('c%d+_base')
-            or name:find('com%d+$')
-            or name:find('comm')
+            -- name:find('dyn')
+            -- or name:find('c%d+_base')
+            -- or name:find('com%d+$')
+            -- or name:find('comm')
+            (def.customParams.dynamic_comm or def.customParams.level) -- is comm
             or name:find('drone')
             or name:find('chicken')
             or name:find('starlight_satellite'))
@@ -53,6 +54,23 @@ for defID, def in pairs(UnitDefs) do
 		end
 	end
 end
+
+local situationalRetreatType = { -- apply only on selected instead of by type
+
+}
+for defID, def in pairs(UnitDefs) do
+	if candidateDefID[defID] then
+		local name = def.name
+		if name:find('raid') or name:find('scout')
+			or name == 'spideremp'
+		then
+			situationalRetreatType[name] = true
+		else
+			situationalRetreatType[name] = false
+		end
+	end
+end
+
 
 local uniqueStateByDefID = {
 	Update = function(self)
@@ -81,13 +99,51 @@ local uniqueStateByDefID = {
 					end
 				end
 			end
-			if correctdef then
+			if correctdef and candidateDefID[correctdef.id] then
 				self[correctdef.id] = value
 			end
 		end
 	end
 }
 uniqueStateByDefID:Update()
+
+local situationalRetreatDefID = {
+	Update = function(self)
+		for k in pairs(self) do
+			if k ~= 'Update' then
+				self[k] = nil
+			end
+		end
+		local UnitDefs, UnitDefNames = UnitDefs, UnitDefNames
+		for name, value in pairs(situationalRetreatType) do
+			local lowname = name:lower()
+			local correctdef = UnitDefNames[name]
+
+			if not correctdef then
+				situationalRetreatType[name] = nil
+				if lowname ~= name then
+					correctdef = UnitDefNames[lowname]
+				end
+				if not correctdef then
+					for defID, def in pairs(UnitDefs) do
+						if def.humanName:lower() == lowname then
+							situationalRetreatType[def.name] = value
+							correctdef = def
+							break
+						end
+					end
+				end
+			end
+			if correctdef and candidateDefID[correctdef.id] then
+				self[correctdef.id] = value
+			end
+		end
+	end
+}
+situationalRetreatDefID:Update()
+
+
+
 
 
 local spGetTeamUnitsByDefs      = Spring.GetTeamUnitsByDefs
@@ -133,15 +189,15 @@ local playerID = Spring.GetMyPlayerID()
 local byType = {}
 local selTypes = false
 local typeArray = false
+local situationalUnits = false
 local EMPTY_TABLE = {}
 local PARAM_STATE = {}
 local TYPE_TABLE = {}
 
 
-local function SetUnitAutoRetreat(id, state)
-	local currentState = spGetUnitRulesParam(id, 'retreatState')
-	if currentState == state then
-		return
+local function SetUnitAutoRetreat(id, state, checkCurState)
+	if checkCurState and state == spGetUnitRulesParam(id, 'retreatState') then
+		return false
 	end
 	-- if state == 0 then -- it can also work by giving maxState param instead
 	-- 	spGiveOrderToUnit(id, CMD_RETREAT, EMPTY_TABLE, CMD_OPT_RIGHT)
@@ -150,7 +206,8 @@ local function SetUnitAutoRetreat(id, state)
 	-- end
 	return true
 end
-local function SwitchAutoRetreat(state)
+
+local function SwitchAutoRetreat(state, curStateByID) -- set to the next allowed state
 	while wantedState[state] == false do -- check if user wanna skip that state
 		state = state + 1
 	end
@@ -167,35 +224,65 @@ local function SwitchAutoRetreat(state)
 		end
 	end	
 	local changed = false	
-	for i, id in pairs(spGetTeamUnitsByDefs(myTeamID, typeArray) or EMPTY_TABLE) do
-		changed = SetUnitAutoRetreat(id, state) or changed
+	if typeArray[1] then
+		for i, id in pairs(spGetTeamUnitsByDefs(myTeamID, typeArray) or EMPTY_TABLE) do
+			changed = SetUnitAutoRetreat(id, state, true) or changed
+		end
+	end
+	for defID, units in pairs(situationalUnits) do
+		for i, id in ipairs(units) do
+			if state ~= curStateByID[id] then
+				changed = SetUnitAutoRetreat(id, state) or changed
+			end
+		end
 	end
 	return state, changed
 end
-local function SwitchAutoRetreatByType(on_off)
+local function SwitchOnOffAutoRetreat(on, curStateByID) -- toggle on/off retreat state if option unique state by type enabled
 	local changed = false
 	for _, defID in pairs(typeArray) do
 		TYPE_TABLE[1] = defID
-		local state = on_off and uniqueStateByDefID[defID]
-		PARAM_STATE[1] = on_off and state or maxState
+		local state = on and uniqueStateByDefID[defID] or 0
+		PARAM_STATE[1] = on and state or maxState
 		for i, id in pairs(spGetTeamUnitsByDefs(myTeamID, TYPE_TABLE) or EMPTY_TABLE) do
-			changed = SetUnitAutoRetreat(id, state) or changed
+			changed = SetUnitAutoRetreat(id, state, true) or changed
 		end
-		byType[defID] = state or nil
+		byType[defID] = on and state or nil
 	end
-	return on_off, changed
+	for defID, units in pairs(situationalUnits) do
+		local state = on and uniqueStateByDefID[defID] or 0
+		PARAM_STATE[1] = on and state or maxState
+		for i, id in ipairs(units) do
+			if state ~= curStateByID[id] then
+				changed = SetUnitAutoRetreat(id, state) or changed
+			end
+		end
+	end
+	return on, changed
 end
 
 
 local function GetMostPresentState()
-	if not typeArray[2] then
+	if not (typeArray[2] or next(situationalUnits)) then
 		return byType[ typeArray[1] ] or 0
 	end
-	local counts = {}
+	local counts, curStateByID = {}, {}
 	for i, defID in pairs(typeArray) do
 		local units = selTypes[defID]
 		local state = byType[defID] or 0
 		counts[state] = (counts[state] or 0) + (units.count or #units)
+	end
+	for defID, units in pairs(situationalUnits) do
+		local units = selTypes[defID]
+		for i = 1, #units do
+			local id = units[i]
+			local state = spGetUnitRulesParam(id, 'retreatState') or 0
+			if state == maxState then
+				state = 0
+			end
+			curStateByID[id] = state
+			counts[state] = (counts[state] or 0) + 1
+		end
 	end
 	local mostCount = 0
 	local mostPresentState = 0
@@ -206,31 +293,53 @@ local function GetMostPresentState()
 			mostPresentState = state
 		end
 	end
-	return mostPresentState
+	return mostPresentState, curStateByID
 end
+
 function GetMostRetreating()
-	if not typeArray[2] then
+	if not (typeArray[2] or next(situationalUnits)) then
 		return not not byType[ typeArray[1] ]
 	end
-	local counts = {}
+	local counts, curStateByID = {}, {}
+
 	for i, defID in pairs(typeArray) do
 		local units = selTypes[defID]
 		local state = not not byType[defID]
 		counts[state] = (counts[state] or 0) + (units.count or #units)
 	end
-	return (counts[true] or 0) > (counts[false] or 0)
+	for defID, units in pairs(situationalUnits) do
+		for i, id in ipairs(units) do
+			local state = spGetUnitRulesParam(id, 'retreatState') or 0
+			if state == maxState then -- never happening ?
+				state = 0
+			end
+			curStateByID[id] = state
+			if state == 0 then
+				state = false
+			else
+				state = not not state
+			end
+			counts[state] = (counts[state] or 0) + 1
+		end
+	end
+	return (counts[true] or 0) > (counts[false] or 0), curStateByID
 end
 
-local function GetTypeArray(filterUnique)
+local function GetArrays(filterUnique)
 	if not typeArray then
 		selTypes = WG.selectionDefID or spGetSelectedUnitsSorted() or EMPTY_TABLE
 		typeArray = {}
+		situationalUnits = {}
 		local n = 0
-		for defID in pairs(selTypes) do
+		for defID, units in pairs(selTypes) do
 			if candidateDefID[defID] then
 				if not filterUnique or uniqueStateByDefID[defID] then
-					n = n + 1
-					typeArray[n] = defID
+					if situationalRetreatDefID[defID] then
+						situationalUnits[defID] = units
+					else
+						n = n + 1
+						typeArray[n] = defID
+					end
 				end
 			end
 		end
@@ -244,12 +353,16 @@ local function Comment(state)
 			n = n + 1
 			named[n] = candidateDefID[defID] -- .. ' [' .. defID .. ']'
 		end
+		for _, defID in pairs(situationalUnits) do
+			n = n + 1
+			named[n] = candidateDefID[defID] -- .. ' [' .. defID .. ']'
+		end
 		if type(state) == 'boolean' then
 			Echo('Auto-Retreat set to ' .. (on_off and 'ON' or 'OFF') .. ' for: ' .. table.concat(named,', ') )
 		else
 			Echo('Auto-Retreat set to ' .. states[state] .. ' for: ' .. table.concat(named,', ') )
 		end
-		if state == 0 or not state then
+		if typeArray[1] and state == 0 or not state then
 			Echo("Newly made units aren't bound anymore to widget " .. widget.GetInfo().name .. ".")
 		end
 	end
@@ -261,16 +374,26 @@ local function Process()
 	-- 	return
 	-- end
 	local onlyUnique = options.uniqueByType.value
-	GetTypeArray(onlyUnique)
-	if not typeArray[1] then
+	GetArrays(onlyUnique)
+	if not (typeArray[1] or next(situationalUnits)) then
 		return
 	end
 	local state, changed, playSound
+	local wantedState, curStateByID
 	if onlyUnique then
-		state, changed = SwitchAutoRetreatByType( not GetMostRetreating() )
+		state, curStateByID = GetMostRetreating()
+		wantedState = not state
 	else
-		state, changed = SwitchAutoRetreat( GetMostPresentState() + 1 )
+		state, curStateByID = GetMostPresentState()
+		wantedState = state + 1
 	end
+	if onlyUnique then
+		state, changed = SwitchOnOffAutoRetreat( wantedState, curStateByID )
+	else
+		state, changed = SwitchAutoRetreat( wantedState, curStateByID )
+	end
+
+
 	if (state and state ~= 0) and options.newHaven.value then
 		local havenCount = spGetTeamRulesParam(myTeamID, "haven_count")
 		if not havenCount or havenCount == 0 then
@@ -283,7 +406,7 @@ local function Process()
 		Comment(state)
 	end
 	if playSound then
-		WG.noises.PlayResponse(false, typeArray[1])
+		WG.noises.PlayResponse(false, typeArray[1] or next(situationalUnits))
 	end
 	
 end
@@ -364,9 +487,24 @@ options.editUniqueByType = {
         widget:CommandsChanged()
     end,
     parents = {'uniqueByType'},
-    reset = true,
+    noRemove = true,
 }
 options_order[#options_order + 1]  = 'editUniqueByType'
+
+options.editSituational = {
+	name = 'Situational Retreat',
+	type = 'table',
+	desc = 'Which type of units you want to be processed individually via selection, rather than by type',
+	slim = true,
+	value = situationalRetreatType,
+    OnChange = function(self)
+        situationalRetreatDefID:Update()
+        widget:CommandsChanged()
+    end,
+	noRemove = true,
+	isCheckboxList = true,
+}
+options_order[#options_order + 1]  = 'editSituational'
 
 options.comment = {
 	name = 'Comment on console',
@@ -387,6 +525,7 @@ end
 function widget:CommandsChanged()
 	typeArray = false
 	selTypes = false
+	situationalUnits = false
 end
 
 
@@ -406,3 +545,5 @@ function widget:UnitCreated(id, defID)
 	end
 end
 widget.UnitGiven = widget.UnitCreated
+
+f.DebugWidget(widget)
