@@ -22,8 +22,21 @@ local opt = {
 	shiftAttackTrailShootToward = false,
 	altShootOnce = true,
 	forceAlg = 'disabled',
+	savePackets = false,
+	batchSize = 50,
+	useOrderArrayToUnitArray = true,
 }
-
+local order = {
+	'singleSlowCtrl',
+	'reorderGroups',
+	'singlePointTolerance',
+	'shiftAttackTrailShootToward',
+	'altShootOnce',
+	'forceAlg',
+	'savePackets',
+	'batchSize',
+	'useOrderArrayToUnitArray',
+}
 
 local GetMiniMapFlipped = Spring.Utilities.IsMinimapFlipped
 
@@ -48,12 +61,16 @@ local overrideCmdSingleUnit = {
 }
 local helKPath = 'Hel-K/' .. widget:GetInfo().name
 options_path = 'Settings/Interface/Line Formations'
-options_order = { 'spreadtypes','ignorespreadsize', 'rank_gap', 'drawmode_v2', 'linewidth', 'dotsize', 'overrideGuard','RMBLineFormation',
-	-- 'bomber_shootOnce', 'widow_shootOnce',
+options_order = { 'spreadtypes','ignorespreadsize', 'rank_gap', 'drawmode_v2',
+	 'linewidth', 'dotsize', 'overrideGuard','RMBLineFormation',
  }
- for optname in pairs(opt) do
- 	table.insert(options_order, optname)
- end
+ for i, name in ipairs(order) do
+	for optname in pairs(opt) do
+		if name == optname then
+			table.insert(options_order, optname)
+		end
+	end
+end
 options = {
 	spreadtypes = {
 		name = "Evenly spread unit types along lines",
@@ -205,6 +222,44 @@ options.forceAlg = {
 	dev = true,
 
 }
+
+
+options.savePackets = {
+	name = 'Bandwidth savings',
+	desc = 'use a more compacted way to order units moves',
+	type = 'bool',
+	value = opt.savePackets,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+	path = helKPath,
+	children = {'batchSize', 'useOrderArrayToUnitArray'},
+}
+
+options.batchSize = {
+	name = 'Order Batch Size',
+	desc = 'if Bandwidth savings is enabled, order units per small batch this size',
+	type = 'number',
+	value = opt.batchSize,
+	min = 5, step = 5, max = 300,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+	path = helKPath,
+	parents = {'savePackets'},
+}
+options.useOrderArrayToUnitArray = {
+	name = 'Use OrderArrayToUnitArray',
+	desc = 'use a more compacted way to order units moves',
+	type = 'bool',
+	value = opt.useOrderArrayToUnitArray,
+	OnChange = function(self)
+		opt[self.key] = self.value
+	end,
+	path = helKPath,
+	parents = {'savePackets'},
+}
+
 -- options.bomber_shootOnce = {
 -- 	name = "Bomber shoot once at ground",
 -- 	type = "bool",
@@ -340,6 +395,8 @@ local hasBomber = false
 local throughWater
 -- from -HasViewChanged.lua
 local Units
+local orderTable = {}
+local ownNotify = false
 --
 local auto_table_mt = {
 	__index = function(self, key)
@@ -516,6 +573,7 @@ local spGetUnitHeight = Spring.GetUnitHeight
 local spGetCameraPosition = Spring.GetCameraPosition
 local spGetViewGeometry = Spring.GetViewGeometry
 local spTraceScreenRay = Spring.TraceScreenRay
+local spGiveOrderArrayToUnitArray = Spring.GiveOrderArrayToUnitArray
 
 local spGetMyTeamID	= Spring.GetMyTeamID
 local spAreTeamsAllied = Spring.AreTeamsAllied
@@ -1046,22 +1104,48 @@ local function GetCmdOpts(alt, ctrl, meta, shift, right)
 	return opts
 end
 
-local function GiveNotifyingOrder(cmdID, cmdParams, cmdOpts, targType)
-	if widgetHandler:CommandNotify(cmdID, cmdParams, cmdOpts) then
-		return
+local function ExecuteAllDelayed()
+	for id, order in pairs(orderTable) do
+		spGiveOrderToUnit(id, order[1], order[2], order[3])
+		orderTable[id] = nil
 	end
-	spGiveOrder(cmdID, cmdParams, cmdOpts.coded)
 end
 
+local function ClearAllDelayed()
+	for id in pairs(orderTable) do
+		orderTable[id] = nil
+	end
+end
+
+local function GiveNotifyingOrder(cmdID, cmdParams, cmdOpts, targType)
+	if not (cmdOpts.shift or cmdOpts.meta) then
+		ClearAllDelayed()
+	else
+		ExecuteAllDelayed()
+	end
+	ownNotify = true
+	if widgetHandler:CommandNotify(cmdID, cmdParams, cmdOpts) then
+		ownNotify = false
+		return
+	end
+	ownNotify = false
+	spGiveOrder(cmdID, cmdParams, cmdOpts.coded)
+end
 local function GiveNonNotifyingOrder(cmdID, cmdParams, cmdOpts)
 	spGiveOrder(cmdID, cmdParams, cmdOpts.coded)
 end
 
-local function GiveNotifyingOrderToUnit(uID, cmdID, cmdParams, cmdOpts)
+local function GiveNotifyingOrderToUnit(uID, cmdID, cmdParams, cmdOpts, delayed, ids, orders, i)
 	if widgetHandler:UnitCommandNotify(uID, cmdID, cmdParams, cmdOpts) then
 		return
 	end
-	spGiveOrderToUnit(uID, cmdID, cmdParams, cmdOpts.coded)
+	if delayed then
+		delayed[uID] = {cmdID, cmdParams, cmdOpts.coded}
+	elseif ids then
+		ids[i], orders[i] = uID, {cmdID, cmdParams, cmdOpts.coded}
+	else
+		spGiveOrderToUnit(uID, cmdID, cmdParams, cmdOpts.coded)
+	end
 end
 
 local function SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
@@ -1681,6 +1765,8 @@ function cf2Nodes:MatchCF2UnitsToNodes(x, z, meta, shift, insertPositions)
 	end
 end
 
+
+
 function widget:MouseRelease(mx, my, mButton)
 	if debugging then
 		local now = clock()
@@ -1772,6 +1858,7 @@ function widget:MouseRelease(mx, my, mButton)
 			targType = 'ground'
 		end
 		if pos then
+			
 			local alt, ctrl, meta, shift = GetModKeys()
 		-- If the line is a path, start the units moving to this node
 			local forceShift, forceAlt = shift, false
@@ -1819,6 +1906,7 @@ function widget:MouseRelease(mx, my, mButton)
 			end
 		end
 		if singleNode then
+
 			-- We should check if any units are able to execute it,
 			-- but the order is small enough network-wise that the tiny bug potential isn't worth it.
 			local params = TweakTarget(cf2Nodes[1], mx, my, acquiredTarget, true, alt, false)
@@ -1829,6 +1917,22 @@ function widget:MouseRelease(mx, my, mButton)
 			-- Are any units able to execute it?
 			local insertPositions = meta and shift and {}
 			cf2Nodes:MatchCF2UnitsToNodes(pos[1], pos[3], meta, shift, insertPositions)
+
+			local delayed
+			local len = table.size(cf2Nodes.order)
+			local batchSize = options.batchSize.value
+			if shift or meta then
+				ExecuteAllDelayed()
+			elseif options.savePackets.value and len > batchSize then
+				delayed = table.new(0, len)
+
+			end
+			local useOrderArrayToUnitArray = opt.useOrderArrayToUnitArray and delayed
+			local ids, orders
+			if useOrderArrayToUnitArray then
+				ids, orders = table.new(len), table.new(len)
+			end
+			local i = 0
 			if meta then
 				local altOpts = meta and GetCmdOpts(true, false, false, false, false)
 				for unitID, pos in pairs(cf2Nodes.order) do
@@ -1836,12 +1940,28 @@ function widget:MouseRelease(mx, my, mButton)
 					if shift then
 						insPos = insertPositions[unitID]
 					end
-					GiveNotifyingOrderToUnit(unitID, CMD_INSERT, {insPos, usingCmd, cmdOpts.coded, pos[1], pos[2], pos[3]}, altOpts)
+					i = i + 1
+					GiveNotifyingOrderToUnit(unitID, CMD_INSERT, {insPos, usingCmd, cmdOpts.coded, pos[1], pos[2], pos[3]}, altOpts, i > batchSize and delayed, ids, orders, i)
+					if not delayed then
+						orderTable[unitID] = nil
+					end
 				end
 			else
 				for unitID, pos in pairs(cf2Nodes.order) do
-					GiveNotifyingOrderToUnit(unitID, usingCmd, pos, cmdOpts)
+					i = i + 1
+					GiveNotifyingOrderToUnit(unitID, usingCmd, pos, cmdOpts, i > batchSize and delayed, ids, orders, i)
+					if not delayed then
+						orderTable[unitID] = nil
+					end
 				end
+			end
+			if delayed then
+				for unitID, order in pairs(delayed) do
+					orderTable[unitID] = order
+				end
+			end
+			if ids then
+				spGiveOrderArrayToUnitArray(ids, orders, true)
 			end
 		end
 
@@ -1910,6 +2030,14 @@ end
 
 
 function widget:CommandNotify(id, params, options)
+
+	if not ownNotify then
+		if not (options.meta or options.shift) then
+			ClearAllDelayed()
+		else
+			ExecuteAllDelayed()
+		end
+	end
 	if id ~= CMD_FORMATION_RANK then
 		return false
 	end
@@ -2183,7 +2311,38 @@ function widget:Initialize()
 	WG.TrailHandler = TrailHandler
 end
 
+local uptime = 0
 function widget:Update(deltaTime)
+	uptime = uptime + deltaTime
+	if uptime > 0.033 then
+		uptime = 0
+		if next(orderTable) then
+			local useOrderArrayToUnitArray = opt.useOrderArrayToUnitArray
+			local i, endBatch = 0, options.batchSize.value
+			local ids, orders
+			if useOrderArrayToUnitArray then
+				ids, orders = table.new(endBatch), table.new(endBatch)
+			end
+			for id, order in pairs(orderTable) do
+				i = i + 1
+				if useOrderArrayToUnitArray then
+					ids[i] = id
+					orders[i] = order
+				else
+					spGiveOrderToUnit(id, order[1], order[2], order[3])
+				end	
+				orderTable[id] = nil
+
+				if i == endBatch then
+					break
+				end
+			end
+			if useOrderArrayToUnitArray then
+				spGiveOrderArrayToUnitArray(ids, orders, true)
+			end
+		end
+	end
+
 	if TrailHandler.drawing > 0 then
 		for key, nodes in pairs(TrailHandler.trails) do
 			if nodes.drawing then
