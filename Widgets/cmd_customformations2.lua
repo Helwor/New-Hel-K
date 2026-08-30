@@ -580,6 +580,7 @@ local spAreTeamsAllied = Spring.AreTeamsAllied
 local spIsUnitAllied = Spring.IsUnitAllied
 local spGetUnitTeam	= Spring.GetUnitTeam
 
+local table_new = table.new
 
 local mapSizeX, mapSizeZ = Game.mapSizeX, Game.mapSizeZ
 local maxUnits = Game.maxUnits
@@ -886,7 +887,7 @@ local function FindInsertPosInUnitQueue(X, Z, unitID, queue)
 end
 
 local function GetStartPositions(units, x, z, meta, shift, insertPositions)
-	local positions = table.new(#units)
+	local positions = table_new(#units)
 	if meta and shift then
 		for i, unitID in ipairs(units) do
 			local pos, _, insPos = FindInsertPosInUnitQueue(x, z, unitID, spGetUnitCommands(unitID, -1))
@@ -1103,12 +1104,31 @@ local function GetCmdOpts(alt, ctrl, meta, shift, right)
 	opts.coded = coded
 	return opts
 end
-
-local function ExecuteAllDelayed()
-	for id, order in pairs(orderTable) do
-		spGiveOrderToUnit(id, order[1], order[2], order[3])
-		orderTable[id] = nil
+local function ReleaseBuffer(endBatch)
+	local useOrderArrayToUnitArray = opt.useOrderArrayToUnitArray
+	local i = 0
+	local ids, orders
+	if useOrderArrayToUnitArray then
+		ids, orders = table_new(endBatch), table_new(endBatch)
 	end
+	for id, order in pairs(orderTable) do
+		i = i + 1
+		if useOrderArrayToUnitArray then
+			ids[i] = id
+			orders[i] = order
+		else
+			spGiveOrderToUnit(id, order[1], order[2], order[3])
+		end	
+		orderTable[id] = nil
+
+		if endBatch and i == endBatch then
+			break
+		end
+	end
+	if useOrderArrayToUnitArray then
+		spGiveOrderArrayToUnitArray(ids, orders, true)
+	end
+
 end
 
 local function ClearAllDelayed()
@@ -1121,7 +1141,7 @@ local function GiveNotifyingOrder(cmdID, cmdParams, cmdOpts, targType)
 	if not (cmdOpts.shift or cmdOpts.meta) then
 		ClearAllDelayed()
 	else
-		ExecuteAllDelayed()
+		ReleaseBuffer()
 	end
 	ownNotify = true
 	if widgetHandler:CommandNotify(cmdID, cmdParams, cmdOpts) then
@@ -1359,9 +1379,9 @@ local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShi
 		meta = false
 		forceShift = false
 		tweaked = true
-	elseif hasPuppy then
-		ctrl = true
-		tweaked = true
+	-- elseif hasPuppy then
+	-- 	ctrl = true
+	-- 	tweaked = true
 	end
 	-- Echo('tweaked',tweaked,'alt', forceAlt,'ctrl', ctrl,'meta', meta,'shift', forceShift)
 	return tweaked, usingCmd, forceAlt, ctrl, meta, forceShift, usingRMB
@@ -1922,15 +1942,15 @@ function widget:MouseRelease(mx, my, mButton)
 			local len = table.size(cf2Nodes.order)
 			local batchSize = options.batchSize.value
 			if shift or meta then
-				ExecuteAllDelayed()
+				ReleaseBuffer()
 			elseif options.savePackets.value and len > batchSize then
-				delayed = table.new(0, len)
+				delayed = table_new(0, len)
 
 			end
 			local useOrderArrayToUnitArray = opt.useOrderArrayToUnitArray and delayed
 			local ids, orders
 			if useOrderArrayToUnitArray then
-				ids, orders = table.new(len), table.new(len)
+				ids, orders = table_new(len), table_new(len)
 			end
 			local i = 0
 			if meta then
@@ -2035,7 +2055,7 @@ function widget:CommandNotify(id, params, options)
 		if not (options.meta or options.shift) then
 			ClearAllDelayed()
 		else
-			ExecuteAllDelayed()
+			ReleaseBuffer()
 		end
 	end
 	if id ~= CMD_FORMATION_RANK then
@@ -2317,29 +2337,7 @@ function widget:Update(deltaTime)
 	if uptime > 0.033 then
 		uptime = 0
 		if next(orderTable) then
-			local useOrderArrayToUnitArray = opt.useOrderArrayToUnitArray
-			local i, endBatch = 0, options.batchSize.value
-			local ids, orders
-			if useOrderArrayToUnitArray then
-				ids, orders = table.new(endBatch), table.new(endBatch)
-			end
-			for id, order in pairs(orderTable) do
-				i = i + 1
-				if useOrderArrayToUnitArray then
-					ids[i] = id
-					orders[i] = order
-				else
-					spGiveOrderToUnit(id, order[1], order[2], order[3])
-				end	
-				orderTable[id] = nil
-
-				if i == endBatch then
-					break
-				end
-			end
-			if useOrderArrayToUnitArray then
-				spGiveOrderArrayToUnitArray(ids, orders, true)
-			end
+			ReleaseBuffer(options.batchSize.value)
 		end
 	end
 
@@ -2412,7 +2410,7 @@ function TrailHandler:MatchUnitsToNodes(units, subnodes, arePositions, x, z, met
 	return order
 end
 
-local table_new = table.new
+local table_new = table_new
 function GetOrdersNoX(nodes, units)
 
 	-- Remember when we start
