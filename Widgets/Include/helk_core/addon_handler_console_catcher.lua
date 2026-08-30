@@ -27,6 +27,6 @@ if not WG.oriAddConsoleLine then
 		end
 		return oriFunc(self, msg, prio)
 	end
-	Echo('[Hel-K] Successfully implemented Console Catcher Add-on')
+	Echo('[Hel-K]: Successfully implemented Console Catcher Add-on')
 end
 
