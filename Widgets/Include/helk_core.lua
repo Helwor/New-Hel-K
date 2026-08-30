@@ -107,11 +107,14 @@ local this_widget_file = source:sub(source:find('[%w_]+%.lua'))
 Echo('[Hel-K]: Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
 
 VFS.Include(HELK_CORE_DIR .. "def_shortcuts.lua")
+VFS.Include(HELK_CORE_DIR .. "sign_order.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_register_global_multi.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_cmd_insertwidget.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_sleep_wake.lua")
 VFS.Include(HELK_CORE_DIR .. "addon_handler_console_catcher.lua")
 VFS.Include(HELK_CORE_DIR .. "keycodes.lua")
+	
+
 
 VFS.Include(HELK_CORE_DIR .. "lib_funcs.lua", copy(getfenv()) )
 f = WG.utilFuncs
