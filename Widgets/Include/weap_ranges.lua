@@ -29,7 +29,7 @@ WG.weapRanges = (function()
 			local wDef = WeaponDefs[weap.weaponDef]
 			if def.name:find('antinuke') or not (wDef.description:lower():find('fake') or wDef.name:lower():find('fake'))  then
 				hasWaterWeapon = hasWaterWeapon or wDef.waterWeapon
-				hasOnlyWaterWeapon = hasOnlyWaterWeapon and wDef.waterWeapon
+				hasOnlyWaterWeapon = hasWaterWeapon and wDef.waterWeapon
 				-- from testing customParams.combatrange can be incorrect (pyro), now using the same method as gui_contextmenu.lua
 				-- local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or wDef.range
 				local weaponRange = tonumber(wDef.customParams.truerange --[[or wDef.customParams.combatrange--]]) or tonumber(wDef.customParams.nuke_coverage) or wDef.range
