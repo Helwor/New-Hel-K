@@ -78,7 +78,6 @@ function widget:Update(dt)
 		local gameTimePassed = gameTime - lastGameTime
 		lastGameTime = gameTime
 		gameTimePerSecond = gameTimePassed / timeCounter
-		Echo("gameTimePerSecond is ", gameTimePerSecond)
 		if gameTimePerSecond > 1.1 then
 			local int = math.min(maxRunLength, math.floor(gameTimePerSecond + 0.5))
 			runString = triangle:rep(int) 
