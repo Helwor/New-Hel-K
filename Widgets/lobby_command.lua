@@ -55,8 +55,9 @@ function widget:Initialize()
         or command:find('^reload lobby ')
         or command:find('^pm ')
         or command:find('^tell ')
+        or command:find('^getrunningsince')
         then
-            WG.SocketClient:Send(command)
+            WG.SocketClient:Send(command) -- my own method before I knew
             return
         elseif command:find('^lobby') then
             Spring.SendLuaMenuMsg('showLobby') -- WE CAN DISCUSS THROUGH THIS
