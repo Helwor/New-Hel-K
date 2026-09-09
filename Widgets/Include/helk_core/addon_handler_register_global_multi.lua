@@ -5,7 +5,7 @@
 -- license   = "GNU GPL, v2",
 
 local Echo = Spring.Echo
-local sig = '['..widget:GetInfo().name..']: '
+local sig = '[Register Global Multi]: '
 local debugging = false
 
 local function GetRealHandler()
