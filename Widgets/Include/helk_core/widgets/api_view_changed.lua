@@ -55,15 +55,19 @@ local spGetUnitIsDead = Spring.GetUnitIsDead
 local spValidUnitID = Spring.ValidUnitID
 local spGetUnitPosition = Spring.GetUnitPosition
 local spGetUnitBuildFacing = Spring.GetUnitBuildFacing
+local spGetLastUpdateSeconds = Spring.GetLastUpdateSeconds
 
-local f = WG.utilFuncs
+
 local formatColumnInfolog = f.formatColumnInfolog
 
 local osclock = os.clock
 
+local diag = math.diag
+
 local myPlayerID = Spring.GetMyPlayerID()
 
-local vsx, vsy = Spring.GetViewGeometry()
+local vsx, vsy = Spring.Orig.GetViewSizes()
+local center_x, center_y = vsx/2, vsy/2 -1
 
 local currentFrame = spGetGameFrame()
 local requestUpdate
@@ -71,8 +75,6 @@ local NewView
 local Visibles
 local Cam
 local fullview, isSpec
-local center_x, center_y = vsx/2, vsy/2 -1
-local UpdateVisibleUnits, OriUpdateVisibleUnits, Ori2UpdateVisibleUnits, AltUpdateVisibleUnits, NewUpdateVisibleUnits
 local function HaveFullView()
 	local spec, _fullview = spGetSpectatingState()
 	local fullview = _fullview and 1 or spGetGlobalLos(spGetLocalAllyTeamID()) and 2
@@ -81,7 +83,7 @@ local function HaveFullView()
 end
 local function DeepCompare(t,t2)
 	for k,v in pairs(t) do
-		local same = t2[k]==v or type(v)=='table' and DeepCompare(v,t2[k])
+		local same = t2[k] == v or type(v) == 'table' and DeepCompare(v,t2[k])
 		if not same then
 			return false
 		end
@@ -119,7 +121,7 @@ local right
 function CamOrientation() 
     local r1 = right[1]
     local r3 = right[3]
-    local r1sq = r1^2
+    local r1sq = r1 * r1
 
     if r1sq > 0.50 then -- south or north
         if r1 > 0 then
@@ -142,7 +144,7 @@ end
 function CamOrientation8()
     local r1 = right[1]
     local r3 = right[3]
-    local r1sq = r1^2
+    local r1sq = r1 * r1
     if r1sq > 0.75 then     -- south or north
         if r1 > 0 then
             -- Echo('N')
@@ -198,14 +200,14 @@ local GetDist = function()
     	dist = cs.dist
     else
         local pos =  Cam.trace
-        dist = ((cs.px-pos[1])^2 + (cs.py-pos[2])^2 + (cs.pz-pos[3])^2)^0.5
+        dist = diag(cs.px - pos[1], cs.py - pos[2], cs.pz - pos[3])
     end
     return dist
 end
 -- each param is stored in unique table for widgets to keep around as local
 local lag, lagref = 0, 0.033
 
-WG.lag = WG.lag or {Spring.GetLastUpdateSeconds() or 0.033}
+WG.lag = WG.lag or {spGetLastUpdateSeconds() or 0.033}
 local lag = WG.lag
 WG.NewView = WG.NewView or {0,0,0,0,0}
 NewView = WG.NewView
@@ -250,25 +252,6 @@ Cam.relDist = Cam.dist * (Cam.fov / 45)
 
 local newParams = {frame = spGetGameFrame(), pos = spGetCameraPosition(), vecs = spGetCameraVectors(), fov = spGetCameraFOV()}
 
-
-
-
--- options.useMethod = {
--- 	name = 'Method',
--- 	type = 'radioButton',
--- 	value = useMethod,
--- 	items = {
--- 		{key = 'ori2', 			name='Ori2 method'},
--- 		{key = 'new', 			name='New method'},
--- 	},
--- 	OnChange = function(self)
--- 		if self.value == 'ori2' then
--- 			UpdateVisibleUnits = Ori2UpdateVisibleUnits
--- 		elseif self.value == 'new' then
--- 			UpdateVisibleUnits = NewUpdateVisibleUnits
--- 		end
--- 	end,
--- }
 function widget:PlayerChanged(playerID) -- PlayerChanged also get triggered naturally when switching fullview as spectator
 	if myPlayerID ~= playerID then
 		return
@@ -358,27 +341,29 @@ function widget:Update(delta)
 		Echo('update', count)
 	end
 	cnt = cnt +1
-	if cnt > lagCounts then cnt = 1 end
+	if cnt > lagCounts then
+		cnt = 1
+	end
 	total = total - lags[cnt] + dt
 	lags[cnt] = dt
 	local avg = (total / lagCounts)
 	lag[1] = max(1, avg / lagref )
 
 	-- Echo("=>>>#Spring.GetVisibleUnits(-1, nil, false) is ", #Spring.GetVisibleUnits(-1, nil, false), #spGetVisibleUnits(-1, nil, false) )
-
-	-- for i=1,5000000 do	i = i +1	end
 	updateTime = updateTime + delta
-	local newFrame = currentFrame ~= Cam.frame
-	if updateTime > updateRate or newFrame then
+
+	if updateTime > updateRate or currentFrame ~= Cam.frame then
 		update = HasViewChanged()
 		updateTime = 0
 	end
 	if not update and requestUpdate then
 		NewView[5] = NewView[5] + 1
 		update = true
+		requestUpdate = false
 	end
 	if update then
 		WG.requestUpdateVisibleUnits = true
+		update = false
 	end
 end
 
@@ -394,7 +379,7 @@ function widget:Initialize()
   	-- Echo("Script.LuaUI('buildicon_unitcreated') is ", Script.LuaUI('buildicon_unitcreated'))
 
   	widget:PlayerChanged(myPlayerID)
-	widget:ViewResized(Spring.GetViewGeometry())
+	widget:ViewResize()
 	-- WG.UpdateVisibleUnits = UpdateVisibleUnits
 	WG.requestUpdateVisibleUnits = true
 end
@@ -404,13 +389,11 @@ function widget:Shutdown()
 	-- end
 end
 
-function widget:ViewResized(vsx, vsy)
+function widget:ViewResize()
+	local vsx, vsy = Spring.Orig.GetViewSizes()
 	center_x, center_y = vsx/2, vsy/2 -1
 	if HasViewChanged() then
 		WG.requestUpdateVisibleUnits = true
 		-- UpdateVisibleUnits()
 	end
-end
-if DebugWidget then
-	DebugWidget(widget)
 end
