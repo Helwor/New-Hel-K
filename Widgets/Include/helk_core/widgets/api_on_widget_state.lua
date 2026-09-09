@@ -640,7 +640,12 @@ local function DetermineVFSMODE(_VFSMODE, filename, absfilename)
 end
 
 local count = 0
+local LOADING_PHASE = false
 function whLoadWidget(wh,filename, _VFSMODE)
+	if not LOADING_PHASE then
+		LOADING_PHASE = true
+		Echo('--------------- Loading Phase -------------------')
+	end
 	-- if _VFSMODE ~= nil then
 	--     specificMode[filename] = _VFSMODE
 	-- elseif specificMode[filename] then
