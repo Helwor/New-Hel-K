@@ -21,9 +21,13 @@ local huge              = math.huge
 local max               = math.max
 local atan2             = math.atan2
 local sin               = math.sin
+local asin              = math.asin
 local cos               = math.cos
+local diag              = math.diag
+local clamp             = math.clamp
 local pi                = math.pi
 local pi2               = pi*2
+
 
 local t                 = type
 local type              = type
@@ -75,52 +79,8 @@ local _G = getfenv(newproxy)
 
 local Spring = Spring
 
-local sp = {
+local sp = Spring
 
-	GetActiveCommand            = Spring.GetActiveCommand,
-	SetActiveCommand            = Spring.SetActiveCommand,
-	GetMouseState               = Spring.GetMouseState,
-	TraceScreenRay              = Spring.TraceScreenRay,
-	GetGroundHeight             = Spring.GetGroundHeight,
-	GetSelectedUnits            = Spring.GetSelectedUnits,
-	GetModKeyState              = Spring.GetModKeyState,
-	GetUnitDefID                = Spring.GetUnitDefID,
-	GetFeatureDefID             = Spring.GetFeatureDefID,
-	ValidFeatureID              = Spring.ValidFeatureID,
-	GetSelectedUnits            = Spring.GetSelectedUnits,
-	GetSelectedUnitsSorted      = Spring.GetSelectedUnitsSorted,
-	GetUnitTeam                 = Spring.GetUnitTeam,
-	GetMyTeamID                 = Spring.GetMyTeamID,
-	GetAllUnits                 = Spring.GetAllUnits,
-	GetCommandQueue             = Spring.GetCommandQueue,
-	GiveOrderToUnit             = Spring.GiveOrderToUnit,
-	GiveOrderToUnitArray        = Spring.GiveOrderToUnitArray,
-	WarpMouse                   = Spring.WarpMouse,
-	WorldToScreenCoords         = Spring.WorldToScreenCoords,
-	SendCommands                = Spring.SendCommands,
-	ValidUnitID                 = Spring.ValidUnitID,
-	DiffTimers                  = Spring.DiffTimers,
-	GetTimer                    = Spring.GetTimer,
-	SendCommands                = Spring.SendCommands,
-	GetSpectatingState          = Spring.GetSpectatingState,
-	GetUnitsInRectangle         = Spring.GetUnitsInRectangle,
-	GetUnitsInScreenRectangle   = Spring.GetUnitsInScreenRectangle,
-	GetUnitPosition             = Spring.GetUnitPosition,
-	GetFeaturePosition          = Spring.GetFeaturePosition,
-	GetBuildFacing              = Spring.GetBuildFacing,
-	GetBuildSpacing             = Spring.GetBuildSpacing,
-	SetBuildSpacing             = Spring.SetBuildSpacing,
-
-	AreTeamsAllied              = Spring.AreTeamsAllied,
-	GetCameraState              = Spring.GetCameraState,
-	SetCameraTarget             = Spring.SetCameraTarget,
-	GetTimer                    = Spring.GetTimer,
-	DiffTimers                  = Spring.DiffTimers,
-	SetClipboard                = Spring.SetClipboard,
-	GetClipboard                = Spring.GetClipboard,
-	TableEcho                   = Spring.Utilities.TableEcho,
-	GetViewGeometry				= Spring.GetViewGeometry,
-}
 local spu = {
 	CheckBit                = Spring.Utilities.CheckBit,
 	spuIsBitSet             = Spring.Utilities.IsBitSet,
@@ -131,7 +91,7 @@ VFS.Include('LuaUI/keysym.lua')
 local KEYSYMS = KEYSYMS
 
 local KEYCODES = WG.KEYCODES
-local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
+local SUC = Spring.Utilities.CMD
 
 
 VFS.Include("LuaUI/callins.lua")
@@ -180,38 +140,38 @@ for k,v in pairs(CMD) do
 	allCmds[k] = actualCmds[v] or v
 end
 
-for k,v in pairs(customCmds) do
+for k,v in pairs(SUC) do
 	cmdNames[v] = k 
 	allCmds[v] = k
 	allCmds[k] = v
-
 end
+
 for defID,v in pairs(UnitDefs) do
 	local name = 'BUILD_'..(v.name or 'UNKNOWN')
 	cmdNames[-defID] = name
 	allCmds[name] = -defID
 	allCmds[-defID] = name
 end
-setmetatable(cmdNames, {__index=function(t,k) return 'UNKNOWN' .. (type(k) == 'number' and k<0 and 'BUILD' or '')  end })
+setmetatable(cmdNames, {__index=function(t, k) return 'UNKNOWN' .. (type(k) == 'number' and k<0 and 'BUILD '..k or k)  end })
 --
 --Echo(find("LuaRules/colors.h.lua"))
 -----
 positionCommand = {
 	[CMD.MOVE] = true,
-	[customCmds.RAW_MOVE] = true,
-	[customCmds.RAW_BUILD] = true,
+	[SUC.RAW_MOVE] = true,
+	[SUC.RAW_BUILD] = true,
 	[CMD.REPAIR] = true,
 	[CMD.RECLAIM] = true,
 	[CMD.RESURRECT] = true,
 	[CMD.MANUALFIRE] = true,
-	[customCmds.AIR_MANUALFIRE] = true,
+	[SUC.AIR_MANUALFIRE] = true,
 	[CMD.GUARD] = true,
 	[CMD.FIGHT] = true,
 	[CMD.ATTACK] = true,
-	[customCmds.JUMP] = true,
-	[customCmds.LEVEL] = true,
+	[SUC.JUMP] = true,
+	[SUC.LEVEL] = true,
 }
-for k,v in pairs(customCmds) do
+for k,v in pairs(SUC) do
 	local num = tonumber(v)
 	if num and num>39000 and num < 40000 then
 		positionCommand[num] = true
@@ -295,7 +255,12 @@ do
 		return n==0 and 1 or n
 	end
 	local scolor = function(color)
-	   return concat({char(255),char(round(color[1]*255)),char(round(color[2]*255)),char(round(color[3]*255))})
+		return concat({
+			char(255),
+			char(round(color[1]*255)),
+			char(round(color[2]*255)),
+			char(round(color[3]*255))
+		})
 	end
 	for name, c in pairs(COLORS) do
 		StrCol[name] = scolor(c)
@@ -309,7 +274,7 @@ local COLORS = COLORS
 -----------------------------
 
 -- this table declared like that will be traversed in the same order as the mods param passed in KeyPress
-local MODS = {alt=false, ctrl=false, meta=false, shift=false}
+local MODS = {alt = false, ctrl = false, meta = false, shift = false}
 EMPTY_TABLE = setmetatable({}, {__newindex = function(t, k, v) return nil end})
 local EMPTY_TABLE = EMPTY_TABLE
 local function dumfunc() end
@@ -324,14 +289,14 @@ Echo(col)
 Echo("WhiteStr is ", WhiteStr.."TEST")--]]
 ----------------------------------- SCREEN ------------------------------------
 StateToPos = function(fun) -- calculate future camera position from camera State optionally modified by function
-	fun = fun or function(px,py,pz)return px,py,pz end
-	local State=sp.GetCameraState()
+	fun = fun or function(px, py, pz) return px, py, pz end
+	local State = sp.GetCameraState()
 	local newPx = State.px
 	local newPy = State.py - State.dy * State.height
 	local newPz = State.pz - State.dz * State.height
 
-	newPx,newPy,newPz = fun(newPx,newPy,newPz)
-	return {newPx,newPy,newPz}
+	newPx, newPy, newPz = fun(newPx, newPy, newPz)
+	return {newPx, newPy, newPz}
 end
 
 function GetCameraHeight(cs) -- OLD see -HasViewChanged.lua
@@ -344,6 +309,35 @@ function GetCameraHeight(cs) -- OLD see -HasViewChanged.lua
 	return height
 end
 
+function GetCamDistAndPitchFactors()
+	local distFactor, pitchFactor
+	local dist, forwardY
+	if WG.Cam then
+		dist, forwardY = WG.Cam.relDist, WG.Cam.vecs.forward[2]
+	else
+		forwardY = sp.GetCameraVectors().forward[2]
+		local cs = sp.GetCameraState()
+		local mode = cs.mode
+		local dist
+		if mode == 1 then
+			dist = cs.height
+		elseif mode == 2 then
+			dist = cs.dist
+		else
+			local type, pos = sp.TraceScreenRay(vsx/2, vsy/2, true, false, true, false)
+			if type == 'sky' then
+			for i = 1, 3 do
+				pos[i], pos[i+3] = pos[i+3], nil
+			end
+			end
+			dist = diag(cs.px-pos, cs.py-pos[2], cs.pz-pos[3])
+		end
+		dist = dist * ((cs.fov or 45) / 45)
+	end
+	distFactor =  0.5 + 1e7 / (dist * dist)
+	pitchFactor = 0.5 + clamp(1 - asin(forwardY) / -(pi/2), 0.05, 0.95)
+	return distFactor, pitchFactor
+end
 ---------------------------------------------------------------------------
 ----------------------------------- VARARG --------------------------------
 -------------------------- Dealing with vararguments ----------------------
@@ -369,12 +363,12 @@ function select_by_array(from, to, ...)
 		return select(from, ...)
 	end
 	local arr = {select(from, ...)}
-	return arr[1], array_select(2, to-from+1, arr)
+	return arr[1], array_select(2, to - from + 1, arr)
 end
 
 do -- vararg generator iterating(...) using persistent table, the fastest after using select manually
 	-- http://lua-users.org/wiki/VarargTheSecondClassCitizen 
-	-- slightly improved
+	-- slightly improved -- CANNOT BE NESTED
 	local t, l = {}
 	local function iter(t, i)
 		if i == l then
@@ -391,6 +385,67 @@ do -- vararg generator iterating(...) using persistent table, the fastest after 
 		  t[n] = select(n, ...)
 		end
 		return iter, t, 0
+	end
+	--- VARARG NESTABLE
+	local p = {busy = false} -- permanent table
+	local nest = {[p] = true, p} -- first table is permanent, keep a ref as key to avoid the gc'ing
+	local temp_master = newproxy(true)
+	local busy = setmetatable({}, {__mode = 'k'}) -- this is to release table for broken loop, in those case iter function cannot set the table available
+	local select = select
+	local newproxy = newproxy
+	getmetatable(temp_master).__gc = function(self)
+		if self == temp_master then
+			-- Echo('master proxy collected')
+			return
+		else
+			local t = busy[self]
+			if t then -- broken loop detected
+				t.busy = false
+				busy[self] = nil
+			end
+		end
+	end
+
+	setmetatable(
+		nest,
+		{
+			__index = function(self, i)
+				local t = {busy = false}
+				rawset(self, i, t)
+				return t
+			end,
+			__mode = 'v'
+		}
+	)
+
+	local function iter(sentinel, i)
+		local t = busy[sentinel]
+		if i == t.l then
+			busy[sentinel] = nil
+			t.busy = false
+			return
+		end
+		i = i + 1
+		return i, t[i]
+	end
+
+	function varargn(...)
+		local current = 1
+		local t = nest[current]
+
+		while t.busy do
+			current = current + 1
+			t = nest[current]
+		end
+		local l = select("#", ...)
+		t.l = l
+		t.busy = true
+		for n = 1, l do
+		  t[n] = select(n, ...)
+		end
+		local sentinel = newproxy(temp_master)
+		busy[sentinel] = t
+		return iter, sentinel, 0
 	end
 end
 
@@ -452,7 +507,7 @@ do -- select_range
 			limitFuncs.big = big
 		end
 		local modcall
-		local m =n%121
+		local m = n%121
 		if m ~= 0 then
 			modcall = limitFuncs[m]
 			if not modcall then
@@ -511,7 +566,10 @@ do -- select_range
 		if i == n then
 			return select_start(n - 1, ...)
 		else
-			return JoinFold(Fold(select_start(i-1, ...)), select(i+1, ...))()
+			return JoinFold(
+				Fold(select_start(i-1, ...)),
+				select(i+1, ...)
+			)()
 		end
 	end
 
@@ -615,7 +673,7 @@ do -- FOLDS (containing and manipulating varargs)
 			foldMerge.big = big
 		end
 		local modcall
-		if n%120~=0 then
+		if n%120 ~= 0 then
 			modcall = foldMerge[n%120]
 			if not modcall then
 				MergeFolds(Fold(nargs(n%120)), Fold(true))
@@ -971,9 +1029,9 @@ nround = function(numb, n) -- round at n close instead of 1 close
 	return round(numb / n) * n
 end
 
-smallest = function(a,b) return a<b and a or b end
-ssmallest= function(a,b) return abs(a)<abs(b) and a or b end
-biggest = function(a,b) return a>b and a or b end
+smallest = function(a,b) return a < b and a or b end
+ssmallest= function(a,b) return abs(a) < abs(b) and a or b end
+biggest = function(a,b) return a > b and a or b end
 
 sbiggest = function(...) -- biggest absolute
 	local args = t(...) == "table" and (...) or {args}
@@ -999,8 +1057,21 @@ end
 ---------------
 
 ---------------------------------------- GEOMETRY -------------------------------------
+function CutSegment(ax, az, bx, bz, px, pz, r) -- accurate
+	local apx, apz = px - ax, pz - az
+	local abx, abz = bx - ax, bz - az
+	local ratio = (apx * abx + apz * abz) / (abx * abx + abz * abz)
+	if ratio >= 0 and ratio <= 1 then
+		local ab = diag(abx, abz)
+		local ap = diag(apx, apz) -- real distance from A
+		local jap = ratio * ab -- distance of projection on segment from A (the perfect point on segment)
+		if ap - jap < r then
+			return ax + abx * ratio, az + abz * ratio
+		end
+	end
+end
 
-function ClampToSegment(x, z, s1, s2, e1, e2) -- 
+function ClampToSegment(x, z, s1, s2, e1, e2) -- Verify if accurate (doubt)
 	-- get the corresponding point on a segment s1, e1, s2, e2,  x,z beeing the pos to transform, s1,s2 start of line, e1, e2, end of line
 	-- count = (count or 0) + 1
 	local ps = ((x-s1)^2 + (z-s2)^2) ^ 0.5
@@ -1025,6 +1096,7 @@ function ClampToSegment(x, z, s1, s2, e1, e2) --
 	-- Echo(count,'ps',ps,'pe',pe,"dx,dz", dx,dz,"ratio",ratio,"posX,posZ",posX,posZ)
 	return posX, posZ
 end
+
 function PointInOrientedRectangle(pos, p1, p2, width)
 	if p1[1] > p2[1] then -- get p1 as the left point to get the good minmax later
 		p1, p2 = p2, p1
@@ -1085,7 +1157,7 @@ end
 
 
 
-ClampScreenPosToWorld = function(mx,my)
+ClampScreenPosToWorld = function(mx,my) -- outdated
 	if not mx then
 		mx, my = spGetMouseState()
 	end
@@ -1104,18 +1176,18 @@ ClampScreenPosToWorld = function(mx,my)
 	-- Echo(nature .. ' : ' .. round(cx),round(cy),round(cz) .. '   |   ' .. round(c2x),round(c2y),round(c2z) .. '| height: '.. round(height))
 	--
 
-	local clamp = function(x,z,off)
+	local clamp = function(x, z, off)
 		local off = off or 1
-		if x>mapSizeX - off then
-			x=mapSizeX - off
-		elseif x<off then
-			x=off
+		if x > mapSizeX - off then
+			x = mapSizeX - off
+		elseif x < off then
+			x = off
 		end
 
-		if z>mapSizeZ - off then
-			z=mapSizeZ - off
-		elseif z<off then
-			z=off
+		if z > mapSizeZ - off then
+			z = mapSizeZ - off
+		elseif z < off then
+			z = off
 		end
 		return x,z
 	end
@@ -1134,8 +1206,8 @@ ClampScreenPosToWorld = function(mx,my)
 		-- if nature == 'ground' then
 		--     center[2] = center[2] + spGetGroundHeight(center[1],center[3])
 		-- end
-		for i=1,3 do table.remove(center,1) end
-		center[1], center[3] = clamp(center[1],center[3],8)
+		for i = 1, 3 do table.remove(center, 1) end
+		center[1], center[3] = clamp(center[1], center[3], 8)
 		-- if center[1]>mapSizeX - 8 then
 		--     center[1]=mapSizeX - 8
 		-- elseif center[1]<8 then
@@ -1157,45 +1229,49 @@ ClampScreenPosToWorld = function(mx,my)
 	return mx,my, center, nature
 end
 
-function MakeTrail(from,to,step,minstep,maxstep,strict) -- FIXME IIRC it doesn't works well
+function MakeTrail(from, to, step, minstep, maxstep, strict) -- FIXME IIRC it doesn't works well
 	
-	local fx,fy,fz = unpack(from)
-	local trail,t={{fx,fy,fz}},1
-	local tx,_,tz = unpack(to)
-	local dist = ( (tx-fx)^2 + (tz-fz)^2 ) ^ 0.5
+	local fx, fy, fz = unpack(from)
+	local trail, t = {{fx, fy, fz}}, 1
+	local tx, _, tz = unpack(to)
+	local dist = ( (tx - fx)^2 + (tz - fz)^2 ) ^ 0.5
 	-- the remaining to distribute in adaptative mode
 	local steps = floor(dist/step)
-	if steps==0 then
+	if steps == 0 then
 	end
-	step = step+(strict and 0 or dist%step)/steps
+	step = step + (strict and 0 or dist%step) / steps
 	if not strict then 
-		step = step + dist%step/steps
-		if maxstep and step>maxstep then step=maxstep end
-		if steps<2 and minstep then
-			steps = floor(dist/minstep)
-			step = step+(dist%step)/steps
+		step = step + dist%step / steps
+		if maxstep and step > maxstep then
+			step = maxstep
+		end
+		if steps < 2 and minstep then
+			steps = floor(dist / minstep)
+			step = step+(dist%step) / steps
 			step = minstep
 		end
 	end
 
-	for i=2,steps do
-		local dx,dz = (tx-fx)/dist,(tz-fz)/dist
-		fx=fx+dx*step
-		fz=fz+dz*step
-		fy = sp.GetGroundHeight(fx,fz)
-		t=i
-		trail[t]={fx,fy,fz}
-		dist = ( (tx-fx)^2 + (tz-fz)^2 ) ^ 0.5
+	for i = 2,steps do
+		local dx,dz = (tx-fx) / dist, (tz-fz) / dist
+		fx = fx + dx * step
+		fz = fz + dz * step
+		fy = sp.GetGroundHeight(fx, fz)
+		t = i
+		trail[t]={fx, fy, fz}
+		dist = ( (tx - fx)^2 + (tz - fz)^2 ) ^ 0.5
 	end
-	if not strict then t=t+1 trail[t]=to end
-	return trail,t
+	if not strict then
+		t = t + 1 trail[t] = to
+	end
+	return trail, t
 end
 
 
 function clampangle(angle)
 	local s = angle < 0 and -1 or 1
 	if angle * s > pi then
-		angle = - s * (pi - (angle*s-pi) )
+		angle = - s * (pi - (angle * s - pi) )
 	end
 	return angle, s
 end
@@ -2896,7 +2972,11 @@ function string:rfind(search,pos)
 	return s, e
 end
 function string:ftrim(maxdec) -- remove any number after the given float decimal, trim the remaining zeros
-	return (('%.'..maxdec..'f'):format(self):gsub('%.?0+$',""))
+	if maxdec == 0 then
+		return (('%d'):format(self))
+	else
+		return (('%.'..maxdec..'f'):format(self):gsub('%.?0+$',""))
+	end
 end
 function string:gftrim(maxdec) -- same on string containing floats
 	local p = '%.' .. ('%d'):rep(maxdec)
@@ -2913,8 +2993,12 @@ end
 -- function string:rfind(search,pos)
 --  return self:sub(1,pos):match(".*"..search.."()")
 -- end
-local function RoundTrim(n,maxdec)
-	return (('%.'..maxdec..'f'):format(n):gsub('%.?0+$',""))
+function RoundTrim(n, maxdec)
+	if maxdec == 0 then
+		return (('%d'):format(n))
+	else
+		return (('%.'..maxdec..'f'):format(n):gsub('%.?0+$',""))
+	end
 end
 
 local function TrimComma(str)
@@ -4231,7 +4315,16 @@ function weak_autotable(tbl,onoff)
 	if onoff then reset(tbl) return tbl end
 	return setmetatable(tbl,mt)
 end
-
+function autotable2(tbl,onoff)
+	local mt={__index=function(self,k) self[k]=setmetatable({},mt) return self[k] end
+	}
+	local function reset(tbl)
+		if onoff=='off' then setmetatable(tbl,nil) else setmetatable(tbl,mt) end
+		for k,v in pairs(tbl) do if t(v)=='table' and getmetatable(tbl)==getmetatable(v) then reset(v) end end
+	end
+	if onoff then reset(tbl) return tbl end
+	return setmetatable(tbl,mt)
+end
 
 if false then
 	-- STUDY DEBUG.SETMETATABLE
@@ -5089,7 +5182,7 @@ do
 		local coded = ''
 		for k,v in pairs(self) do
 			if debug_options and k=='coded' then
-				coded = k..':'..v..separator
+				coded = v..separator
 			elseif not only_true or v then
 				str=str..k..separator
 			end
@@ -5104,9 +5197,9 @@ do
 			if not (omit and omit[k]) then
 				if not only_true or v then
 					if nocode then
-						str=str..k..' = '..tostring(v)..separator
+						str = str..k..' = '..tostring(v)..separator
 					else
-						str=str..'['..k..'] = '..tostring(v)..separator
+						str = str..'['..k..'] = '..tostring(v)..separator
 					end
 				end
 			end
@@ -5114,12 +5207,12 @@ do
 		return str:sub(1,-(separator:len()+1))
 	end
 	function table:vConcat(sep)
-		sep = sep or ','
+		sep = sep or ', '
 		local str = ''
 		for _,v in pairs(self) do
 			str = str .. tostring(v) .. sep
 		end
-		return str:sub(1,str:len()-1)
+		return str:sub(1,-(1 + sep:len()))
 	end
 end
 
@@ -5572,15 +5665,16 @@ table.mul = function(T1,mul)-- multiply table by a value or a table of values
 		T[i]=T[i]*mul
 	end
 end
-tableforeach = function (T,f) 
-	local checked=true
-	local checking
-	for k, v in pairs (T) do
-	  checking = f(k, v) -- checking adds the possibility to verify a condition applying to all elements
-	  checked = checked and checking -- checked will stay false if checking been false once
-	end 
-	return checked
+
+function table.foreachc(t, f)
+	local copy = {}
+	for k, v in pairs(t) do
+		copy[k] = f(v)
+	end
+	return copy
 end
+
+
 table.kiter = function(T)
 	local newTable={}
 	local n = 0
@@ -6350,7 +6444,7 @@ end
 
 
 
-GetCommandName=function(cmd)
+GetCommandName = function(cmd)
 
 	for k,v in pairs(CMD)do
 		--if tonumber(v) and tonumber(v)>30000 then Echo("k,v is ", k,v) end
@@ -6361,50 +6455,107 @@ GetCommandName=function(cmd)
 	end
 	return "unknown command"
 end
+
+
 do
-	local bool={[false]='false',[true]='true'}
-	DebugUnitCommand=function (id, defID, team, cmd, params, opts, tag, fromSynced, fromLua)
-		local name=UnitDefs[defID] and UnitDefs[defID].name or "UNKNOWN BUILD"
+	local modfFunc = function(v)
 
-		--fromLua = fromLua==nil and 'nil' or bool[fromLua] or fromLua
-		--fromSynced = fromSynced==nil and 'nil' or bool[fromSynced] or fromSynced
-		--tag = tag==nil and 'nil' or bool[tag] or tag
-		local myTeamID=sp.GetMyTeamID()
-
-		local side=team==myTeamID and "MY " or
-				 sp.AreTeamsAllied(team, myTeamID) and "ALLIED " or "ENEMY "
-	  --local cmdname=GetCommandName(cmd)
-		local debugcmd = cmd==1 and 'INSERT '..(cmdNames[params[2]]..'('..params[2]..')' or 'UNKNOWN')..' at '..params[1]..
-									'\n'..GreyStr..'option(param3):('..table.kConcat(Decode(params[3]),' | ', 'only_true','debug_options'):upper()..')'
-						 or cmd==2 and 'REMOVE Order '..tostring(params[1])
-						 or (cmdNames[cmd] or 'UNKNOWN')..'('..cmd..')'
-		local main = side..name:upper()..' ('..id..'): '..debugcmd..(tag and ' tag:'..tag or '')..(fromLua and ' (LUA)' or '')..(fromSynced and ' (SYNCED)' or '')
-		Echo(main)
-		Echo('PARAMS: '..table.kvConcat(params):upper())
-		Echo('OPTIONS:'..table.kConcat(opts,' | ', 'only_true','debug_options'):upper())
-		Echo('--')
-		--Echo(table.tostring(params))
-		--Echo(table.tostring(opts))
-
-		return cmdname,name
+		if type(v) == 'number' then
+			v = RoundTrim(v, 0)
+		end
+		return v
 	end
-end
-do
-	local bool={[false]='false',[true]='true'}
-	DebugCommandNotify = function(cmd, params, opts)
-	  --local cmdname=GetCommandName(cmd)
-		local debugcmd = cmd==1 and 'INSERT '..(cmdNames[params[2]]..'('..params[2]..')' or 'UNKNOWN')..' at '..params[1]..
-									'\n'..GreyStr..'option(param3):('..table.kConcat(Decode(params[3]),' | ', 'only_true','debug_options'):upper()..')'
-						 or cmd==2 and 'REMOVE Order '..tostring(params[1])
-						 or (cmdNames[cmd] or 'UNKNOWN')..'('..cmd..')'
-		Echo(debugcmd)
-		Echo('PARAMS: '..table.kvConcat(params):upper())
-		Echo('OPTIONS:'..table.kConcat(opts,' | ', 'only_true','debug_options'):upper())
-		Echo('--')
-		--Echo(table.tostring(params))
-		--Echo(table.tostring(opts))
+	local function smallN(t)
+		return table.foreachc(t, modfFunc)
+	end
+	function DebugUnitCommand(id, defID, team, cmd, params, opts, tag, fromSynced, fromLua)
+		-- local time = '['..FormatTime(sp.GetGameSeconds())..']'
+		local time = '['..sp.GetGameFrame()..']'
+		local name = UnitDefs[defID] and UnitDefs[defID].name or "Unknown"
 
-		return
+		local myTeamID = sp.GetMyTeamID()
+
+		local side = team == myTeamID and "My " or sp.AreTeamsAllied(team, myTeamID) and "Allied " or "Enemy "
+		local debugCmd
+
+		if cmd == 1 then
+			debugCmd = 'INSERT '..(opts.alt and 'AT ' or 'before order ')..params[1]..': '
+				..cmdNames[params[2]]..' #'..(#params-3)
+				..' {'..table.vConcat(smallN{select(4, unpack(params))})..'} '
+				..table.kConcat(Decode(params[3]),' | ', 'only_true','debug_options')
+		elseif cmd == 2 then
+			debugCmd = 'Remove Order '
+				..(
+					opts.alt and 'All ' .. cmdNames[params[1]]
+					or ('tag:'..tostring(params[1]))
+				)
+		else
+			debugCmd = (cmdNames[cmd] or cmd)..' #'..(#params)..' {'..table.vConcat(smallN(params))..'}, opt: '..table.kConcat(opts,' | ', 'only_true','debug_options')
+		end
+		local main = side..name..' ('..id..'): '..debugCmd..(tag ~= 0 and ' tag:'..tag or '')..(fromLua and ' (Lua)' or '')..(fromSynced and ' (Synced)' or '')
+		Echo(time..main)
+		-- local queue = sp.GetUnitCommands(id, -1)
+		-- if not queue[1] then
+		-- 	Echo('no queue', sp.GetUnitCurrentCommand(id))
+		-- else
+		-- 	Echo('current queue:', sp.GetUnitCurrentCommand(id))
+		-- 	for i, order in ipairs(queue) do
+		-- 		Echo('\t'..i, cmdNames[order.id], '#'..#order.params)
+		-- 	end
+		-- end
+		return cmdname, name
+	end
+	function DebugUnitCmdDone(id, defID, team, cmd, params, opts, tag)
+		-- BUG OF UnitCmdDone:
+		-- if an order is inserted at first position, UnitCmdDone triggers as signaling the current order is done, 
+		-- but it's actually not, it just has been pushed to the next place in the queue
+		-- to find that out we immediately check for Spring.GetUnitCurrentCommand(unitID),
+		-- at this very moment, Spring.GetUnitCurrentCommand(unitID) will report wrongly that the current command is the done command
+
+		-- local time = '['..FormatTime(sp.GetGameSeconds())..']'
+		local time = '['..sp.GetGameFrame()..']'
+		local name = UnitDefs[defID] and UnitDefs[defID].name or "Unknown"
+		local myTeamID = sp.GetMyTeamID()
+		local side = team == myTeamID and "My " or sp.AreTeamsAllied(team, myTeamID) and "Allied " or "Enemy "
+		local debugCmd = (select(3, sp.GetUnitCurrentCommand(id)) == tag and 'PUSHED: ' or 'DONE: ')
+		debugCmd = debugCmd..cmdNames[cmd]..' #'..(#params)..' {'..table.vConcat(smallN(params))..'}, opt: '..table.kConcat(opts,' | ', 'only_true','debug_options')
+		local main = side..name..' ('..id..'): '..debugCmd..' tag:'..tag
+		Echo(time..main)
+		-- if debugCmd:find('PUSHED') then
+		-- local queue = sp.GetUnitCommands(id, -1)
+		-- if not queue[1] then
+		-- 	Echo('no queue', sp.GetUnitCurrentCommand(id))
+		-- else
+		-- 	Echo('current queue:', sp.GetUnitCurrentCommand(id))
+		-- 	for i, order in ipairs(queue) do
+		-- 		Echo('\t'..i, cmdNames[order.id], '#'..#order.params)
+		-- 	end
+		-- end
+		return cmdname, name
+	end
+
+
+	function DebugCommandNotify(cmd, params, opts)
+		-- local time = '['..FormatTime(sp.GetGameSeconds())..']'
+		local time = '['..sp.GetGameFrame()..']'
+		local debugCmd = 'COMMAND: '
+		if cmd == 1 then
+			debugCmd = debugCmd..'INSERT '..(opts.alt and 'At ' or 'before order ')..params[1]..': '
+				..cmdNames[params[2]]..' #'..(#params-3)
+				..'{'..table.vConcat(smallN{select(4, unpack(params))})..'} '
+				..table.kConcat(Decode(params[3]),' | ', 'only_true','debug_options')
+		elseif cmd == 2 then
+			debugCmd = debugCmd..'Remove Order '
+				..(
+					opts.alt and (' tag:'..tostring(params[1]))
+					or (cmdNames[params[1]] or params[1])
+				)
+		else
+			debugCmd = debugCmd..(cmdNames[cmd] or cmd)..' {'..table.vConcat(smallN(params))..'}, opt: '..table.kConcat(opts,' | ', 'only_true','debug_options')
+		end
+		local main = debugCmd
+		Echo(time..main)
+		return cmdname, name
 	end
 end
 GetDef = function(id)
@@ -8341,7 +8492,7 @@ GetLocalsOf= function(level,searchname, searchvalue)
 				if name == searchname and value == searchvalue then
 					return i, name, value
 				end
-			elseif searchvalue == value or searchname == name then
+			elseif lookingForValue and searchvalue == value or lookingForName and searchname == name then
 				return i, name, value
 			end
 			i = i + 1
@@ -8360,7 +8511,7 @@ GetLocalsOf= function(level,searchname, searchvalue)
 end
 
 
-GetUpvaluesOf= function(func,searchname, searchvalue)
+GetUpvaluesOf= function(func, searchname, searchvalue)
 	local i = 1
 	local getupvalue = debug.getupvalue
 	local lookingForName = searchname ~= nil
@@ -8373,7 +8524,7 @@ GetUpvaluesOf= function(func,searchname, searchvalue)
 				if name == searchname and value == searchvalue then
 					return i, name, value
 				end
-			elseif searchvalue == value or searchname == name then
+			elseif lookingForValue and searchvalue == value or lookingForName and searchname == name then
 				return i, name, value
 			end
 			i = i + 1
@@ -10250,7 +10401,7 @@ function CreateWindowTableEditer(t, tname, callback)
 	end
 	return win
 end
-
+------------------------------------------------------------------
 -- debugging variables in a window
 
 DebugWinVars = {instances = {}}
@@ -10269,7 +10420,7 @@ function DebugWinVars:New(widget,...)
 		-- the existing obj is from another instance of widget of the same name
 		_obj:Delete()
 	end
-	local obj = setmetatable({proxies={}},{__index = self})
+	local obj = setmetatable({proxies={}, clip = ''},{__index = self})
 	self.instances[obj] = widget
 	self.instances[name] = obj
 	local Label = WG.Chili.Label
@@ -10278,7 +10429,9 @@ function DebugWinVars:New(widget,...)
 	local columns ={}
 	obj.columns = columns
 	local values = {}
+	obj.values = values
 	local colnames = {}
+	self.colnames = colnames
 	local currentCol = 0
 	for i,v in ipairs({...}) do
 
@@ -10341,7 +10494,7 @@ function DebugWinVars:New(widget,...)
 			return
 		end
 
-		v = tostring(v):gsub('\n',' -- ')
+		-- v = tostring(v):gsub('\n',' -- ')
 		local newStr = tostring(k)..' = '..tostring(v)
 		if label.caption ~= newStr then
 			label.caption = newStr
@@ -10388,63 +10541,109 @@ function DebugWinVars:Delete(nodispose)
 end
 function DebugWinVars:CreateWin(widget)
 	local name = (widget.whInfo.name or widget.whInfo.basename) .. ' Debugger'
-	local win, grid
+	local win, grid, clipButton, resetButton
 	local ESCAPE = KEYSYMS.ESCAPE
 	local selfObj = self
+
 	win = {
-		parent = WG.Chili.Screen0
-		,y=35
-		,dockable = false -- NOTE: dockable beeing true  and if the control has fixed name, the window pos and size are recovered after unloading/reloading widget (use dockableSavePositionOnly=true to not really dock but only save position)
-		,width = 200
-		,height = 300
-		,caption = ''
-		,minWidth = 100
-		,minHeight = 28
-		,resizable = true
-		,children = {grid}
-		,padding = {3,25,3,0}
-		,name = name
-		,caption = name
+		parent = WG.Chili.Screen0,
+		y=35,
+		-- ,dockable = false -- NOTE: dockable beeing true  and if the control has fixed name, the window pos and size are recovered after unloading/reloading widget (use dockableSavePositionOnly=true to not really dock but only save position)
+		width = 200,
+		height = 300,
+		caption = '',
+		minWidth = 100,
+		minHeight = 28,
+		resizable = true,
+		children = {grid},
+		padding = {3,25,3,0},
+		name = name,
+		caption = name,
 
 		-- user defined
-		,normalWidth = 600
-		,normalHeight = 500
-		,userClick = false
-		,userResize = false
-		,moveThreshold = false
+		normalWidth = 600,
+		normalHeight = 500,
+		userClick = false,
+		userResize = false,
+		moveThreshold = false,
 		--
-		,OnKeyPress = {
+		OnKeyPress = {
 			function(self,key)
 				if self.height~=28 and key==ESCAPE
 					then self:Hide()
 					return true
 				end
 			end
-		}
-		,OnDispose = {
+		},
+		OnDispose = {
 			function(self)
 				selfObj:Delete(true)
 				selfObj = nil
 			end
-		}
+		},
 	}
 
 	WG.Chili.Window:New(win)
 
 
 	grid = WG.Chili.Grid:New{
-		parent = win
-		,columns = 0
-		,width = '100%'
-		,height='100%'
-		,padding = {1,1,1,1}
-		,itemPadding = {1,1,1,1}
-		,itemMargin = {1,1,1,1}
+		parent = win,
+		columns = 0,
+		width = '100%',
+		height='100%',
+		padding = {1,1,1,1},
+		itemPadding = {1,1,1,1},
+		itemMargin = {1,1,1,1},
 	}
+	resetButton = WG.Chili.Button:New{
+		parent = win,
+		y = 0,
+		right = 7,
+		width = 50,
+		height = 28,
+		caption = 'Reset',
+		OnClick = {
+			function(self)
+				if selfObj then
+					for icol, column in ipairs(selfObj.columns) do
+						local tables = selfObj.values[icol]
+						for _, t in ipairs(tables) do
+							for k, v in pairs(t._real) do
+								if column.labels[k] == false then
+									column.labels[k] = nil
+									selfObj.DebugUp(k, v, icol)
+								end
+							end
+						end
+					end
+				end
+			end
+		}
+
+	}
+	clipButton = WG.Chili.Button:New({
+		parent = win,
+		caption = 'Clip',
+		height = 28,
+		width = 50,
+		right = 57,
+		y = 0,
+		OnClick = {
+			function(self)
+				if selfObj then
+					selfObj:Clip()
+					Spring.SetClipboard(selfObj.clip)
+					selfObj.clip = ''
+				end
+			end
+		}
+	})
+
 	if WG.MakeMinizable then
 		WG.MakeMinizable(win)
 	end
-	self.win,self.grid = win, grid
+	self.win, self.grid = win, grid
+	self.clipButton, self.resetButton = clipButton, resetButton
 	return win, grid
 
 end
@@ -10455,25 +10654,25 @@ function DebugWinVars:AddColumn(name)
 	local children = {}
 	if name then
 		children[1] = WG.Chili.Label:New{
-				caption=name
-				,align = 'center'
-				,width = '100%'
-				,height=14
-				,autosize = false
-				,textColor = COLORS.yellow
+			caption=name,
+			align = 'center',
+			width = '100%',
+			height=14,
+			autosize = false,
+			textColor = COLORS.yellow,
 		}
 	end
 	columns[numCol] =  WG.Chili.StackPanel:New{ -- it can be StackPanel or Window
-		children = children
-		-- ,resizable = false -- param for Window
-		-- ,draggable = false -- param for Window
-		,centerItems = false -- param for StackPanel
-		,resizeItems = false -- param for StackPanel
-		,itemPadding = {0,0,0,0}
-		,itemMargin = {0,3,0,0}
+		children = children,
+		-- resizable = false, -- param for Window
+		-- draggable = false, -- param for Window
+		centerItems = false, -- param for StackPanel
+		resizeItems = false, -- param for StackPanel
+		itemPadding = {0,0,0,0},
+		itemMargin = {0,3,0,0},
 
 		-- user specific
-		,labels={}
+		labels={},
 	}
 	grid:AddChild(columns[numCol])
 
@@ -10508,17 +10707,44 @@ function DebugWinVars:UnsetProxies()
 		self:UnsetProxy(proxy,backup)
 	end
 end
+function DebugWinVars:Clip(comment)
+	local clip = {}
+	for icol, column in ipairs(self.columns) do
+		local len = #clip
+		clip[#clip+1] = '----- ' ..self.colnames[icol] .. ' ------'
+		local tables = self.values[icol]
+		for _, t in ipairs(tables) do
+			for k, v in pairs(t._real) do
+				local label = column.labels[k]
+				if label then
+					clip[#clip+1] = label.caption
+				end
+			end
+		end
+		if not clip[len+2] then
+			clip[len+1] = nil
+		end
+	end
+	self.clip = (self.clip or '')..'\n::::::::::::::::'..(comment or '')..'::::::::::::::::\n'..table.concat(clip, '\n')
+end
+
+
 function DebugWinVars:AttachTable(numCol,t)
 	local DebugUp = self.DebugUp
 	if not self.columns[numCol] then
 		self:AddColumn()
 		numCol = self.grid.columns
 	end
-
+	local sorted = {}
 	for k,v in pairs(t) do
-		DebugUp(k,v,numCol)
+		table.insert(sorted, k)
 	end
-	self:SetNotifyProxy(t,false,function(t,k,v) DebugUp(k,v,numCol) end)
+	table.sort(sorted, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+	for i, key in ipairs(sorted) do
+		local v = t[key]
+		DebugUp(key, v, numCol)
+	end
+	self:SetNotifyProxy(t,false,function(t, k, v) DebugUp(k,v,numCol) end)
 end
 
 
@@ -10993,9 +11219,9 @@ function table:rearrange(index)
 	end
 end
 
-function table:compare(t2)
+function table.compare(t1, t2)
 	local eq, t1count, t2count = false, 0, 0
-	for k,v in pairs(self) do
+	for k,v in pairs(t1) do
 		t1count = t1count + 1
 		local v2 = t2[k]
 		if type(v) == 'table' and type(v2) == 'table' then
@@ -11013,9 +11239,22 @@ function table:compare(t2)
 	return t1count == t2count
 end
 
-function table:compareK(t2) -- compare only the keys
+
+function table.comparepairs(t1, t2)
+	if table.size(t1) ~= table.size(t2) then
+		return false
+	end
+	for k, v in pairs(t1) do
+		if t2[k] ~= v then
+			return false
+		end
+	end
+	return true
+end
+
+function table.compareK(t1, t2) -- compare only the keys
 	local t1count, t2count = 0, 0
-	for k,v in pairs(self) do
+	for k,v in pairs(t1) do
 		t1count = t1count + 1
 		if t2[k] == nil then
 			return false
@@ -11821,6 +12060,13 @@ function Benchmark(f1, f2, iterations, ...) -- test execution time of 2 function
 			name2 = names[f2]
 		end
 		local ratio = t2 / t1
+		if t1 == 0 then -- avoid div by 0
+			if t2 == 0 then
+				ratio = 1
+			else
+				ratio = 10000
+			end
+		end
 		if name1 == name2 then
 			name1 = name1 .. '#1'
 			name2 = name2 .. '#2'
@@ -12037,12 +12283,13 @@ WG.cmdNames         = cmdNames
 WG.positionCommand  = positionCommand
 --
 -- RemoveFuncTypeMethods()
-AddFuncTypeMethods()
+-- AddFuncTypeMethods()
 	
 _G.vararg = vararg
+_G.varargn = varargn
 --
 WG.utilFuncs = localEnv
-Echo('[Hel-K]: successfully implemented WG.utilFuncs (f), loaded in ' .. sp.DiffTimers(sp.GetTimer(), _timer))
+Echo('[Hel-K]: Successfully implemented WG.utilFuncs (f), loaded in ' .. sp.DiffTimers(sp.GetTimer(), _timer))
 return localEnv
 	---------------------------------------
  -- call it only once from a widget in the same way as the 'renewfuncs' function then access it though WG.utilFuncs
