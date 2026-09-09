@@ -1,4 +1,4 @@
-local SendSignedOrder, GetSignedWidget
+local SendSignedOrder, GetSignedWidget, SendWidgetSignature
 do
     local CMD_OPT_SHIFT = CMD.OPT_SHIFT
     local spGiveOrderToUnit = Spring.GiveOrderToUnit
@@ -42,11 +42,16 @@ do
         end
         return widgetSignature[encodedName]
     end
+    function SendWidgetSignature(widget, unitID)
+        spGiveOrderToUnit(unitID, widgetSignature[widget], EMPTY_TABLE, CMD_OPT_SHIFT) 
+    end
     function GetSignedWidget(encodedName)
         return widgetSignature[encodedName]
     end
     WG.SendSignedOrderToUnit = SendSignedOrderToUnit
     WG.GetSignedWidget = GetSignedWidget
+    WG.SendWidgetSignature = SendWidgetSignature
+    WG.widgetSignature = widgetSignature
 end
 
 Echo('[Hel-K]: Successfully implemented Sign Order Tool')
