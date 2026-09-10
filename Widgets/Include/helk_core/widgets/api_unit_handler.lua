@@ -1314,7 +1314,7 @@ function widget:UnitFinished(id, defID, teamID)
 end
 
 function widget:UnitEnteredLos(id, teamID, forAllyTeam, defID)
-	Echo('entered Los', id, teamID, forAllyTeam, defID)
+	-- Echo('entered Los', id, teamID, forAllyTeam, defID)
 	if DEBUG_DETECT then
 		Echo(dbgStateComment(id, 'entered los'))
 	end
