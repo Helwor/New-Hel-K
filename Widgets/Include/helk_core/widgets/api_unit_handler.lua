@@ -14,7 +14,7 @@ end
 -- requires HasViewChanged
 
 --IMPORTANT NOTE: 
--- !! drone doesnt exist anymore in radar 
+-- !! drone doesnt exist anymore in radar, actually unitdef.stealth is responsible from not beeing displayed in radar
 -- !! Update come before PreUnit, unit visible can be detected in update, BUT ICONIZED STATE IS DETECTED FIRST AT PRE UNIT
 -- !! PreUnit order is reversed, widget having lower layer will NOT COME FIRST FOR THIS CALLIN
 -- so we have to make another with high layer for registering iconized unit
@@ -127,7 +127,6 @@ local spGetMyTeamID = Spring.GetMyTeamID
 local spAreTeamsAllied = Spring.AreTeamsAllied
 local spGetUnitAllyTeam = Spring.GetUnitAllyTeam
 local spGetUnitTeam = Spring.GetUnitTeam
-local ALL_UNITS       = Spring.ALL_UNITS
 local spGetMyAllyTeamID = Spring.GetMyAllyTeamID
 local spGetUnitViewPosition = Spring.GetUnitViewPosition
 local spGetUnitIsDead = Spring.GetUnitIsDead
@@ -137,6 +136,9 @@ local spGetUnitBuildFacing = Spring.GetUnitBuildFacing
 local spIsPosInLos = Spring.IsPosInLos
 local spIsUnitInLos = Spring.IsUnitInLos
 local spGetUnitAllyTeam = Spring.GetUnitAllyTeam
+local spIsUnitInRadar = Spring.IsUnitInRadar
+
+local ALL_UNITS       = Spring.ALL_UNITS
 
 local formatColumnInfolog = f.formatColumnInfolog
 
@@ -188,6 +190,7 @@ local internalKeys = {
 	guessed2 = true,
 	guessed3 = true,
 	guessed4 = true,
+	shuffledPos = true,
 }
 
 
@@ -553,10 +556,10 @@ local function UpdateUnitDefID(unit, id, defID, teamID, isInSight)
 		unit.isDiscovered = nil
 		unit.knownByAlly = nil
 		unit.isStructure = false
-		local struct = discoveredStructure[id]
+		local struct = structureDiscovered[id]
 		if struct then
 			struct.knownByAlly[myAllyTeamID] = nil
-			discoveredStructure[id] = nil
+			structureDiscovered[id] = nil
 		end
 		unit.facing = nil
 	end
@@ -609,6 +612,9 @@ end
 -- end
 
 local function UpdateAll(fullview)
+	for id, unit in pairs(guessed) do
+		unit.guessed, unit.guessed2, unit.guessed3, unit.guessed4 = nil
+	end
 	guessed = {}
 	-- Echo("#spGetVisibleUnits(ALL_UNITS,radius,true) is ", #spGetVisibleUnits(ALL_UNITS,radius,true))
 	-- Echo('update all')
@@ -794,7 +800,6 @@ local function UpdateAll(fullview)
 										allStructures[id] = struct
 									end
 
-									unit.guessed3 = nil
 									GetIsDiscovered(id, unit)
 								end
 							else
@@ -1404,6 +1409,10 @@ function widget:UnitLeftLos(id, teamID)
 		if not spValidUnitID(id) then
 			if unit and unit.isStealth then
 				-- units that doesnt appear in radar (unitdef.stealth)
+				unit.isInSight = false
+				inSight[id] = nil
+				unit.checkHealth = false
+				unit.lastSeen = currentFrame
 				widget:UnitLeftRadar(id, teamID)
 				return
 			elseif warns < MAX_WARNS then
@@ -1485,7 +1494,7 @@ function widget:UnitEnteredRadar(id, teamID, forAllyTeam, defID)
 			-- add to discovered building if pos looks like a building
 			local x, _, z = spGetUnitPosition(id)
 			if x%8 == 0 and z%8 == 0 then
-				unit.guessed5 = true
+				unit.guessed4 = true
 				GetIsDiscovered(id, unit)
 			end
 
@@ -1493,7 +1502,7 @@ function widget:UnitEnteredRadar(id, teamID, forAllyTeam, defID)
 	else
 		Units[id] = CreateUnknownUnit(id, teamID)
 
-		if --[[not forced and isSpec and--]] fullview~=1 then
+		if --[[not forced and isSpec and--]] fullview ~= 1 then
 			local unit = Units[id]
 
 			-- work around in case the spec switch ally team watch 
@@ -1679,7 +1688,14 @@ function widget:UnitDestroyed(id, defID, teamID)
 			structureDiscovered[id] = nil
 			local knownByAlly = struct.knownByAlly
 			knownByAlly[myAllyTeamID] = nil
-			allStructures[id] = nil
+			for allyTeamID in pairs(knownByAlly) do
+				if spIsUnitInRadar(id, allyTeamID) then
+					knownByAlly[allyTeamID] = nil
+				end
+			end
+			if not next(knownByAlly) then
+				allStructures[id] = nil
+			end
 		end
 		Units[id] = nil
 		inSight[id] = nil
@@ -1717,6 +1733,7 @@ function widget:Initialize()
 		widget.status = widget:GetInfo().name .. ' requires API Unit Data.'
 		Echo(widget.status)
 		widgetHandler:RemoveWidget(widget)
+		return
 	end		
 	Cam = WG.Cam
 	Units = Cam.Units
@@ -1773,10 +1790,12 @@ local function TestPosLos(id, struct, complete) -- remove discovered building th
 					-- got recycled ?
 					-- Echo('struct\'s unit no longer exist', unit, unit and unit.defID )
 					local knownByAlly = struct.knownByAlly
-					knownByAlly[myAllyTeamID] = nil
+					-- knownByAlly[myAllyTeamID] = nil
+					struct.knownByAlly = {}
 					allStructures[id] = nil
 					structureDiscovered[id] = nil
 					destroyedByLosCheck[id] = true
+					retestPosLos[id] = nil
 				end
 
 			end
@@ -1826,7 +1845,7 @@ function widget:GameFrame(f)
 					unit.isStructure = false
 					unit.facing = 0
 					unit.knownByAlly = nil
-					unit.guessed, unit.guessed2, unit.guessed3 = nil, nil, nil
+					unit.guessed, unit.guessed2, unit.guessed3, unit.guessed4 = nil
 				end
 			end
 			guessed[id] = nil
