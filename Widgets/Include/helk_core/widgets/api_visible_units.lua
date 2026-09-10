@@ -209,7 +209,7 @@ function AltUpdateVisibleUnits()
 		if spIsUnitVisible(id) then
 			anyMap[id] = true
 			if not spIsUnitIcon(id) then
-				not_iconsMap[true] = true
+				not_iconsMap[id] = true
 			else
 				iconsMap[id] = true
 			end
@@ -228,7 +228,7 @@ function NewUpdateVisibleUnits() -- this is faster
 	clear()
 	local inSight = inSight
 	local anyMap, not_iconsMap, iconsMap = Visibles.anyMap, Visibles.not_iconsMap, Visibles.iconsMap
-	-- origGetVisibleUnits is cached and doesnt give 100% of the time the correct units when icons just appear
+	-- GetVisibleUnits is cached and doesnt give 100% of the time the correct units when icons just appear
 
 	-- asking for visible units that are not icons
 	-- local units = origGetVisibleUnits(ALL_UNITS, radius, false)
@@ -304,22 +304,31 @@ function NewUpdateVisibleUnits2()
 	clear()
 	local Units = Units
 	local anyMap, not_iconsMap, iconsMap = Visibles.anyMap, Visibles.not_iconsMap, Visibles.iconsMap
-	local n, n2, n3 = 0, 0, 0
+	local any, not_icons, icons = Visibles.any, Visibles.not_icons, Visibles.icons
+	-- local n, n2, n3 = 0, 0, 0
 	local units = origGetVisibleUnits(ALL_UNITS, radius, true)
-	for i = 1, #units do
+	local len = #units
+
+	for i = 1, len do
 		local id = units[i]
 		if Units[id] then
 			anyMap[id] = true
+			-- n = n + 1
+			-- any[n] = id
 			if spIsUnitIcon(id) then
 				iconsMap[id] = true
+				-- n2 = n2 + 1
+				-- icons[n2] = id
 			else
 				not_iconsMap[id] = true
+				-- n3 = n3 + 1
+				-- not_icons[n3] = id
 			end
 		end
 	end
 	return 
 end
-local compare = false
+local compare = true
 local done = false
 
 
@@ -331,7 +340,7 @@ function widget:DrawWorldPreUnit()
 	-- test Old vs New
 	if compare and not done then
 		local val = options.useMethod.value
-		options.useMethod.value = 'old'
+		options.useMethod.value = 'ori2'
 		options.useMethod:OnChange()
 		local old = UpdateVisibleUnits
 		options.useMethod.value = 'new'
@@ -364,7 +373,11 @@ end
 function widget:Initialize()
 	Cam = WG.Cam
 	Visibles = WG.Visibles
-
+	if not Visibles.any then
+		Visibles.any = {}
+		Visibles.icons = {}
+		Visibles.not_icons = {}
+	end
 	inSight = Cam.inSight
 	Units = Cam.Units
 	options.useMethod:OnChange()
