@@ -1685,11 +1685,10 @@ function widget:UnitDestroyed(id, defID, teamID)
 	local unit = Units[id]
 	lastDead = id
 	if unit then
-		Echo(id, 'destroyed' .. (INIT and ' (init)' or ''))
+		-- Echo(id, 'destroyed' .. (INIT and ' (init)' or ''))
 		unit.isDead = currentFrame
 		manager:UnitDestroyed(unit, id, defID, teamID)
 		local struct = structureDiscovered[id]
-		Echo("struct is ", struct)
 		if struct then
 			structureDiscovered[id] = nil
 			local knownByAlly = struct.knownByAlly
