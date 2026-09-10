@@ -674,7 +674,7 @@ function manager:UnitChangedOwner(unit, id, isMine)
 		return
 	end
 	if isMine then
-		AddToMines(unit, id, unit)
+		AddToMines(unit, id, unit.defID)
 	elseif unit.isMine then
 		RemoveFromMines(id, unit.defID)
 	end
