@@ -849,6 +849,7 @@ local function UpdateAll(fullview)
 											if losState.radar and (losState.typed or losState.los) then
 												-- Echo(unit.ud.humanName, id, 'is known by allyTeam', allyTeam)
 												detected = true
+												-- Echo('updateAll => knownByAlly set to '..forAllyTeam)
 												knownByAlly[allyTeam] = true
 											end
 										end
@@ -997,6 +998,7 @@ function widget:UnitGiven(id, defID, toTeam, fromTeam)
 			local fromAllyTeam = allyTeamByTeam[fromTeam]
 			local toAllyTeam = allyTeamByTeam[toTeam]
 			knownByAlly[fromAllyTeam] = true
+			-- Echo('Given => knownByAlly set to fromAllyTeam '..fromAllyTeam)
 			knownByAlly[toAllyTeam] = nil
 			unit.isDiscovered = false
 			structDiscoveredByAllyTeams[toAllyTeam][id] = struct
@@ -1027,6 +1029,7 @@ function widget:UnitGiven(id, defID, toTeam, fromTeam)
 			knownByAlly = {}
 			local forAllyTeam = spGetUnitAllyTeam(id)
 			if forAllyTeam ~= myAllyTeamID then
+				-- Echo('Given => knownByAlly set to forAllyTeam'..forAllyTeam)
 				knownByAlly[forAllyTeam] = true
 			end
 		end
@@ -1090,6 +1093,7 @@ function widget:UnitTaken(id, defID, fromTeam, toTeam)
 				end
 				if unit.isStructure then
 					unit.isKnown = true
+					-- Echo('unit taken => knownByAlly set to myAllyTeamID '..myAllyTeamID)
 					unit.knownByAlly[myAllyTeamID] = true
 				else
 					unit.isKnown = isKnown
@@ -1310,6 +1314,7 @@ function widget:UnitFinished(id, defID, teamID)
 end
 
 function widget:UnitEnteredLos(id, teamID, forAllyTeam, defID)
+	Echo('entered Los', id, teamID, forAllyTeam, defID)
 	if DEBUG_DETECT then
 		Echo(dbgStateComment(id, 'entered los'))
 	end
@@ -1534,7 +1539,7 @@ function widget:UnitLeftRadar(id, teamID)
 	elseif DESTROYED[id] then
 		return
 	end
-	if fullview==1 then
+	if fullview == 1 then
 		return
 	end
 	local unit = Units[id]
@@ -1680,20 +1685,33 @@ function widget:UnitDestroyed(id, defID, teamID)
 	local unit = Units[id]
 	lastDead = id
 	if unit then
-		-- Echo(id, 'destroyed' .. (INIT and ' (init)' or ''))
+		Echo(id, 'destroyed' .. (INIT and ' (init)' or ''))
 		unit.isDead = currentFrame
 		manager:UnitDestroyed(unit, id, defID, teamID)
 		local struct = structureDiscovered[id]
+		Echo("struct is ", struct)
 		if struct then
 			structureDiscovered[id] = nil
 			local knownByAlly = struct.knownByAlly
+			-- Echo('#knownByAlly', table.size(knownByAlly))
 			knownByAlly[myAllyTeamID] = nil
+			local remaining = false
 			for allyTeamID in pairs(knownByAlly) do
-				if spIsUnitInRadar(id, allyTeamID) then
+				if allyTeamByTeam[teamID] == allyTeamID then
+					-- Echo('belong to owner', allyTeamID)
 					knownByAlly[allyTeamID] = nil
+				elseif fullview == 1 then
+					-- Echo("allyTeamID is ", allyTeamID)
+					if spIsUnitInRadar(id, allyTeamID) then
+						knownByAlly[allyTeamID] = nil
+					else
+						remaining = true
+					end
+				else
+					remaining = true
 				end
 			end
-			if not next(knownByAlly) then
+			if not remaining then
 				allStructures[id] = nil
 			end
 		end
