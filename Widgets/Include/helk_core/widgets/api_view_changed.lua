@@ -63,6 +63,7 @@ local formatColumnInfolog = f.formatColumnInfolog
 local osclock = os.clock
 
 local diag = math.diag
+local max = math.max
 
 local myPlayerID = Spring.GetMyPlayerID()
 
@@ -331,7 +332,6 @@ local dt = 0
 local update = false
 local updateRate = 1/75
 local updateTime = 0
-local max = math.max
 function widget:Update(delta)
 
 	dt = delta
@@ -356,9 +356,11 @@ function widget:Update(delta)
 		update = HasViewChanged()
 		updateTime = 0
 	end
-	if not update and requestUpdate then
-		NewView[5] = NewView[5] + 1
-		update = true
+	if requestUpdate then
+		if not update then
+			NewView[5] = NewView[5] + 1
+			update = true
+		end
 		requestUpdate = false
 	end
 	if update then
