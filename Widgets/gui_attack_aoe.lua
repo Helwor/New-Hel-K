@@ -159,7 +159,7 @@ local function GetMouseTargetPosition()
 		if mouseTargetType == "unit" then
 			local tgtTeam = GetUnitTeam(mouseTarget)
 			if not (tgtTeam and myTeamID) then
-				Echo('Attack AOE, dont got both teams',tgtTeam, myTeamID,'target',mouseTargt)
+				Echo('Attack AOE, dont got both teams',tgtTeam, myTeamID,'target',mouseTarget)
 
 			elseif AreTeamsAllied(tgtTeam, myTeamID) then
 				mouseTargetType, mouseTarget = TraceScreenRay(mx, my, true, true, false, true)
