@@ -328,7 +328,7 @@ function NewUpdateVisibleUnits2()
 	end
 	return 
 end
-local compare = true
+local compare = false
 local done = false
 
 
