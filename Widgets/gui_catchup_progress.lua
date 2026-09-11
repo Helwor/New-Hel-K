@@ -127,7 +127,7 @@ function widget:Update(dt)
 					askedRunningSince = true
 					Spring.SendCommands('getrunningsince')
 				elseif runningSince then
-					gameProg = math.max(1, (runningSince - 45) * GAME_SPEED) -- remove 45 sec for discounting aprox placing time
+					gameProg = math.max(1, (runningSince - 45) * GAME_SPEED - currentFrame) -- remove 45 sec for discounting aprox placing time
 					runningSince = false
 				end
 			end
@@ -188,7 +188,6 @@ function widget:RecvLuaMsg(msg, playerID)
 	if msg:find('^gamerunningsince') then
 		local delta = msg:sub(('gamerunningsince'):len()+2)
 		runningSince = tonumber(delta)
-		Echo("runningSince1 is ", runningSince)
 	end
 end
 
