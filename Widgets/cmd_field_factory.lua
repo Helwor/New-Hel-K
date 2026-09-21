@@ -15,7 +15,7 @@ local Echo = Spring.Echo
 
 requirements = {
 	exists = {
-		[(WIDGET_DIRNAME or LUAUI_DIRNAME .. 'Widgets/') .. '\\Include\\helk_core\\widgets\\api_selection_handler.lua'] = {nil, nil, true}
+		[(WIDGET_DIRNAME or LUAUI_DIRNAME .. 'Widgets/') .. 'Include/helk_core/widgets/api_selection_handler.lua'] = {nil, nil, true}
 	}
 }
 
@@ -108,6 +108,7 @@ local OPT_MINI_HEIGHT = 115
 local OPT_MINI_EXTRA_HEIGHT = 80
 
 local UPDATE_RATE = 30
+local detection_rad_mult = 2 -- mult the radius of a fac where moving is not necessary
 local invSize = 40 -- default size
 local rX = 7/11 -- relative position in the UI
 local rY = 7/10  
@@ -605,6 +606,7 @@ function widget:CommandsChanged()
 		for defID, units in pairs(WG.selectionDefID or spGetSelectedUnitsSorted()) do
 			local range = fieldFacRange[defID]
 			if range then
+				range = range * detection_rad_mult
 				local valid, v = {}, 0
 				for i, id in ipairs(units) do
 					if spFindUnitCmdDesc(id, CMD_FIELD_FAC_SELECT) then

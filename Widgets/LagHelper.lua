@@ -48,7 +48,7 @@ local speedUp = false -- speed up process when toi level up when fps are really 
 
 local debugging = false
 local DebugUp = function() end
-local f = debugging and VFS.Include('LuaUI\\Widgets\\UtilsFunc.lua')
+local f = debugging and VFS.Include('LuaUI/Widgets/UtilsFunc.lua')
 
 local Colors = {
      white          = { 1.0,    1,    1, 1.0 },

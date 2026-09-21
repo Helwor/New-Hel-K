@@ -10,7 +10,7 @@ function widget:GetInfo()
 		enabled   = false  --  loaded by default
 	}
 end
-VFS.Include("LuaUI\\Widgets\\Include\\api_debug_tools.lua")
+VFS.Include("LuaUI/Widgets/Include/api_debug_tools.lua")
 --------------------------------------------------------------------------------
 -- Speedups
 --------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ local fastSpeedDefID = {}
 local spuGetMoveType = Spring.Utilities.getMovetype
 
 for defID, def in pairs(UnitDefs) do
-	if not spuGetMoveType(def) then
+	if def.isImmobile then
 		immobileDefID[defID] = true
 		ravenCanHitDefID[defID] = true
 	else

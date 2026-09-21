@@ -1,7 +1,7 @@
 -- Author Helwor
 -- license GNU GPL v2 or later
-local WIDGET_DIR = "LuaUI\\Widgets\\"
-local HELK_CORE_DIR = WIDGET_DIR .. "Include\\helk_core\\"
+local WIDGET_DIR = "LuaUI/Widgets/"
+local HELK_CORE_DIR = WIDGET_DIR .. "Include/helk_core/"
 
 local apiOrder = {
 	'api_on_widget_state.lua',
@@ -126,6 +126,7 @@ VFS.Include(HELK_CORE_DIR .. "addon_gl.lua")
 
 local this_widget_pat = this_widget_file .. '$'
 local this_widget_index, on_widget_state_index , add_sleep_wake_index
+local this_widget_name = widget.GetInfo().name
 for i=1, #widgetFiles do
 	if widgetFiles[i]:find(this_widget_pat) then
 		-- Echo('FOUND FILENAME',i,filename)
@@ -149,7 +150,7 @@ if this_widget_index then
 	local off = 0
 	local anyMissing = false
 	for i, filename in ipairs(apiOrder) do
-		local file = HELK_CORE_DIR .. "widgets\\" .. filename
+		local file = HELK_CORE_DIR .. "widgets/" .. filename
 		if VFS.FileExists(file) then
 			table.insert(widgetFiles, this_widget_index + 1 + off, file)
 			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
@@ -171,7 +172,7 @@ if this_widget_index then
 
 		end
 		Echo('[HEL-K] WORKAROUND (Linux user?) There have already been ' .. (this_widget_index - 1) .. ' widgets loaded before this one, reinserting the failed local ones')
-		for i = 1, this_widget_index do
+		for i = 1, this_widget_index-1 do
 			local file = widgetFiles[i]
 			if VFS.FileExists(file, VFS.RAW) and not IsLocalVersionLoaded(file) then
 				if GetLuaFileName(file) ~= this_widget_file then
@@ -185,7 +186,7 @@ if this_widget_index then
 	end
 
 
-	-- for i, file in ipairs(VFS.DirList(HELK_CORE_DIR .. "widgets\\", "*.lua")) do
+	-- for i, file in ipairs(VFS.DirList(HELK_CORE_DIR .. "widgets/", "*.lua")) do
 	-- 	local filename = GetLuaFileName(file)
 	-- 	if filename then
 	-- 		local index = files[filename]
@@ -209,7 +210,7 @@ end
 
 
 for i, filename in ipairs(includes) do
-	local file = WIDGET_DIR .. "Include\\" .. filename
+	local file = WIDGET_DIR .. "Include/" .. filename
 	if not VFS.FileExists(file, VFS.RAW) then
 		Echo('[Hel-K]: MISSING FILE: ' .. file)
 	end

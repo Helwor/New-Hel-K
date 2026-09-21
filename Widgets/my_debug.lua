@@ -2,7 +2,7 @@
 -- Author = Helwor
 -- Debug Functions working on Zero-K mod (at least) of Spring engine, telling all functions at which lines in which widgets were involved in the error
 -- How to: name this file my_debug.lua in LuaUI/Widgets
--- in your widget declare local d = VFS.Include("LuaUI\\Widgets\\my_debug.lua")
+-- in your widget declare local d = VFS.Include("LuaUI/Widgets/my_debug.lua")
 -- at the last line of the widget call d.DebugWidget(widget)
 -- and that's all
 if true then

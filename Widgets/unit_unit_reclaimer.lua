@@ -9,7 +9,7 @@ function widget:GetInfo() return {
 } end
 local requirements = {
 	exists = {
-		[WIDGET_DIRNAME .. '\\Include\\helk_core.lua'] = {VFS.RAW},
+		[WIDGET_DIRNAME .. 'Include/helk_core.lua'] = {VFS.RAW},
 	}
 }
 local Cam

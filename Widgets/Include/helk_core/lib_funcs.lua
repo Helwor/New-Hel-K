@@ -12263,7 +12263,7 @@ end
 function renewfuncs() -- reload from source and update
 	Echo('renewing utilFuncs...')
 	local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end return t2 end
-	WG.utilFuncs = VFS.Include("LuaUI\\Widgets\\Include\\helk_core\\lib_funcs.lua", copy(getfenv(widget.GetInfo)) )
+	WG.utilFuncs = VFS.Include("LuaUI/Widgets/Include/helk_core/lib_funcs.lua", copy(getfenv(widget.GetInfo)) )
 end
 widgetHandler.actionHandler:RemoveAction(widget, 'renewfuncs')
 widgetHandler.actionHandler:AddAction(widget, 'renewfuncs', renewfuncs, nil, 't')

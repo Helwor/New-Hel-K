@@ -17,7 +17,7 @@ local Echo = Spring.Echo
 
 include("keysym.lua")
 -- include("Widgets/COFCtools/Interpolate.lua")
-VFS.Include(LUAUI_DIRNAME .. "Widgets\\COFCtools\\Interpolate.lua")
+VFS.Include(LUAUI_DIRNAME .. "Widgets/COFCtools/Interpolate.lua")
 
 maxDistY = math.max(MHEIGHT, MWIDTH) * 2 -- as in Interpolate.lua
 -- maxDistY = max(MHEIGHT, MWIDTH) * 5/3 -- same as TA

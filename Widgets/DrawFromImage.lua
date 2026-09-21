@@ -7,7 +7,7 @@ function widget:GetInfo()
 					.."\nClick on map and drag: left to mirror horizontally, down to mirror vertically."
 					.."\nImages are stored as json file for faster loading"
 					.."\nRename files ('category_filename.jpg') to implement jumpable categories "
-					.."\nUI can be hidden and shown when Ctrl + Alt is pushed",
+					.."\nUI can be hidden and shown when Ctrl + Alt is pushed or always visible",
 		author    = "Helwor",
 		date      = "Dec 2023",
 		license   = "GNU GPL, v2 or later",
@@ -66,7 +66,7 @@ local glReadPixels = gl.ReadPixels
 
 local vsx, vsy = widgetHandler:GetViewSizes()
 
-local drawingsDir = "LuaUI\\Widgets\\Drawings\\"
+local drawingsDir = "LuaUI/Widgets/Drawings/"
 
 local MarkerMaker = {} -- class
 MarkerMaker.mt = {__index = MarkerMaker}

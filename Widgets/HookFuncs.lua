@@ -15,7 +15,7 @@ function widget:GetInfo()
         api       = true,
     }
 end
-VFS.Include("LuaUI\\Widgets\\Include\\prefab_window.lua")
+VFS.Include("LuaUI/Widgets/Include/prefab_window.lua")
 local Echo = Spring.Echo
 
 

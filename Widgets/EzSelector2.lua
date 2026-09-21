@@ -5793,12 +5793,12 @@ do ---- **INITIALIZATION** ------
 			end
 		end
 		if not WG.selectionAPI then
-			Echo(widget:GetInfo().name .. ' requires Include\\helk_core\\widgets\\api_selection_handler.lua')
+			Echo(widget:GetInfo().name .. ' requires Include/helk_core/widgets/api_selection_handler.lua')
 			widgetHandler:RemoveWidget(self)
 			return
 		end
 		if not WG.KEYCODES then
-			Echo(widget:GetInfo().name .. ' requires Include\\helk_core\\keycodes.lua')
+			Echo(widget:GetInfo().name .. ' requires Include/helk_core/keycodes.lua')
 			widgetHandler:RemoveWidget(self)
 			return
 		end

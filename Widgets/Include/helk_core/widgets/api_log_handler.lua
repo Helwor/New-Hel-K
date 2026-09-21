@@ -42,7 +42,7 @@ WG.LogHandler = {
 
         end
         if not file then
-            dir = args[1] or 'LuaUI\\Widgets\\'
+            dir = args[1] or 'LuaUI/Widgets/'
 
             filename = args[2] or (widget and widget.whInfo and widget.whInfo.basename or GetBaseName() or self:Date() .. ':Log....'):sub(1,-5)
             ext = args[3] or '.LOG'

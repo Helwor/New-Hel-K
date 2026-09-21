@@ -4418,7 +4418,19 @@ function widget:Update()
 	end
 
 end
+local lastx = -1
+local loopcount = 0
 function widget:IsAbove(x, y)	-- previously Update
+	if lastx == x then
+		loopcount = loopcount +1
+		if loopcount > 5 then
+			Echo('INF LOOP DETECTED IN DRAW PLACEMENT', f.GetCalledLine())
+			loopcount = 0
+			return
+		end
+	else
+		loopcount = 0
+	end
 	local dt = 0
 
 	-- if cons[1] then
@@ -4481,7 +4493,9 @@ function widget:IsAbove(x, y)	-- previously Update
 			-- Echo('too late',time > 0.1, VERIF_SHIFT.page > 2, not select(3,sp.GetMouseState()))
 			VERIF_SHIFT = false
 		elseif shift then
-			if not widgetHandler.mouseOwner or widgetHandler.mouseOwner.whInfo.name == 'Persistent Build Height 2' then
+			if not widgetHandler.mouseOwner 
+				or widgetHandler.mouseOwner.whInfo.name == 'Persistent Build Height 2'
+			then
 				local _mx, _my = VERIF_SHIFT[1], VERIF_SHIFT[2]
 				VERIF_SHIFT = false
 				widgetHandler.mouseOwner = nil
@@ -6446,10 +6460,10 @@ function widget:Initialize()
 	local sig = '[' ..widget:GetInfo().name .. ']:'
 	local status
 	if not Cam then
-		status = 'Requires api_view_changed.lua in Include\\helk_core\\widgets\\ folder.'
+		status = 'Requires api_view_changed.lua in Include/helk_core/widgets/ folder.'
 		widgetHandler:RemoveWidget(widget)
 	elseif not gl.Utilities.DrawGroundDisc then
-		status = 'Requires addon_gl.lua in Include\\helk_core\\ folder.'
+		status = 'Requires addon_gl.lua in Include/helk_core/ folder.'
 	end
 	if status then
 		widget.status = status

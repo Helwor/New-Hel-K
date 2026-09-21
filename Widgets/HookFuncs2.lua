@@ -13,7 +13,7 @@ function widget:GetInfo()
 }
 end
 
-VFS.Include("LuaUI\\Widgets\\Include\\prefab_window.lua")
+VFS.Include("LuaUI/Widgets/Include/prefab_window.lua")
 
 -- April 2025
 	-- removed "Remove" feature with simple right click that was buggy and useless, using CutBranch instead
@@ -222,7 +222,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
 	local source =  getinfo(1,'S').source
 
-	local source = "LuaUI\\Widgets\\UtilsFunc.lua"
+	local source = "LuaUI/Widgets/UtilsFunc.lua"
 
 
 
@@ -231,7 +231,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 	local function RemoveAll(code) -- uncomments and blank strings of 9K lines of code in 0.05 sec (0.046 for only uncommenting)
 		-- version with two char check, more complex but (faster not)
 		-- if not code then
-		-- 	code = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+		-- 	code = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
 		-- end
 		-- to not get fooled by escaped char we convert them into their byte value
 		code = code:codeescape()
@@ -792,7 +792,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
 	local function BlankStrings(source, code, tellTime) -- need uncommenting first
 		if not code then
-			code = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+			code = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
 		end
 		-- Echo("code:len() is ", code:len())
 
@@ -1082,7 +1082,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 	local function GetUncommentedAndBlanked3(source, code, tellTime) -- only checking one char at a time, 9K lines in 0.035 without blank string and 0.04 with 
 		-- version checking only one char at a time, less convoluted but a tiny bit less fast too
 		if not code then
-			code = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+			code = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
 		end
 
         if code:find('\r') then
@@ -1256,7 +1256,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
 	local function GetCodeAbstract(source, code) -- remove comments and reduce strings/blocks to their ends
 		if not code then
-			code = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+			code = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
 		end
 
         if code:find('\r') then
@@ -1465,7 +1465,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
     function testlines(source)
         local time1 = Spring.GetTimer()
-        source = source or "LuaUI\\Widgets\\UtilsFunc.lua"
+        source = source or "LuaUI/Widgets/UtilsFunc.lua"
         local file = io.open(source, "r") -- dont find R
         -- local code = file:read('*a')
         -- file:seek("set")
@@ -1492,7 +1492,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
     function testlines2(source, method)
         local time1 = Spring.GetTimer()
-        source = source or "LuaUI\\Widgets\\UtilsFunc.lua"
+        source = source or "LuaUI/Widgets/UtilsFunc.lua"
 
         local code = VFS.LoadFile(source, VFS.RAW_FIRST)
 
@@ -1537,7 +1537,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
     end
     function testlines3(source)
         local time1 = Spring.GetTimer()
-        source = source or "LuaUI\\Widgets\\UtilsFunc.lua"
+        source = source or "LuaUI/Widgets/UtilsFunc.lua"
 
         local code = VFS.LoadFile(source, VFS.RAW_FIRST):removereturns()
         local tmp = io.tmpfile()
@@ -1567,7 +1567,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
         local file, len
         local codelen
         if not code then
-        	source = source or "LuaUI\\Widgets\\UtilsFunc.lua"
+        	source = source or "LuaUI/Widgets/UtilsFunc.lua"
         	file, code = GetFile(source) -- FIXME get code by the way from VFS.LoadFile if the file is from zip, until I find a way to use io.open with archived file
         	file:seek('set')
         else
@@ -3500,7 +3500,7 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 		end
 	end
 
-	-- local code, codeObj = WG.Code:GetCode("LuaUI\\Widgets\\-MyClicks2.lua")
+	-- local code, codeObj = WG.Code:GetCode("LuaUI/Widgets/-MyClicks2.lua")
 	-- codeObj:GetFuncsAndLoops(true, true,true) 
 
 
@@ -3627,11 +3627,11 @@ do ------------------ OFF TOPIC CODE ANALYSIS DRAFT -------------------------
 
 		-- local len = #widgetFiles
 
-		-- source = "LuaUI\\Widgets\\testfuncs.lua"
+		-- source = "LuaUI/Widgets/testfuncs.lua"
 		-- -- source = widgetFiles[math.random(len)]
 		-- -- Echo("source is ", source)
 		-- local ftime = f.time
-		-- local code, codeObj = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+		-- local code, codeObj = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
 	--*************
 	-- Echo("code:len() is ", code:len())
 	-- local unco, blanked = GetUncommentedAndBlanked3(false,code)
@@ -6910,6 +6910,7 @@ do -- UTILS:GetCallInNames
 	VFS.Include("LuaUI/callins.lua", nil, VFS.Game)
 	local CallInsMap = CallInsMap
 	CallInsMap['Update'] = true
+	CallInsMap['DefaultCommand'] = true
 	widget.CallInsMap = nil
 	function UTILS:GetCallInNames(wname)
 		local t = {}

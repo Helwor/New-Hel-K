@@ -138,7 +138,7 @@ local Debug = { -- default values
 
 -- }
 
-local f = f or VFS.Include('LuaUI\\Widgets\\UtilsFunc.lua') -- for compat with old Hel-K
+local f = f or VFS.Include('LuaUI/Widgets/UtilsFunc.lua') -- for compat with old Hel-K
 
 
 options_path = 'Hel-K/' .. widget:GetInfo().name

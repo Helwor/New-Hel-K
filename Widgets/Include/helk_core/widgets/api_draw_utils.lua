@@ -18,7 +18,7 @@ local Echo = Spring.Echo
 local debugging = false -- need UtilsFunc.lua
 local showMeExamples = true -- select a unit and push Ctrl + Alt + E to see all examples, push again Ctrl + Alt + E while it blinks to see the updated order
 
-local f = debugging and VFS.Include('LuaUI\\Widgets\\Include\\UtilsFunc.lua')
+local f = debugging and VFS.Include('LuaUI/Widgets/Include/UtilsFunc.lua')
 
 local Units
 local ignoreDefID = {

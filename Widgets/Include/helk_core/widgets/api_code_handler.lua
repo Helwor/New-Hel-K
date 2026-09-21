@@ -2057,7 +2057,7 @@ do
         -- version checking only one char at a time, less convoluted but a tiny bit less fast too
         code = c
         if not code then
-            code = WG.Code:GetCode(source or "LuaUI\\Widgets\\UtilsFunc.lua")
+            code = WG.Code:GetCode(source or "LuaUI/Widgets/UtilsFunc.lua")
         end
 
 
