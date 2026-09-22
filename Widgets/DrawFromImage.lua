@@ -133,8 +133,8 @@ local maxUpdateTime = 0.05
 local current = 1
 local taskTime = 0
 local taskDelay = 1
-local vsx, vsy = Spring.GetViewGeometry()
-
+local vsx, vsy = Spring.Orig.GetViewGeometry()
+local scaled_vsx, scaled_vsy = Spring.GetViewGeometry()
 options_path = 'Hel-K/'..widget:GetInfo().name
 options_order = {
 	'always_up',
@@ -685,11 +685,10 @@ local function MakeSelector()
 		},
 	}
 
-
 	win = WG.Chili.Window:New{
 		parent = WG.Chili.Screen0,
 		caption = 'Marker Selector',
-		x = vsx - (buttonWidth + 23 + 4),
+		x = scaled_vsx - (buttonWidth + 23 + 4),
 		y = 200,
 		height = 0,
 		padding = {0,7,5,5},
@@ -2596,6 +2595,6 @@ end
 
 
 function widget:ViewResize(viewSizeX, viewSizeY)
-  vsx = viewSizeX
-  vsy = viewSizeY
+	scaled_vsx, scaled_vsy = viewSizeX, viewSizeY
+	vsx, vsy = Spring.Orig.GetViewGeometry()
 end
