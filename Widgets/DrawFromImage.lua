@@ -2153,6 +2153,7 @@ function MarkerMaker:Save()
 		self.sanalyse_size = self.analyse_size
 		self.sonscreen_size = self.onscreen_size
 	end
+	self.file = self.file:gsub('\\', '/')
 	local jsonstring = json.encode(self)
 	if jsonstring then
 		-- local jsonfile = file:sub(1, (file:find('%.[^%.]+$') or 0) - 1)  .. '.json'
@@ -2174,6 +2175,7 @@ function MarkerMaker:LoadObj(file)
 			code:close()
 			return
 		else
+			obj.file = obj.file:gsub('\\', '/')
 			local add = {}
 			local lines = obj.lines
 			for k,v in pairs(lines) do
@@ -2183,7 +2185,7 @@ function MarkerMaker:LoadObj(file)
 					add[k] = v
 				end
 			end
-			for k,v in pairs(add) do
+			for k, v in pairs(add) do
 				lines[tonumber(k)] = v
 			end
 			if not self.mode then
