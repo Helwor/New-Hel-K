@@ -1825,7 +1825,7 @@ function MarkerMaker:SimplifyContours(contours)
 	-- vrai coin, mais assez petite pour séparer deux coins proches.
 	local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance)^4)
 	-- local windowLen = math.max(3, (diag(sizeX, sizeY) / 200) * (1+angle_tolerance)^3)
-	Echo("windowLen:"..tostring(windowLen))
+	-- Echo("windowLen:"..tostring(windowLen))
 	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
 
 	local function angleDiff(a, b)
