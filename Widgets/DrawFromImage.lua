@@ -82,7 +82,7 @@ local mode = 'contour'
 local pix_detect = 0.5 -- any rgb color below this value will accept a pixel as valid, any alpha value below (1-pix_detect) will deny it
 local analyse_size = 330 -- the diagonal of the image is extended to this in order to improve the contour making
 local onscreen_size = 150 -- the final result on screen as marker is reshrinked by this multiplicator
-local angle_tolerance = 0.05
+local angle_tolerance = 0.25
 local noise_reduction = 2 -- contour suppressed if less lengthy that this value (% of the image diagonale) (not for plain mode)
 local always_up = true
 local placing_frame = false
@@ -295,7 +295,7 @@ options.angle_tolerance = {
 	name = 'Simplify Angle Tolerance',
 	desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
 	type = 'number',
-	min = 0.000, max = 0.1, step = 0.005,
+	min = 0.000, max = 0.5, step = 0.005,
 	value = angle_tolerance,
 	OnChange = function(self)
 		angle_tolerance = self.value
@@ -986,7 +986,7 @@ local function MakeCustomizationPanel()
 		y = y,
 		width = "48%",
 		-- right = panel_col_width,
-		min = 0.000, max = 0.1, step = 0.005,
+		min = 0.000, max = 0.5, step = 0.005,
 		value = angle_tolerance,
 		trackColor = color_text,
 		OnMouseUp = {
@@ -1551,14 +1551,14 @@ function MarkerMaker:FindContourPoint(y, x, diry, dirx, raster, spaghetti_mode, 
 	end
 end
 
-function MarkerMaker:SimplifyContours(contours)
+function MarkerMaker:SimplifyContoursOLD(contours)
 	-- for debugging only
 	-- local float = function(n, dec)
 	-- 	return tostring(n):ftrim(dec or 2)
 	-- end
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
 	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-
+	angle_tolerance = angle_tolerance*3
 	local abs, diag = math.abs, math.diag
 	local atan2 = math.atan2
 	local remove = table.remove
@@ -1568,7 +1568,7 @@ function MarkerMaker:SimplifyContours(contours)
 	-- Echo('*--------------------------------------------------')
 	-- Echo('--------------------------------------------------')
 	-- Echo('STEP', step)
-	
+
 	for c, contour in ipairs(contours) do
 		local len = #contour
 		if DBG then
@@ -1587,6 +1587,7 @@ function MarkerMaker:SimplifyContours(contours)
 			local angleX, angleY = 0, 0
 			local angle
 			local lastAngle
+			local points = {}
 			while i < len do
 				i = i + 1 
 				cur = contour[i]
@@ -1613,6 +1614,7 @@ function MarkerMaker:SimplifyContours(contours)
 						makeAngle = false
 						angle = atan2(angleX, angleY)
 						lastAngle = angle
+						points = {}
 					end
 				else
 					lastAngle = lastAngle * (COUNT_FOR_ANGLE-1)/COUNT_FOR_ANGLE + atan2(devX, devY)/COUNT_FOR_ANGLE
@@ -1624,16 +1626,34 @@ function MarkerMaker:SimplifyContours(contours)
 				-- Echo(i,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], 'dist:'..f(dist),'straight:'..f(straight),'travel:'..f(travel), 'ratio:'..f(travel/straight))
 				-- Echo("angle is ", angle)
 				-- Echo('travel'..f(travel),'deviation',devX, devY, 'angle', angle, 'devAngle', devAngle )
+				if devLastAngle then
+					points[i] = devLastAngle
+				end
 				if travel > step or i == len then
 					-- local ratio = travel/straight
 					-- local ratioed = ratio > sensitivity
-					local devied = devAngle and devAngle > angle_tolerance -- deviation from origin of segment
+					local devied = devAngle and devAngle > PRECISION -- deviation from origin of segment
 					local devied2 = devLastAngle and devLastAngle > 1/(COUNT_FOR_ANGLE * PRECISION) -- deviation from a little distance
 					-- Echo(i,devied,devied2,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], "lastAngle is ", lastAngle)
 					-- Echo(i,devied,devied2,'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2], lastAngle and "lastAngle:"..f(lastAngle), devLastAngle and 'devLastAngle:'..f(devLastAngle))
 					if --[[ratioed or]] devied or devied2 or i == len then
 						-- Echo(string.color({1,1,0,1})..'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2] .. ' => ', ratioed and 'ratio:' .. f(ratio), devied and 'devied:'..f(devAngle), devied2 and 'devied2:'..f(devLastAngle), (i == len) and 'end')
 						if segI < i-2 then
+
+							local maxAngle, maxI = 0, segI
+							for j = segI, i do
+								local angle = points[j]
+								if angle then
+									-- Echo("angle:"..tostring(angle))
+									if angle > maxAngle then
+										maxAngle, maxI = angle, j
+									-- else
+									-- 	break
+									end
+								end
+							end
+							i = maxI
+
 							-- Echo(i, string.color({1,0,0,1}) .. '<<<<< remove from', segI+1, 'to', i-2)
 							for i = i - 2, segI + 1, -1  do
 								remove(contour, i)
@@ -1658,7 +1678,6 @@ function MarkerMaker:SimplifyContours(contours)
 
 	local c = 1
 	local contour = contours[c]
-	local tremove = table.remove
 	while contour do
 		local travel = 0
 		local point = contour[1] 
@@ -1675,7 +1694,7 @@ function MarkerMaker:SimplifyContours(contours)
 			x, z = nx, nz
 		end
 		if toRemove then
-			tremove(contours, c)
+			remove(contours, c)
 		else
 			c = c + 1
 		end
@@ -1693,6 +1712,222 @@ function MarkerMaker:SimplifyContours(contours)
 	-- end
 	-- Echo("contours", #contours, 'COUNT',COUNT)
 end
+
+function MarkerMaker:SimplifyContoursSHARP(contours)
+	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
+	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+	angle_tolerance = angle_tolerance ^0.5
+	local abs, diag, pi = math.abs, math.diag, math.pi
+	local atan2 = math.atan2
+	local remove = table.remove
+	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
+	-- Distance (en pixels le long du contour) sur laquelle on mesure la direction
+	-- entrante/sortante de chaque point. Doit être plus grande que la période de
+	-- l'escalier de pixellisation (quelques px) pour ne pas le confondre avec un
+	-- vrai coin, mais assez petite pour séparer deux coins proches.
+	local windowLen = math.max(3, diag(sizeX, sizeY) / 30)
+	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
+
+	local function angleDiff(a, b)
+		local d = a - b
+		while d > pi do d = d - 2*pi end
+		while d < -pi do d = d + 2*pi end
+		return abs(d)
+	end
+
+	for c, contour in ipairs(contours) do
+		local len = #contour
+		if len > 2 then
+			-- Passe 1 : distance cumulée le long du contour, point par point.
+			local cum = {[1] = 0}
+			for i = 2, len do
+				local p, q = contour[i-1], contour[i]
+				cum[i] = cum[i-1] + diag(q[1]-p[1], q[2]-p[2])
+			end
+
+			-- Passe 2 : pour chaque point, direction entrante (depuis j, ~windowLen
+			-- en arrière) et sortante (vers k, ~windowLen en avant), comparées.
+			local keep = {[1] = true, [len] = true}
+			local j = 1
+			local k = 1
+			for i = 2, len - 1 do
+				while cum[i] - cum[j+1] >= windowLen do
+					j = j + 1
+				end
+				while k < len and cum[k+1] - cum[i] < windowLen do
+					k = k + 1
+				end
+				if j < i and k > i then
+					local pin, pout = contour[j], contour[k]
+					local cur = contour[i]
+					local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+					local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+					if angleDiff(angleIn, angleOut) > angle_tolerance then
+						keep[i] = true
+					end
+				end
+			end
+
+			-- Passe 3 : reconstruction du contour simplifié à partir des points gardés.
+			local simplified = {}
+			for i = 1, len do
+				if keep[i] then
+					simplified[#simplified+1] = contour[i]
+				end
+			end
+			contours[c] = simplified
+		end
+	end
+
+	-- (inchangé) : suppression des contours trop courts
+	local c = 1
+	local contour = contours[c]
+	while contour do
+		local travel = 0
+		local point = contour[1] 
+		local x, z = point[1], point[2]
+		local toRemove = true
+		for i = 2, #contour do
+			local nex_point = contour[i]
+			local nx, nz = nex_point[1], nex_point[2]
+			travel = travel + diag(nx - x, nz - z)
+			if travel > suppress_length then
+				toRemove = false
+				break
+			end
+			x, z = nx, nz
+		end
+		if toRemove then
+			remove(contours, c)
+		else
+			c = c + 1
+		end
+		contour = contours[c]
+	end
+end
+
+function MarkerMaker:SimplifyContours(contours)
+	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
+	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+	if angle_tolerance > 0.45 then
+		return MarkerMaker:SimplifyContoursOLD(contours)
+	end
+	if angle_tolerance < 0.005 then
+		return MarkerMaker:SimplifyContoursSHARP(contours)
+	end
+	local abs, diag, pi = math.abs, math.diag, math.pi
+	local atan2 = math.atan2
+	local remove = table.remove
+	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
+	-- Distance (en pixels le long du contour) sur laquelle on mesure la direction
+	-- entrante/sortante de chaque point. Doit être plus grande que la période de
+	-- l'escalier de pixellisation (quelques px) pour ne pas le confondre avec un
+	-- vrai coin, mais assez petite pour séparer deux coins proches.
+	local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance)^4)
+	-- local windowLen = math.max(3, (diag(sizeX, sizeY) / 200) * (1+angle_tolerance)^3)
+	Echo("windowLen:"..tostring(windowLen))
+	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
+
+	local function angleDiff(a, b)
+		local d = a - b
+		while d > pi do d = d - 2*pi end
+		while d < -pi do d = d + 2*pi end
+		return abs(d)
+	end
+
+	for c, contour in ipairs(contours) do -- sliding window system
+		local len = #contour
+		if len > 2 then
+			-- Passe 1 : distance cumulée le long du contour, point par point.
+			local cum = {[1] = 0}
+			for i = 2, len do
+				local p, q = contour[i-1], contour[i]
+				cum[i] = cum[i-1] + diag(q[1]-p[1], q[2]-p[2])
+			end
+			if cum[len] >= windowLen then
+			-- Passe 2 : angle de rotation en chaque point (grandeur réelle, pas juste un booléen)
+				local turnAngle = {}
+				local j = 1
+				local k = 1
+				for i = 2, len - 1 do
+					while cum[i] - cum[j+1] >= windowLen do -- j is start of window
+						j = j + 1
+					end
+					while k < len and cum[k+1] - cum[i] < windowLen do -- k is end of window
+						k = k + 1
+					end
+					if j < i and k > i then
+						local pin, pout = contour[j], contour[k]
+						local cur = contour[i]
+						local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+						local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+						turnAngle[i] = angleDiff(angleIn, angleOut)
+					end
+				end
+
+				-- Passe 3 : regrouper les candidats consécutifs qui dépassent le seuil (= le
+				-- même coin détecté plusieurs fois d'affilée) et ne garder que le maximum
+				-- local de chaque groupe comme sommet.
+				local keep = {[1] = true, [len] = true}
+				local i = 2
+				while i <= len - 1 do
+					if turnAngle[i] and turnAngle[i] > angle_tolerance then
+						local bestI, bestA = i, turnAngle[i]
+						local m = i + 1
+						local thisTurnAngle = turnAngle[m]
+						while m <= len - 1 and thisTurnAngle and thisTurnAngle > angle_tolerance and cum[m] - cum[i] < windowLen do
+							if thisTurnAngle > bestA*(0.9--[[+angle_tolerance/3]]) then
+								bestI, bestA = m, thisTurnAngle
+							end
+							m = m + 1
+							thisTurnAngle = turnAngle[m]
+						end
+						keep[bestI] = true
+						i = m
+					else
+						i = i + 1
+					end
+				end
+
+				local simplified = {}
+				for i = 1, len do
+					if keep[i] then
+						simplified[#simplified+1] = contour[i]
+					end
+				end
+				contours[c] = simplified
+			end
+		end
+	end
+
+	-- (inchangé) : suppression des contours trop courts
+	local c = 1
+	local contour = contours[c]
+	while contour do
+		local travel = 0
+		local point = contour[1] 
+		local x, z = point[1], point[2]
+		local toRemove = true
+		for i = 2, #contour do
+			local nex_point = contour[i]
+			local nx, nz = nex_point[1], nex_point[2]
+			travel = travel + diag(nx - x, nz - z)
+			if travel > suppress_length then
+				toRemove = false
+				break
+			end
+			x, z = nx, nz
+		end
+		if toRemove then
+			remove(contours, c)
+		else
+			c = c + 1
+		end
+		contour = contours[c]
+	end
+end
+
+
 
 function MarkerMaker:SetScreenRatio()
 	local onscreen_size = self.use_default and onscreen_size or self.onscreen_size
