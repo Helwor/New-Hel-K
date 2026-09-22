@@ -98,7 +98,7 @@ local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail si
 local drawing
 local currentMarkerLine, markerLines = 0, 0
 local markerTime = 0
-local markerDelay = 0.04 -- the minimal time period between drawing, else it would e ignored
+local markerDelay = 0.045 -- the minimal time period between drawing, else it would e ignored
 local toDraw = {}
 local pendingLists = {}
 
@@ -1876,7 +1876,7 @@ function MarkerMaker:SimplifyContours(contours)
 						local m = i + 1
 						local thisTurnAngle = turnAngle[m]
 						while m <= len - 1 and thisTurnAngle and thisTurnAngle > angle_tolerance and cum[m] - cum[i] < windowLen do
-							if thisTurnAngle > bestA*(0.9--[[+angle_tolerance/3]]) then
+							if thisTurnAngle > bestA*(1--[[+angle_tolerance/3]]) then
 								bestI, bestA = m, thisTurnAngle
 							end
 							m = m + 1
