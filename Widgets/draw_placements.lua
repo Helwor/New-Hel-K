@@ -270,6 +270,8 @@ local function CalcRemoteRadius()
 	g.magnetScreen = r2 -- abandoned feature
 	return r, r2
 end
+
+
 local CalcEraserRadius
 do
 	local unisx, unisz = 32, 32
@@ -711,10 +713,16 @@ local heightDecrease = KEYSYMS.V
 local spacingIncrease = KEYSYMS.Z
 local spacingDecrease = KEYSYMS.X
 
----------------------------------
--- Epic Menu
----------------------------------
-
+local function normalize(dx, dz)
+	local biggest =  max( abs(dx), abs(dz) )
+	if biggest == 0 then
+		biggest = 1
+		dx, dz = 1, 0
+	else
+		dx, dz = dx / biggest, dz / biggest
+	end
+	return dx, dz, biggest
+end
 
 --------------------------------------------------------------------------------
 -- Config
@@ -1621,9 +1629,7 @@ do
 	local color = COLORS
 	local function GetOrthoDir(x1,x2,z1,z2) -- fix name, it's 8 directional
 		local rawx,rawz = ( x2 - x1 ), ( z2 - z1 )
-		local abx, abz = abs(rawx), abs(rawz)
-		local biggest =  max( abx, abz )
-		local dirx, dirz = rawx / biggest, rawz / biggest
+		local dirx, dirz = normalize(rawx, rawz)
 		local straight_dirx,straight_dirz = round(dirx), round(dirz)
 		return straight_dirx,straight_dirz
 	end
@@ -1654,7 +1660,7 @@ do
 		local rawx,rawz = ( x - start[1] ), ( z - start[3] )
 		local abx, abz = abs(rawx), abs(rawz)
 		local biggest =  max( abx, abz )
-		local dirx, dirz = rawx / biggest, rawz / biggest
+		local dirx, dirz, biggest = normalize(rawx, rawz)
 		local straight_dirx, straight_dirz = round(dirx), round(dirz)
 
 		if cur_dirx ~= straight_dirx or cur_dirz ~= straight_dirz then
@@ -2221,9 +2227,7 @@ local function AdaptForMex(name)
 	approaching = prev.mexDist==mexDist and approaching or mexDist<prev.mexDist
 
 	prev.mexDist = mexDist
-	local mDirx,mDirz = scMexPosX-mx, scMexPosY-my
-	local biggest =  max( abs(mDirx), abs(mDirz) )
-	mDirx,mDirz = mDirx/biggest, mDirz/biggest
+	local mDirx,mDirz = normalize(scMexPosX-mx, scMexPosY-my)
 
 	-- if name~="energypylon" then
 	-- if PID ~= pylonDefID then
@@ -2276,9 +2280,7 @@ local function AvoidMex(x,z)
 	--Echo(" mex ", mPos.x,mPos.z)
 	--Echo("cursor", x,z)
 	local sx, sz = p.sizeX, p.sizeZ
-	local mDirx, mDirz = mPosx-x, mPosz-z
-	local biggest =  math.max( abs(mDirx), abs(mDirz) )
-	mDirx, mDirz = mDirx / biggest, mDirz / biggest
+	local mDirx, mDirz = normalize(mPosx-x, mPosz-z)
 	x = floor((x + 8 - p.oddX)/16) * 16 + p.oddX
 	z = floor((z + 8 - p.oddZ)/16) * 16 + p.oddZ
 
@@ -3843,9 +3845,7 @@ do
 			local x,y,z = lasR[1], lasR[2], lasR[3]
 			local railJ = rail[j]
 			local jx, jy, jz =  railJ[1], railJ[2], railJ[3]
-			local dirx, dirz = jx - x, jz - z
-			local biggest =  max( abs(dirx), abs(dirz) )
-			dirx, dirz = dirx / biggest, dirz / biggest
+			local dirx, dirz = normalize(jx - x, jz - z)
 			local floater = p.floater
 			-- insert as many points as needed between two distanced points until distance is below/equal 16 for each coord
 			while (abs(x - jx) > 16 or abs(z - jz) > 16)--[[ and tries1<2--]] do
@@ -5294,9 +5294,7 @@ function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 		if (PID == mexDefID or special and opt.remote) and prev.pos and button == 1  then -- help to catch mex between mouse move point when going fast
 			local ppos = prev.pos
 			local px, pz, ppx, ppz = pos[1], pos[3], ppos[1], ppos[3]
-			local dirx, dirz = px - ppx, pz - ppz
-			local biggest =  max( abs(dirx), abs(dirz) )
-			dirx, dirz = dirx / biggest, dirz / biggest
+			local dirx, dirz = normalize(px - ppx, pz - ppz)
 			local threshold = 200
 			local d = ((px - ppx)^2 + (pz - ppz)^2) ^ 0.5
 
