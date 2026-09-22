@@ -2478,7 +2478,7 @@ local function GetSelectionValues()
 			anyFacSelected = true
 		end
 	end
-	return false, nil, nil, nil, spGetSelectedUnitsCount()
+	return false, nil, nil, spGetSelectedUnitsCount()
 end
 local function HiddenCommand(command)
 	return hiddenCommands[command.id] or command.hidden or (commandCulling and commandCulling[command.id])
@@ -2674,7 +2674,7 @@ local function ProcessAllCommands(commands, customCommands)
 	end
 	
 	-- Keeps main window for tweak mode.SetIntegralVisibility(visible)
-	SetIntegralVisibility(not (#tabsToShow == 0 and not selectedUnitCount or selectedUnitCount == 0))
+	SetIntegralVisibility(not (#tabsToShow == 0 and selectedUnitCount == 0))
 end
 
 --------------------------------------------------------------------------------
