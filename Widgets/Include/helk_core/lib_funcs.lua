@@ -1867,7 +1867,11 @@ function PushOut(rx,rz,sx,sz,x,z,obst,p)
 --[[    local mx,my = sp.GetMouseState()
 	local _, pos = sp.TraceScreenRay(mx, my, true, false, false, false)
 	x,z = pos[1],pos[3]--]]
-	dirx,dirz = dirx/biggest, dirz/biggest
+	if biggest == 0 then
+		dirx,dirz = 1, 0
+	else
+		dirx,dirz = dirx/biggest, dirz/biggest
+	end
 --[[    dirx = abs(dirx)<0.5 and 1*sign(dirx) or dirx
 	dirz = abs(dirz)<0.5 and 1*sign(dirz) or dirz--]]
 	--dirx,dirz = round(dirx), round(dirz)
