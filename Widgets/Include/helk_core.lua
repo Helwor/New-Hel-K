@@ -171,7 +171,7 @@ if this_widget_index then
 			end
 
 		end
-		Echo('[HEL-K] WORKAROUND (Linux user?) There have already been ' .. (this_widget_index - 1) .. ' widgets loaded before this one, reinserting the failed local ones')
+		Echo('[HEL-K]: There have already been ' .. (this_widget_index - 1) .. ' widgets loaded before this one, reinserting the failed local ones')
 		for i = 1, this_widget_index-1 do
 			local file = widgetFiles[i]
 			if VFS.FileExists(file, VFS.RAW) and not IsLocalVersionLoaded(file) then
