@@ -307,7 +307,7 @@ options = {
 			pro_mode = self.value
 			if not firstUpdate then
 				UpdateProModeNow()
-				tabPanel.MovePro()
+				tabPanel.MovePro(Spring.GetSelectedUnitsCount() > 0)
 			end
 		end,
 		path = helk_path,
@@ -321,7 +321,7 @@ options = {
 			pro_keep_fac = self.value
 			if not firstUpdate then
 				UpdateProModeNow()
-				tabPanel.MovePro()
+				tabPanel.MovePro(Spring.GetSelectedUnitsCount() > 0)
 			end
 
 		end,
@@ -2390,15 +2390,17 @@ local function GetTabPanel(parent, rows, columns)
 		end
 	end
 
-	local function MovePro()
+	local function MovePro(visible)
+		Echo("visible:"..tostring(visible))
 		if not firstUpdate then
 			local bool = pro_mode and not (pro_keep_fac and (anyFacSelected))
-			if bool ~= (tabHolder.x >= 10000) then
-				tabHolder:SetPos(tabHolder.x + (bool and 10000 or -10000))
+			if bool ~= (tabHolder.x >= 1e4) then
+				tabHolder:SetPos(tabHolder.x + (bool and 1e5 or -1e5))
 				background.noClickThrough = not (bool or options.allowclickthrough.value)
+				tabHolder:SetVisibility(not bool)
 				-- background.backgroundColor[4] = bool and math.min(0.2, userBackGroundOpacity) or userBackGroundOpacity
 			end
-			background:SetVisibility(not bool)
+			background:SetVisibility(not bool and visible)
 			background:Invalidate()
 		end
 	end
@@ -2564,7 +2566,7 @@ local function SetIntegralVisibility(visible)
 
 	background:SetVisibility(visible)
 	UpdateBackgroundSkin()
-	tabPanel.MovePro()
+	tabPanel.MovePro(visible)
 	WG.IntegralVisible = visible
 	if WG.CoreSelector then
 		WG.CoreSelector.SetSpecSpaceVisible(visible)
