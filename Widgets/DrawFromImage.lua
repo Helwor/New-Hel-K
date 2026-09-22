@@ -2578,6 +2578,10 @@ function widget:DrawScreen()
 	
 end
 
+function widget:Initialize()
+	widget:ViewResize(Spring.GetViewGeometry())
+end
+
 function widget:Shutdown()
 	for _, obj in ipairs(holder) do
 		if obj.list then
