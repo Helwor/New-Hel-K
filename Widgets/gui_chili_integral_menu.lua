@@ -2391,7 +2391,6 @@ local function GetTabPanel(parent, rows, columns)
 	end
 
 	local function MovePro(visible)
-		Echo("visible:"..tostring(visible))
 		if not firstUpdate then
 			local bool = pro_mode and not (pro_keep_fac and (anyFacSelected))
 			if bool ~= (tabHolder.x >= 1e4) then
