@@ -82,7 +82,7 @@ local mode = 'contour'
 local pix_detect = 0.5 -- any rgb color below this value will accept a pixel as valid, any alpha value below (1-pix_detect) will deny it
 local analyse_size = 330 -- the diagonal of the image is extended to this in order to improve the contour making
 local onscreen_size = 150 -- the final result on screen as marker is reshrinked by this multiplicator
-local angle_tolerance = 0.25
+local angle_tolerance = 0.30
 local noise_reduction = 2 -- contour suppressed if less lengthy that this value (% of the image diagonale) (not for plain mode)
 local always_up = true
 local placing_frame = false
@@ -98,7 +98,7 @@ local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail si
 local drawing
 local currentMarkerLine, markerLines = 0, 0
 local markerTime = 0
-local markerDelay = 0.045 -- the minimal time period between drawing, else it would e ignored
+local markerDelay = 0.043 -- the minimal time period between drawing, else it would e ignored
 local toDraw = {}
 local pendingLists = {}
 
@@ -210,7 +210,7 @@ options.maxUpdateTime = {
 	name = 'Max time allowed per update',
 	desc = 'Helpful for potato comp with many images to update',
 	type = 'number',
-	min = 0.005, max = 0.1, step = 0.005,
+	min = 0.005, max = 0.2, step = 0.005,
 	value = maxUpdateTime,
 	OnChange = function(self)
 		maxUpdateTime = self.value
@@ -562,7 +562,7 @@ local function MakeSelector()
 		bottom = 0,
 		padding = {0,0,0,0},
 		itemMargin = {0, 0, 0, paddingBot},
-  		itemPadding   = {0, 0, 0, 0},
+		itemPadding   = {0, 0, 0, 0},
 		resizeItems = false,
 		centerItems = false,
 		autosize = true,
@@ -731,19 +731,19 @@ local function MakeCustomizationPanel()
 	local panel_top = 15
 	local panel_right = 5
 	local panel_left = 5
-    local button_height = 20
+	local button_height = 20
 
-    local color_text = {1,1,1,1}
-    local color_header = {1,1,0,1}
-
-
-    local panel_col_width = (win_width - panel_left - panel_right) / 2
-    local left = 10
+	local color_text = {1,1,1,1}
+	local color_header = {1,1,0,1}
 
 
-    local y = 0
+	local panel_col_width = (win_width - panel_left - panel_right) / 2
+	local left = 10
 
-    cp.useDefault = WG.Chili.Checkbox:New{
+
+	local y = 0
+
+	cp.useDefault = WG.Chili.Checkbox:New{
 		x = left,
 		y = y,
 		width = "48%",
@@ -766,28 +766,28 @@ local function MakeCustomizationPanel()
 				end
 			end
 		},
-        tooltip = 'Ignore customization, but keep it memorized'
-        		  ..'\nDefault values are:'
-        		  ..'\nMode: ' .. mode
-        		  ..'\nPixel Detection: ' .. pix_detect
-        		  ..'\nAnalyse Size: ' .. analyse_size
-        		  ..'\nOnScreen Size: ' .. onscreen_size
-        		  ..'\nAngle Tolerance: ' .. angle_tolerance
-        		  ..'\nNoise Reduction: ' .. noise_reduction,
-        HitTest = ReturnSelf,
+		tooltip = 'Ignore customization, but keep it memorized'
+				  ..'\nDefault values are:'
+				  ..'\nMode: ' .. mode
+				  ..'\nPixel Detection: ' .. pix_detect
+				  ..'\nAnalyse Size: ' .. analyse_size
+				  ..'\nOnScreen Size: ' .. onscreen_size
+				  ..'\nAngle Tolerance: ' .. angle_tolerance
+				  ..'\nNoise Reduction: ' .. noise_reduction,
+		HitTest = ReturnSelf,
 
 	}
 
 
 	y = y + 25
-    cp.header_mode = WG.Chili.Label:New{
-    	y = y,
+	cp.header_mode = WG.Chili.Label:New{
+		y = y,
 		x = left,
 		width = "48%",
-        caption = 'Modes',
-        textColor = color_header,
-        -- align='leftr',
-    }
+		caption = 'Modes',
+		textColor = color_header,
+		-- align='leftr',
+	}
 
 	local modes = {}
 	cp.modes = modes
@@ -839,12 +839,12 @@ local function MakeCustomizationPanel()
 		y = y,
 		x = left,
 		width = "48%",
-        caption = 'Pixel Detection',
-        tooltip = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
-        HitTest = ReturnSelf,
+		caption = 'Pixel Detection',
+		tooltip = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
+		HitTest = ReturnSelf,
 
-        textColor = color_header,
-    }
+		textColor = color_header,
+	}
 
 	y = y + 15
 	cp.pix_detect = WG.Chili.Trackbar:New{
@@ -882,11 +882,11 @@ local function MakeCustomizationPanel()
 		y = y,
 		x = left,
 		width = "48%",
-        caption = 'Analyse Size',
-        textColor = color_header,
-        tooltip = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
-        HitTest = ReturnSelf,
-    }
+		caption = 'Analyse Size',
+		textColor = color_header,
+		tooltip = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
+		HitTest = ReturnSelf,
+	}
 
 	y = y + 15
 
@@ -922,13 +922,13 @@ local function MakeCustomizationPanel()
 		x = left,
 		y = y,
 		width = "48%",
-        caption = 'Onscreen Size',
-        textColor = color_header,
-        tooltip = 'Final size on screen',
-        HitTest = ReturnSelf,
+		caption = 'Onscreen Size',
+		textColor = color_header,
+		tooltip = 'Final size on screen',
+		HitTest = ReturnSelf,
 
-        -- align='leftr',
-    }
+		-- align='leftr',
+	}
 
 	y = y + 15
 	cp.onscreen_size = WG.Chili.Trackbar:New{
@@ -973,12 +973,12 @@ local function MakeCustomizationPanel()
 	cp.header_angle_tolerance = WG.Chili.Label:New{
 		x = left,
 		y = y,
-        caption = 'Angle Tolerance',
-        width = "48%",
-        textColor = color_header,
-        tooltip = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
-        HitTest = ReturnSelf,
-    }
+		caption = 'Angle Tolerance',
+		width = "48%",
+		textColor = color_header,
+		tooltip = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
+		HitTest = ReturnSelf,
+	}
 
 	y = y + 15
 	cp.angle_tolerance = WG.Chili.Trackbar:New{
@@ -1009,12 +1009,12 @@ local function MakeCustomizationPanel()
 	cp.header_noise_reduction = WG.Chili.Label:New{
 		x = left,
 		y = y,
-        caption = 'Noise Reduction',
-        width = "48%",
-        textColor = color_header,
-        tooltip = 'Suppress little lines under this length (% of the image diagonal size)',
-        HitTest = ReturnSelf,
-    }
+		caption = 'Noise Reduction',
+		width = "48%",
+		textColor = color_header,
+		tooltip = 'Suppress little lines under this length (% of the image diagonal size)',
+		HitTest = ReturnSelf,
+	}
 
 	y = y + 15
 	cp.noise_reduction = WG.Chili.Trackbar:New{
@@ -1049,12 +1049,12 @@ local function MakeCustomizationPanel()
 		-- right = panel_col_width,
 		caption = 'Reset Customization',
 		tooltip = 'return to default values:'
-        		  ..'\nMode: ' .. mode
-        		  ..'\nPixel Detection: ' .. pix_detect
-        		  ..'\nAnalyse Size: ' .. analyse_size
-        		  ..'\nOnScreen Size: ' .. onscreen_size
-        		  ..'\nAngle Tolerance: ' .. angle_tolerance
-        		  ..'\nNoise Reduction: ' .. noise_reduction,
+				  ..'\nMode: ' .. mode
+				  ..'\nPixel Detection: ' .. pix_detect
+				  ..'\nAnalyse Size: ' .. analyse_size
+				  ..'\nOnScreen Size: ' .. onscreen_size
+				  ..'\nAngle Tolerance: ' .. angle_tolerance
+				  ..'\nNoise Reduction: ' .. noise_reduction,
 		trackColor = color_text,
 		OnClick = {
 			function(self)
@@ -1082,7 +1082,7 @@ local function MakeCustomizationPanel()
 
 --
 	local function CreateMarkerImage()
-	    cp.marker_image = WG.Chili.Image:New{
+		cp.marker_image = WG.Chili.Image:New{
 			file = '',
 			drawcontrolv2 = true,
 			DrawControl = function(self)
@@ -1134,7 +1134,7 @@ local function MakeCustomizationPanel()
 				-- glPopMatrix()
 			end,
 
-	    }
+		}
 	end
 	CreateMarkerImage()
 
@@ -1142,113 +1142,113 @@ local function MakeCustomizationPanel()
 
 --
 
-    cp.scroll_panel = WG.Chili.ScrollPanel:New{
-    	name = 'marker_custom_panel',
-        x = panel_left,
-        y = panel_top,
-        right = panel_right,
-        bottom = panel_bottom,
+	cp.scroll_panel = WG.Chili.ScrollPanel:New{
+		name = 'marker_custom_panel',
+		x = panel_left,
+		y = panel_top,
+		right = panel_right,
+		bottom = panel_bottom,
 		orientation   = "vertical",
-    }
-    cp.scroll_panel:AddChild(cp.useDefault)
+	}
+	cp.scroll_panel:AddChild(cp.useDefault)
 
-    cp.scroll_panel:AddChild(cp.header_mode)
-    for i, ctrl in ipairs(cp.modes) do
-    	cp.scroll_panel:AddChild(ctrl)
-    end
+	cp.scroll_panel:AddChild(cp.header_mode)
+	for i, ctrl in ipairs(cp.modes) do
+		cp.scroll_panel:AddChild(ctrl)
+	end
 
-    cp.scroll_panel:AddChild(cp.header_pix_detect)
-    cp.scroll_panel:AddChild(cp.pix_detect)
+	cp.scroll_panel:AddChild(cp.header_pix_detect)
+	cp.scroll_panel:AddChild(cp.pix_detect)
 
-    cp.scroll_panel:AddChild(cp.header_analyse_size)
-    cp.scroll_panel:AddChild(cp.analyse_size)
+	cp.scroll_panel:AddChild(cp.header_analyse_size)
+	cp.scroll_panel:AddChild(cp.analyse_size)
 
-    cp.scroll_panel:AddChild(cp.header_onscreen_size)
-    cp.scroll_panel:AddChild(cp.onscreen_size)
+	cp.scroll_panel:AddChild(cp.header_onscreen_size)
+	cp.scroll_panel:AddChild(cp.onscreen_size)
 
 	cp.scroll_panel:AddChild(cp.header_angle_tolerance)
-    cp.scroll_panel:AddChild(cp.angle_tolerance)
+	cp.scroll_panel:AddChild(cp.angle_tolerance)
 
 	cp.scroll_panel:AddChild(cp.header_noise_reduction)
-    cp.scroll_panel:AddChild(cp.noise_reduction)
+	cp.scroll_panel:AddChild(cp.noise_reduction)
 
 
 	cp.scroll_panel:AddChild(cp.reset_defaults)
-    
-    cp.scroll_panel:AddChild(cp.marker_image)
+	
+	cp.scroll_panel:AddChild(cp.marker_image)
 
 
-    cp.closeButton = WG.Chili.Button:New{
-        caption = 'Close',
-        OnClick = {
-        	function(self)
-        		cp.win:Hide()
-        		customize = false
-        	end
-        },
-        --backgroundColor=color.sub_close_bg,
-        --textColor=color.sub_close_fg,
-        --classname = "navigation_button",
-        
-        right = 10,
-        bottom = 6,
-        width = 60,
-        height = button_height,
-    }
+	cp.closeButton = WG.Chili.Button:New{
+		caption = 'Close',
+		OnClick = {
+			function(self)
+				cp.win:Hide()
+				customize = false
+			end
+		},
+		--backgroundColor=color.sub_close_bg,
+		--textColor=color.sub_close_fg,
+		--classname = "navigation_button",
+		
+		right = 10,
+		bottom = 6,
+		width = 60,
+		height = button_height,
+	}
 
-    cp.win = {
-        x = (vsx - win_width) / 2,
-        y = 200,
-        name = 'marker_custom_win',
-        width  = win_width,
-        height = win_height,
-        classname = "main_window_small_tall",
-        parent = WG.Chili.Screen0,
-        -- backgroundColor = color.sub_bg,
-        -- resizable = false,
-        caption = 'filename' .. '\'s param',
-        -- minWidth = win_width,
-        -- minHeight = win_height,
-        children = {
-            cp.scroll_panel,
-            cp.closeButton,
+	cp.win = {
+		x = (vsx - win_width) / 2,
+		y = 200,
+		name = 'marker_custom_win',
+		width  = win_width,
+		height = win_height,
+		classname = "main_window_small_tall",
+		parent = WG.Chili.Screen0,
+		-- backgroundColor = color.sub_bg,
+		-- resizable = false,
+		caption = 'filename' .. '\'s param',
+		-- minWidth = win_width,
+		-- minHeight = win_height,
+		children = {
+			cp.scroll_panel,
+			cp.closeButton,
 
-        },
-    }
+		},
+	}
 
-    cp.RemakeImage = function()
-    	cp.scroll_panel:RemoveChild(cp.marker_image)
-    	CreateMarkerImage()
-    	cp.scroll_panel:AddChild(cp.marker_image)
-    end
+	cp.RemakeImage = function()
+		cp.scroll_panel:RemoveChild(cp.marker_image)
+		CreateMarkerImage()
+		cp.scroll_panel:AddChild(cp.marker_image)
+	end
 
-    cp.SwitchCustom = function(isCustom)
-    	if isCustom then
-	    	for i = 1, 3 do
-	    		color_text[i] = 1
-	    		if i == 3 then
-	    			color_header[i] = 0
-	    		else
-	    			color_header[i] = 1
-	    		end
+	cp.SwitchCustom = function(isCustom)
+		if isCustom then
+			for i = 1, 3 do
+				color_text[i] = 1
+				if i == 3 then
+					color_header[i] = 0
+				else
+					color_header[i] = 1
+				end
 
-	    	end
-	    else
-	    	for i = 1, 3 do
-	    		color_text[i] = 0.5
-	    		color_header[i] = 0.5
-	    	end
-	    end
-	    cp.scroll_panel:CallChildren("Invalidate")
-	    cp.scroll_panel:Invalidate()
-   	end
+			end
+		else
+			for i = 1, 3 do
+				color_text[i] = 0.5
+				color_header[i] = 0.5
+			end
+		end
+		cp.scroll_panel:CallChildren("Invalidate")
+		cp.scroll_panel:Invalidate()
+	end
 
-    WG.Chili.Window:New(cp.win)
-    if WG.MakeMinizable then
-        WG.MakeMinizable(cp.win)
-    end
-   	cp.SwitchCustom(false)
-   	customPanel = cp 
+	WG.Chili.Window:New(cp.win)
+	if WG.MakeMinizable then
+		WG.MakeMinizable(cp.win)
+	end
+	cp.SwitchCustom(false)
+	customPanel = cp 
 end
 
 
@@ -1356,7 +1356,12 @@ function MarkerMaker:AddNewContouredImage()
 				end
 
 			end
-			self:SimplifyContours(contours)
+			-- local isSpaghetti = self.useDefault and mode == 'spaghetti' or self.mode == 'spaghetti'
+			-- if isSpaghetti then
+			-- 	self:SimplifyContoursOLD(contours)
+			-- else
+				self:SimplifyContours(contours)
+			-- end
 			if DEBUG_CONTOUR then
 				for i, line in ipairs(raster) do
 					local txt = ''
@@ -1558,13 +1563,14 @@ function MarkerMaker:SimplifyContoursOLD(contours)
 	-- end
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
 	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-	angle_tolerance = angle_tolerance*3
+	-- angle_tolerance = angle_tolerance*3
 	local abs, diag = math.abs, math.diag
 	local atan2 = math.atan2
 	local remove = table.remove
 	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
 	local step = math.max(3, diag(sizeX, sizeY) / 30)
 	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
+	local gross = false
 	-- Echo('*--------------------------------------------------')
 	-- Echo('--------------------------------------------------')
 	-- Echo('STEP', step)
@@ -1639,20 +1645,21 @@ function MarkerMaker:SimplifyContoursOLD(contours)
 					if --[[ratioed or]] devied or devied2 or i == len then
 						-- Echo(string.color({1,1,0,1})..'x'..last[1]..'-'..cur[1],'y'..last[2]..'-'..cur[2] .. ' => ', ratioed and 'ratio:' .. f(ratio), devied and 'devied:'..f(devAngle), devied2 and 'devied2:'..f(devLastAngle), (i == len) and 'end')
 						if segI < i-2 then
-
-							local maxAngle, maxI = 0, segI
-							for j = segI, i do
-								local angle = points[j]
-								if angle then
-									-- Echo("angle:"..tostring(angle))
-									if angle > maxAngle then
-										maxAngle, maxI = angle, j
-									-- else
-									-- 	break
+							if not gross then
+								local maxAngle, maxI = 0, segI
+								for j = segI, i do
+									local angle = points[j]
+									if angle then
+										-- Echo("angle:"..tostring(angle))
+										if angle > maxAngle then
+											maxAngle, maxI = angle, j
+										-- else
+										-- 	break
+										end
 									end
 								end
+								i = maxI
 							end
-							i = maxI
 
 							-- Echo(i, string.color({1,0,0,1}) .. '<<<<< remove from', segI+1, 'to', i-2)
 							for i = i - 2, segI + 1, -1  do
@@ -1716,7 +1723,7 @@ end
 function MarkerMaker:SimplifyContoursSHARP(contours)
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
 	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-	angle_tolerance = angle_tolerance ^0.5
+	angle_tolerance = angle_tolerance ^0.7
 	local abs, diag, pi = math.abs, math.diag, math.pi
 	local atan2 = math.atan2
 	local remove = table.remove
@@ -1806,16 +1813,17 @@ function MarkerMaker:SimplifyContoursSHARP(contours)
 	end
 end
 
-function MarkerMaker:SimplifyContours(contours)
+function MarkerMaker:SimplifyContoursCANCEL(contours)
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
 	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-	if angle_tolerance > 0.45 then
-		return MarkerMaker:SimplifyContoursOLD(contours)
-	end
-	if angle_tolerance < 0.005 then
-		return MarkerMaker:SimplifyContoursSHARP(contours)
-	end
+	-- if angle_tolerance > 0.45 then
+	-- 	return MarkerMaker:SimplifyContoursOLD(contours)
+	-- end
+	-- if angle_tolerance < 0.005 then
+	-- 	return MarkerMaker:SimplifyContoursSHARP(contours)
+	-- end
 	local abs, diag, pi = math.abs, math.diag, math.pi
+	local max = math.max
 	local atan2 = math.atan2
 	local remove = table.remove
 	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
@@ -1823,10 +1831,15 @@ function MarkerMaker:SimplifyContours(contours)
 	-- entrante/sortante de chaque point. Doit être plus grande que la période de
 	-- l'escalier de pixellisation (quelques px) pour ne pas le confondre avec un
 	-- vrai coin, mais assez petite pour séparer deux coins proches.
-	local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance)^4)
-	-- local windowLen = math.max(3, (diag(sizeX, sizeY) / 200) * (1+angle_tolerance)^3)
-	-- Echo("windowLen:"..tostring(windowLen))
-	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
+	-- local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance)^4)
+	-- local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance*10))
+	local size = diag(sizeX, sizeY)
+
+	-- local windowLen = math.max(1.5, size / ((1-angle_tolerance^2) * 100))
+	local windowLen = math.max(1.5, size / ((1-angle_tolerance)*4 * 30))
+	angle_tolerance = angle_tolerance / 2
+	-- Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance, 'calc', (1-(angle_tolerance*3)^3) * 100)
+	local suppress_length =  size * (noise_reduction / 100)
 
 	local function angleDiff(a, b)
 		local d = a - b
@@ -1834,72 +1847,151 @@ function MarkerMaker:SimplifyContours(contours)
 		while d < -pi do d = d + 2*pi end
 		return abs(d)
 	end
-
+	local total_curves, total_too_sharps = 0, 0
 	for c, contour in ipairs(contours) do -- sliding window system
 		local len = #contour
-		if len > 2 then
+		if len > 2 --[[and c == 1]] then
 			-- Passe 1 : distance cumulée le long du contour, point par point.
+			-- local cum = {[1] = 0}
+			-- for i = 2, len do
+			-- 	local p, q = contour[i-1], contour[i]
+			-- 	cum[i] = cum[i-1] + diag(q[1]-p[1], q[2]-p[2])
+			-- end
+			local start = true
+
+			-- Bourrage : combien de points recopier de chaque bord pour couvrir windowLen
+			local padCount = 0
+			do
+				local d, n, i = 0, 0, len
+				while d < windowLen and n < len - 1 do
+					local p, q = contour[i], contour[(i % len) + 1]
+					d = d + diag(q[1]-p[1], q[2]-p[2])
+					n = n + 1
+					i = (i - 2) % len + 1
+				end
+				padCount = n
+			end
+			-- Contour étendu : [queue][original][tête]
+			local ext = {}
+			for p = 1, padCount do ext[p] = contour[len - padCount + p] end
+			for p = 1, len do ext[padCount + p] = contour[p] end
+			for p = 1, padCount do ext[padCount + len + p] = contour[p] end
+			local extLen = padCount * 2 + len
+
+			-- Passe 1, sur ext
 			local cum = {[1] = 0}
-			for i = 2, len do
-				local p, q = contour[i-1], contour[i]
+			for i = 2, extLen do
+				local p, q = ext[i-1], ext[i]
 				cum[i] = cum[i-1] + diag(q[1]-p[1], q[2]-p[2])
 			end
-			if cum[len] >= windowLen then
-			-- Passe 2 : angle de rotation en chaque point (grandeur réelle, pas juste un booléen)
+
+
+			-- if cum[len] >= windowLen then
+
+
+				-- Passe 2 : angle de rotation en chaque point (grandeur réelle, pas juste un booléen)
+				-- local turnAngle = {}
+				-- local j = 1
+				-- local k = 1
+				-- for i = 2, len - 1 do
+				-- 	while cum[i] - cum[j+1] >= windowLen do -- j is start of window
+				-- 		j = j + 1
+				-- 	end
+				-- 	while k < len and cum[k+1] - cum[i] < windowLen do -- k is end of window
+				-- 		k = k + 1
+				-- 	end
+				-- 	if j < i and i < k then
+				-- 		local pin, pout = contour[j], contour[k]
+				-- 		local cur = contour[i]
+				-- 		local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+				-- 		local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+				-- 		turnAngle[i] = angleDiff(angleIn, angleOut)
+				-- 	end
+				-- end
+
+				-- Passe 2 : turnAngle sur la portion réelle uniquement
 				local turnAngle = {}
-				local j = 1
-				local k = 1
-				for i = 2, len - 1 do
-					while cum[i] - cum[j+1] >= windowLen do -- j is start of window
-						j = j + 1
-					end
-					while k < len and cum[k+1] - cum[i] < windowLen do -- k is end of window
-						k = k + 1
-					end
-					if j < i and k > i then
-						local pin, pout = contour[j], contour[k]
-						local cur = contour[i]
-						local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
-						local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
-						turnAngle[i] = angleDiff(angleIn, angleOut)
-					end
+				local j, k = 1, 1
+				for i = padCount + 1, padCount + len do
+					while cum[i] - cum[j+1] >= windowLen do j = j + 1 end
+					while k < extLen and cum[k+1] - cum[i] < windowLen do k = k + 1 end
+					local pin, pout, cur = ext[j], ext[k], ext[i]
+					local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+					local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+					turnAngle[i - padCount] = angleDiff(angleIn, angleOut)
 				end
 
 				-- Passe 3 : regrouper les candidats consécutifs qui dépassent le seuil (= le
 				-- même coin détecté plusieurs fois d'affilée) et ne garder que le maximum
 				-- local de chaque groupe comme sommet.
-				local keep = {[1] = true, [len] = true}
-				local i = 2
-				while i <= len - 1 do
-					if turnAngle[i] and turnAngle[i] > angle_tolerance then
-						local bestI, bestA = i, turnAngle[i]
+				-- local keep = {[1] = true, [len] = true}
+				-- local keep = {[len] = true}
+				local keep = {}
+				-- local i = 2
+				local i = 1
+				local curves, too_sharps = 0, 0
+				local curveDetect = 0
+				-- while i <= len - 1 do
+				while i <= len do
+					if turnAngle[i] then
+						local maxAngleI, maxAngle = i, turnAngle[i]
 						local m = i + 1
 						local thisTurnAngle = turnAngle[m]
-						while m <= len - 1 and thisTurnAngle and thisTurnAngle > angle_tolerance and cum[m] - cum[i] < windowLen do
-							if thisTurnAngle > bestA*(1--[[+angle_tolerance/3]]) then
-								bestI, bestA = m, thisTurnAngle
+						local sum = 0
+						-- while m <= len - 1 and thisTurnAngle and thisTurnAngle > angle_tolerance and cum[m] - cum[i] < windowLen do
+						while m <= len + padCount and thisTurnAngle and thisTurnAngle > angle_tolerance and cum[m+padCount] - cum[i+padCount] < windowLen do
+							-- Echo("thisTurnAngle:"..tostring(thisTurnAngle))
+							if thisTurnAngle > maxAngle then
+								maxAngleI, maxAngle = m, thisTurnAngle
 							end
 							m = m + 1
+							sum = sum + thisTurnAngle
 							thisTurnAngle = turnAngle[m]
 						end
-						keep[bestI] = true
+						local bestI
+						local runLen = m - i - 1  -- nb de points capturés par le while après i
+						if runLen >= 2 and sum >= maxAngle * 0.85 then
+							curveDetect = curveDetect + 1
+							if curveDetect >= 2 then
+								curveDetect = 0
+								curves = curves + 1
+								bestI = m
+							end
+						elseif maxAngle > angle_tolerance then
+							too_sharps = too_sharps + 1
+							curveDetect = 0
+							bestI = maxAngleI
+						else
+							curveDetect = 0
+						end
+						if bestI then
+							keep[bestI] = true
+						end
 						i = m
 					else
 						i = i + 1
 					end
 				end
-
+				-- Echo("curve:"..tostring(curves)..", too_sharp:"..tostring(too_sharps))
+				total_curves, total_too_sharps = total_curves + curves, total_too_sharps + too_sharps
 				local simplified = {}
+				local first
 				for i = 1, len do
 					if keep[i] then
+						if not first then
+							first = contour[i]
+						end
 						simplified[#simplified+1] = contour[i]
 					end
 				end
+				if first then
+					simplified[#simplified+1] = first
+				end
 				contours[c] = simplified
-			end
+			-- end
 		end
 	end
-
+	-- Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps))
 	-- (inchangé) : suppression des contours trop courts
 	local c = 1
 	local contour = contours[c]
@@ -1917,6 +2009,275 @@ function MarkerMaker:SimplifyContours(contours)
 				break
 			end
 			x, z = nx, nz
+		end
+		if toRemove then
+			remove(contours, c)
+		else
+			c = c + 1
+		end
+		contour = contours[c]
+	end
+end
+
+
+local function BreakStaircase(contour)
+	local c, c2, c3 = contour[1], contour[2], contour[3]
+	if not c3 then
+		return contour
+	end
+	local i, n = 1, 1
+	local new = table.new(#contour*2/3)
+	local cx, cy = c[1], c[2]
+	local c2x, c2y = c2[1], c2[2]
+	local c3x, c3y = c3[1], c3[2]
+	new[n] = c
+	local cut = false
+	while c3 do
+		n = n + 1
+		if n < 10 then
+			Echo('=>', cx, cy, '|', c2x, c2y)
+		end
+		if cx == c2x or cy == c2y then
+			new[n] = c3
+			i = i + 2
+			c, c2, c3 = c3, contour[i + 1], contour[i + 2]
+			cut = true
+		else
+			new[n] = c2
+			i = i + 1
+			c, c2, c3 = c2, c3, contour[i + 2]
+			cut = false
+		end
+	end
+	if not cut then
+		n = n + 1
+		new[n] = c2
+	end
+	return new
+end
+
+function MarkerMaker:SimplifyContours(contours)
+	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
+	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+	-- if angle_tolerance > 0.45 then
+	-- 	return MarkerMaker:SimplifyContoursOLD(contours)
+	-- end
+	-- if angle_tolerance < 0.005 then
+	-- 	return MarkerMaker:SimplifyContoursSHARP(contours)
+	-- end
+	local abs, diag, pi = math.abs, math.diag, math.pi
+	local max = math.max
+	local atan2 = math.atan2
+	local remove = table.remove
+	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
+	-- Distance (en pixels le long du contour) sur laquelle on mesure la direction
+	-- entrante/sortante de chaque point. Doit être plus grande que la période de
+	-- l'escalier de pixellisation (quelques px) pour ne pas le confondre avec un
+	-- vrai coin, mais assez petite pour séparer deux coins proches.
+	-- local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance)^4)
+	-- local windowLen = math.max(1.5, diag(sizeX, sizeY) / 200 * (1+angle_tolerance*10))
+	local size = diag(sizeX, sizeY)
+
+	-- local windowLen = math.max(1.5, size / ((1-angle_tolerance^2) * 100))
+	local windowLen = math.max(1.5, size / ((1-angle_tolerance)*4 * 30))
+	angle_tolerance = angle_tolerance 
+	-- Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance)
+
+	local suppress_length =  size * (noise_reduction / 100)
+
+	local function angleDiff(a, b)
+		local d = a - b
+		while d > pi do d = d - 2*pi end
+		while d < -pi do d = d + 2*pi end
+		return abs(d)
+	end
+	local total_lines, total_simplified = 0, 0
+	local total_curves, total_too_sharps = 0, 0
+	for c, contour in ipairs(contours) do -- sliding window system
+		local _first, _last = contour[1], contour[#contour]
+		local isLoop = _first[1] == _last[1] and _first[2] == _last[2]
+		local len = #contour
+		total_lines = total_lines + len
+		if len > 2 then
+
+			-- Passe 1 : distance cumulée le long du contour, point par point.
+			local cum = {[1] = 0}
+			for i = 2, len do
+				local p, q = contour[i-1], contour[i]
+				cum[i] = cum[i-1] + diag(q[1]-p[1], q[2]-p[2])
+			end
+			 -- fill up cum[0], cum[-1], cum[-2] ...
+			local j = 1
+			if isLoop then
+				local full_travel = cum[len]
+				local from_start = 0
+				for i = len-1, 2, -1 do
+					from_start = full_travel - cum[i]
+					j = i-len+1
+					cum[j] = -from_start
+					if from_start > windowLen then
+						break
+					end
+				end
+				-- Prolonge cum en avant (indices > len) : après len, on revisite virtuellement
+				-- contour[2], contour[3]... puisque contour[len] == contour[1]
+				for m = 2, len - 1 do
+					local extra = cum[m]
+					cum[len + m - 1] = full_travel + extra
+					if extra > windowLen then
+						break
+					end
+				end
+			end
+			local function pt(idx)
+				if idx < 1 then
+					return contour[idx + len - 1]
+				elseif idx > len then
+					return contour[idx - len + 1]
+				else
+					return contour[idx]
+				end
+			end
+			local function idx(i)
+				if i < 1 then
+					return i + len - 1
+				elseif i > len then
+					return i - len + 1
+				else
+					return i
+				end
+			end
+			local r = math.round
+			----
+			if cum[len] > windowLen then
+
+			-- Passe 2 : angle de rotation en chaque point (grandeur réelle, pas juste un booléen)
+				local turnAngle = {}
+				-- local j = 1
+				local k = 1
+				for i = 2, len do
+					while cum[i] - cum[j+1] >= windowLen do -- j is start of window
+						j = j + 1
+					end
+					while cum[k+1] and cum[k+1] - cum[i] < windowLen do -- k is end of window	
+						k = k + 1
+					end
+					if j < i and i < k then
+						local cur = contour[i]
+						-- local pin, pout = contour[j<1 and len+j-1 or j], contour[k]
+						local pin, pout = pt(j), pt(k)
+						local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+						local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+						turnAngle[i] = angleDiff(angleIn, angleOut)
+						-- if c == 1 and  (i <= 5 or k >= len-2) then
+						-- 	local r = math.round
+						-- 	local str = ('contour %d, [ %d=>%d cum%d <-- (%d=>%d/%d cum%d) --> %d=>%d cum%d ] angle: %.4f'):format(c , j, idx(j), r(cum[j]), i, idx(i), len, r(cum[i]), k, idx(k), r(cum[k]), turnAngle[i])
+						-- 	Echo(str)
+						-- 	if i == 2 or i == 3 then
+						-- 		Echo('angle i'..i, 'in', angleIn, 'out', angleOut)
+						-- 	end
+						-- end
+					end
+				end
+
+				-- Passe 3 : regrouper les candidats consécutifs qui dépassent le seuil (= le
+				-- même coin détecté plusieurs fois d'affilée) et ne garder que le maximum
+				-- local de chaque groupe comme sommet.
+				-- local keep = {[1] = true, [len] = true}
+				local keep = {}
+				local i = 2
+				local curves, too_sharps = 0, 0
+				local curveDetect = 0
+				while i <= len - 1 do
+					if turnAngle[i] then
+						local maxAngleI, maxAngle = i, turnAngle[i]
+						local m = i + 1
+						local thisTurnAngle = turnAngle[m]
+						local sum = 0
+						while thisTurnAngle and cum[m] - cum[i] < windowLen do
+							-- Echo("thisTurnAngle:"..tostring(thisTurnAngle))
+							if thisTurnAngle > maxAngle then
+								maxAngleI, maxAngle = m, thisTurnAngle
+							end
+							m = m + 1
+							sum = sum + thisTurnAngle
+							thisTurnAngle = turnAngle[m]
+						end
+						local curveDetectBefore = curveDetect
+						local bestI
+						if maxAngle > angle_tolerance then
+							too_sharps = too_sharps + 1
+							curveDetect = 0
+							bestI = maxAngleI
+						elseif sum >= maxAngle * 0.85 then
+							curveDetect = curveDetect + 1
+							if curveDetect >= 2 then
+								curveDetect = 0
+								curves = curves + 1
+								bestI = m
+							end
+						else
+							curveDetect = 0
+						end
+						-- if c == 1 and (i <= 20 or cum[len] - cum[i] <= 20) then
+						-- 	Echo(("groupe i=%d..%d sum=%.4f maxAngle=%.4f ratio=%.3f cd:%d->%d tooSharp=%s bestI=%s")
+						-- 		:format(i, m-1, sum, maxAngle, maxAngle>0 and sum/maxAngle or 0,
+						-- 			curveDetectBefore, curveDetect, tostring(maxAngle>angle_tolerance), tostring(bestI)))
+						-- end
+						if bestI then
+							keep[bestI] = true
+						end
+						i = m
+					else
+						i = i + 1
+					end
+				end
+				-- if c == 1 then
+				-- 	Echo("c"..c, "curve:"..tostring(curves)..", too_sharp:"..tostring(too_sharps))
+				-- end
+				total_curves, total_too_sharps = total_curves + curves, total_too_sharps + too_sharps
+				local simplified = {}
+				local first
+				for i = 1, len do
+					if keep[i] then
+						if isLoop and not first then
+							first = contour[i]
+						end
+						simplified[#simplified+1] = contour[i]
+					end
+				end
+				if first then
+					simplified[#simplified+1] = first
+				end
+				-- Echo(c, "#simplified:"..tostring(#simplified))
+				if simplified[2] then
+					total_simplified = total_simplified + #simplified
+					contours[c] = simplified
+				end
+			end
+		end
+	end
+	-- Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps))
+	-- Echo(('simplification: %d vs %d, %d%%'):format(total_lines, total_simplified, total_simplified/total_lines))
+	-- (inchangé) : suppression des contours trop courts
+	local c = 1
+	local contour = contours[c]
+	while contour do
+		local toRemove = true
+		local point = contour[1] 
+		if point then
+			local x, z = point[1], point[2]
+			local travel = 0
+			for i = 2, #contour do
+				local nex_point = contour[i]
+				local nx, nz = nex_point[1], nex_point[2]
+				travel = travel + diag(nx - x, nz - z)
+				if travel > suppress_length then
+					toRemove = false
+					break
+				end
+				x, z = nx, nz
+			end
 		end
 		if toRemove then
 			remove(contours, c)
@@ -2230,8 +2591,8 @@ end
 function MarkerMaker:SetupCustomPanel()
 	-- Echo("self.useDefault is ", self.useDefault)
 	customize = nil
-
-	customPanel.win.caption = self.filename
+	local len = #self.lines
+	customPanel.win.caption = ('%s  (%d lines, %d sec to draw)'):format(self.filename, len, math.ceil(markerDelay * len))
 	customPanel.win:Invalidate()
 	if customPanel.useDefault.checked ~= self.useDefault then
 		customPanel.useDefault:Toggle()
@@ -2287,24 +2648,26 @@ function MarkerMaker:Select()
 	return true
 end
 
-function MarkerMaker:Deselect()
-	-- hax to make the button appear "selected" with special color when mouse in or out
-	if not selected then 
-		return
+do
+	function MarkerMaker:Deselect()
+		-- hax to make the button appear "selected" with special color when mouse in or out
+		if not selected then 
+			return
+		end
+		local control = selected.control
+		local bgColor, focusColor, pressedColor = control.backgroundColor, control.focusColor, control.pressBackgroundColor
+		bgColor[1], bgColor[2], bgColor[3], bgColor[4] = unpack(oriBGColor)
+		focusColor[1], focusColor[2], focusColor[3], focusColor[4] = unpack(oriFocusColor)
+		pressedColor[1], pressedColor[2], pressedColor[3], pressedColor[4] = unpack(oriPressedColor)
+		control:Invalidate()
+
+		selected.pressed = false
+		selected.onMapDirX, selected.onMapDirY = 1, 1
+
+		selected = false
+
+		return true
 	end
-	local control = selected.control
-	local bgColor, focusColor, pressedColor = control.backgroundColor, control.focusColor, control.pressBackgroundColor
-	bgColor[1], bgColor[2], bgColor[3], bgColor[4] = unpack(oriBGColor)
-	focusColor[1], focusColor[2], focusColor[3], focusColor[4] = unpack(oriFocusColor)
-	pressedColor[1], pressedColor[2], pressedColor[3], pressedColor[4] = unpack(oriPressedColor)
-	control:Invalidate()
-
-	selected.pressed = false
-	selected.onMapDirX, selected.onMapDirY = 1, 1
-
-	selected = false
-
-	return true
 end
 
 function MarkerMaker:PrepareMarker()
