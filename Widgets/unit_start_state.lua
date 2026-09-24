@@ -19,7 +19,7 @@ local Echo = Spring.Echo
 
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
-local overkillPrevention, overkillPreventionBlackHole, _, overkillPreventionLobster = include("LuaRules/Configs/overkill_prevention_defs.lua")
+local overkillPrevention, overkillPreventionBlackHole, _, overkillPreventionLobster, OVERKILL_STATES = include("LuaRules/Configs/overkill_prevention_defs.lua")
 local baitPreventionDefault = include("LuaRules/Configs/bait_prevention_defs.lua")
 local alwaysHoldPos, holdPosException, dontFireAtRadarUnits, factoryDefs = VFS.Include("LuaUI/Configs/unit_state_defaults.lua")
 local defaultSelectionRank = VFS.Include(LUAUI_DIRNAME .. "Configs/selection_rank.lua")
@@ -116,9 +116,10 @@ local tooltips = {
 	},
 	overkill_prevention = {
 		[0] = "Disabled.",
-		[1] = "Enabled only for automatically aquired targets when set to Fire At Will.",
-		[2] = "Enabled when the unit is set to Fire At Will.",
-		[3] = "Always enabled.",
+		[1] = "Enabled only for automatically aquired targets.",
+		[2] = "Enabled when set to fire Fire At Will for all target.",
+		[3] = "Enabled except when manually queued with a single attack command.",
+		[4] = "Always enabled."
 	},
 	fire_at_shield = {
 		[0] = "Disabled.",
@@ -689,7 +690,10 @@ do
 			local unitDefName = unitDefID and UnitDefs[unitDefID]
 			unitDefName = unitDefName and unitDefName.name
 			if unitDefName then
-				tacticalAIUnits[unitDefName] = {value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1}
+				tacticalAIUnits[unitDefName] = {
+					value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1,
+					commandType = behaviourData.alternateStateToggle or "default",
+				}
 			end
 			if behaviourData.hasWardFire then
 				wardFireUnits[unitDefName] = (behaviourData.wardFireDefault and 1) or 0
@@ -764,6 +768,16 @@ local function addUnit(defName, path)
 			tooltipFunction = tooltipFunc.movestate,
 		}
 		options_order[#options_order+1] = defName .. "_movestate1"
+	end
+	if ud.highTrajectoryType == 2 then
+		options[defName .. "_high_trajectory_1"] = {
+			name = "  Shoot High Trajectory",
+			desc = "Shoot High Trajectory: check box to turn it on",
+			type = 'bool',
+			value = false,
+			path = path,
+		}
+		options_order[#options_order+1] = defName .. "_high_trajectory_1"
 	end
 
 	if (ud.canFly) then
@@ -937,7 +951,7 @@ local function addUnit(defName, path)
 			name = "  Retreat at value",
 			desc = "Values: inherit from factory, no retreat, 33%, 65%, 99% health remaining",
 			type = 'number',
-			value = -1,
+			value = (ud.isFactory and 0) or -1,
 			min = -1,
 			max = 3,
 			step = 1,
@@ -976,14 +990,24 @@ local function addUnit(defName, path)
 	end
 	
 	if tacticalAIUnits[defName] then
-		options[defName .. "_tactical_ai_2"] = {
-			name = "  Smart AI",
-			desc = "Smart AI: check box to turn it on",
-			type = 'bool',
-			value = tacticalAIUnits[defName].value,
-			path = path,
-		}
-		options_order[#options_order+1] = defName .. "_tactical_ai_2"
+		if tacticalAIUnits[defName].commandType == "default" then
+			options[defName .. "_tactical_ai_2"] = {
+				name = "  Smart AI",
+				desc = "Smart AI: check box to turn it on",
+				type = 'bool',
+				value = tacticalAIUnits[defName].value,
+				path = path,
+			}
+			options_order[#options_order+1] = defName .. "_tactical_ai_2"
+		elseif tacticalAIUnits[defName].commandType == "loopback_attack" then
+			options[defName .. "_loop_attack"] = {
+				name = "  Attack Style: check the box to have the plane loop attack and uncheck for strafe.",
+				type = 'bool',
+				value = planeStandoffUnits[defName].value,
+				path = path,
+			}
+			options_order[#options_order+1] = defName .. "_loop_attack"
+		end
 	end
 	
 	if (ud.transportCapacity >= 1) and ud.canFly then
@@ -1000,7 +1024,7 @@ local function addUnit(defName, path)
 	if dontFireAtRadarUnits[unitDefID] ~= nil then
 		options[defName .. "_fire_at_radar"] = {
 			name = "  Fire at radar",
-			desc = "Check box to make these units fire at radar. All other units fire at radar but these have the option not to.",
+			desc = "Fire at radar: Set whether precise units with high reload time fire on uncertain enemy positions within radar",
 			type = 'bool',
 			value = dontFireAtRadarUnits[unitDefID],
 			path = path,
@@ -1008,19 +1032,19 @@ local function addUnit(defName, path)
 		options_order[#options_order+1] = defName .. "_fire_at_radar"
 	end
 
-    local overkillPrevention = overkillPrevention[unitDefID] or overkillPreventionBlackHole[unitDefID] or overkillPreventionLobster[unitDefID]
-    if overkillPrevention then
-        options[defName .. "_overkill_prevention0"] = {
-            name = "  Overkill Prevention",
-            desc = "Control when the unit tries to prevent overkill. This is done by not shooting at units that are already likely to die due to incoming fire.",
-            type = 'number',
-            value = overkillPrevention,
-            min = 0,
-            max = 3,
-            step = 1,
-            path = path,
-            tooltipFunction = tooltipFunc.overkill_prevention,
-        }
+	local overkillPrevention = overkillPrevention[unitDefID] or overkillPreventionBlackHole[unitDefID] or overkillPreventionLobster[unitDefID]
+	if overkillPrevention then
+		options[defName .. "_overkill_prevention0"] = {
+			name = "  Overkill Prevention",
+			desc = "Control when the unit tries to prevent overkill. This causes units to not shoot at targets that are already likely to die due to incoming fire.",
+			type = 'number',
+			value = overkillPrevention,
+			min = 0,
+			max = OVERKILL_STATES - 1,
+			step = 1,
+			path = path,
+			tooltipFunction = tooltipFunc.overkill_prevention,
+		}
 
         options_order[#options_order+1] = defName .. "_overkill_prevention0"
     end
@@ -1139,8 +1163,14 @@ local function AddFactoryOfUnits(defName, plateDefName)
 		addUnit(plateDefName, name)
 	end
 	for i = 1, #ud.buildOptions do
-		addUnit(UnitDefs[ud.buildOptions[i]].name, name)
-		unitsToFactory[UnitDefs[ud.buildOptions[i]].name] = defName
+		local buildeeDef = UnitDefs[ud.buildOptions[i]]
+		local buildeeDefName = buildeeDef.name
+		addUnit(buildeeDefName, name)
+		-- sufficiently insane mods can have factories build each other,
+		-- leading to infinite recursion with "inherit from fac" states
+		if not buildeeDef.isFactory then
+			unitsToFactory[buildeeDefName] = defName
+		end
 	end
 end
 
@@ -1422,7 +1452,8 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		elseif value then
 			orderArray[#orderArray + 1] = {CMD.IDLEMODE, {value}, CMD.OPT_SHIFT}
 		end
-		local done
+		
+		QueueState(name, "high_trajectory_1", CMD.TRAJECTORY, orderArray)
 		QueueState(name, "repeat", CMD.REPEAT, orderArray)
 		QueueState(name, "flylandstate_1_factory", CMD_AP_FLY_STATE, orderArray)
 		local autoassist = QueueState(name, "auto_assist", CMD_FACTORY_GUARD, orderArray)
@@ -1524,6 +1555,7 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		end
 	
 		QueueState(name, "tactical_ai_2", CMD_UNIT_AI, orderArray)
+		QueueState(name, "loop_attack", CMD_LOOP_ATTACK, orderArray)
 		
 		value = GetStateValue(name, "tactical_ai_transport")
 		if value and WG.AddTransport then
@@ -1536,7 +1568,7 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		end
 		
 		QueueState(name, "fire_at_radar", CMD_DONT_FIRE_AT_RADAR, orderArray, true)
-		QueueState(name, "overkill_prevention", CMD_PREVENT_OVERKILL, orderArray)
+		QueueState(name, "overkill_prevention0", CMD_PREVENT_OVERKILL, orderArray)
 		QueueState(name, "personal_cloak_0", CMD_WANT_CLOAK, orderArray)
 		QueueState(name, "impulseMode", CMD_PUSH_PULL, orderArray)
 		QueueState(name, "activateWhenBuilt", CMD_WANT_ONOFF, orderArray)
