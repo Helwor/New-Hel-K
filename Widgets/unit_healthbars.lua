@@ -531,9 +531,9 @@ local fbkBottom   = { 0.40, 0.40, 0.40, featureBarAlpha }
 local fbkTop      = { 0.06, 0.06, 0.06, featureBarAlpha }
 local fhpcolormap = { {0.8, 0.0, 0.0, featureBarAlpha},  {0.8, 0.6, 0.0, featureBarAlpha}, {0.0, 0.70, 0.0, featureBarAlpha} }
 
+-- durations flash _p and _b colors.
 local barColors = {
 	-- Units
-	emp            = { 0.50, 0.50, 1.00, barAlpha },
 	shield         = { 0.30, 0.00, 0.90, barAlpha },
 	-- healtas colores are in bfcolormap 
         building       = { 0.75, 0.75, 0.75, barAlpha },
@@ -987,7 +987,7 @@ do
 			barDrawer.AddPercentBar("building", build)
 		end
 
-		--// MORPHING
+		--// MORPH
 		if (morph) then
 			barDrawer.AddPercentBar("morph", morph.progress)
 		end
@@ -1121,7 +1121,7 @@ do
 		
 		--// REAMMO
 		if ci.canReammo then
-			local reammoProgress = GetUnitRulesParam(unitID, "reammoProgress")
+			local reammoProgress = GetUnitRulesParam(unitID, "ammoFraction") or GetUnitRulesParam(unitID, "reammoProgress")
 			if reammoProgress then
 				barDrawer.AddPercentBar("reammo", reammoProgress)
 			end
@@ -1137,7 +1137,7 @@ do
 					ci.reloadTime = reloadTime
 					-- When weapon is disabled the reload time is constantly set to be almost complete.
 					-- It results in a bunch of units walking around with 99% reload bars.
-					if (reloadFrame > gameFrame + 10) or (GetUnitRulesParam(unitID, "reloadPaused") ~= 1) then -- UPDATE_PERIOD in unit_attributes.lua.
+					if (reloadFrame > gameFrame + 6) or (GetUnitRulesParam(unitID, "reloadPaused") ~= 1) then -- UPDATE_PERIOD in unit_attributes.lua.
 						reload = 1 - ((reloadFrame-gameFrame)/gameSpeed) / ci.reloadTime;
 						if (reload >= 0) then
 							barDrawer.AddPercentBar("reload", reload)
