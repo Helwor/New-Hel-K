@@ -66,7 +66,7 @@ local glReadPixels = gl.ReadPixels
 
 local vsx, vsy = widgetHandler:GetViewSizes()
 
-local drawingsDir = "LuaUI/Widgets/Drawings/"
+local DRAWINGS_DIR = "LuaUI/Widgets/Drawings/"
 
 local MarkerMaker = {} -- class
 MarkerMaker.mt = {__index = MarkerMaker}
@@ -76,16 +76,17 @@ local categories = {byKey = {}, scrollPoses = {}, controls = {}, head = nil}
 local updateCategories = false
 
 local DEBUG_CONTOUR = false
-
+local MAX_ANGLE_TOLERANCE = 0.65
 -- options
 local mode = 'contour'
 local pix_detect = 0.5 -- any rgb color below this value will accept a pixel as valid, any alpha value below (1-pix_detect) will deny it
 local analyse_size = 330 -- the diagonal of the image is extended to this in order to improve the contour making
 local onscreen_size = 150 -- the final result on screen as marker is reshrinked by this multiplicator
-local angle_tolerance = 0.30
+local angle_tolerance = 0.38
 local noise_reduction = 2 -- contour suppressed if less lengthy that this value (% of the image diagonale) (not for plain mode)
 local always_up = true
 local placing_frame = false
+local debugging = false
 --
 
 local showMultFrame = false
@@ -149,6 +150,7 @@ options_order = {
 	'onscreen_size',
 	'angle_tolerance',
 	'noise_reduction',
+	'debug',
 }
 options = {}
 
@@ -295,7 +297,7 @@ options.angle_tolerance = {
 	name = 'Simplify Angle Tolerance',
 	desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
 	type = 'number',
-	min = 0.000, max = 0.5, step = 0.005,
+	min = 0.000, max = MAX_ANGLE_TOLERANCE, step = 0.005,
 	value = angle_tolerance,
 	OnChange = function(self)
 		angle_tolerance = self.value
@@ -316,6 +318,20 @@ options.noise_reduction = {
 		initialized = false
 	end,
 }
+
+options.debug = {
+	name = 'Debug',
+	desc = '',
+	type = 'bool',
+	value = debugging,
+	OnChange = function(self)
+		debugging = self.value
+	end,
+	dev = true,
+
+}
+
+
 
 local function ReturnSelf(self)
 	return self
@@ -456,7 +472,7 @@ local function HighlightCategoryHead(catHead)
 end
 
 local function MakeCategories()
-	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}')
+	local files = VFS.DirList(DRAWINGS_DIR, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}')
 	local byKey = {}
 	local newCats = {}
 	local lastCat
@@ -465,7 +481,7 @@ local function MakeCategories()
 		if not holder[file] then -- wait for it to be added
 			return
 		end
-		local filename = file:gsub(drawingsDir, '')
+		local filename = file:gsub(DRAWINGS_DIR, '')
 		local cat = filename:match('^([%a]+)_')
 		if cat and cat ~= lastCat then
 			byKey[cat] = file
@@ -986,7 +1002,7 @@ local function MakeCustomizationPanel()
 		y = y,
 		width = "48%",
 		-- right = panel_col_width,
-		min = 0.000, max = 0.5, step = 0.005,
+		min = 0.000, max = MAX_ANGLE_TOLERANCE, step = 0.005,
 		value = angle_tolerance,
 		trackColor = color_text,
 		OnMouseUp = {
@@ -1495,7 +1511,7 @@ function MarkerMaker:AcquireContour(point, _y, _x, diry, dirx, raster, spaghetti
 		point.contour = false
 		while point do
 			tries = tries + 1
-			if tries > 15000 then
+			if tries > 25000 then
 				Echo('TOO MANY TRIES CONTOUR')
 				break
 			end
@@ -2056,7 +2072,7 @@ local function BreakStaircase(contour)
 	return new
 end
 
-function MarkerMaker:SimplifyContours(contours)
+function MarkerMaker:SimplifyContoursPRE(contours)
 	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
 	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
 	-- if angle_tolerance > 0.45 then
@@ -2080,8 +2096,7 @@ function MarkerMaker:SimplifyContours(contours)
 
 	-- local windowLen = math.max(1.5, size / ((1-angle_tolerance^2) * 100))
 	local windowLen = math.max(1.5, size / ((1-angle_tolerance)*4 * 30))
-	angle_tolerance = angle_tolerance 
-	-- Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance)
+	Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance)
 
 	local suppress_length =  size * (noise_reduction / 100)
 
@@ -2189,13 +2204,14 @@ function MarkerMaker:SimplifyContours(contours)
 				local curves, too_sharps = 0, 0
 				local curveDetect = 0
 				while i <= len - 1 do
+					Echo(i, 'turnAngle[i]:'.. turnAngle[i])
 					if turnAngle[i] then
 						local maxAngleI, maxAngle = i, turnAngle[i]
 						local m = i + 1
 						local thisTurnAngle = turnAngle[m]
-						local sum = 0
+						local sum = maxAngleI
 						while thisTurnAngle and cum[m] - cum[i] < windowLen do
-							-- Echo("thisTurnAngle:"..tostring(thisTurnAngle))
+							Echo(m, "thisTurnAngle:"..tostring(thisTurnAngle))
 							if thisTurnAngle > maxAngle then
 								maxAngleI, maxAngle = m, thisTurnAngle
 							end
@@ -2205,17 +2221,18 @@ function MarkerMaker:SimplifyContours(contours)
 						end
 						local curveDetectBefore = curveDetect
 						local bestI
-						if maxAngle > angle_tolerance then
+						if maxAngle > angle_tolerance then -- detect sharp angle
 							too_sharps = too_sharps + 1
 							curveDetect = 0
 							bestI = maxAngleI
-						elseif sum >= maxAngle * 0.85 then
-							curveDetect = curveDetect + 1
-							if curveDetect >= 2 then
-								curveDetect = 0
-								curves = curves + 1
-								bestI = m
-							end
+							Echo(('maxAngle %.4f vs sum %d: %.4f avg:%.4f'):format(maxAngle, m-i, sum, sum/(m-i)))
+						-- elseif sum >= maxAngle * 0.85 then -- detect curves
+						-- 	curveDetect = curveDetect + 1
+						-- 	if curveDetect >= 2 then
+						-- 		curveDetect = 0
+						-- 		curves = curves + 1
+						-- 		bestI = m
+						-- 	end
 						else
 							curveDetect = 0
 						end
@@ -2228,8 +2245,9 @@ function MarkerMaker:SimplifyContours(contours)
 							keep[bestI] = true
 						end
 						i = m
-					else
+					else -- never happening...?
 						i = i + 1
+						Echo('NO TURNANGLE', i)
 					end
 				end
 				-- if c == 1 then
@@ -2255,10 +2273,12 @@ function MarkerMaker:SimplifyContours(contours)
 					contours[c] = simplified
 				end
 			end
+		else
+			Echo('contour len <2', len)
 		end
 	end
-	-- Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps))
-	-- Echo(('simplification: %d vs %d, %d%%'):format(total_lines, total_simplified, total_simplified/total_lines))
+	Echo(('simplification: %d vs %d, %d%%'):format(total_lines, total_simplified, 100*total_simplified/total_lines))
+	Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps))
 	-- (inchangé) : suppression des contours trop courts
 	local c = 1
 	local contour = contours[c]
@@ -2288,7 +2308,223 @@ function MarkerMaker:SimplifyContours(contours)
 	end
 end
 
+function MarkerMaker:SimplifyContours(contours)
+	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
+	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+	-- if angle_tolerance > 0.45 then
+	-- 	return MarkerMaker:SimplifyContoursOLD(contours)
+	-- end
+	-- if angle_tolerance < 0.005 then
+	-- 	return MarkerMaker:SimplifyContoursSHARP(contours)
+	-- end
+	local abs, diag, pi = math.abs, math.diag, math.pi
+	local max = math.max
+	local atan2 = math.atan2
+	local remove = table.remove
+	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
+	local size = diag(sizeX, sizeY)
+	local windowLen = math.max(2, size / ((1-angle_tolerance)*4 * 30))
+	local curveThreshold = (pi / 2) * (1 + angle_tolerance)
+	local suppress_length =  size * (noise_reduction / 100)
+	if debugging then
+		Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance, 'curveThreshold', curveThreshold, 'suppress_length', suppres_length)
+	end
 
+
+	local function angleDiff(a, b)
+		local d = a - b
+		while d > pi do d = d - 2*pi end
+		while d < -pi do d = d + 2*pi end
+		return abs(d)
+	end
+	local total_lines, total_simplified = 0, 0
+	local total_curves, total_too_sharps = 0, 0
+	local c = 1
+	local contour = contours[c]
+	local deletion = false
+	while contour do -- sliding window system
+		local _first, _last = contour[1], contour[#contour]
+		local isLoop = _first[1] == _last[1] and _first[2] == _last[2]
+		local len = #contour
+		total_lines = total_lines + len
+		local travel = 0
+		-- Passe 1 : distance cumulée le long du contour, point par point.
+		local cum = {[1] = 0}
+		if len > 2 then
+			for i = 2, len do
+				local p, q = contour[i-1], contour[i]
+				travel = travel + diag(q[1]-p[1], q[2]-p[2])
+				cum[i] = travel
+			end
+		end
+		if travel > suppress_length then
+
+			 -- fill up cum[0], cum[-1], cum[-2] ...
+			local k = 1
+			local winStart = 1
+			if isLoop then
+				local full_travel = cum[len]
+				local from_start = 0
+				for i = len-1, 1, -1 do
+					from_start = full_travel - cum[i]
+					winStart = i-len+1
+					cum[winStart] = -from_start
+					if from_start > windowLen then
+						break
+					end
+				end
+				-- Prolonge cum en avant (indices > len) : après len, on revisite virtuellement
+				-- contour[2], contour[3]... puisque contour[len] == contour[1]
+				for m = 2, len do
+					local extra = cum[m]
+					cum[len + m - 1] = full_travel + extra
+					if extra > windowLen then
+						break
+					end
+				end
+			end
+			local function idx(i)
+				if i < 1 then
+					return i + len - 1
+				elseif i > len then
+					return i - len + 1
+				else
+					return i
+				end
+			end
+			local r = math.round
+			----
+			if cum[len] > windowLen then
+
+				-- Passe 2 : angle de rotation en chaque point
+				local turnAngle = {[1] = 0, [len] = 0} -- [1] = 0 [len] = 0 for non loop case
+				local k = 1
+				local j = winStart
+				for i = 1, len do
+					while cum[j+1] and cum[i] - cum[j+1] >= windowLen do -- j is start of window
+						j = j + 1
+					end
+					while cum[k+1] and cum[k+1] - cum[i] < windowLen do -- k is end of window	
+						k = k + 1
+					end
+					if j < i and i < k then
+						local cur = contour[i]
+						-- local pin, pout = contour[j<1 and len+j-1 or j], contour[k]
+						local pin, pout = contour[idx(j)], contour[idx(k)]
+						local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+						local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+						turnAngle[i] = angleDiff(angleIn, angleOut)
+						-- local r = math.round
+						-- local str = ('contour %d, [ %d=>%d cum%d <-- (%d=>%d/%d cum%d) --> %d=>%d cum%d ] angle: %.4f'):format(c , j, idx(j), r(cum[j]), i, idx(i), len, r(cum[i]), k, idx(k), r(cum[k]), turnAngle[i])
+						-- Echo(str)
+					end
+				end
+				-- Echo("len:"..tostring(len), 'isLoop', isLoop, '#turnAngle', #turnAngle)
+				if isLoop then
+					for i = winStart, 0 do
+						turnAngle[i] = turnAngle[idx(i)]
+					end
+					for i = len + 1, #cum do
+						turnAngle[i] = turnAngle[idx(i)]
+					end
+				end
+				-- Passe 3 : 
+				local i = 1
+				local keep = {}
+				if not isLoop then
+					keep[1], keep[len] = true, true
+					i = 2
+				end
+				local winEnd = 2
+				local curves, too_sharps = 0, 0
+				local accuAngle = 0
+				while i <= len - 1 do -- len -1 because: if not isLoop => we keep both extremities, if isLoop => first point window == last point window
+					local turn = turnAngle[i]
+					-- Echo(('# %d, turn: %.4f tol'):format(i, turn, turn <= angle_tolerance))
+					if turn > angle_tolerance then
+						while cum[winStart] and cum[i] - cum[winStart] >= windowLen do
+							winStart = winStart + 1
+						end
+						while cum[winEnd+1] and cum[winEnd+1] - cum[i] < windowLen do
+							winEnd = winEnd + 1
+						end
+						local maxAngleI, maxAngle = i, turn
+						local sum = maxAngle
+						for m = winStart, winEnd do
+							if i ~= m then
+								local thisTurnAngle = turnAngle[m]
+								if thisTurnAngle > maxAngle then
+									maxAngleI, maxAngle = m, thisTurnAngle
+								end
+								sum = sum + thisTurnAngle
+								thisTurnAngle = turnAngle[m]
+							end
+						end
+						-- Echo(('Found angle %.4f in window [ %d <- %d -> %d ], sum %.4f, avg %.4f'):format(maxAngle, winStart, i, winEnd, sum, sum/(winEnd - winStart + 1)))
+						too_sharps = too_sharps + 1
+						keep[maxAngleI] = true
+						i = winEnd + 1
+						accuAngle = 0
+						for i = maxAngleI, winEnd do
+							accuAngle = accuAngle + turnAngle[i]
+						end
+					else -- detecting curves and noisy lines
+						accuAngle = accuAngle + turn
+						if accuAngle > curveThreshold then
+							accuAngle = 0
+							keep[i] = true
+							curves = curves + 1
+						end
+						i = i + 1
+					end
+				end
+				total_curves, total_too_sharps = total_curves + curves, total_too_sharps + too_sharps
+				local simplified, s = {}, 0
+				local first
+				for i = 1, len do
+					if keep[i] then
+						if isLoop and not first then
+							first = contour[i]
+						end
+						s = s + 1
+						simplified[s] = contour[i]
+					end
+				end
+				if first then
+					local last = simplified[s]
+					if first[1] ~= last[1] or first[2] ~= last[2] then
+						s = s + 1
+						simplified[s] = first
+					end
+
+				end
+				if s > 1 then
+					total_simplified = total_simplified + s
+					contours[c] = simplified
+				else
+					contours[c] = nil
+					deletion = true
+				end
+			else
+				contours[c] = nil
+				deletion = true
+			end
+		else
+			contours[c] = nil
+			deletion = true
+		end
+		c = c + 1
+		contour = contours[c]
+	end
+	if deletion then
+		table.restoreArray(contours) 
+	end
+	if debugging then
+		Echo(('simplification: %d vs %d, %d%%'):format(total_lines, total_simplified, 100*total_simplified/total_lines))
+		Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps))
+	end
+	-- (inchangé) : suppression des contours trop courts
+end
 
 function MarkerMaker:SetScreenRatio()
 	local onscreen_size = self.use_default and onscreen_size or self.onscreen_size
@@ -2382,7 +2618,7 @@ function MarkerMaker:ImageToLineObj()
 	local mul = analyse_size / diag
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
-
+	-- Echo("sizeX:"..tostring(sizeX)..", sizeY:"..tostring(sizeY))
 	glTexRect(0, 0, sizeX, sizeY)
 	local temp_screen_ratio = onscreen_size / analyse_size -- FIXME the real screen_ratio will be defined by getting the top, left, right, bottom later :(
 	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
@@ -2391,9 +2627,10 @@ function MarkerMaker:ImageToLineObj()
 	local left, right = huge, -huge
 	local modf = math.modf
 	local skip = modf(1/temp_screen_ratio) -- reduce the number of line
-	if skip == 1 then
+	if skip < 2 then
 		skip = false
 	end
+
 	for y = sizeY-1, 0, -1 do -- y0 is at bottom
 		if not skip or modf(y)%skip == 0 then
 			local pixels = gl.ReadPixels(0, y, sizeX, 1)
@@ -2466,7 +2703,7 @@ end
 function MarkerMaker:AddLineObj(index, isLoaded)
 	self:SetScreenRatio()
 	if not isLoaded then
-		self.filename = self.file:gsub(drawingsDir, '')
+		self.filename = self.file:gsub(DRAWINGS_DIR, '')
 		local size = 0
 		local read = io.open(self.file, 'r')
 		if read then
@@ -2864,7 +3101,7 @@ end
 local Timer = Spring.GetTimer
 local Diff = Spring.DiffTimers
 function MarkerMaker:UpdateFiles()
-	local files = VFS.DirList(drawingsDir, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}', VFS.RAW)
+	local files = VFS.DirList(DRAWINGS_DIR, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}', VFS.RAW)
 	local count = 0
 	if not files[current] then
 		current = 1
