@@ -944,7 +944,7 @@ end
 
 
 
-function widget:UnitReverseBuilt(id--[[, unitDefID, unitTeam--]])
+function widget:UnitReverseBuilt(id, defID, teamID)
 	local unit = Units[id]
 	if unit then
 		unit.checkHealth = not ignoreHealthDefID[defID]
