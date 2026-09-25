@@ -5094,13 +5094,20 @@ end
 -- much faster to nil key then restore than using table.remove
 -- if the table got at least a decent size (30+) and  a lot to be removed (50%+) or if the table is big (300+)
 function table.restoreArray(t) 
-	local tries = 0
-	local i, len = 1, table.size(t)
-	-- Echo('LEN', len)
-	local off = 0
-	while t[i] ~= nil do
+	local i = 1
+	local len = 0
+	local type = type
+	for j in pairs(t) do
+		if type(j) == 'number' and j > 0  and j%1 == 0 then
+			len = len + 1
+		end
+	end
+	while t[i] do
 		i = i + 1
 	end
+
+	-- Echo('LEN', len)
+	local off = 0
 	while i <= len do
 		-- Echo('i to fill start at ' .. i)
 		off = off + 1
@@ -5123,7 +5130,6 @@ function table.restoreArray(t)
 		end
 		-- Echo('round end at ' .. i .. ', off is ' .. off)
 	end
-	-- Echo(len == #t and 'SUCCESS' or 'FAIL', len,#t)
 end
 
 
