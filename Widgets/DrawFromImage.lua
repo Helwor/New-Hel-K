@@ -1464,7 +1464,6 @@ function MarkerMaker:GetRaster()
 
 	local analyse_size = self.useDefault and analyse_size or self.analyse_size
 
-
 	local sizeX = info.xsize
 	local sizeY = info.ysize
 	local diag = math.diag(sizeX, sizeY)
@@ -1472,16 +1471,23 @@ function MarkerMaker:GetRaster()
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
 
-	glTexRect(0, 0, sizeX, sizeY)
-	-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
-	-- so we ask line by line...
+	local tex = gl.CreateTexture(sizeX, sizeY, {
+		format = GL.RGBA8,
+		fbo = true,
+	})
 
-
-	for y = sizeY-1, 0, -1 do -- y0 is at bottom
-		t[y+1] = gl.ReadPixels(0, y, sizeX, 1)
-	end
-
+	gl.RenderToTexture(tex, function()
+		gl.Clear(GL.COLOR_BUFFER_BIT)
+		glTexRect(-1, -1, 1, 1)
+		-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
+		-- so we ask line by line...
+		for y = sizeY-1, 0, -1 do -- y0 is at bottom
+			t[y+1] = gl.ReadPixels(0, y, sizeX, 1)
+		end
+	end)
 	glTexture(0, false)
+	gl.DeleteTextureFBO(tex)
+	gl.DeleteTexture(tex)
 	glDeleteTexture(file)
 	return t
 end
