@@ -2327,7 +2327,7 @@ function MarkerMaker:SimplifyContours(contours)
 	local curveThreshold = (pi / 2) * (1 + angle_tolerance)
 	local suppress_length =  size * (noise_reduction / 100)
 	if debugging then
-		Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance, 'curveThreshold', curveThreshold, 'suppress_length', suppres_length)
+		Echo('size', size, "windowLen:"..tostring(windowLen), 'tolerance', angle_tolerance, 'curveThreshold', curveThreshold, 'suppress_length', suppress_length)
 	end
 
 
