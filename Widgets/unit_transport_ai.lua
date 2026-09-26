@@ -51,7 +51,7 @@ local spGetUnitPosition       = Spring.GetUnitPosition
 local spGetUnitDefID          = Spring.GetUnitDefID
 local spEcho                  = Spring.Echo
 local spGetPlayerInfo         = Spring.GetPlayerInfo
-local spGetCommandQueue       = Spring.GetCommandQueue
+local spGetUnitCommands       = Spring.GetUnitCommands
 local spGetUnitSeparation     = Spring.GetUnitSeparation
 local spGiveOrderToUnit       = Spring.GiveOrderToUnit
 local spGetUnitDefDimensions  = Spring.GetUnitDefDimensions
@@ -194,7 +194,7 @@ local ignoredCommand = {
 	[CMD_DISABLE_ATTACK] = true,
 	[CMD_PUSH_PULL] = true,
 	[CMD_UNIT_AI] = true,
-	[CMD_LOOP_ATTACK] = true,
+	[CMD_LOOP_ATTACK or 99999] = true,
 	[CMD_WANT_CLOAK] = true,
 	[CMD_DONT_FIRE_AT_RADAR] = true,
 	[CMD_AIR_STRAFE] = true,
@@ -276,7 +276,7 @@ function IsWaitCommand(unitID)
 end
 
 function IsIdle(unitID)
-	return spGetCommandQueue(unitID, 0) == 0
+	return Spring.GetUnitCommandCount(unitID) == 0
 end
 
 function GetToPickTransport(unitID)
@@ -406,7 +406,7 @@ end
 local function AddTransport(unitID, unitDefID)
 	if transportDef[unitDefID] then
 		activeTransports[unitID] = unitDefID
-		local queueCount = Spring.GetCommandQueue(unitID, 0)
+		local queueCount = Spring.GetUnitCommandCount(unitID)
 		if queueCount == 0 then
 			AddTransportToIdle(unitID, unitDefID)
 		end
@@ -570,7 +570,7 @@ function widget:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdTag)
 	-- Echo('autoCallTransportUnits', unitID, autoCallTransportUnits[unitID])
 	if autoCallTransportUnits[unitID] then
 		local useful, halting = ProcessCommand(unitID, cmdID, params, false, true)
-		local queue = Spring.GetCommandQueue(unitID, 0)
+		local queue = Spring.GetUnitCommandCount(unitID)
 		if useful and halting and queue >= 1 then
 			-- Echo('send EMBARK', CMD_EMBARK)
 			spGiveOrderToUnit(unitID, CMD_EMBARK, EMPTY_TABLE, CMD.OPT_ALT)
@@ -700,7 +700,7 @@ function widget:UnitLoaded(unitID, unitDefID, teamID, transportID)
 		return
 	end
 
-	local queue = spGetCommandQueue(unitID, -1);
+	local queue = spGetUnitCommands(unitID, -1);
 	if (queue == nil) then
 		return
 	end
@@ -964,7 +964,7 @@ function GetPathLength(unitID)
 	if (h > maxi) then maxi = h end
 
 	local d = 0
-	local queue = spGetCommandQueue(unitID, -1);
+	local queue = spGetUnitCommands(unitID, -1);
 	local udid = spGetUnitDefID(unitID)
 	local moveID = UnitDefs[udid].moveDef.id
 	if (queue == nil) then return 0 end
@@ -1014,6 +1014,9 @@ end
 
 --This function process result of Spring.PathRequest() to say whether target is reachable or not
 function IsTargetReachable (moveID, ox,oy,oz,tx,ty,tz,radius)
+	if WG.Disable_RequestPath then
+		return "reach"
+	end
 	local result,lastcoordinate, waypoints
 	local path = Spring.RequestPath( moveID,ox,oy,oz,tx,ty,tz, radius)
 	if path then
@@ -1075,7 +1078,7 @@ function taiEmbark(unitID, teamID, embark, shift, internal) -- called by gadget
 	end
 
 	if not internal then
-		local queue = spGetCommandQueue(unitID, -1)
+		local queue = spGetUnitCommands(unitID, -1)
 		if (not queue or #queue == 0) and (not shift) then --unit has no command at all and not queueing embark/disembark command
 			return false
 		else
