@@ -106,10 +106,14 @@ local function Treat()
 		local bads = {}
 		for defID, units in pairs(myUnits) do
 			local u_len = #units
-			for i=u_len, 1, -1 do
+			for i = u_len, 1, -1 do
 				local id = units[i]
 				local toRemove,n = {}, 0
 				local queue = spGetCommandQueue(id, -1)
+				if not queue then
+					Echo('Fix Sling: no queue for ', id, 'valid?', Spring.ValidUnitID(id), 'isDead?', Spring.GetUnitIsDead(id))
+					return
+				end
 				local len = #queue
 				total = total + len
 				local targets = 0
