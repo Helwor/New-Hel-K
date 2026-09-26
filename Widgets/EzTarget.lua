@@ -1655,7 +1655,12 @@ UpdateSelection = function(sel,newsel)
 	--     Echo(k,v)
 	-- end
 	if s.modCtrl then
-		selects = GetVisibleUnits(s.acquiredSelect)
+		local defID = spGetUnitDefID(s.acquiredSelect)
+		if not defID then
+			Echo('!! DEBUG s.acquiredSelect', s.acquiredSelect, 'don\'t have defID', Units[s.acquiredSelect or -1] and Units[s.acquiredSelect].name, 'valid?', Spring.ValidUnitID(s.acquiredSelect or -1), 'is dead?', Spring.GetUnitIsDead(s.acquiredSelect or -1), 'registered as dead?', Units[s.acquiredSelect or -1] and Units[s.acquiredSelect].isDead, 'isMine?', Units[s.acquiredSelect or -1] and Units[s.acquiredSelect].isMine)
+			return
+		end
+		selects = GetVisibleUnits(s.acquiredSelect, defID)
 		ignore = shift and s.acquiredSelect -- in the double click, user selected or unselected the pointed unit, we don't take it into account
 		if s.doubleClick then
 			s.modCtrl, s.doubleClick = false, false
@@ -2828,8 +2833,7 @@ IsDefaultCommandActive = function(dt)
 
 end
 
-GetVisibleUnits = function(targetID)
-	local defID = spGetUnitDefID(s.acquiredSelect)
+GetVisibleUnits = function(targetID, defID)
 	-- Echo("v.myTeamID:"..tostring(v.myTeamID)..", spGetUnitTeam(targetID):"..tostring(spGetUnitTeam(targetID))..", defID:"..tostring(defID))
 	local typeUnits = spGetTeamUnitsByDefs(v.myTeamID or spGetUnitTeam(targetID), defID)
 	local unitList = {}
