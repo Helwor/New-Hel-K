@@ -1066,3 +1066,5 @@ function WG.DBSCAN_clusterOLD(receivedUnitList,neighborhoodRadius,minimumNeighbo
 	end --//for i=1, i <= #receivedUnitList,1
 	return cluster, unitIDNoise
 end
+
+f.DebugWidget(widget)
