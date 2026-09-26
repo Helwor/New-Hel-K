@@ -111,51 +111,52 @@ local function Treat()
 				local toRemove,n = {}, 0
 				local queue = spGetCommandQueue(id, -1)
 				if not queue then
-					return
-				end
-				local len = #queue
-				total = total + len
-				local targets = 0
-				if queue then
-					for _, order in ipairs(queue) do
-						if order.id == CMD_ATTACK and not order.params[2] then
-							targets = targets + 1
-							local tgt = order.params[1]
-							-- Echo("Units[tgt] is ", WG.Cam.Units[tgt])
-							-- local unit = Units[tgt]
-							-- if unit then
-							-- 	for k,v in pairs(unit) do
-							-- 		Echo(k,v)
-							-- 	end
-							-- end
-							local isBad = bads[tgt]
-							if isBad then
-								n = n + 1
-								toRemove[n] = order.tag
-								-- spGiveOrderToUnit(id, CMD_REMOVE, order.tag, 0)
-
-							elseif isBad == nil then
-								local enemy = Units[tgt]
-								if not (enemy and enemy.isStructure) then
-									bads[tgt] = true
+					units[i] = nil
+				else
+					local len = #queue
+					total = total + len
+					local targets = 0
+					if queue then
+						for _, order in ipairs(queue) do
+							if order.id == CMD_ATTACK and not order.params[2] then
+								targets = targets + 1
+								local tgt = order.params[1]
+								-- Echo("Units[tgt] is ", WG.Cam.Units[tgt])
+								-- local unit = Units[tgt]
+								-- if unit then
+								-- 	for k,v in pairs(unit) do
+								-- 		Echo(k,v)
+								-- 	end
+								-- end
+								local isBad = bads[tgt]
+								if isBad then
 									n = n + 1
 									toRemove[n] = order.tag
 									-- spGiveOrderToUnit(id, CMD_REMOVE, order.tag, 0)
-								else
-									bads[tgt] = false
+
+								elseif isBad == nil then
+									local enemy = Units[tgt]
+									if not (enemy and enemy.isStructure) then
+										bads[tgt] = true
+										n = n + 1
+										toRemove[n] = order.tag
+										-- spGiveOrderToUnit(id, CMD_REMOVE, order.tag, 0)
+									else
+										bads[tgt] = false
+									end
 								end
 							end
 						end
 					end
-				end
-				if targets == n then
-					return -- there is no structure in the enemy targets pool
-				end
+					if targets == n then
+						return -- there is no structure in the enemy targets pool
+					end
 					-- spGiveOrderToUnit(id, CMD_REMOVE, toRemove, 0)
-				toOrder[id] = toRemove
-				units[i] = nil
-				if total > MAX_ORDER_CHECK then
-					return
+					toOrder[id] = toRemove
+					units[i] = nil
+					if total > MAX_ORDER_CHECK then
+						return
+					end
 				end
 			end
 			myUnits[defID] = nil
