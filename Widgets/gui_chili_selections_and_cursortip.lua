@@ -157,7 +157,6 @@ local terraCmdTip = {
 		green.. 'Ctrl'..white..': Draw straight line segment. \n'..
 		'\n'..
 		yellow..'[After Terraform Draw]\n'..
-
 		green.. 'Alt'..white..': Snap height (walls 12 high block vehicles, 24 blocks bots)\n'..
 		green.. 'Ctrl'..white..': Reset to 0 height.',
 	[CMD_SMOOTH] = terraformGeneralTip ..
@@ -176,7 +175,6 @@ local DRAWING_TOOLTIP =
 
 local SPECIAL_WEAPON_RELOAD_PARAM = "specialReloadRemaining"
 local JUMP_RELOAD_PARAM = "jumpReload"
-local AMMO_FRACTION_PARAM = "ammoFraction"
 
 local reloadBarColor = {013, 245, 243, 1}
 local fullHealthBarColor = {0, 255, 0, 1}
@@ -246,12 +244,10 @@ local manualFireTimeDefs = {}
 local manualFireWeaponNum = {}
 local specialReloadDefs = {}
 local jumpChargeDefs = {}
-local ammoFractionDefs = {}
 local ammoRequiringDefs = {}
 for unitDefID = 1, #UnitDefs do
 	local ud = UnitDefs[unitDefID]
 	local unitWeapon = (ud and ud.weapons)
-	unitWeapon = unitWeapon and unitWeapon[3]
 	--Note: weapon no.3 is by ZK convention is usually used for user controlled weapon
 	local weaponNum = tonumber(ud.customParams.manualfire_num or 3)
 	unitWeapon = unitWeapon and unitWeapon[weaponNum]
@@ -265,9 +261,6 @@ for unitDefID = 1, #UnitDefs do
 	end
 	if ud.customParams.canjump then
 		jumpChargeDefs[unitDefID] = tonumber(ud.customParams.jump_charges) or 1
-	end
-	if ud.customParams.shots_per_refuel then
-		ammoFractionDefs[unitDefID] = true
 	end
 	if ud.customParams.reammoseconds then
 		ammoRequiringDefs[unitDefID] = true
@@ -321,13 +314,12 @@ options_order = {
 	--selected units
 	'selection_opacity', 'allowclickthrough', 'tooltipThroughPanels', 'groupbehaviour', 'showgroupinfo', 'sortByHealth',
 
-	'uniticon_size', 'matchIconSizes', 'manualWeaponReloadBar', 'jumpReloadBar', 'ammoFracBar', 'selectionScale',
+	'uniticon_size', 'matchIconSizes', 'manualWeaponReloadBar', 'jumpReloadBar', 'selectionScale',
 	'fancySkinning', 'leftPadding',
 }
 
 local showManualFire = true
 local showJumpReload = true
-local showAmmoFrac   = true
 
 options = {
 	tooltip_delay = {
@@ -508,17 +500,6 @@ options = {
 			showJumpReload = self.value
 		end,
 	},
-	ammoFracBar = {
-		name="Show Unit's Ammo Remaining",
-		type='bool',
-		value= true,
-		noHotkey = true,
-		desc = "Show ammo remaining for aircraft with multiple limited shots",
-		path = selPath,
-		OnChange = function(self)
-			showAmmoFrac = self.value
-		end,
-	},
 	selectionScale = {
 		name = "UI Scale",
 		type = "number",
@@ -687,11 +668,7 @@ local function GetUnitIcon(unitDefID)
 	if not ud then
 		return
 	end
-	local iconTypes = icontypes[(ud and ud.iconType or "default")]
-	if not iconTypes then
-		return
-	end
-	iconTypeCache[unitDefID] = iconTypes.bitmap or 'icons/' .. ud.iconType .. iconFormat
+	iconTypeCache[unitDefID] = icontypes[(ud and ud.iconType or "default")].bitmap or 'icons/' .. ud.iconType .. iconFormat
 	return iconTypeCache[unitDefID]
 end
 
@@ -910,7 +887,7 @@ local function GetManualFireReload(unitID, unitDefID)
 end
 
 local function GetJumpCharges(unitID, unitDefID)
-	if not showJumpReload then
+	if not (unitDefID and showJumpReload) then
 		return false
 	end
 	unitDefID = unitDefID or Spring.GetUnitDefID(unitID)
@@ -919,19 +896,6 @@ local function GetJumpCharges(unitID, unitDefID)
 	end
 	if jumpChargeDefs[unitDefID] then
 		return jumpChargeDefs[unitDefID]
-	end
-	return false
-end
-local function ShowAmmoFraction(unitID, unitDefID)
-	if not showAmmoFrac then
-		return false
-	end
-	unitDefID = unitDefID or Spring.GetUnitDefID(unitID)
-	if not unitDefID then
-		return false
-	end
-	if ammoFractionDefs[unitDefID] then
-		return ammoFractionDefs[unitDefID]
 	end
 	return false
 end
@@ -1507,7 +1471,7 @@ local function GetCostInfoPanel(parentControl, yPos)
 	return Update
 end
 
-local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum, rulesParam, negate, reloadTime, charges, onLeft)
+local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum, rulesParam, reloadTime, charges, onLeft)
 	charges = charges or 1
 	if not reloadBar then
 		reloadBar = Chili.Progressbar:New {
@@ -1533,9 +1497,6 @@ local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum,
 		reloadFraction = GetRulesParamReloadStatus(unitID, rulesParam, reloadTime)
 	end
 	if reloadFraction then
-		if negate then
-			reloadFraction = 1 - reloadFraction
-		end
 		if charges == 1 then
 			reloadBar._relativeBounds.top = 5
 			reloadBar:UpdateClientArea()
@@ -1560,23 +1521,7 @@ local function UpdateManualFireReload(reloadBar, parentImage, unitID, weaponNum,
 	return reloadBar
 end
 
-local function UpdateUnitPicBars(unitID, unitDefID, unitImage, reloadBar, jumpBar)
-	local reloadTime, weaponNum, rulesParam = GetManualFireReload(unitID, unitDefID)
-	if reloadTime then
-		reloadBar = c/JEUX/UpdateManualFireReload(reloadBar, unitImage, unitID, weaponNum, rulesParam, false, reloadTime)
-	elseif reloadBar then
-		reloadBar:SetVisibility(false)
-	end
-	local jumpCharges = GetJumpCharges(unitID, unitDefID)
-	if jumpCharges then
-		jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, false, jumpCharges, true)
-	elseif ShowAmmoFraction(unitID, unitDefID) then
-		jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, AMMO_FRACTION_PARAM, true, false, false, true)
-	elseif jumpBar then
-		jumpBar:SetVisibility(false)
-	end
-	return reloadBar, jumpBar
-end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Group buttons window
@@ -1655,7 +1600,18 @@ local function GetUnitGroupIconButton(parentControl)
 				healthBar:SetValue(healthProp)
 			end
 			
-			reloadBar, jumpBar = UpdateUnitPicBars(unitID, unitDefID, unitImage, reloadBar, jumpBar)
+			local reloadTime, weaponNum, rulesParam = GetManualFireReload(unitID, unitDefID)
+			if reloadTime then
+				reloadBar = UpdateManualFireReload(reloadBar, unitImage, unitID, weaponNum, rulesParam, reloadTime)
+			elseif reloadBar then
+				reloadBar:SetVisibility(false)
+			end
+			local jumpCharges = GetJumpCharges(unitID, unitDefID)
+			if jumpCharges then
+				jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, jumpCharges, true)
+			elseif jumpBar then
+				jumpBar:SetVisibility(false)
+			end
 			local needRearm = GetUnitNeedRearm(unitID, unitDefID)
 			if needRearm and (not unitpicBadgeUpdate) then
 				unitpicBadgeUpdate = GetImage(unitImage, "costInfoUpdate", 4, IMAGE.NO_AMMO, ICON_SIZE, 4)
@@ -2239,7 +2195,18 @@ local function GetSingleUnitInfoPanel(parentControl, isTooltipVersion)
 	local externalFunctions = {}
 		
 	local function UpdateReloadTime(unitID, unitDefID)
-		reloadBar, jumpBar = UpdateUnitPicBars(unitID, unitDefID, unitImage, reloadBar, jumpBar)
+		local reloadTime, weaponNum, rulesParam = GetManualFireReload(unitID, unitDefID)
+		if reloadTime then
+			reloadBar = UpdateManualFireReload(reloadBar, unitImage, unitID, weaponNum, rulesParam, reloadTime)
+		elseif reloadBar then
+			reloadBar:SetVisibility(false)
+		end
+		local jumpCharges = GetJumpCharges(unitID, unitDefID)
+		if jumpCharges then
+			jumpBar = UpdateManualFireReload(jumpBar, unitImage, unitID, false, JUMP_RELOAD_PARAM, false, jumpCharges, true)
+		elseif jumpBar then
+			jumpBar:SetVisibility(false)
+		end
 	end
 
 	local function UpdateDynamicUnitAttributes(unitID, unitDefID, featureID, ud)
