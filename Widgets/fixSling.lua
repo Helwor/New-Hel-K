@@ -111,7 +111,6 @@ local function Treat()
 				local toRemove,n = {}, 0
 				local queue = spGetCommandQueue(id, -1)
 				if not queue then
-					Echo('Fix Sling: no queue for ', id, 'valid?', Spring.ValidUnitID(id), 'isDead?', Spring.GetUnitIsDead(id))
 					return
 				end
 				local len = #queue
