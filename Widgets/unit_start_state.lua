@@ -690,10 +690,7 @@ do
 			local unitDefName = unitDefID and UnitDefs[unitDefID]
 			unitDefName = unitDefName and unitDefName.name
 			if unitDefName then
-				tacticalAIUnits[unitDefName] = {
-					value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1,
-					commandType = behaviourData.alternateStateToggle or "default",
-				}
+				tacticalAIUnits[unitDefName] = {value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1}
 			end
 			if behaviourData.hasWardFire then
 				wardFireUnits[unitDefName] = (behaviourData.wardFireDefault and 1) or 0
@@ -1024,7 +1021,7 @@ local function addUnit(defName, path)
 	if dontFireAtRadarUnits[unitDefID] ~= nil then
 		options[defName .. "_fire_at_radar"] = {
 			name = "  Fire at radar",
-			desc = "Fire at radar: Set whether precise units with high reload time fire on uncertain enemy positions within radar",
+			desc = "Check box to make these units fire at radar. All other units fire at radar but these have the option not to.",
 			type = 'bool',
 			value = dontFireAtRadarUnits[unitDefID],
 			path = path,
@@ -1456,7 +1453,7 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		QueueState(name, "high_trajectory_1", CMD.TRAJECTORY, orderArray)
 		QueueState(name, "repeat", CMD.REPEAT, orderArray)
 		QueueState(name, "flylandstate_1_factory", CMD_AP_FLY_STATE, orderArray)
-		local autoassist = QueueState(name, "auto_assist", CMD_FACTORY_GUARD, orderArray)
+		local auto_assist = QueueState(name, "auto_assist", CMD_FACTORY_GUARD, orderArray)
 		if autoassist then
 			WG.factoryAutoGuard = WG.factoryAutoGuard or {}
 			WG.factoryAutoGuard[unitID] = true
