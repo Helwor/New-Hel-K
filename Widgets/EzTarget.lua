@@ -2830,7 +2830,7 @@ end
 
 GetVisibleUnits = function(targetID)
 	local defID = spGetUnitDefID(s.acquiredSelect)
-	Echo("v.myTeamID:"..tostring(v.myTeamID)..", spGetUnitTeam(targetID):"..tostring(spGetUnitTeam(targetID))..", defID:"..tostring(defID))
+	-- Echo("v.myTeamID:"..tostring(v.myTeamID)..", spGetUnitTeam(targetID):"..tostring(spGetUnitTeam(targetID))..", defID:"..tostring(defID))
 	local typeUnits = spGetTeamUnitsByDefs(v.myTeamID or spGetUnitTeam(targetID), defID)
 	local unitList = {}
 	for i = 1, #typeUnits do
