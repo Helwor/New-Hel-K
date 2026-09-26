@@ -1121,7 +1121,7 @@ do
 		
 		--// REAMMO
 		if ci.canReammo then
-			local reammoProgress = GetUnitRulesParam(unitID, "ammoFraction") or GetUnitRulesParam(unitID, "reammoProgress")
+			local reammoProgress = GetUnitRulesParam(unitID, "reammoProgress")
 			if reammoProgress then
 				barDrawer.AddPercentBar("reammo", reammoProgress)
 			end
@@ -1562,7 +1562,7 @@ do
 			for unitID in pairs(visibleUnits) do
 				-- if (unitDefID) then
 				local unit = Units[unitID]
-				if unit.isKnown then
+				if unit and unit.isKnown then
 					if not Spring.GetUnitRulesParam(unitID, "no_healthbar") and DrawUnitInfos(unitID, unit.defID, unit)
 						or JustGetOverlayInfos(unitID, unitDefID) then
 						-- local x, y, z = Spring.GetUnitPosition(unitID)
@@ -1574,12 +1574,17 @@ do
 						end
 					end
 				elseif debugMode then
+					if not unit then
+						Echo("HealthBars", "unitID", unitID, "not in Units API", 'valid?', Spring.ValidUnitID(unitID or -1), 'isDead?', Spring.GetUnitIsDead(unitID or -1),  'defID', Spring.GetUnitDefID(unitID or -1), 'name?', Spring.GetUnitDefID(unitID or -1) and UnitDefs[Spring.GetUnitDefID(unitID or -1)].name)
+					end
 					local x, y, z = Spring.GetUnitPosition(unitID)
 					if not (x and y and z) then
 						Spring.Log("HealthBars", "error", "missing position and unitDefID of unit " .. unitID)
 					else
 						Spring.MarkerAddPoint(x, y, z, "Missing unitDef")
 					end
+				elseif not unit then
+					Echo("HealthBars", "unitID", unitID, "not in Units API", 'valid?', Spring.ValidUnitID(unitID or -1), 'isDead?', Spring.GetUnitIsDead(unitID or -1),  'defID', Spring.GetUnitDefID(unitID or -1), 'name?', Spring.GetUnitDefID(unitID or -1) and UnitDefs[Spring.GetUnitDefID(unitID or -1)].name)
 				end
 			end
 			
