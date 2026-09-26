@@ -13,7 +13,6 @@ function widget:GetInfo()
 	}
 end
 -- April 2025 fix dots appearing above UI (DrawScreenEffects instead of DrawScreen)
-local Echo = Spring.Echo
 
 local requirements = {
 	exists = {
@@ -30,13 +29,13 @@ local requirements = {
 
 -- debug vars in a window
 local debugMe = false
-local DebugUp
+-- local DebugUp
 
 
 -- speeds up
 
 
-local spGetCommandQueue             = Spring.GetCommandQueue
+-- local spGetCommandQueue             = Spring.GetCommandQueue
 local spGetSelectedUnits            = Spring.GetSelectedUnits
 local spGetUnitPosition             = Spring.GetUnitPosition
 local spValidUnitID                 = Spring.ValidUnitID
@@ -56,22 +55,22 @@ local spGetMouseState               = Spring.GetMouseState
 local spSelectUnitArray             = Spring.SelectUnitArray
 local spGetUnitNoSelect             = Spring.GetUnitNoSelect
 local spGetDefaultCommand           = Spring.GetDefaultCommand
-local spuGetMoveType                = Spring.Utilities.getMovetype
+-- local spuGetMoveType                = Spring.Utilities.getMovetype
 local spGetUnitHealth               = Spring.GetUnitHealth
 local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 local spGetUnitTransporter          = Spring.GetUnitTransporter
 local spGetLastUpdateSeconds        = Spring.GetLastUpdateSeconds
-local spGetCmdDescIndex             = Spring.GetCmdDescIndex
+-- local spGetCmdDescIndex             = Spring.GetCmdDescIndex
 local spIsAboveMiniMap              = Spring.IsAboveMiniMap
 -- local spGetUnitsInCylinder = Spring.GetUnitsInCylinder
 -- local spGetUnitsInRectangle = Spring.GetUnitsInRectangle
 local spIsUnitVisible               = Spring.IsUnitVisible
-local spIsUnitAllied = Spring.IsUnitAllied
-local spGetUnitTeam = Spring.GetUnitTeam
-local spGetTeamUnitsByDefs = Spring.GetTeamUnitsByDefs
--- local spGetGameFrame                = Spring.GetGameFrame
+local spIsUnitAllied                = Spring.IsUnitAllied
+local spGetUnitTeam                 = Spring.GetUnitTeam
+local spGetTeamUnitsByDefs          = Spring.GetTeamUnitsByDefs
+-- local spGetGameFrame             = Spring.GetGameFrame
 local spGetUnitRulesParam           = Spring.GetUnitRulesParam
-local spGetModKeyState = Spring.GetModKeyState
+local spGetModKeyState              = Spring.GetModKeyState
 -- local iconTypesPath = LUAUI_DIRNAME .. "Configs/icontypes.lua"
 -- local icontypes = VFS.FileExists(iconTypesPath) and VFS.Include(iconTypesPath)
 
@@ -112,6 +111,9 @@ local aboveMinimap = false -- ENGINE BUG during DefaultCommand() the minimap is 
 local IconsAsUI = false
 local tsort = table.sort
 local osclock = os.clock
+
+local currentRet
+local updateAllowed = true
 
 local isIcon, inSight
 
@@ -920,7 +922,6 @@ function reset()
 	-- end
 	v.moddedTarget, s.moddedSelect, v.moddedCmd, drawCircle = nil, nil, nil, {}
 	v.dist2, v.prefer = nil, nil
-
 end
 function widget:GameFrame(f)
 	upd.frame = f
@@ -932,7 +933,6 @@ local function SwitchCommand(commandName, command, namecom)
 	if namecom ~= v.moddedActiveCommand then
 		spSetActiveCommand(commandName:gsub(' ',''))
 	end
-
 	v.moddedCmd = command
 end
 local function SetColor(id,color, remove)
@@ -1271,7 +1271,7 @@ local function Evaluate(type, id, engineCmd)
 			end
 			SwitchCommand(commandName, airDgun and CMD_AIR_MANUALFIRE or CMD_MANUALFIRE, namecom)
 			return --[[v.cmdOverride or--]] v.moddedCmd
-		elseif canTransport and canUnload and (engineCmd ~= CMD_LOAD_UNITS and (not v.moddedCmd or v.moddedCmd == CMD_RAW_MOVE or v.moddedCmd == CMD_ATTACK)) then -- giving the name of the command doesn't work for UNLOAD_UNITS
+		elseif canTransport and canUnload and (engineCmd ~= CMD_LOAD_UNITS and (not v.moddedCmd or v.moddedCmd == CMD_RAW_MOVE or v.moddedCmd == CMD_ATTACK or v.moddedCmd == CMD_UNLOAD_UNITS)) then -- giving the name of the command doesn't work for UNLOAD_UNITS
 			SwitchCommand('Unload units', CMD_UNLOAD_UNITS, namecom)
 			return v.moddedCmd
 		elseif selContext.hasPuppy and opt.forceAttack then
@@ -1386,7 +1386,7 @@ local function Evaluate(type, id, engineCmd)
 			if not padToRearm then
 				local hasCloakedConUnderAreaCloak = false, false
 				if v.defaultCmd == CMD_GUARD and not onSelf and s.moddedSelect then -- Repair the closest unit in case of trace would point to self
-					local hp,maxhp = spGetUnitHealth(s.moddedSelect)
+					local hp, maxhp = spGetUnitHealth(s.moddedSelect)
 					if maxhp > hp then
 						buildToFinish = s.moddedSelect
 					end
@@ -1536,7 +1536,7 @@ function widget:CommandsChanged()
 		return
 	end
 	s.selectionChanged = false
-
+	updateAllowed = true
 
 
 
@@ -1738,6 +1738,7 @@ function widget:SelectionChanged(newsel,less)
 	local ret = UpdateSelection(sel,newsel)
 	return ret
 end
+
 function widget:DefaultCommand(type, id, engineCmd) -- NOTE: DefaultCommand run only if at least one unit is selected, we complete the Evaluation in Update when this is not  active
 
 	upd.triggered = os.clock()
@@ -1748,8 +1749,13 @@ function widget:DefaultCommand(type, id, engineCmd) -- NOTE: DefaultCommand run 
 		return
 	end
 	-- local before = table.concat({spGetActiveCommand()},', ')
-	
-	local ret = Evaluate(type, id, engineCmd) -- ENGINE BUG DURING DEFAULT COMMAND THE MINIMAP IS TEMPORARILY MINIMIZED WE CAN'T RELY ON SPRING.ISABOVEMINIMAP()
+	local ret
+	local wasUpdateAllowed = updateAllowed
+	if updateAllowed then
+		currentRet = Evaluate(type, id, engineCmd) -- ENGINE BUG DURING DEFAULT COMMAND THE MINIMAP IS TEMPORARILY MINIMIZED WE CAN'T RELY ON SPRING.ISABOVEMINIMAP()
+		updateAllowed = false
+	end
+	ret = currentRet
 	-- Echo('ret', ret,spGetActiveCommand(), 'before:', before)
 	-- return ret
 	-- WG.contextCmd = ret -- TODO IMPLEMENT
@@ -1768,7 +1774,7 @@ function widget:Update(dt)
 
 	local thisView = WG.NewView[5]
 	local isNewView = thisView ~= v.lastView
-
+	updateAllowed = isNewView or mouseMoved or updateAllowed
 	v.lastmx, v.lastmy = mx, my
 	v.lastView = thisView
 
@@ -1900,6 +1906,7 @@ function widget:MousePress(mx, my, button)
 	-- for i = 1, 2500000 do
 	--     t[i] = nil
 	-- end
+	updateAllowed = true
 	if button > 3 then
 		reset()
 		return
@@ -1920,6 +1927,7 @@ function widget:MousePress(mx, my, button)
 		reset()
 		return
 	end
+	local now = osclock()
 	if v.clamped then
 		mx,my = v.clamped[1], v.clamped[2]
 	end
@@ -1932,7 +1940,7 @@ function widget:MousePress(mx, my, button)
 		spSetActiveCommand(0)
 		-- Echo(Spring.GetGameSeconds(),'set 0, default command ?', v.moddedCmd)
 		v.moddedActiveCommand = false
-		activeCommand=0
+		activeCommand = 0
 		if button == 3 then
 			-- should execute the default command which should be the same as the active command before we just switched it to 0
 			v.acquiredTarget = v.moddedTarget or v.defaultTarget -- will be used by CustomFormation2
@@ -1957,7 +1965,7 @@ function widget:MousePress(mx, my, button)
 
 	local alt, ctrl, meta, shift = spGetModKeyState()
 	if button == 1 then
-		checkForSelBox  = os.clock()
+		checkForSelBox  = now
 		-- Echo('button click', s.moddedSelect, s.defaultSelect)
 		-- s.acquiredSelect = s.moddedSelect or s.defaultSelect
 		-- if not s.acquiredSelect then
@@ -2007,7 +2015,7 @@ function widget:MousePress(mx, my, button)
 			-- Echo('set last s.acquiredSelect',s.acquiredSelect)
 		end
 		-- Echo("s.moddedSelect or s.defaultSelect is ", s.moddedSelect, s.defaultSelect)
-		local time = os.clock()
+		local time = now
 		local sameSelect = s.acquiredSelect and not sel[2] and s.acquiredSelect == sel[1]
 		local doubleClick = time - s.clickTime <= toleranceTime
 
@@ -2028,6 +2036,7 @@ function widget:MousePress(mx, my, button)
 	-- local type, id = spTraceScreenRay(mx,my)
 
 	local _, defaultCommand, _, nameDefCom = spGetDefaultCommand()
+	updateAllowed = true -- need to allow it again for customFormation
 	-- local alttype, altid = type, id
 	-- if type=='ground' then
 	--     type,id = nil, nil
@@ -2089,7 +2098,7 @@ function widget:MousePress(mx, my, button)
 	--     Echo(os.clock(),"Default command is not Raw move !",spGetDefaultCommand())
 	-- end
 	cf2.CF2 = cf2.widget
-	cf2.lastx, cf2.lasty, cf2.lastclock = mx, my, osclock()
+	cf2.lastx, cf2.lasty, cf2.lastclock = mx, my, now
 	-- check if cf2.CF2 want control
 	if cf2.CF2 then
 		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
@@ -2138,25 +2147,25 @@ function widget:MouseMove(mx,my,dx,dy,button)
 	else
 		local off = math.diag(mx-cf2.lastx, my-cf2.lasty)
 		-- Echo('trig', osclock()-cf2.lastclock<0.2 and off<opt.target_mouse_leeway * 1.5, off<opt.target_mouse_leeway)
-		if osclock()-cf2.lastclock<0.2 and off<opt.target_mouse_leeway * 1.5 -- up the leeway by 50% if the release occured fast
-		or off<opt.target_mouse_leeway
+		if osclock() - cf2.lastclock < 0.2 and off < opt.target_mouse_leeway * 1.5 -- up the leeway by 50% if the release occured fast
+			or off < opt.target_mouse_leeway
 		then
-			if mempoints.n==0 then
+			if mempoints.n == 0 then
 				mempoints[1] = {cf2.lastx,cf2.lasty}
-				mempoints.n=1
+				mempoints.n = 1
 			end
-			mempoints.n=mempoints.n+1
+			mempoints.n = mempoints.n + 1
 			mempoints[mempoints.n] = {mx,my}
 			return
 		end
 		Debug.CF2('giving away control to cf2.CF2')
 		cf2.CF2_TakeOver = true
 		v.cmdOverride = CMD_RAW_MOVE
-		for i=1,mempoints.n do
+		for i = 1,mempoints.n do
 			local point = mempoints[i] 
-			cf2.CF2:MouseMove(point[1],point[2],dx,dy,button)
+			cf2.CF2:MouseMove(point[1], point[2], dx, dy, button)
 		end
-		return cf2.CF2:MouseMove(mx,my,dx,dy,button)
+		return cf2.CF2:MouseMove(mx, my, dx, dy, button)
 	end
 end
 -- always trigger at mouse press
@@ -2186,7 +2195,7 @@ do
 end
 function widget:MouseRelease(mx,my,button)
 	Debug.Mouse('Mouse Release '..mx,my,button)
-	local mx,my,lmb,mmb,rmb, outsideSpring = spGetMouseState()
+	local mx, my, lmb, mmb, rmb, outsideSpring = spGetMouseState()
 	v.mousePressed = (lmb or mmb or rmb)
 	v.cmdOverride = false
 	if not cf2.CF2 then -- 
@@ -2215,7 +2224,7 @@ function widget:MouseRelease(mx,my,button)
 			Debug.CF2("processing on release...")
 			local cancel = Execute(mx, my, button)
 			-- tell CustomFormation2 to cancel the operation by giving it the opposite button
-			cf2.CF2:MouseRelease(cf2.lastx, cf2.lasty, cancel and (button==1 and 3 or 1) or button)
+			cf2.CF2:MouseRelease(cf2.lastx, cf2.lasty, cancel and (button == 1 and 3 or 1) or button)
 			if cancel then
 				-- remove eventual speed limitation
 				Spring.GiveOrderToUnitArray(selection or spGetSelectedUnits(), CMD_WANTED_SPEED, {-1}, 0)
@@ -2259,17 +2268,17 @@ function widget:KeyPress(key,m)
 	-- for k,v in pairs(m) do
 	--     Echo(k,v)
 	-- end
-	if key == 107 then -- K
-		local id = WG.PreSelection_GetUnitUnderCursor()
-		if id then
-			-- local def = UnitDefs[spGetUnitDefID(id)]
-			-- for k,v in def:pairs() do
-			--     if k:lower():find('trans') then
-			--         Echo(k,v)
-			--     end
-			-- end
-		end
-	end
+	-- if key == 107 then -- K
+	-- 	local id = WG.PreSelection_GetUnitUnderCursor()
+	-- 	if id then
+	-- 		-- local def = UnitDefs[spGetUnitDefID(id)]
+	-- 		-- for k,v in def:pairs() do
+	-- 		--     if k:lower():find('trans') then
+	-- 		--         Echo(k,v)
+	-- 		--     end
+	-- 		-- end
+	-- 	end
+	-- end
 	if not isRepeat then
 		upd.keyChanged = true
 		-- return Debug.CheckKeys(key,m)
@@ -2821,6 +2830,7 @@ end
 
 GetVisibleUnits = function(targetID)
 	local defID = spGetUnitDefID(s.acquiredSelect)
+	Echo("v.myTeamID:"..tostring(v.myTeamID)..", spGetUnitTeam(targetID):"..tostring(spGetUnitTeam(targetID))..", defID:"..tostring(defID))
 	local typeUnits = spGetTeamUnitsByDefs(v.myTeamID or spGetUnitTeam(targetID), defID)
 	local unitList = {}
 	for i = 1, #typeUnits do
@@ -3137,7 +3147,7 @@ function widget:Initialize()
 		options.debugVar.action = 'eztargetvars'
 	end
 	cf2.widget = wh:FindWidget('CustomFormations2')
-	DebugUp = function() end
+	-- DebugUp = function() end
 	if debugMe then
 		-- old
 			-- local obj = f.DebugWinInit2(widget)
