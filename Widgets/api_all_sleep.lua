@@ -38,6 +38,7 @@ local ignore = {
 	['Selection API'] = true,
 	-- this is useful to keep on
 	['Widget Profiler New'] = true,
+	['Widget Profiler New 2'] = true,
 	['Cheat Sheet'] = true,
 	['Combo Overhead/Free Camera (experimental)'] = true,
 	-- those  will crash on reenabling
@@ -46,6 +47,7 @@ local ignore = {
 	['Chili Endgame Window'] = true,
 	['Endgame Stats'] = true,
 	['Endgame APM stats'] = true,
+	['Catching Up Progress'] = true,
 }
 local extra_ignore = {}
 function widget:Initialize()
