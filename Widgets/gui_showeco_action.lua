@@ -37,19 +37,22 @@ WG.force_show_queue_grid = false
 VFS.Include("LuaRules/Configs/constants.lua", nil, VFS.ZIP_FIRST)
 VFS.Include("LuaRules/Utilities/glVolumes.lua") --have to import this incase it fail to load before this widget
 
-local spGetUnitDefID       = Spring.GetUnitDefID
-local spGetUnitPosition    = Spring.GetUnitPosition
-local spGetActiveCommand   = Spring.GetActiveCommand
-local spTraceScreenRay     = Spring.TraceScreenRay
-local spGetMouseState      = Spring.GetMouseState
-local spAreTeamsAllied     = Spring.AreTeamsAllied
-local spGetMyTeamID        = Spring.GetMyTeamID
-local spGetUnitPosition    = Spring.GetUnitPosition
-local spValidUnitID        = Spring.ValidUnitID
-local spGetUnitRulesParam  = Spring.GetUnitRulesParam
-local spGetSpectatingState = Spring.GetSpectatingState
-local spGetBuildFacing     = Spring.GetBuildFacing
-local spPos2BuildPos       = Spring.Pos2BuildPos
+local spGetUnitDefID           = Spring.GetUnitDefID
+local spGetUnitPosition        = Spring.GetUnitPosition
+local spGetActiveCommand       = Spring.GetActiveCommand
+local spTraceScreenRay         = Spring.TraceScreenRay
+local spGetMouseState          = Spring.GetMouseState
+local spAreTeamsAllied         = Spring.AreTeamsAllied
+local spGetMyTeamID            = Spring.GetMyTeamID
+local spGetUnitPosition        = Spring.GetUnitPosition
+local spValidUnitID            = Spring.ValidUnitID
+local spGetUnitRulesParam      = Spring.GetUnitRulesParam
+local spGetSpectatingState     = Spring.GetSpectatingState
+local spGetBuildFacing         = Spring.GetBuildFacing
+local spPos2BuildPos           = Spring.Pos2BuildPos
+local spGetUnitCommands        = Spring.GetUnitCommands
+local spGetUnitCommandCount    = Spring.GetUnitCommandCount
+local spGetSelectedUnitsSorted = Spring.GetSelectedUnitsSorted
 
 local glVertex        = gl.Vertex
 local glCallList      = gl.CallList
@@ -60,7 +63,9 @@ local glCreateList    = gl.CreateList
 
 local pylons = {count = 0, data = {}, byColor = {}}
 local pylonByID = {}
-local currentSelection = false
+local currentSelectionDefID = false
+local selectionHasEBuild = false
+local selChanged = false
 
 local eBuildDefs = {}
 local isBuilder = {}
@@ -117,6 +122,7 @@ options = {
 		OnChange = function(self)
 			new_method = self.value
 			HighlightEBuilds = new_method and HighlightEBuildsNEW or HighlightEBuildsOLD
+			ForceRedraw()
 		end,
 	},
 	start_with_showeco = {
@@ -239,8 +245,11 @@ end
 
 local prevFullView = false
 local prevTeamID = -1
-
-function widget:Update(dt)
+local myPlayerID = Spring.GetMyPlayerID()
+function widget:PlayerChanged(playerID)
+	if playerID ~= myPlayerID then
+		return
+	end
 	local teamID = Spring.GetMyTeamID()
 	local _, fullView = Spring.GetSpectatingState()
 	if (fullView ~= prevFullView) or (teamID ~= prevTeamID) then
@@ -250,14 +259,17 @@ function widget:Update(dt)
 	prevTeamID = teamID
 end
 
+
+
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 -- Drawing
 
 function widget:Initialize()
 	options.new_method:OnChange()
-	InitializeUnits()
-	widget:SelectionChanged(Spring.GetSelectedUnits())
+	widget:PlayerChanged(myPlayerID)
+	widget:SelectionChanged()
+	widget:CommandsChanged()
 end
 
 function widget:Shutdown()
@@ -271,8 +283,8 @@ function widget:GameFrame(f)
 	end
 end
 
-local function makePylonListVolume(onlyActive, onlyDisabled)
-	local drawGroundCircle = options.mergeCircles.value and gl.Utilities.DrawMergedGroundCircle or gl.Utilities.DrawGroundCircle
+local function makePylonListVolume(onlyActive, onlyDisabled, highlightQueue, merge)
+	local drawGroundCircle = merge and gl.Utilities.DrawMergedGroundCircle or gl.Utilities.DrawGroundCircle
 	local i = 1
 	while i <= pylons.count do
 		local data = pylons.data[i]
@@ -299,12 +311,10 @@ local function makePylonListVolume(onlyActive, onlyDisabled)
 			pylons.count = pylons.count - 1
 		end
 	end
-	if highlightQueue and not onlyActive and currentSelection then
-		for i = 1, #currentSelection do
-			local unitID = currentSelection[i]
-			local unitDefID = spGetUnitDefID(unitID)
-			if unitDefID and isBuilder[unitDefID] then
-				local cmdQueue = Spring.GetCommandQueue(unitID, -1)
+	if highlightQueue and not onlyActive and currentSelectionDefID then
+		for defID, units in pairs(currentSelectionDefID) do
+			if isBuilder[defID] then
+				local cmdQueue = spGetUnitCommands(units[1], -1)
 				if cmdQueue then
 					for i = 1, #cmdQueue do
 						local cmd = cmdQueue[i]
@@ -368,7 +378,7 @@ local function UpdateStatus()
 	pylons.count = len
 end
 
-local function makePylonListVolumeNEW()
+local function makePylonListVolumeNEWMERGE(highlightQueue)
 	-- fix map edge extension 2 leaving wrong states
 	gl.Culling(false)
 	gl.DepthTest(GL.LEQUAL)
@@ -387,20 +397,19 @@ local function makePylonListVolumeNEW()
 			end
 		end
 	end
-	if highlightQueue and currentSelection then
-		local spGetCommandQueue = Spring.GetCommandQueue
-		for i = 1, #currentSelection do
-			local unitID = currentSelection[i]
-			local unitDefID = spGetUnitDefID(unitID)
-			if unitDefID and isBuilder[unitDefID] then
-				local cmdQueue = spGetCommandQueue(unitID, -1)
+	if highlightQueue and currentSelectionDefID then
+		local spGetUnitCommands = Spring.GetUnitCommands
+		for defID, units in pairs(currentSelectionDefID) do
+			if isBuilder[defID] then
+				local cmdQueue = spGetUnitCommands(units[1], -1)
 				if cmdQueue then
 					for i = 1, #cmdQueue do
 						local cmd = cmdQueue[i]
 						local radius = eBuildDefs[-cmd.id]
 						if radius then
+							local params = cmd.params
 							glColor(disabledColor)
-							drawGroundCircle(cmd.params[1], cmd.params[3], radius)
+							drawGroundCircle(params[1], params[3], radius)
 						end
 					end
 				end
@@ -415,7 +424,7 @@ end
 
 
 
-function HighlightEBuildsOLD()
+function HighlightEBuildsOLD(highlightQueue, merge)
 	-- fix map edge extension 2 leaving wrong states
 	gl.Culling(false)
 	gl.DepthTest(GL.LEQUAL)
@@ -423,14 +432,14 @@ function HighlightEBuildsOLD()
 	--
 	if lastDrawnFrame < lastFrame then
 		lastDrawnFrame = lastFrame
-		if options.mergeCircles.value then
+		if merge then
 			gl.DeleteList(disabledDrawList or 0)
-			disabledDrawList = gl.CreateList(makePylonListVolume, false, true)
+			disabledDrawList = gl.CreateList(makePylonListVolume, false, true, highlightQueue, merge)
 			gl.DeleteList(drawList or 0)
-			drawList = gl.CreateList(makePylonListVolume, true, false)
+			drawList = gl.CreateList(makePylonListVolume, true, false, highlightQueue, merge)
 		else
 			gl.DeleteList(drawList or 0)
-			drawList = gl.CreateList(makePylonListVolume)
+			drawList = gl.CreateList(makePylonListVolume, false, false, highlightQueue, merge)
 		end
 	end
 	gl.CallList(drawList)
@@ -439,10 +448,10 @@ function HighlightEBuildsOLD()
 	end
 end
 
-function HighlightEBuildsNEW()
+function HighlightEBuildsNEW(highlightQueue, merge)
 	-- fix map edge extension 2 leaving wrong states
-	if not (options.mergeCircles.value and gl.Utilities.DrawMergedGroundCircles) then
-		return HighlightEBuildsOLD()
+	if not (merge and gl.Utilities.DrawMergedGroundCircles) then
+		return HighlightEBuildsOLD(highlightQueue, merge)
 	end
 	gl.Culling(false)
 	gl.DepthTest(GL.LEQUAL)
@@ -451,8 +460,9 @@ function HighlightEBuildsNEW()
 	if lastDrawnFrame < lastFrame then
 		lastDrawnFrame = lastFrame
 		UpdateStatus()
+		gl.DeleteList(disabledDrawList or 0)
 		gl.DeleteList(drawList or 0)
-		drawList = gl.CreateList(makePylonListVolumeNEW, options.mergeCircles.value)
+		drawList = gl.CreateList(makePylonListVolumeNEWMERGE, highlightQueue)
 	end
 	gl.CallList(drawList)
 end
@@ -472,48 +482,63 @@ local function HighlightPlacement(unitDefID)
 end
 
 function widget:SelectionChanged(selectedUnits)
+	selChanged = true
+end
+
+function widget:CommandsChanged()
+	if not selChanged then
+		return
+	end
+	selChanged = false
 	-- force regenerating the lists if we've selected a different unit
-	currentSelection = selectedUnits
 	lastDrawnFrame = 0
+	selectionHasEbuild = false
+	currentSelectionDefID = WG.selectionDefID or spGetSelectedUnitsSorted()
+	for defID, units in pairs(currentSelectionDefID) do
+		if eBuildDefs[defID] then
+			selectionHasEbuild = true
+			break
+		end
+	end
 end
 
 
 function widget:DrawWorldPreUnit()
 	if Spring.IsGUIHidden() then return end
 
-	local _, cmdID = spGetActiveCommand()  -- show eBuild if it is about to be placed
-	if cmdID ~= prevCmdID then
-		-- force regenerating the lists if just picked a building to place
-		prevCmdID = cmdID
-		if cmdID and cmdID < 0 then
+	-- check if we shall highlight the current build command and deduce if we should highlight the queue
+	local drawQueue, placementDefID
+	local _, cmdID = spGetActiveCommand()
+	if cmdID and cmdID<0 and eBuildDefs[-cmdID] then
+		if cmdID ~= prevCmdID then
+			-- force regenerating the lists if just picked a building to place
+			prevCmdID = cmdID
 			lastDrawnFrame = 0
 		end
-	end
-
-	local drawQueue, defID
-	if cmdID and cmdID<0 and eBuildDefs[-cmdID] then
-		defID = -cmdID
-		drawQueue = true
+		placementDefID = -cmdID
+		drawQueue = options.drawQueued.value
 	else
 		local forceDrawQueue = WG.force_show_queue_grid
 		if forceDrawQueue then
-			drawQueue = true
+			drawQueue = options.drawQueued.value
 			if type(forceDrawQueue) == 'number' then
-				defID = eBuildDefs[forceDrawQueue] and forceDrawQueue
+				placementDefID = eBuildDefs[forceDrawQueue] and forceDrawQueue
 			end
 		end
+	end
+
+	if placementDefID then
+		HighlightPlacement(placementDefID)
 	end
 
 	if drawQueue then
 		if lastDrawnFrame ~= 0 then
 			local commandsCount = 0
-			if currentSelection then
-				local spGetCommandQueue = Spring.GetCommandQueue
-				for i = 1,#currentSelection do
-					local unitID = currentSelection[i]
-					local unitDefID = spGetUnitDefID(unitID)
-					if unitDefID and isBuilder[unitDefID] then
-						commandsCount = spGetCommandQueue(unitID, 0)
+			if currentSelectionDefID then
+				for defID, units in pairs(currentSelectionDefID) do
+					if isBuilder[defID] then
+						local unitID = units[1]
+						commandsCount = spGetUnitCommands(unitID, 0) or 0
 						break
 					end
 				end
@@ -522,32 +547,13 @@ function widget:DrawWorldPreUnit()
 				-- force regenerating the lists if a building was placed/removed
 				lastCommandsCount = commandsCount
 				lastDrawnFrame = 0
-			end
-		end
-		highlightQueue = options.drawQueued.value
-		HighlightEBuilds()
-		highlightQueue = false
-		if defID then
-			HighlightPlacement(defID)
-		end
-		glColor(1,1,1,1)
-		return
-	end
-
-	if currentSelection then
-		for i = 1, #currentSelection do
-			local ud = spGetUnitDefID(currentSelection[i])
-			if (eBuildDefs[ud]) then
-				HighlightEBuilds()
-				glColor(1,1,1,1)
-				return
+				drawQueue = commandsCount > 0
 			end
 		end
 	end
-
-	local showecoMode = WG.showeco
-	if showecoMode then
-		HighlightEBuilds()
+	-- Echo("drawQueue:"..tostring(drawQueue)..", selectionHasEbuild:"..tostring(selectionHasEbuild)..", WG.showeco:"..tostring(WG.showeco))
+	if drawQueue or selectionHasEbuild or WG.showeco then
+		HighlightEBuilds(drawQueue, options.mergeCircles.value)
 		glColor(1,1,1,1)
 		return
 	end
