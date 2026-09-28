@@ -1743,7 +1743,7 @@ function widget:SelectionChanged(newsel,less)
 	local ret = UpdateSelection(sel,newsel)
 	return ret
 end
-
+local lastEngineCmd = nil
 function widget:DefaultCommand(type, id, engineCmd) -- NOTE: DefaultCommand run only if at least one unit is selected, we complete the Evaluation in Update when this is not  active
 
 	upd.triggered = os.clock()
@@ -1755,12 +1755,13 @@ function widget:DefaultCommand(type, id, engineCmd) -- NOTE: DefaultCommand run 
 	end
 	-- local before = table.concat({spGetActiveCommand()},', ')
 	local ret
-	local wasUpdateAllowed = updateAllowed
-	if updateAllowed then
+	-- local wasUpdateAllowed = updateAllowed
+	if updateAllowed or lastEngineCmd ~= engineCmd then
 		currentRet = Evaluate(type, id, engineCmd) -- ENGINE BUG DURING DEFAULT COMMAND THE MINIMAP IS TEMPORARILY MINIMIZED WE CAN'T RELY ON SPRING.ISABOVEMINIMAP()
 		updateAllowed = false
 	end
 	ret = currentRet
+	lastEngineCmd = engineCmd
 	-- Echo('ret', ret,spGetActiveCommand(), 'before:', before)
 	-- return ret
 	-- WG.contextCmd = ret -- TODO IMPLEMENT
