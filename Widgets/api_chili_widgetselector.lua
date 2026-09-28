@@ -990,7 +990,7 @@ MakeWidgetList = function(minize, remake)
 		-- dockable = true,
 		-- dockableSavePositionOnly = true,
 		minWidth = 250,
-		minHeight = 400,
+		minHeight = 135,
 		-- height = 28,
 		OnMouseDown = {
 			function(self, ...)
