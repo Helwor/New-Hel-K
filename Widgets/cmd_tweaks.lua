@@ -105,6 +105,7 @@ local EMPTY_TABLE = {}
 --     end
 -- end
 
+WG.fixOptRight = WG.fixOptRight or {}
 
 local hasBomber, hasWidow = false, false
 local hasSmallSelection = false
@@ -115,6 +116,7 @@ local hasPlane = false
 
 local newSequence = true
 local ovParams, ovOpts = false, false
+
 
 function widget:CommandsChanged()
 	-- hasBomber = false
@@ -128,9 +130,16 @@ function widget:CommandsChanged()
 	hasGunship = mySelection.hasGunship
 	hasPlane = mySelection.hasPlane
 end
+
 function Process(cmd, params, opts, giveOrder) -- global function to be accessed by widgets that intervene before
 	-- Echo("hasOnlyAthena ,cmd , opts.ctrl is ", hasOnlyAthena ,cmd , opts.ctrl)
 	local override = false
+
+	if WG.fixOptRight[cmd] then
+		opts.right = true
+		WG.fixOptRight[cmd] = nil
+	end
+	
 	if cmd == CMD_ATTACK and not opts.ctrl and (
 		opt_widow_shootOnce and hasWidow 
 		-- or hasBomber and params[3] and (not params[4] or params[4]==0)
@@ -159,7 +168,7 @@ function Process(cmd, params, opts, giveOrder) -- global function to be accessed
 		)
 		and cmd == CMD_RAW_MOVE and not (opts.shift or opts.ctrl or opts.meta)
 	then 
-		if not params[4] then-- force a more precise move, especially for gs that refuse to move to a close destination
+		if not params[4] then-- force a more precise move
 			params[4], params[5] = 96, 1 -- (min distance to consider the goal reached, timeout?)
 			override = true
 		end
@@ -192,12 +201,11 @@ function widget:UnitCommandNotify(id, cmd, params, opts)
 	end
 end
 
-function widget:Update()
+function widget:Update(dt)
 	if not newSequence then
 		newSequence, ovParams, ovOpts = true, false, false
 	end
 end
-
 function widget:Initialize()
 	if not widget:Requires(requirements) then
 		return

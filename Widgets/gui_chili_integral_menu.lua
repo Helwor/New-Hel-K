@@ -20,6 +20,7 @@ end
 	-- implement alt mod that can interact with StriderHubAlt ordering an automatic nanoframe plop with no need of placing manually
 	-- implement right button click for removing type of unit in the queue, alt + right button remove every order of the same type in the queue (can work with fake factories like Strider Hub too)
 	-- option to focus on athena build tab upon selection
+	-- fix Opt right not applied by SetActiveCommand() with the help of Cmd Tweaks
 --
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -1257,7 +1258,7 @@ local function QueueClickFunc(mouse, right, alt, ctrl, meta, shift, queueCmdID, 
 	return true
 end
 
-local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, queueBlock)
+local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, queueBlock, isStateCommand)
 	local left, right = mouse == 1, mouse == 3
 	local alt, ctrl, meta, shift = spGetModKeyState()
 	if factoryUnitID then
@@ -1336,6 +1337,9 @@ local function ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, 
 			return true
 		end
 		spSetActiveCommand(index, mouse or 1, left, right, alt, ctrl, meta, shift)
+		if isStateCommand and right and WG.fixOptRight then -- work around to fix SetActiveCommand not applying the right click
+			WG.fixOptRight[cmdID] = true
+		end
 		if not instantCommands[cmdID] then
 			UpdateButtonSelection(cmdID)
 		end
@@ -1382,7 +1386,7 @@ local function GetButton(parent, name, selectionIndex, x, y, xStr, yStr, width, 
 		if isDisabled then
 			return false
 		end
-		local success = ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, x)
+		local success = ClickFunc(mouse, cmdID, isStructure, factoryUnitID, fakeFactory, isQueueButton, x, isStateCommand)
 		if success and onClick then
 			-- Don't do the onClick if the command was not eaten by the menu.
 			onClick(cmdID)
@@ -2770,23 +2774,6 @@ local function InitializeControls()
 			parent = buttonsHolder,
 			OnShow = {
 			}, 
-			OnResize = {
-				function(self)
-					if not firstUpdate then
-						-- Echo('move button panel', i, self.parent, self.visible)
-						-- for i, child in ipairs(self.children) do
-						-- 	if pro_mode ~= (child.x >= 10000) then
-						-- 		child:SetPos(child.x + (pro_mode and 10000 or -10000))
-						-- 		-- child:Invalidate()
-						-- 		-- if tabHolder.parent then
-						-- 		-- 	tabHolder.parent:Invalidate()
-						-- 		-- end
-						-- 	end
-						-- end
-						-- self:UpdateLayout()
-					end
-				end
-			}
 		}
 		commandHolder:SetVisibility(false)
 		
