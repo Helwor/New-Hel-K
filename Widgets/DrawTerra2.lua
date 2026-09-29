@@ -2831,6 +2831,8 @@ local function Finish()
 		glDeleteList(DrawingList)
 		DrawingList = false
 	end
+	if Spring.SetEngineBuildSquareRendering then Spring.SetEngineBuildSquareRendering(true) end
+
 	-- Echo('Finished', os.clock(),'garbage: '..collectgarbage('count'))
 	-- collectgarbage('collect')
 end
@@ -3401,6 +3403,7 @@ local function Execute()
 	-- if collectgarbage('count') > 190000 then Echo('collect') collectgarbage('collect') end
 
 --        glDeleteList(DrawingList)
+	if Spring.SetEngineBuildSquareRendering then Spring.SetEngineBuildSquareRendering(false) end
 
 	if not dwOn then --[[GenerateShaders()--]] end
 
@@ -3415,6 +3418,10 @@ local function Execute()
 
 	WG.DrawTerra.new = false
 	_, gy = spPos2BuildPos(pid, bx, by, bz, facing)
+	if Spring.SetEngineBuildSquareRendering then 
+		Spring.SetEngineBuildSquareRendering(not needTerra)
+	end
+
 --Echo("groundGridMaxOpacity is ", groundGridMaxOpacity/(1/numborders)*(8/inc)+1)
 	inc = convinc(quality, by, gy, curcount or 1)
 	if show_basic then 
@@ -3489,6 +3496,7 @@ local function Execute()
 			DrawingList = glCreateList(DrawSlope, layers)
 		end
 	end
+
 	if not dwOn then widgetHandler:UpdateCallIn("DrawWorld") end
 
 	--Echo('end creation ',--avgcreate('reset'))
@@ -3911,7 +3919,6 @@ function widget:Initialize()
 	-- end
 	WG.DrawTerra.ready = true
 	DrawTerra = WG.DrawTerra
-	if Spring.SetDrawBuild then Spring.SetDrawBuild(false, false) end
 	panels = WG.Chili.Screen0.children
 	-- GenerateShaders()
 	widgetHandler:RemoveCallIn('DrawWorld')
