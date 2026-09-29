@@ -48,7 +48,7 @@ local facOrder = {}
 local orderTicket = 0
 local isSpec = false
 local FAC = {} -- fac handler
-local WANT_USER_ANIMATE = true
+local opt_want_animate = true
 local IM_OPT_altInsertBehind = {value = false}
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -211,9 +211,9 @@ options.specAnimation = {
 	name = 'Icon animation when spec',
 	desc = 'Animate icons when speccing to visualize better player order',
 	type = 'bool',
-	value = WANT_USER_ANIMATE,
+	value = opt_want_animate,
 	OnChange = function(self)
-		WANT_USER_ANIMATE = self.value
+		opt_want_animate = self.value
 	end,
 	path = helk_path,
 }
@@ -1294,6 +1294,11 @@ local function UpdateQButton(defID, increment, fac, alt)
 	local qStack = fac.qStack
 	local qStore = fac.qStore
 	local qButton = qStore[defID]
+	if not qButton then
+		-- Spring.PlaySoundFile(LUAUI_DIRNAME .. 'Sounds/buildbar_add.wav', 0.95, 'ui')
+		-- Echo(('FACBAR No QButton %s , alt %s, increment %d, verify if all is ok'):format(defID and UnitDefs[defID] and UnitDefs[defID].name or 'NO DEFID', tostrin(alt), increment))
+		return
+	end
 	local qPic = UnlinkSafe(qButton.childrenByName['bp'])
 	local qCount = qButton.childrenByName['count']
 
@@ -1316,7 +1321,7 @@ local function UpdateQButton(defID, increment, fac, alt)
 	end
 	if increment > 0 then
 		if count > 0 or fac.selected then -- if count == 0 we wait to add the control first
-			if (isSpec and WANT_USER_ANIMATE) or DBG_VIS then
+			if (isSpec and opt_want_animate) or DBG_VIS then
 				local color
 				if alt then
 					color = yellow
@@ -1336,7 +1341,7 @@ local function UpdateQButton(defID, increment, fac, alt)
 			end
 		end
 	else
-		if (isSpec and WANT_USER_ANIMATE) or DBG_VIS then
+		if (isSpec and opt_want_animate) or DBG_VIS then
 			AnimateIcon(qPic, false, increment, count)
 		end
 	end
@@ -1377,7 +1382,7 @@ local function UpdateQButton(defID, increment, fac, alt)
 						qStack:RemoveChild(qStack.children[i])
 					end
 				end
-				if ((isSpec and WANT_USER_ANIMATE) and qButton.parent) or DGB_VIS then
+				if ((isSpec and opt_want_animate) and qButton.parent) or DGB_VIS then
 					if qButton.parent then
 						AnimateIcon(qPic, true, increment, count, alt)
 					end
@@ -2015,7 +2020,7 @@ end
 -- ANIMATER
 
 
-function widget:DrawScreen()
+function widget:DrawScreenEffects()
 	if not initialized or spIsGUIHidden() then
 		return
 	end
