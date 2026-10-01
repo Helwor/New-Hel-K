@@ -345,6 +345,7 @@ local function DrawDecloakRanges(pass, cloakeds, poses)
 		gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
 	end
 	gl.DepthTest(false)
+	gl.Culling(false)
 end
 
 function widget:CommandsChanged()
