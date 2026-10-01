@@ -87,6 +87,7 @@ local spectating = Spring.GetSpectatingState()
 -- LOCALISATION
 --------------------------------------------------------------------------------
 
+-- messages are populated by localization.
 local messages = {
 
 	-- Units
@@ -153,6 +154,7 @@ options_order = { 'showhealthbars', 'drawFeatureHealth', 'drawBarPercentages', '
 	'invert_slow', 'invert_goo', 'invert_jump', 'invert_jump_charge', 'invert_reclaim', 'invert_resurrect',
 }
 options = {
+
 	showhealthbars = {
 		name = 'Show Healthbars',
 		type = 'bool',
@@ -1121,7 +1123,7 @@ do
 		
 		--// REAMMO
 		if ci.canReammo then
-			local reammoProgress = GetUnitRulesParam(unitID, "reammoProgress")
+			local reammoProgress = GetUnitRulesParam(unitID, "ammoFraction") or GetUnitRulesParam(unitID, "reammoProgress")
 			if reammoProgress then
 				barDrawer.AddPercentBar("reammo", reammoProgress)
 			end

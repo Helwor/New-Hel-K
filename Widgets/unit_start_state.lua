@@ -690,7 +690,10 @@ do
 			local unitDefName = unitDefID and UnitDefs[unitDefID]
 			unitDefName = unitDefName and unitDefName.name
 			if unitDefName then
-				tacticalAIUnits[unitDefName] = {value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1}
+				tacticalAIUnits[unitDefName] = {
+					value = (behaviourData.defaultAIState or behaviourDefaults.defaultState) == 1,
+					commandType = behaviourData.alternateStateToggle or "default",
+				}
 			end
 			if behaviourData.hasWardFire then
 				wardFireUnits[unitDefName] = (behaviourData.wardFireDefault and 1) or 0
@@ -714,7 +717,6 @@ local function addLabel(text, path) -- doesn't work with order
 end
 
 local function addUnit(defName, path)
-
 	if unitAlreadyAdded[defName] then
 		return
 	end
@@ -1021,7 +1023,7 @@ local function addUnit(defName, path)
 	if dontFireAtRadarUnits[unitDefID] ~= nil then
 		options[defName .. "_fire_at_radar"] = {
 			name = "  Fire at radar",
-			desc = "Check box to make these units fire at radar. All other units fire at radar but these have the option not to.",
+			desc = "Fire at radar: Set whether precise units with high reload time fire on uncertain enemy positions within radar",
 			type = 'bool',
 			value = dontFireAtRadarUnits[unitDefID],
 			path = path,
@@ -1280,7 +1282,6 @@ local function QueueState(unitDefName, stateName, cmdID, cmdArray, invertBool)
 		end
 		value = value and 1 or 0
 	end
-
 	cmdArray[#cmdArray + 1] = {cmdID, {value}, CMD.OPT_SHIFT}
 	return value==1
 end
