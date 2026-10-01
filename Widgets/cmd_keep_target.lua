@@ -18,7 +18,6 @@ function widget:GetInfo()
 end
 local Echo = Spring.Echo
 local spGetUnitRulesParam = Spring.GetUnitRulesParam
-VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
 --------------------------------------------------------------------------------
 -- Epic Menu Options
@@ -38,7 +37,7 @@ options = {
 		name = "Prioritise overridden attack for bombers",
 		type = "bool",
 		value = false,
-		desc = "Also enables the behaviour of 'Prioritise overridden attack target' for bombers and blastwings.",
+		desc = "Also enables the behaviour of 'Prioritise overridden attack target' for bombers and Blastwing.",
 		noHotkey = true,
 	},
 	removeTarget = {
@@ -57,7 +56,7 @@ local keepTargetDefs = {}
 local isFactory = {}
 for i = 1, #UnitDefs do
 	local ud = UnitDefs[i]
-	keepTargetDefs[i] = not (ud.isBomberAirUnit or ud.isFactory or ud.customParams.reallyabomber)
+	keepTargetDefs[i] = not (ud.isBomberAirUnit or ud.isFactory or ud.customParams.reallyabomber or ud.customParams.avoid_sticky_keep_target)
 	isFactory[i] = ud.isFactory
 end
 local CMD_STOP = CMD.STOP
@@ -80,22 +79,22 @@ local TargetIssuingCommand = {
 	[CMD.ATTACK] = true,
 }
 
+local SUC = Spring.Utilities.CMD
 local TargetKeepingCommand = {
 	[CMD.MOVE] = true,
-	[CMD_RAW_MOVE] = true,
-	[CMD_RAW_BUILD] = true,
-	[CMD_JUMP] = true,
+	[SUC.RAW_MOVE] = true,
+	[SUC.RAW_BUILD] = true,
+	[SUC.JUMP] = true,
 	[CMD.REPAIR] = true,
 	[CMD.RECLAIM] = true,
 	[CMD.RESURRECT] = true,
-	[CMD_AREA_MEX] = true,
-	[CMD_AREA_TERRA_MEX] = true,
+	[SUC.AREA_MEX] = true,
+	[SUC.AREA_TERRA_MEX] = true,
 	[CMD.LOAD_UNITS] = true,
 	[CMD.UNLOAD_UNITS] = true,
 	[CMD.LOAD_ONTO] = true,
 	[CMD.UNLOAD_UNIT] = true,
 }
-
 local TargetCancelingCommand = {
 	[CMD.STOP] = true,
 	[CMD.ATTACK] = true,
@@ -109,6 +108,9 @@ local UNIT_TARGET = 2
 
 local orderParamTable = {0}
 local CMD_OPT_INTERNAL = CMD.OPT_INTERNAL
+local CMD_OPT_CTRL     = CMD.OPT_CTRL
+local CMD_UNIT_SET_TARGET    = SUC.UNIT_SET_TARGET
+local CMD_UNIT_CANCEL_TARGET = SUC.UNIT_CANCEL_TARGET
 function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 	if TargetKeepingCommand[cmdID] and options.keepTarget.value then
 		local units = Spring.GetSelectedUnits()
@@ -116,13 +118,13 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 			local unitID = units[i]
 			if isValidUnit(unitID) then
 				local currCmdID, cmdOpts, _, cmdParam1, cmdParam2 = Spring.GetUnitCurrentCommand(unitID)
-				if currCmdID == CMD_ATTACK and not cmdParam2 and (cmdOpts % (2*CMD_OPT_INTERNAL) < CMD_OPT_INTERNAL) then
+				if currCmdID == CMD.ATTACK and not cmdParam2 and (cmdOpts % (2*CMD_OPT_INTERNAL) < CMD_OPT_INTERNAL) and (cmdOpts % (2*CMD_OPT_CTRL) < CMD_OPT_CTRL) then
 					orderParamTable[1] = cmdParam1
 					Spring.GiveOrderToUnit(unitID, CMD_UNIT_SET_TARGET, orderParamTable, CMD_OPT_INTERNAL)
 				end
 			end
 		end
-	elseif TargetIssuingCommand[cmdID] and options.keepTarget.value and (not cmdOptions.shift) and cmdParams and #cmdParams == 1 then
+	elseif TargetIssuingCommand[cmdID] and options.keepTarget.value and (not cmdOptions.shift and not cmdOptions.ctrl) and cmdParams and #cmdParams == 1 then
 		local units = Spring.GetSelectedUnits()
 		orderParamTable[1] = cmdParams[1]
 		for i = 1, #units do
