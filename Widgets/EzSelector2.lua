@@ -3661,7 +3661,7 @@ local hotkeysCombos = {
 		defs = {        
 		--  -- ['?'] = {'isStrider', ['?class'] = {'special1', 'special2', 'special3'}
 		--        --, name = 'amphlaunch'
-			name = {'bomberstrike'}, ['!p:noammo'] = {1, 2},
+			name = {'planesupport'}, ['!p:noammo'] = {1, 2},
 		},
 
 		-- keep_on_fail = true,
@@ -3677,7 +3677,7 @@ local hotkeysCombos = {
 		keys = {'SPACE', '?AIR', 'E', 'longPress'--[[, '?mouseStill'--]]},  
 
 		-- keys combination can be anything, even non-mods key together
-		defs = {name = 'bomberstrike', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+		defs = {name = 'planesupport', ['!p:noammo'] = {1, 2}}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
 		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
 		longPressTime = 0.2,
 
@@ -3692,7 +3692,7 @@ local hotkeysCombos = {
 		keys = {'SPACE', '?AIR', 'E', 'doubleTap', 'longPress'--[[, '?mouseStill'--]]}, 
 
 		-- keys combination can be anything, even non-mods key together
-		defs = {name = 'bomberstrike'}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
+		defs = {name = 'planesupport'}, -- definition of the unit (UnitDefs extended by my UnitsIDCard widget)
 		--syntax : ['!p:noammo'] = {1, 2} value must be either 1 or 2, '!' means 'not' so : 'noammo must not be either 1 or 2'
 		longPressTime = 0.2,
 
