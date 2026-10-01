@@ -36,7 +36,7 @@ for defID, def in pairs(UnitDefs) do
 	if def.isAirUnit and def.canAttack then
 		airAttackerDefID[defID]=true
 	end
-	if def.isBomber or def.isBomberAirUnit or def.customParams.reallyabomber then
+	if def.isBomber or def.isBomberAirUnit or def.customParams.reammoseconds then
 		-- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
 		bomberDefID[defID] = true
 		planeDefID[defID] = true

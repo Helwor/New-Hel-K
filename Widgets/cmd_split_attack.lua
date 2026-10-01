@@ -90,7 +90,7 @@ local misc = {
 }
 for defID, def in pairs(UnitDefs) do
 	local name = def.name
-	if def.isBomber or def.isBomberAirUnit or def.customParams.reallyabomber then
+	if def.isBomber or def.isBomberAirUnit or def.customParams.reammoseconds then
 		-- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
 		bomberDefID[defID] = true
 		subjectDefID[defID] = true

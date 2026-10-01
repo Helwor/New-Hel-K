@@ -24,7 +24,7 @@ local debugMe = false
 local indexedBomberDefID = {}
 local bomberDefID = {}
 for defID, def in pairs(UnitDefs) do
-	if def.isBomber or def.customParams.reallyabomber or def.isBomberAirUnit  then
+	if def.isBomber or def.customParams.reammoseconds or def.isBomberAirUnit  then
 		-- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
 		table.insert(indexedBomberDefID, defID)
 		bomberDefID[defID] = true
