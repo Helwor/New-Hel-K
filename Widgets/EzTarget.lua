@@ -821,7 +821,7 @@ local preferFuncsCheck = {
 			end
 		end
 	end,
-	['static'] = function(isStatic, isFac, secondClosest, secondDefID)
+	['static'] = function(isStatic, isFac, closest, lastAcquired, secondClosest, secondDefID)
 		if isStatic then
 			v.prefer = 'nothing to switch on'
 			return
@@ -864,6 +864,7 @@ local sel = spGetSelectedUnits()
 local mempoints = {n=0}
 
 selContext.hasValidAttacker, selContext.hasAirAttacker, selContext.hasControllableRepairer = false, false, false
+selContext.hasAir = false
 selContext.lobsters, selContext.hasDgunOnAlt, selContext.hasJumper, selContext.hasPuppy = false, false, false, false
 selContext.hasTransport = false
 selContext.hasComm = false
@@ -958,31 +959,21 @@ local function SetColor(id,color, remove)
 		drawCircle[id][6] = 1
 	end
 end
+
+---- WORKAROUND, Evaluate() get too many upvalues, storing the less used ones in table
+local sp = { 
+    SetActiveCommand    = Spring.SetActiveCommand,
+    GetUnitPosition     = Spring.GetUnitPosition,
+    GetGroundHeight     = Spring.GetGroundHeight,
+    GetUnitRulesParam   = Spring.GetUnitRulesParam,
+    GetUnitTransporter  = Spring.GetUnitTransporter,
+}
+--
 local function Evaluate(type, id, engineCmd)
-	local v, s = v, s
-	-- Echo("v.cmdOverride is ", v.cmdOverride)
-	-- Echo("os.clock() is ", os.clock())
-	-- Echo("v.cmdOverride or v.moddedCmd is ", v.cmdOverride or v.moddedCmd)
-	-- Echo("spGetActiveCommand() is ", spGetActiveCommand())
-	-- Echo("v.moddedCmd is ", v.moddedCmd)
-
-
-	-- if v.moddedActiveCommand then
-	--     local Acmd = select(4, spGetActiveCommand())
-	--     -- Echo("Acmd is ", Acmd, v.moddedActiveCommand, spGetActiveCommand())
-	--     local alt = spGetModKeyState()
-	--     if Acmd == v.moddedActiveCommand and not alt then
-	--         v.moddedActiveCommand = false
-	--         v.moddedCmd = false
-	--         spSetActiveCommand(0)
-	--     elseif Acmd then
-	--         v.moddedActiveCommand = false
-	--         v.moddedCmd = false
-	--     end            
-	-- end
 	if v.cmdOverride then
 		return v.cmdOverride
 	end
+	local v, s, WG = v, s, WG
 	local alt, ctrl, meta, shift = spGetModKeyState()
 
 
@@ -1036,6 +1027,7 @@ local function Evaluate(type, id, engineCmd)
 	--     v.moddedActiveCommand = false
 	--     return v.cmdOverride or v.moddedCmd
 	-- end
+	local debugging = Debug.EZ()
 	local wantSelect = opt.ezSelect or debugging
 	upd.treatedFrame = upd.frame
 	upd.keyChanged = false
@@ -1055,16 +1047,6 @@ local function Evaluate(type, id, engineCmd)
 		upd.updating = false
 		return v.cmdOverride
 	end
-	if alt and rmb then
-		-- v.moddedCmd == CMD_MANUALFIRE, selContext.lobsters and wh.mouseOwner and wh.mouseOwner:GetInfo().name == 'CustomFormations2'
-		if v.moddedCmd == CMD_MANUALFIRE and not selContext.hasLobster and wh.mouseOwner and wh.mouseOwner:GetInfo().name == 'CustomFormations2' then
-			-- continue working for CF2 -- TODO: make CF2 ask for it
-			v.moddedTarget =  EzTarget(true)
-			s.moddedSelect = nil
-			-- Echo('here ?', s.moddedSelect, s.moddedSelect and poses[s.moddedSelect])
-		end
-		return v.moddedCmd or v.cmdOverride
-	end
 	-- v.moddedActiveCommand = false
 
 	if outsideSpring or screen0.hoveredControl or aboveMinimap then
@@ -1072,31 +1054,27 @@ local function Evaluate(type, id, engineCmd)
 		upd.updating = false
 		return v.cmdOverride
 	end        
+	if alt and rmb then
+		-- if v.moddedCmd == CMD_MANUALFIRE and not selContext.hasLobster and wh.mouseOwner and wh.mouseOwner.GetInfo().name == 'CustomFormations2' then
+		-- 	-- continue working for CF2 -- TODO: make CF2 ask for it
+		-- 	v.moddedTarget =  EzTarget(true)
+		-- 	s.moddedSelect = nil
+		-- 	-- Echo('here ?', s.moddedSelect, s.moddedSelect and poses[s.moddedSelect])
+		-- end
+		return v.moddedCmd or v.cmdOverride
+	end
 
-	local debugging = Debug.EZ()
-	local wantTarget = 	engineCmd ~= buildMexDefID
+	local wantTarget = 	not v.noHelperTarget 
+		and engineCmd ~= buildMexDefID
+
 		and (selContext.hasValidAttacker or selContext.hasTransport)
 		and (
 			(opt.ezTarget and (not ctrl or opt.allowQueueing))
 			or debugging
 		)
 
-	-- if s.acquiredSelect or v.acquiredTarget then
-	--     return
-	-- end
-	-- if --[[v.defaultCmd == CMD_REPAIR or--]] --[[v.defaultCmd == CMD_REARM or--]] --[[alt or--]] opt.ezTarget and (not opt.ezSelect) and v.defaultCmd~=CMD_ATTACK and v.defaultCmd~=CMD_RAW_MOVE and v.defaultCmd~=CMD_MOVE and v.defaultCmd ~= CMD_RECLAIM then
-	--     reset()
-	--     upd.updating = false
-	--     return v.cmdOverride
-	-- end
 	upd.updating = true
-	v.moddedTarget, s.moddedSelect =  EzTarget(wantTarget and not v.noHelperTarget, wantSelect, selContext.hasAirAttacker)
-	-- Echo("v.defaultCmd is ", v.defaultCmd)
-	-- local defID
-	-- if type=='unit' then
-	--     defID = spGetUnitDefID(id)
-	--     f.Page(UnitDefs[spGetUnitDefID(id)])
-	-- end
+	v.moddedTarget, s.moddedSelect =  EzTarget(wantTarget, wantSelect, selContext.hasAirAttacker)
 	local traced, tracedDefID,  isAllied, isMine, isEnemy
 	local onSelf
 	if type == 'unit' then
@@ -1111,24 +1089,23 @@ local function Evaluate(type, id, engineCmd)
 				and s.moddedSelect == (sel[1] or nil) -- new: don't consider onSelf anymore if the real closest is not self
 			)
 
-			-- local defID = spGetUnitDefID(id)
 			local defID = unit.defID
 			tracedDefID = defID
-			-- local isAllied = unit.isAllied
-			if wantTarget and (not isAllied) and not (defID and ignoreTargetDefID[defID]) then
+			if (not isAllied) and not (defID and ignoreTargetDefID[defID]) then
 				 v.defaultTarget = id
 			end
-			if wantSelect and not (defID and ignoreSelectDefID[defID]) and unit.isMine and not spGetUnitTransporter(id) then
+			if wantSelect and not (defID and ignoreSelectDefID[defID]) and isMine and not sp.GetUnitTransporter(id) then
 				s.defaultSelect = id
 			end
 		else
 			--it can happen if the unit got dead, (or just got out of sight afaik, need verify for sure)
 			v.moddedCmd = CMD_RAW_MOVE
 			return v.moddedCmd
-			-- local defID = spGetUnitDefID(id)
-			-- Echo('EzTarget, unit', id, defID, defID and UnitDefs[defID].name , 'is not registered in Units!','lmb?',lmb,'rmb?',rmb, Spring.GetGameSeconds(), 'defaultCmd:', engineCmd,'valid?',spValidUnitID(id),'dead?',spGetUnitIsDead(id))
 		end
 	end
+
+
+
 	-- if not v.defaultTarget and v.noHelperTarget and not wantSelect then
 	--     reset()
 	--     return v.cmdOverride
@@ -1170,7 +1147,7 @@ local function Evaluate(type, id, engineCmd)
 	if selContext.hasAirAttacker then
 		if not alt and opt.findPad or alt and opt.forceExclude then
 			local pad = false
-			if not v.moddedTarget and defaultCMD~=CMD_REARM then
+			if not v.moddedTarget and engineCmd ~= CMD_REARM then
 				-- if we got an air unit that can land and there is a airpad-like type around the cursor which is not the closest and no ezTarget to attack then, 
 				if s.moddedSelect and s.moddedSelect ~= s.defaultSelect then
 					if airpadDefID[modSelDefID] then
@@ -1262,12 +1239,23 @@ local function Evaluate(type, id, engineCmd)
 		if selContext.hasDgunOnAlt and opt.forceDGUN then
 			local airDgun = selContext.hasAirDgun
 			local commandName = (airDgun and 'Air ' or '') .. 'Manual' .. (airDgun and ' ' or '') .. 'Fire'
-			if v.hasLobster then
-				v.moddedTarget = false
-			elseif not v.moddedTarget and v.defaultTarget and not (isMine or isAllied) then
-				v.moddedTarget = v.moddedTarget or v.defaultTarget
-			else
-				v.moddedTarget = false
+			if v.moddedTarget then
+				local defaultTarget = not (isMine or isAllied) and v.defaultTarget
+				local cancelled = false
+				if selContext.hasLobster then
+					cancelled = true
+				elseif not defaultTarget then
+					cancelled = true
+				else
+					local x, y, z = sp.GetUnitPosition(defaultTarget)
+					if y and y < sp.GetGroundHeight(x, z) + 75 then
+						cancelled = true
+					end
+				end
+				if cancelled then
+					SetColor(v.moddedTarget, nil, true)
+					v.moddedTarget = false
+				end
 			end
 			SwitchCommand(commandName, airDgun and CMD_AIR_MANUALFIRE or CMD_MANUALFIRE, namecom)
 			return --[[v.cmdOverride or--]] v.moddedCmd
@@ -1278,7 +1266,7 @@ local function Evaluate(type, id, engineCmd)
 			v.moddedActiveCommand = 'Attack'
 			SwitchCommand('Attack', CMD_ATTACK, namecom)
 			return v.moddedCmd
-		elseif selContext.hasAirAttacker and opt.forceExclude then
+		elseif selContext.hasAir and opt.forceExclude then
 			if not padToExclude and engineCmd == CMD_REARM then
 				padToExclude = s.defaultSelect or isAllied and airpadDefID[tracedDefID] and traced
 				-- if v.moddedTarget then
@@ -1306,7 +1294,7 @@ local function Evaluate(type, id, engineCmd)
 	-- if a moded active command has been set, the function returned
 	if v.moddedActiveCommand then
 		v.moddedActiveCommand = false
-		spSetActiveCommand(0)
+		sp.SetActiveCommand(0)
 	end
 
 	----- managing behaviours with alt that doesnt require active command
@@ -1381,7 +1369,7 @@ local function Evaluate(type, id, engineCmd)
 				return v.moddedCmd
 			end
 		end
-		local suppresRepair = false
+		local suppressRepair = false
 		if selContext.hasControllableRepairer then
 			if not padToRearm then
 				local hasCloakedConUnderAreaCloak = false, false
@@ -1398,7 +1386,7 @@ local function Evaluate(type, id, engineCmd)
 						if time > cacheCloakedRepairSuppress.time + 0.4 then
 							for id in pairs(controllableRepairersMap) do
 								if id~='n' then
-									if spGetUnitRulesParam(id, 'areacloaked') == 1 then
+									if sp.GetUnitRulesParam(id, 'areacloaked') == 1 then
 										suppressRepair = true
 										hasCloakedConUnderAreaCloak = true
 										break
@@ -1488,7 +1476,6 @@ local function Evaluate(type, id, engineCmd)
 				SetColor(v.moddedTarget, nil, true)
 				v.moddedTarget = false
 			end
-			v.moddedTarget = false
 			v.moddedCmd = nil
 			return v.cmdOverride or v.moddedCmd
 		end
@@ -1497,20 +1484,8 @@ local function Evaluate(type, id, engineCmd)
 	if canTransport and v.moddedCmd == CMD_LOAD_UNITS then
 		return v.cmdOverride or v.moddedCmd
 	end
-	-- Echo("v.cmdOverride, v.moddedCmd is ", v.cmdOverride, v.moddedCmd)
-
-	-- if Debug.EZ() and engineCmd == CMD_GUARD then
-	--     return 0
-	-- end
-	-- Echo("spGetUnitRulesParams('areacloaked') is ",v.defaultTarget--[[, spGetUnitRulesParams('areacloaked')--]])
-
-	-- Echo("v.defaultCmd is ", v.defaultCmd,Spring.GetDefaultCommand())
-
 
 	v.moddedActiveCommand = false
-
-
-
 
 	if not (v.moddedCmd)  then
 		-- Echo('...', engineCmd, alt)
@@ -1520,7 +1495,7 @@ local function Evaluate(type, id, engineCmd)
 				engineCmd == CMD_GUARD
 				or engineCmd == CMD_RECLAIM
 				or engineCmd == CMD_RESURRECT
-				or engineCMD == CMD_MOVE
+				or engineCmd == CMD_MOVE
 			)
 		then
 			v.moddedCmd = CMD_RAW_MOVE
@@ -1630,6 +1605,7 @@ function widget:CommandsChanged()
 
 	selContext.hasAirAttacker               = mySelection.hasAirAttacker
 	selContext.hasAirDgun                   = mySelection.hasAirDgun
+	selContext.hasAir                       = mySelection.hasGunship or mySelection.hasPlane
 
 	selContext.hasLobster                   = mySelection.hasLobster
 	selContext.lobsters                     = mySelection.lobsters
@@ -1904,16 +1880,8 @@ function widget:Update(dt)
 end 
 
 function widget:MousePress(mx, my, button)
-	-- Echo('mouse press', button)
-	-- local t = {}
-	-- for i = 1, 2500000 do
-	--     t[i] = i
-	-- end
-	-- for i = 1, 2500000 do
-	--     t[i] = nil
-	-- end
 	updateAllowed = true
-	if button > 3 then
+	if button > 3  or button == 2 then
 		reset()
 		return
 	end
@@ -1928,8 +1896,7 @@ function widget:MousePress(mx, my, button)
 		v.cmdOverride = false
 		reset()
 		return
-	end
-	if screen0.hoveredControl or button == 2 then
+	elseif screen0.hoveredControl then
 		reset()
 		return
 	end
@@ -1949,7 +1916,7 @@ function widget:MousePress(mx, my, button)
 		activeCommand = 0
 		if button == 3 then
 			-- should execute the default command which should be the same as the active command before we just switched it to 0
-			v.acquiredTarget = v.moddedTarget or v.defaultTarget -- will be used by CustomFormation2
+			v.acquiredTarget = v.moddedTarget --or v.defaultTarget -- will be used by CustomFormation2
 			-- Echo('ok', s.moddedSelect, s.moddedSelect and poses[s.moddedSelect])
 			-- WG.cmdOverride = 'momo'
 			-- Echo('returned, moddedCmd?',v.moddedCmd,os.clock())
@@ -2106,9 +2073,9 @@ function widget:MousePress(mx, my, button)
 	cf2.CF2 = cf2.widget
 	cf2.lastx, cf2.lasty, cf2.lastclock = mx, my, now
 	-- check if cf2.CF2 want control
-	if cf2.CF2 then
-		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by cf2.CF2
 
+	if cf2.CF2 then
+		v.cmdOverride = CMD_RAW_MOVE -- this will change briefly the return of widget:DefaultCommand that is called by CF2 widget
 		cf2.CF2 = cf2.CF2:MousePress(cf2.lastx, cf2.lasty, button,'by Ez') and cf2.CF2
 		if cf2.CF2 then
 			mempoints = {n=0}
@@ -2225,7 +2192,7 @@ function widget:MouseRelease(mx,my,button)
 		return cf2.CF2:MouseRelease(mx,my,button)
 	else
 		-- added condition v.defaultCmd == CMD_ATTACK
-		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR or v.defaultCmd == CMD_ATTACK and not v.moddedCmd or v.moddedCmd == CMD_RAW_MOVE then
+		if v.acquiredTarget or v.clamped or v.defaultCmd == buildMexDefID or v.defaultCmd == CMD_REPAIR or v.defaultCmd == CMD_ATTACK and not v.moddedCmd or v.moddedCmd == CMD_RAW_MOVE or v.moddedCmd == v.defaultCmd then
 
 			Debug.CF2("processing on release...")
 			local cancel = Execute(mx, my, button)

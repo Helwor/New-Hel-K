@@ -1294,26 +1294,27 @@ local function StopCommandAndRelinquishMouse()
 end
 
 local function TweakTarget(pos, mx, my, acquiredTarget, singleNode, alt, usingRMB)
-	if usingCmd ~= CMD_MANUALFIRE and usingCmd ~= CMD_AIR_MANUALFIRE and (usingCmd ~= CMD_ATTACK or not singleNode) then
+	if hasLobster or usingCmd ~= CMD_MANUALFIRE and usingCmd ~= CMD_AIR_MANUALFIRE and (usingCmd ~= CMD_ATTACK or not singleNode) then
 		return pos
 	end
-	if alt and not usingRMB and usingCmd == CMD_ATTACK then
-		return pos
-	end
-	if alt and (usingCmd == CMD_MANUALFIRE or usingCmd == CMD_AIR_MANUALFIRE) then
+	if alt and not usingRMB and (usingCmd == CMD_ATTACK or usingCmd == CMD_MANUALFIRE) then
 		return pos
 	end
 	if hasBomber and alt and usingCmd == CMD_ATTACK then
 		return pos
 	end
+	if alt and (usingCmd == CMD_AIR_MANUALFIRE) then
+		return pos
+	end
+	local dgun_check_fly = alt and usingRMB and (usingCmd == CMD_MANUALFIRE)
 	local id
 	local ezTarget = WG.EzTarget
 	if ezTarget then
 		local v = ezTarget.v
 		id = acquiredTarget or v.moddedTarget
-	-- Echo("id is ", acquiredTarget, v.moddedTarget)
+			-- or v.defaultTarget and not spAreTeamsAllied(myTeamID, spGetUnitTeam(v.defaultTarget)) and v.defaultTarget
 	end
-	if not id and not hasLobster then
+	if not id then
 		local targType
 		targType, id = CulledTraceScreenRay(mx, my, false, inMinimap, throughWater)
 		--[[if targType == 'feature' then
@@ -1348,7 +1349,7 @@ local function TweakCommand(usingCmd, targType, alt, ctrl, meta, shift, forceShi
 	-- end
 	if (usingCmd == CMD_ATTACK) and not (ctrl or usingRMB) then
 		--
-		if opt.shiftAttackTrailShootToward and shift and not singleNode
+		if shift and alt and opt.shiftAttackTrailShootToward and not singleNode
 			and not (hasBomber or hasPuppy) 
 			and (commandMap['Set Target'])
 		then
@@ -1484,8 +1485,6 @@ function widget:MousePress(mx, my, mButton, byEz)
 		local _, defaultCmdID
 		_, defaultCmdID, _, nameDefCom = spGetDefaultCommand()
 
-		-- Echo("defaultCmdID, nameDefCom is ", defaultCmdID, nameDefCom)
-		-- Spring.Echo("defaultCmdID is ", defaultCmdID)
 		local ttype, tid
 		if not defaultCmdID then
 			local targType, targID = CulledTraceScreenRay(mx, my, false, false, throughWater)
@@ -1832,7 +1831,7 @@ function widget:MouseRelease(mx, my, mButton)
 		StopCommandAndRelinquishMouse()
 		return false
 	end
-	-- It is possible for MouseRelease to fire after MouseRelease
+	-- It is possible for MouseRelease to fire after mouse release
 	if not cf2Nodes[1] then
 		return false
 	end
@@ -1929,7 +1928,7 @@ function widget:MouseRelease(mx, my, mButton)
 
 			-- We should check if any units are able to execute it,
 			-- but the order is small enough network-wise that the tiny bug potential isn't worth it.
-			local params = TweakTarget(cf2Nodes[1], mx, my, acquiredTarget, true, alt, false)
+			local params = TweakTarget(cf2Nodes[1], mx, my, acquiredTarget, true, alt, usingRMB)
 			GiveNotifyingOrder(usingCmd, params, cmdOpts)
 
 		else
@@ -1989,9 +1988,8 @@ function widget:MouseRelease(mx, my, mButton)
 	end
 	cf2Nodes.fadeout = true
 	
-	local ownerName = widgetHandler.mouseOwner and widgetHandler.mouseOwner.GetInfo and widgetHandler.mouseOwner.GetInfo()
-	ownerName = ownerName and ownerName.name
-	if ownerName == "CustomFormations2" then
+	local owner = widgetHandler.mouseOwner and widgetHandler.mouseOwner.GetInfo and widgetHandler.mouseOwner.GetInfo()
+	if owner and owner.name == "CustomFormations2" then
 		widgetHandler.mouseOwner = nil
 	end
 
