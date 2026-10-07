@@ -36,7 +36,7 @@ Implementations:
 	- add .updateInPlace for colors option to update the given color table
 	- add .isCheckboxList for table options, self explanatory
 	- add .readOnly for table options, self explanatory
-	- add .version system for the dev to induce a reset on greater version
+	- add .forceResetDate for the dev to induce an option reset when required
 Convenience:
 	- added a main menu caption when at root
 	- menu window is minizable (clicking on title bar shrink the window to its title) requires chili_addon
@@ -123,6 +123,7 @@ local currentPaths = {}
 local MAX_HISTORY = 12
 local history = {cur = 0}
 local MENU = {}
+local now = os.time()
 --------------------------------------------------------------------------------
 local isMission = Game.modDesc:find("Mission Mutator")
 local isServerHost = Spring.GetModOptions().sendspringiedata and not Spring.IsReplay()
@@ -1253,6 +1254,10 @@ local function GetActionHotkey(action)
 end
 
 local function AssignKeyBindAction(hotkey, actionName, verbose)
+	-- if actionName == 'crudemenu' then
+	-- 	Echo('BIND CRUDEMENU')
+	-- 	Echo(debug.traceback())
+	-- end
 	if verbose then
 		--local actions = Spring.GetKeyBindings(hotkey.mod .. hotkey.key)
 		local actions = Spring.GetKeyBindings(hotkey)
@@ -1509,10 +1514,10 @@ local function AddOption(path, option, wname, options, alphabetical ) --Note: th
 	local valuechanged = false
 	local newval
 	local reset = option.reset
-	if option.version then
-		local version = settings.config[fullkey..'_version']
-		if not version or version < option.version then
-			settings.config[fullkey..'_version'] = option.version
+	if option.forceResetDate then
+		local date = settings.config[fullkey..'_resetDate']
+		if not date or date < option.forceResetDate then
+			settings.config[fullkey..'_resetDate'] = now
 			reset = true
 		end
 	end
