@@ -37,6 +37,7 @@ Implementations:
 	- add .isCheckboxList for table options, self explanatory
 	- add .readOnly for table options, self explanatory
 	- add .forceResetDate for the dev to induce an option reset when required
+	- implement CallbackManager for options change, now only for callback widget.DevOptions(bool) (dev options)
 Convenience:
 	- added a main menu caption when at root
 	- menu window is minizable (clicking on title bar shrink the window to its title) requires chili_addon
@@ -397,6 +398,56 @@ local settings = {
 
 local confLoaded = false
 
+-------- CallbackManager
+CallbackManager = {
+	callback_names = { DevOptions = true},
+	callbacks = {},
+}
+function CallbackManager:RegisterCallback(wname, w, cbname)
+	local sub = self.callbacks[cbname]
+	if not sub then
+		sub = {}
+		self.callbacks[cbname] = sub
+	end
+	sub[wname] = w
+end
+function CallbackManager:RegisterWidgetCallbacks(wname, widget)
+	for cbname in pairs(self.callback_names) do
+		local fn = widget[cbname]
+		if fn and type(fn) == 'function' then
+			self:RegisterCallback(wname, widget, cbname)
+		end
+	end
+end
+function CallbackManager:DeregisterCallback(wname, cbname)
+	local sub = self.callbacks[cbname]
+	if not sub then
+		return
+	end
+	sub[wname] = nil
+	if not next(sub) then
+		self.callbacks[cbname] = nil
+	end
+end
+function CallbackManager:DeregisterWidgetCallbacks(wname)
+	for cbname in pairs(self.callbacks) do
+		self:DeregisterCallback(wname, cbname)
+	end
+end
+function CallbackManager:Callback(cbname, value)
+	local sub = self.callbacks[cbname]
+	if not sub then
+		return
+	end
+	for wname, w in pairs(sub) do
+		local fn = w[cbname]
+		if fn and type(fn) == 'function' then
+			fn(value)
+		else
+			self:DeregisterCallback(wname, cbname)
+		end
+	end
+end
 
 ----------------------------------------------------------------
 -- Helper Functions
@@ -818,6 +869,10 @@ WG.crude.ShowMenu = function() end --// allow other widget to toggle-up Epic-Men
 
 WG.crude.GetActionOption = function(actionName)
 	return actionToOption[actionName]
+end
+
+WG.crude.IsDevMode = function()
+	return settings.dev
 end
 
 local function SaveKeybinds()
@@ -3316,6 +3371,7 @@ function MENU:MakeWin()
 			if self.win then -- for case of menu refresh, retain the scroll
 				eventObj.scrollY = self.win.children[1] and self.win.children[1].scrollPosY or 0
 			end
+			CallbackManager:Callback('DevOptions', settings.dev)
 			MENU:Navigate(eventObj, false)
 		end },
 		objectOverrideFont = WG.GetSpecialFont(13, "epic_sub_fg", {color = color.sub_fg}),
@@ -4345,19 +4401,8 @@ function widget:ViewResize(vsx, vsy)
 	scrH = vsy
 end
 
-function widget:Initialize()
-	if (not WG.Chili) then
-		widgetHandler:RemoveWidget(widget)
-		Echo('EPIC MENU needs Chili !')
-		return
-	end
-	init = true
-	
-	
-	spSendCommands("unbindaction hotbind")
-	spSendCommands("unbindaction hotunbind")
-	
 
+local function ChiliShortcuts()
 	-- setup Chili
 	Chili = WG.Chili
 	Control = Chili.Control
@@ -4377,6 +4422,22 @@ function widget:Initialize()
 	Progressbar = Chili.Progressbar
 	Colorbars = Chili.Colorbars
 	screen0 = Chili.Screen0
+end
+
+function widget:Initialize()
+	if (not WG.Chili) then
+		widgetHandler:RemoveWidget(widget)
+		Echo('EPIC MENU needs Chili !')
+		return
+	end
+	init = true
+	
+	
+	spSendCommands("unbindaction hotbind")
+	spSendCommands("unbindaction hotunbind")
+	
+
+	ChiliShortcuts()
 
 	widget:ViewResize(Spring.GetViewGeometry())
 	
@@ -4632,7 +4693,7 @@ function widget:Initialize()
 			if type(widget) == 'table' and type(widget.options) == 'table' then
 				IntegrateWidget(widget, true)
 			end
-			
+			CallbackManager:RegisterWidgetCallbacks(widget.whInfo.name, widget)
 			
 			checkWidget(widget)
 			return ret
@@ -4640,6 +4701,7 @@ function widget:Initialize()
 		
 		widgetHandler.OriginalRemoveWidget = widgetHandler.RemoveWidget
 		widgetHandler.RemoveWidget = function(self, widget)
+			CallbackManager:DeregisterWidgetCallbacks(widget.whInfo.name)
 			local ret = self:OriginalRemoveWidget(widget)
 			if preintegrated[widget] then
 				IntegrateWidget(widget, false)
@@ -4744,13 +4806,15 @@ function WidgetInitNotify(w, name)
 	if w.options then
 		IntegrateWidget(w, true)
 		checkWidget(w)
+		CallbackManager:RegisterWidgetCallbacks(name, w)
 	end
 end
-function WidgetRemoveNotify(w,name)
+function WidgetRemoveNotify(w, name)
 	if preintegrated[w] then
 		IntegrateWidget(w, false)
 		preintegrated[w] = nil
 		checkWidget(name)
+		CallbackManager:DeregisterWidgetCallbacks(name)
 	end
 	-- Echo('removed', name)
 end
