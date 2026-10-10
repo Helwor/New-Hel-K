@@ -2655,12 +2655,14 @@ function MarkerMaker:ContourToLineObj(contours)
 			local x, y = coord[1], coord[2]
 			if x < left then
 				left = x
-			elseif x > right then
+			end
+			if x > right then
 				right = x
 			end
 			if y > top then
 				top = y
-			elseif y < bottom then
+			end
+			if y < bottom then
 				bottom = y
 			end
 		end
@@ -2687,7 +2689,7 @@ function MarkerMaker:ContourToLineObj(contours)
 		end
 	end
 	self.l = l
-	local midx, midy = ((right or left) - left) / 2, ((top or bottom) - bottom) / 2
+	local midx, midy = (right - left) / 2, (top - bottom) / 2
 	midx, midy = math.max(midx, 0.5), math.max(midy, 0.5)
 	self.midx, self.midy = midx, midy
 	local offx, offy = -left - midx, -top + midy
