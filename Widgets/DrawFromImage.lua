@@ -17,54 +17,256 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-local dev = false
+local ALLOWED_FORMATS = '{*.png,*.jpg,*.jpeg,*.jpe,*.tif,*.tiff}'
+local LINE_COLOR = {1,1,1,0.5} -- color of lines
+local forceResetDate = 1791294080
+local sig = '['..widget.GetInfo().name..']: '
+local MIN_ANGLE_GAP, BASE_ANGLE_GAP = 2.2, 7.7
+
+----- per-item default param
+local mode = 'contour'
+local pix_detect         = 0.5
+local analyze_size       = 400
+local onscreen_size      = 250
+local angle_tolerance    = 1
+local noise_reduction    = 2
+local refine_curve       = 1
+-- devMode only
+local angle_gap          = 7.7
+local window_len         = 2.2
+local arrow_limit        = 1
+local max_seg_angle      = math.pi/2
+local radius_ref         = 150
+-- fixed param for curve detection
+local minRatioR, maxRatioR = 0.15, 0.5
+local downRatioR = minRatioR * 0.8
+-------
+
 
 local json = VFS.Include("LuaRules/Utilities/json.lua",nil, VFS.ZIP)
 
 ----- Localizations
-local Echo = Spring.Echo
 
-local spGetGroundHeight 	= Spring.GetGroundHeight
+local spGetGroundHeight     = Spring.GetGroundHeight
 local spWorldToScreenCoords = Spring.WorldToScreenCoords
-local spTraceScreenRay 		= Spring.TraceScreenRay
-local spGetMouseState 		= Spring.GetMouseState
-local spGetModKeyState 		= Spring.GetModKeyState
-local spGetSelectedUnits 	= Spring.GetSelectedUnits
-local spMarkerAddLine 		= Spring.MarkerAddLine
+local spTraceScreenRay      = Spring.TraceScreenRay
+local spGetMouseState       = Spring.GetMouseState
+local spGetModKeyState      = Spring.GetModKeyState
+local spGetSelectedUnits    = Spring.GetSelectedUnits
+local spMarkerAddLine       = Spring.MarkerAddLine
 
-local glPushMatrix			= gl.PushMatrix
-local glTranslate			= gl.Translate
-local glScale				= gl.Scale
-local glCallList			= gl.CallList
-local glPopMatrix			= gl.PopMatrix
-local glDeleteList			= gl.DeleteList
-local glTexture				= gl.Texture
-local glTextureInfo			= gl.TextureInfo
-local glTexRect				= gl.TexRect
-local glDeleteTexture		= gl.DeleteTexture
+local glPushMatrix          = gl.PushMatrix
+local glTranslate           = gl.Translate
+local glScale               = gl.Scale
+local glCallList            = gl.CallList
+local glPopMatrix           = gl.PopMatrix
+local glDeleteList          = gl.DeleteList
+local glTexture             = gl.Texture
+local glTextureInfo         = gl.TextureInfo
+local glTexRect             = gl.TexRect
+local glDeleteTexture       = gl.DeleteTexture
 local glDeleteTextureFBO    = gl.DeleteTextureFBO
+local glColor               = gl.Color
+local glVertex              = gl.Vertex
+local glReadPixels          = gl.ReadPixels
 
-local huge					= math.huge
+local huge                  = math.huge
 
-local FileExists			= VFS.FileExists
------
+local FileExists            = VFS.FileExists
 
-function widget:Shutdown()
-	for _, obj in ipairs(holder) do
-		if obj.list then
-			glDeleteList(obj.list)
-		end
-	end
-	for _, list in pairs(pendingLists) do
-		glDeleteList(list)
-	end
-	glDeleteList(frame)
-end
+----------------------
+--- for devMode debug
+local DBG_SHARP_ANGLE = 1
+local DBG_CURVE = 2
+local DBG_EXTREMITY = 3
+local KIND_COLORS = {
+	[DBG_SHARP_ANGLE] = {1,1,0,1},
+	[DBG_CURVE] = {0.2,0.9,1,1},
+	[DBG_EXTREMITY] = {1,0.2,0.2,1},
+}
+--------
+local CUSTOM_PARAMS_ORDER = {
+	'useDefault',
+	'mode',
+	'pix_detect',
+	'analyze_size',
+	'onscreen_size',
+	'angle_tolerance',
+	'noise_reduction',
+	'refine_curve',
+	'angle_gap',
+	'window_len',
+	'arrow_limit',
+	'max_seg_angle',
+	'radius_ref',
+}
+local PARAMS = {
+	---
+	onMapDirX = {
+		value = 1,
+		type = 'number',
+		initial = true,
+	},
+	onMapDirY = {
+		value = 1,
+		type = 'number',
+		initial = true,
+	},
+	---
+	-- mandatory
+	file      = { type = 'string', mandatory = true},
+	filename  = { type = 'string', mandatory = true},
+	sizeX     = { type = 'number', mandatory = true},
+	sizeY     = { type = 'number', mandatory = true},
+	mul       = { type = 'number', mandatory = true},
+	size      = { type = 'number', mandatory = true}, -- the size is used as a signature to recognize the file
+	lines     = { type = 'table' , mandatory = true},
+	midx      = { type = 'number', mandatory = true},
+	midy      = { type = 'number', mandatory = true},
+	-- non generic
+	useDefault = {
+		title = 'Use Default',
+		type = 'boolean',
+		default = true,
+		no_s = true,
+	},
+	mode = {
+		title = 'Mode',
+		type = 'string',
+		format = '%s',
+		default = mode,
+		need_remake = true,
+	},
+	-- generic number type
+	pix_detect = {
+		title = 'Pixel Detection',
+		type = 'number',
+		desc = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
+		format = '%.3f',
+		min = 0, max = 1, step = 0.005,
+		default = pix_detect,
+		generic = true,
+		need_remake = true,
+	},
+	analyze_size = {
+		title = 'Analyze size',
+		type = 'number',
+		desc = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
+		format = '%d',
+		min = 50, max = 800, step = 10,
+		default = analyze_size,
+		generic = true,
+		need_remake = true,
+	}, 
+	onscreen_size = {
+		title = 'On Screen Size',
+		type = 'number',
+		desc = 'The final result on screen as marker is reshrinked by this multiplicator',
+		format = '%d',
+		min = 50, max = 500, step = 10,
+		default = onscreen_size,
+		generic = true,
+		always_custom = true,
+	},
+	angle_tolerance = {
+		title = 'Angle Tolerance',
+		type = 'number',
+		desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
+		format = '%.3f',
+		min = 0, max = 3, step = 0.005,
+		default = angle_tolerance,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	noise_reduction = {
+		title = 'Noise Reduction',
+		type = 'number',
+		desc = 'Suppress little lines under this length (% of the image diagonal size), not for plain mode',
+		format = '%.1f',
+		min = 0, max = 20, step = 0.1,
+		default = noise_reduction,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	refine_curve = {
+		title = 'Refine Curves',
+		type = 'number',
+		desc = '<1 smoothen the big curves, >1 smoothen the small curves (blue), not for plain mode',
+		format = '%.2f',
+		min = 0.01, max = 3, step = 0.01,
+		default = refine_curve,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	}, 
+	----- Dev only
+	angle_gap = {
+		title = 'Angle Gap',
+		desc = 'Distance before and after the point, from which we measure the point angle in order to avoid false positive, not for plain mode',
+		type = 'number',
+		format = '%.2f',
+		min = 2.2, max = 15, step = 0.01,
+		default = 7.7,
+		devMode = true,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	window_len = {
+		title = 'Window Len',
+		desc = 'Distance before and after the point in which we pick a strong angular point (yellow), not for plain mode',
+		type = 'number',
+		format = '%.2f',
+		min = 2.2, max = 15, step = 0.01,
+		default = 2.2,
+		devMode = true,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	arrow_limit = {
+		title = 'Arrow Limit',
+		desc = 'Threshold limit of arrow of arc of the current point angle, deciding to place a curve point (blue), not for plain mode',
+		type = 'number',
+		format = '%.2f',
+		min = 0.01, max = 2, step = 0.01,
+		default = 1,
+		devMode = true,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	max_seg_angle = {
+		title = 'Max Seg Angle',
+		desc = 'Maximum angle at point allowed deciding to place a curve point (blue), not for plain mode',
+		type = 'number',
+		format = '%.2f',
+		min = 0.01, max = math.pi, step = 0.01,
+		default = max_seg_angle,
+		devMode = true,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	radius_ref = {
+		title = 'Radius Ref',
+		desc = 'Size of reference to dissociate small curve from big curve, for "Refine Curve" to work, not for plain mode',
+		type = 'number',
+		format = '%d',
+		min = 1, max = 300, step = 1,
+		default = radius_ref,
+		devMode = true,
+		noPlain = true,
+		generic = true,
+		need_remake = true,
+	},
+	--
+}
 
+local p = PARAMS
 
-
-local glVertex = gl.Vertex
-local glReadPixels = gl.ReadPixels
 
 local vsx, vsy = widgetHandler:GetViewSizes()
 
@@ -72,47 +274,54 @@ local DRAWINGS_DIR = "LuaUI/Widgets/Drawings/"
 
 local MarkerMaker = {} -- class
 MarkerMaker.mt = {__index = MarkerMaker}
+
 local customPanel
 
 local categories = {byKey = {}, scrollPoses = {}, controls = {}, head = nil}
 local updateCategories = false
 
-local DEBUG_CONTOUR = false
-local MAX_ANGLE_TOLERANCE = 0.85
+local debugContour = false
+
 -- options
-local mode = 'contour'
-local pix_detect = 0.5 -- any rgb color below this value will accept a pixel as valid, any alpha value below (1-pix_detect) will deny it
-local analyze_size = 450 -- the diagonal of the image is extended to this in order to improve the contour making
-local onscreen_size = 150 -- the final result on screen as marker is reshrinked by this multiplicator
-local angle_tolerance = 0.50
-local noise_reduction = 2 -- contour suppressed if less lengthy that this value (% of the image diagonale) (not for plain mode)
-local angleGap = 7.77 -- dev only
-local windowLen = 2.2 -- dev only
+
 local always_up = true
 local placing_frame = false
-local debugging = false
+local devMode = false
+local console_debugging = false
+local updateTime = 0
+local update_delay = 3
+local max_update_time = 0.05
+
 --
 
 local showMultFrame = false
 local showFrame = false
-local buttonWidth = 75
+
+---- old
 local COUNT_FOR_ANGLE = 3
 local PRECISION = 0.5
-local MAX_WIN_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
+----
 
-local drawing
-local currentMarkerLine, markerLines = 0, 0
-local markerTime = 0
-local markerDelay = 0.044 -- the minimal time period between drawing, else it would be ignored
-local toDraw = {}
-local pendingLists = {}
-
+------ selector
+local MAX_SELECTOR_HEIGHT = 300 -- adaptative win height to fit the last thumbnail size
+local SELECTOR_BUTTON_W = 75
+local SELECTOR_BTN_PADDING = {1,2,1,2}
 -- hax to customize selected button appearance
 local oriBGColor
 local oriFocusColor
 local oriPressedColor
 local selectedColor
-local buttonPadding = {1,2,1,2}
+--
+local selector, win, scroll
+--------
+
+local drawing
+local currentMarkerLine, markerLines = 0, 0
+local markerTime = 0
+local MARKER_DELAY = 0.044 -- the minimal time period between drawing, else it would be ignored
+local toDraw = {}
+local pendingLists = {}
+
 
 local function MakeSelectedColor(r,g,b,a)
 	return {r * 0.5, g * 2, b * 0.5, a * 1.5}
@@ -124,37 +333,38 @@ end
 
 local holder = {}
 local tasks = {}
-local selector, win, scroll
+local curScrollPosY = false
 local deselectOnRelease = false
 local selected = false
 local customize = false
 local initialized = false
-local Init, UpdateScreenRatio
-local curScrollPosY = false
-local updateTime = 0
-local updateDelay = 3
+local Init, UpdateScreenRatio, RemakeCustomizationPanel
 -- local maxPerUpdate = 10
-local maxUpdateTime = 0.05
 local current = 1
 local taskTime = 0
 local taskDelay = 1
 local vsx, vsy = Spring.Orig.GetViewGeometry()
 local scaled_vsx, scaled_vsy = Spring.GetViewGeometry()
+
 options_path = 'Hel-K/'..widget:GetInfo().name
 options_order = {
 	'always_up',
 	'placing_frame',
-	'updateDelay',
-	-- 'maxPerUpdate',
-	'maxUpdateTime',
+	'update_delay',
+	'max_update_time',
 	'note',
+
 	'mode',
+
 	'pix_detect',
 	'analyze_size',
 	'onscreen_size',
 	'angle_tolerance',
 	'noise_reduction',
-	'debug',
+	'refine_curve',
+
+	'devMode',
+	'console_debugging',
 }
 options = {}
 
@@ -189,37 +399,26 @@ options.placing_frame = {
 	end,
 
 }
-options.updateDelay = {
-	name = 'Update Time',
-	desc = 'Live update period',
+options.update_delay = {
+	name = 'Live Update Delay',
+	desc = 'Period between file checks in sec',
 	type = 'number',
 	min = 1, max = 10, step = 1,
-	value = updateDelay,
+	value = update_delay,
 	OnChange = function(self)
-		updateDelay = self.value
+		update_delay = self.value
 	end,
 
 }
 
--- options.maxPerUpdate = {
--- 	name = 'Max per Udpate',
--- 	desc = 'Helpful for potato comp with many images to update',
--- 	type = 'number',
--- 	min = 1, max = 60, step = 1,
--- 	value = maxPerUpdate,
--- 	OnChange = function(self)
--- 		maxPerUpdate = self.value
--- 	end,
--- }
-
-options.maxUpdateTime = {
+options.max_update_time = {
 	name = 'Max time allowed per update',
 	desc = 'Helpful for potato comp with many images to update',
 	type = 'number',
-	min = 0.005, max = 0.2, step = 0.005,
-	value = maxUpdateTime,
+	min = 0.005, max = 0.5, step = 0.005,
+	value = max_update_time,
 	OnChange = function(self)
-		maxUpdateTime = self.value
+		max_update_time = self.value
 	end,
 }
 options.note = {
@@ -231,56 +430,48 @@ options.note = {
 options.mode = {
 	name = 'Mode',
 	type = 'radioButton',
-	value = mode,
+	value = p.mode.default,
 	items = {
-		{name = 'Contour', key = 'contour'},
-		{name = 'Spaghetti', key = 'spaghetti'},
-		{name = 'Plain', key = 'plain'},
+		{name = 'Contour',    key = 'contour'   },
+		{name = 'Spaghetti',  key = 'spaghetti' },
+		{name = 'Plain',      key = 'plain'     },
 	},
+	noHotkey = true,
 	OnChange = function(self)
-		mode = self.value
+		p[self.key].default = self.value
 		initialized = false
 	end,
 }
 
 
 options.pix_detect = {
-	name = 'Pixel Detection',
-	desc = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
-	type = 'number',
-	min = 0.01,	max = 0.99,	step = 0.01,
-	value = pix_detect,
 	OnChange = function(self)
-		pix_detect = self.value
+		p[self.key].default = self.value
 		initialized = false
 	end,
 }
 
 options.analyze_size = {
-	name = 'Analyse Size',
-	desc = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
-	type = 'number',
-	min = 50, max = 800, step = 10,
-	value = analyze_size,
 	OnChange = function(self)
-		analyze_size = self.value
+		p[self.key].default = self.value
 		initialized = false
 	end,
 }
 
 options.onscreen_size = {
-	name = 'Onscreen Size',
-	desc = 'Final size on screen',
-	type = 'number',
-	min = 50, max = 600, step = 10,
-	value = onscreen_size,
 	OnChange = function(self)
 		showFrame = false
-		if self.value ~= onscreen_size then
-			onscreen_size = self.value
+		if self.value ~= p[self.key].default then
+			local oldDefault = p[self.key].default
+			local newValue = self.value
+			p[self.key].default = newValue
 			for i, obj in ipairs(holder) do
-				if self.use_default then
-					obj:SetScreenRatio()
+				if obj.useDefault then
+					if obj.s_onscreen_size == oldDefault then
+						obj.onscreen_size = newValue
+						obj:SetScreenRatio()
+						obj:Save()
+					end
 				end
 			end
 		end
@@ -298,44 +489,70 @@ options.onscreen_size = {
 }
 
 options.angle_tolerance = {
-	name = 'Simplify Angle Tolerance',
-	desc = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
-	type = 'number',
-	min = 0.000, max = MAX_ANGLE_TOLERANCE, step = 0.005,
-	value = angle_tolerance,
 	OnChange = function(self)
-		angle_tolerance = self.value
+		p[self.key].default = self.value
 		initialized = false
 	end,
 }
 
 options.noise_reduction = {
-	name = 'Noise Reduction',
-	desc = 'Suppress little lines under this length (% of the image diagonal size)',
-	type = 'number',
-	min = 0.000, max = 10, step = 0.005,
-	value = noise_reduction,
-	default = noise_reduction,
-	reset = true,
 	OnChange = function(self)
-		noise_reduction = self.value
+		p[self.key].default = self.value
 		initialized = false
 	end,
 }
 
-options.debug = {
-	name = 'Debug',
+options.refine_curve = {
+	OnChange = function(self)
+		p[self.key].default = self.value
+		initialized = false
+	end,
+}
+
+options.devMode = {
+	name = 'Dev Mode',
 	desc = '',
 	type = 'bool',
-	value = debugging,
+	value = devMode,
 	OnChange = function(self)
-		debugging = self.value
+		devMode = self.value
+		if initialized and WG.crude.IsDevMode() then
+			RemakeCustomizationPanel()
+		end
 	end,
 	dev = true,
+}
 
+options.console_debugging = {
+	name = 'Console Debugging',
+	desc = '',
+	type = 'bool',
+	value = console_debugging,
+	OnChange = function(self)
+		console_debugging = self.value
+	end,
+	dev = true,
 }
 
 
+for name, opt in pairs(options) do
+	local param = p[name]
+	if param and param.generic then
+		opt.name = param.title
+		opt.desc = param.desc
+		opt.type = 'number'
+		opt.default = param.default
+		opt.value = param.default
+		opt.min, opt.max, opt.step = param.min, param.max, param.step
+		opt.forceResetDate = forceResetDate
+	end
+end
+
+function DevOptions(bool) -- new callback from epic menu telling us when user toggle the dev options
+	if initialized then
+		RemakeCustomizationPanel()
+	end
+end
 
 local function ReturnSelf(self)
 	return self
@@ -349,7 +566,6 @@ local function SpiralSquare(layers, step, callback, offset, reverse, ortho)
 	-- LOOP iterating squares clockwise from center to exterior, starting at bottom left corner
 	-- reverse is anticlockwise, from exterior to center, starting at top right
 	-- first point is always at center if offset is explicit 0
-	local brokeloop = false
 	offset = offset and offset / step
 	local startlayer = offset or 1
 	-- Echo("layers,startlayer,step is ", layers,startlayer,step)
@@ -369,8 +585,6 @@ local function SpiralSquare(layers, step, callback, offset, reverse, ortho)
 		step = -step
 		startlayer, layers = layers - (layers + startlayer) % 1, startlayer
 	end
-	local edge
-	--
 	for layer = startlayer, layers, inc do 
 		local offz = -layer * step
 		for s = step, -step, -2*step do -- browse half of perimeter per iteration (positive x and z then negative x and z)
@@ -444,7 +658,36 @@ do
 	-- local deg = math.deg(math.atan2(x,z))
 end
 
-
+local function UnminifyJSON(jsonStr, indent)
+	indent = indent or '\t'
+	local level = 0
+	local suppress = false
+	return jsonStr:gsub('([{%[,%]}])()', function(c, p)
+		if c == '[' then
+			suppress = true
+			if jsonStr:sub(p, p) == '[' then
+				level = level + 1
+				return '[\n'..('\t'):rep(level)
+			end
+		elseif c == ']' then
+			suppress = false
+			if jsonStr:sub(p, p) == ']' then
+				level = level - 1
+				return ']\n'..('\t'):rep(level)
+			end
+		elseif suppress then
+			return
+		elseif c == '{' then
+			level = level + 1
+			return '{\n'..('\t'):rep(level)
+		elseif c == '}' then
+			level = level - 1
+			return '\n'..('\t'):rep(level)..'}'
+		else
+			return ',\n'..('\t'):rep(level)
+		end
+	end)
+end
 
 -------
 local DrawPendingMarker = function(start, End, screen_ratio)
@@ -476,7 +719,7 @@ local function HighlightCategoryHead(catHead)
 end
 
 local function MakeCategories()
-	local files = VFS.DirList(DRAWINGS_DIR, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}')
+	local files = VFS.DirList(DRAWINGS_DIR, ALLOWED_FORMATS)
 	local byKey = {}
 	local newCats = {}
 	local lastCat
@@ -516,7 +759,7 @@ local function MakeCategories()
 	local bheight = (scroll.clientArea[4] - 1) / c + 1
 	if beNew then
 		local scrollPoses = {}
-		local controls = {}	
+		local controls = {} 
 		for i = #categories, 1, -1 do
 			win:RemoveChild(categories.controls[i])
 			categories[i] = nil
@@ -615,7 +858,7 @@ local function MakeSelector()
 				local scrollbar = false
 				for i = clen, 1, -1 do
 					local child = children[i]
-					if child.y  + (off - paddingBot) > MAX_WIN_HEIGHT then
+					if child.y  + (off - paddingBot) > MAX_SELECTOR_HEIGHT then
 						lastY = child.y
 						scrollbar = true
 					else
@@ -637,14 +880,14 @@ local function MakeSelector()
 						return
 					end
 				end
-				if newWinHeight > MAX_WIN_HEIGHT then
+				if newWinHeight > MAX_SELECTOR_HEIGHT then
 					win.maxHeight = newWinHeight
 				else
-					win.maxHeight = MAX_WIN_HEIGHT
+					win.maxHeight = MAX_SELECTOR_HEIGHT
 				end
 				lastTimeY = lastY
 				if newWinHeight and win.height ~= math.min(newWinHeight, win.maxHeight) then
-					local selWidth = buttonWidth + (scrollbar and scroll.scrollbarSize or 0)
+					local selWidth = SELECTOR_BUTTON_W + (scrollbar and scroll.scrollbarSize or 0)
 					local winWidth = selWidth + 23
 					if winWidth == win.width then
 						winWidth = nil
@@ -662,7 +905,7 @@ local function MakeSelector()
 	scroll = WG.Chili.ScrollPanel:New{
 		x = 15,
 		y = 14,
-		width = buttonWidth,
+		width = SELECTOR_BUTTON_W,
 		name = 'marker_scrollpanel',
 		bottom = 10,
 		padding = {0,0,0,0},
@@ -708,13 +951,13 @@ local function MakeSelector()
 	win = WG.Chili.Window:New{
 		parent = WG.Chili.Screen0,
 		caption = 'Marker Selector',
-		x = scaled_vsx - (buttonWidth + 23 + 4),
+		x = scaled_vsx - (SELECTOR_BUTTON_W + 23 + 4),
 		y = 200,
 		height = 0,
 		padding = {0,7,5,5},
 		resizable = false,
 		maxHeight = 200,
-		width = buttonWidth + 23,
+		width = SELECTOR_BUTTON_W + 23,
 		OnResize = {
 			function(self)
 				updateCategories = 0
@@ -734,32 +977,113 @@ local function MakeSelector()
 	end
 end
 
-local function MakeCustomizationPanel()
+function RemakeCustomizationPanel()
+	local obj = customize
+	if customPanel then
+		customPanel.win:Dispose()
+	end
+	MakeCustomizationPanel()
+	if obj then
+		obj:SetupCustomPanel()
+	else
+		customPanel.win:Hide()
+	end
 
+end
+
+function MakeCustomizationPanel()
+	local devMode = WG.crude.IsDevMode() and devMode
 	local cp = {}
-	local win_width = 600
-	local win_height = 430
+	local win_width = 800
+	local win_height = 250
 
 	local panel_bottom = 30
 	local panel_top = 15
 	local panel_right = 5
 	local panel_left = 5
 	local button_height = 20
+	local control_width = "48%"
+	local panel_col_width = (win_width - panel_left - panel_right) / 2
+	local left = 10
+	local y = 0
 
 	local color_text = {1,1,1,1}
 	local color_header = {1,1,0,1}
+	local active_color_text = {1,1,1,1}
+	local active_color_header = {1,1,0,1}
+
+	local defaults_tooltip
+	do
+		local _defaults = {}
+		for _, name in ipairs(CUSTOM_PARAMS_ORDER) do
+			local param = p[name]
+			if devMode or not param.devMode then
+				if not param.no_s then
+					_defaults[#_defaults+1] = ('%s: '..param.format):format(param.title, param.default)
+				end
+			end
+		end
+		defaults_tooltip = table.concat(_defaults, '\n')
+
+	end
 
 
-	local panel_col_width = (win_width - panel_left - panel_right) / 2
-	local left = 10
+	local function MakeGenericControl(name)
+		local param = p[name]
+		if not param.generic or param.devMode and not devMode then
+			return
+		end
+		local value = param.default
+		y = y + 25
+		cp['header_'..name] = WG.Chili.Label:New{
+			y = y,
+			x = left,
+			width = control_width,
+			caption = param.title,
+			tooltip = param.desc,
+			HitTest = ReturnSelf,
 
+			textColor = color_header,
+		}
 
-	local y = 0
+		y = y + 15
+		cp[name] = WG.Chili.Trackbar:New{
+			x = left,
+			y = y,
+			width = control_width,
+			-- right = panel_col_width,
+			value = value,
+			trackColor = color_text, -- trackColor has not been implemented yet
+			min = param.min,
+			max = param.max,
+			step = param.step,
+			OnMouseUp = {
+				function(self)
+					if customize then
+						-- Echo('mouse up', self.value, 'customize', customize, customize.pix_detect, customize.spix_detect)
+					end
+					if customize then
+						if customize[name] ~= self.value then
+							customize[name] = self.value
+							if not customize.useDefault and (not param.noPlain or customize.mode ~= 'plain') then
+								customize:FastUpdate()
+							else
+								customize:Save()
+								local header = customPanel['header_'..name]
+								local caption = header.caption:gsub(': %d.*$', '')
+								header:SetCaption(('%s: '..(p[name].format)):format(caption, self.value))
+							end
+						end
+					end
+				end
+			},
+		}
+	end
 
 	cp.useDefault = WG.Chili.Checkbox:New{
 		x = left,
 		y = y,
-		width = "48%",
+		width = control_width,
 		left = left,
 		-- right = panel_col_width,
 		defaultHeight = 22,
@@ -779,14 +1103,8 @@ local function MakeCustomizationPanel()
 				end
 			end
 		},
-		tooltip = 'Ignore customization, but keep it memorized'
-				  ..'\nDefault values are:'
-				  ..'\nMode: ' .. mode
-				  ..'\nPixel Detection: ' .. pix_detect
-				  ..'\nAnalyse Size: ' .. analyze_size
-				  ..'\nOnScreen Size: ' .. onscreen_size
-				  ..'\nAngle Tolerance: ' .. angle_tolerance
-				  ..'\nNoise Reduction: ' .. noise_reduction,
+		tooltip = 'Ignore customization, but keep it memorized\nDefault values are:\n'..defaults_tooltip,
+
 		HitTest = ReturnSelf,
 
 	}
@@ -796,7 +1114,7 @@ local function MakeCustomizationPanel()
 	cp.header_mode = WG.Chili.Label:New{
 		y = y,
 		x = left,
-		width = "48%",
+		width = control_width,
 		caption = 'Modes',
 		textColor = color_header,
 		-- align='leftr',
@@ -811,10 +1129,10 @@ local function MakeCustomizationPanel()
 			x = left,
 			-- right = panel_col_width,
 			y = y,
-			width = "48%",
+			width = control_width,
 			caption = '   ' .. m,
 			textColor = color_text,
-			checked = m:lower() == mode,
+			checked = m:lower() == p.mode.default,
 			OnChange = {function(self)
 				if ignoreOnChange then
 					ignoreOnChange = false
@@ -846,97 +1164,17 @@ local function MakeCustomizationPanel()
 		modes[i] = cb
 	end
 
+	MakeGenericControl('pix_detect')
 
-	y = y + 25
-	cp.header_pix_detect = WG.Chili.Label:New{
-		y = y,
-		x = left,
-		width = "48%",
-		caption = 'Pixel Detection',
-		tooltip = 'Sensibility to detect pixels that will be drawn, one of the pixel\'s color must be under this value to be detected, if it is semi transparent, the alpha channel must also be superior to (1-value)',
-		HitTest = ReturnSelf,
-
-		textColor = color_header,
-	}
-
-	y = y + 15
-	cp.pix_detect = WG.Chili.Trackbar:New{
-		x = left,
-		y = y,
-		width = "48%",
-		-- right = panel_col_width,
-		value = pix_detect,
-		trackColor = color_text, -- trackColor has not been implemented yet
-		min = 0.01,
-		max = 0.99,
-		step = 0.01,
-		OnMouseUp = {
-			function(self)
-				if customize then
-					-- Echo('mouse up', self.value, 'customize', customize, customize.pix_detect, customize.spix_detect)
-				end
-				if customize then
-					if customize.pix_detect ~= self.value then
-						customize.pix_detect = self.value
-						if not customize.useDefault then
-							customize:FastUpdate()
-						else
-							customize:Save()
-						end
-					end
-				end
-			end
-		},
-	}
-
-
-	y = y + 25
-	cp.header_analyze_size = WG.Chili.Label:New{
-		y = y,
-		x = left,
-		width = "48%",
-		caption = 'Analyse Size',
-		textColor = color_header,
-		tooltip = 'Definition of the image we work on, can help especially when using Contour mode, avoid upping it using Spaghetti as it will make too many lines',
-		HitTest = ReturnSelf,
-	}
-
-	y = y + 15
-
-	cp.analyze_size = WG.Chili.Trackbar:New{
-		x = left,
-		y = y,
-		width = "48%",
-		-- right = panel_col_width,
-		value = analyze_size,
-		trackColor = color_text,
-		min = 50, max = 800, step = 10,
-		OnMouseUp = {
-			function(self)
-				if customize then
-					if customize.analyze_size ~= self.value then
-						customize.analyze_size = self.value
-						if not customize.useDefault then
-							customize:FastUpdate()
-						else
-							customize:Save()
-						end
-					end
-				end
-			end
-		},
-		-- useValueTooltip = not option.tooltipFunction,
-		-- tooltipFunction = option.tooltipFunction,
-		-- tooltip_format = option.tooltip_format,
-	}
+	MakeGenericControl('analyze_size')
 
 	y = y + 25
 	cp.header_onscreen_size = WG.Chili.Label:New{
 		x = left,
 		y = y,
-		width = "48%",
+		width = control_width,
 		caption = 'Onscreen Size',
-		textColor = color_header,
+		textColor = active_color_header,
 		tooltip = 'Final size on screen',
 		HitTest = ReturnSelf,
 
@@ -944,30 +1182,34 @@ local function MakeCustomizationPanel()
 	}
 
 	y = y + 15
+	local function react(self, x, y, button, mods)
+		if customize then
+			if customize.onscreen_size ~= self.value then
+				customize.onscreen_size = self.value
+				customize:SetScreenRatio()
+				showMultFrame = 1
+				local header = cp.header_onscreen_size
+				local caption = header.caption:gsub(': %d.*$', '')
+				header:SetCaption(('%s: '..(p.onscreen_size.format)):format(caption, self.value))
+			end
+			if button and customize.onscreen_size ~= customize.s_onscreen_size then -- only OnMouseUp and saved doesnt match current
+				customize:Save()
+			end
+		end
+	end
 	cp.onscreen_size = WG.Chili.Trackbar:New{
 		x = left,
 		y = y,
-		width = "48%",
-		-- right = panel_col_width,
-		value = onscreen_size,
-		trackColor = color_text,
-		min = 50, max = 600, step = 10,
-		OnMouseUp = {
-			function(self)
-				if customize then
-					if customize.onscreen_size ~= self.value then
-						customize.onscreen_size = self.value
-						if not customize.use_default then
-							customize:SetScreenRatio()
-							customize:Save()
-							showMultFrame = 1
-						end
-					end
-				end
-			end
-		},
+		width = control_width,
+		value = p.onscreen_size.default,
+		trackColor = active_color_text,
+		min = p.onscreen_size.min,
+		max = p.onscreen_size.max,
+		step = p.onscreen_size.step,
+		OnChange = { react },
+		OnMouseUp = { react },
 		tooltipFunction = function(self)
-			if customize then
+			if customize and self == WG.Chili.Screen0.hoveredControl then
 				showMultFrame = self.value / customize.onscreen_size
 			end
 			return self.value
@@ -978,252 +1220,62 @@ local function MakeCustomizationPanel()
 			end
 		end},
 		OnMouseOut = {function()
-			showMultFrame = false end
-		}
+			showMultFrame = false
+		end}
 	}
 
-	y = y + 25
-	cp.header_angle_tolerance = WG.Chili.Label:New{
-		x = left,
-		y = y,
-		caption = 'Angle Tolerance',
-		width = "48%",
-		textColor = color_header,
-		tooltip = 'How much difference of angle we tolerate before creating a new segment, works only for Contour and Spaghetti mode',
-		HitTest = ReturnSelf,
-	}
+	MakeGenericControl('angle_tolerance')
 
-	y = y + 15
-	cp.angle_tolerance = WG.Chili.Trackbar:New{
-		x = left,
-		y = y,
-		width = "48%",
-		-- right = panel_col_width,
-		min = 0.000, max = MAX_ANGLE_TOLERANCE, step = 0.005,
-		value = angle_tolerance,
-		trackColor = color_text,
-		OnMouseUp = {
-			function(self)
-				if customize then
-					if customize.angle_tolerance ~= self.value then
-						customize.angle_tolerance = self.value
-						if not customize.useDefault and customize.mode ~= 'plain' then
-							customize:FastUpdate()
-						else
-							customize:Save()
-						end
-					end
-				end
-			end
-		},
-	}
+	MakeGenericControl('noise_reduction')
 
-	y = y + 25
-	cp.header_noise_reduction = WG.Chili.Label:New{
-		x = left,
-		y = y,
-		caption = 'Noise Reduction',
-		width = "48%",
-		textColor = color_header,
-		tooltip = 'Suppress little lines under this length (% of the image diagonal size)',
-		HitTest = ReturnSelf,
-	}
+	MakeGenericControl('refine_curve')
 
-	y = y + 15
-	cp.noise_reduction = WG.Chili.Trackbar:New{
-		x = left,
-		y = y,
-		width = "48%",
-		-- right = panel_col_width,
-		min = 0.000, max = 10, step = 0.005,
-		value = noise_reduction,
-		trackColor = color_text,
-		OnMouseUp = {
-			function(self)
-				if customize then
-					if customize.noise_reduction ~= self.value then
-						customize.noise_reduction = self.value
-						if not customize.useDefault and customize.mode ~= 'plain' then
-							customize:FastUpdate()
-						else
-							customize:Save()
-						end
-					end
-				end
-			end
-		},
-	}
-	if dev then
-		y = y + 25
-		cp.header_angleGap = WG.Chili.Label:New{
-			x = left,
-			y = y,
-			caption = 'Angle Gap',
-			width = "48%",
-			textColor = color_header,
-			tooltip = 'Angle Gap',
-			HitTest = ReturnSelf,
-		}
-		y = y + 15
-		cp.angleGap = WG.Chili.Trackbar:New{
-			x = left,
-			y = y,
-			width = "48%",
-			-- right = panel_col_width,
-			min = 2.2, max = 10, step = 0.005,
-			value = 4,
-			trackColor = color_text,
-			OnMouseUp = {
-				function(self)
-					if customize then
-						if customize.angleGap ~= self.value then
-							customize.angleGap = self.value
-							if not customize.useDefault and customize.mode ~= 'plain' then
-								customize:FastUpdate()
-							else
-								customize:Save()
-							end
-						end
-					end
-				end
-			},
-		}
-		y = y + 25
-		cp.header_windowLen = WG.Chili.Label:New{
-			x = left,
-			y = y,
-			caption = 'Window Len',
-			width = "48%",
-			textColor = color_header,
-			tooltip = 'Window Len',
-			HitTest = ReturnSelf,
-		}
-		y = y + 15
-		cp.windowLen = WG.Chili.Trackbar:New{
-			x = left,
-			y = y,
-			width = "48%",
-			-- right = panel_col_width,
-			min = 2.2, max = 16, step = 0.005,
-			value = 4,
-			trackColor = color_text,
-			OnMouseUp = {
-				function(self)
-					if customize then
-						if customize.windowLen ~= self.value then
-							customize.windowLen = self.value
-							if not customize.useDefault and customize.mode ~= 'plain' then
-								customize:FastUpdate()
-							else
-								customize:Save()
-							end
-						end
-					end
-				end
-			},
-		}
-	end
+	MakeGenericControl('angle_gap')
 
-	y = y + 25
-	cp.reset_defaults = WG.Chili.Button:New{
-		x = left,
-		y = y,
-		width = 150,
-		-- right = panel_col_width,
-		caption = 'Reset Customization',
-		tooltip = 'return to default values:'
-				  ..'\nMode: ' .. mode
-				  ..'\nPixel Detection: ' .. pix_detect
-				  ..'\nAnalyse Size: ' .. analyze_size
-				  ..'\nOnScreen Size: ' .. onscreen_size
-				  ..'\nAngle Tolerance: ' .. angle_tolerance
-				  ..'\nNoise Reduction: ' .. noise_reduction,
-		trackColor = color_text,
-		OnClick = {
-			function(self)
-				if customize then
-					for i, m in ipairs({'contour', 'spaghetti', 'plain'}) do
-						if mode == m then
-							if not cp.modes[i].checked then
-								cp.modes[i]:Toggle()
-							end
-							break
-						end
-					end
-					local defaults = {pix_detect, analyze_size, onscreen_size, angle_tolerance, noise_reduction}
-					for i, opt in ipairs({'pix_detect', 'analyze_size', 'onscreen_size', 'angle_tolerance', 'noise_reduction'}) do
-						if math.abs(cp[opt].value - defaults[i]) > 1e-6 then -- value of angle_tolerance can differ a tiny bit when getting digested by the trackbar control
-							cp[opt]:SetValue(defaults[i])
-							cp[opt].OnMouseUp[1](cp[opt])
-						end
-					end
-					showMultFrame = false
-				end
-			end
-		},
-	}
+	MakeGenericControl('window_len')
 
---
-	local function CreateMarkerImage()
+	MakeGenericControl('arrow_limit')
+
+	MakeGenericControl('max_seg_angle')
+
+	MakeGenericControl('radius_ref')
+
+	-----
+	local function CreateCustomizationMarkerImage()
 		cp.marker_image = WG.Chili.Image:New{
 			file = '',
+			-- fake dimensions but this allow to not be clipped out when the window start getting out of screen
+			width = 500,
+			height = y,
+			---
 			drawcontrolv2 = true,
-			DrawControl = function(self)
-				-- Echo('draw control', os.clock())
+			DrawControl = function(self) -- hack to set UI image as pure gl
 				local obj = customize
 				if obj and obj.list then
-					-- FIXME NOT PERFECT
-					-- Echo("obj.win.contentArea is ", unpack(cp.win.clientArea))
-					-- Echo("cp.scroll_panel.contentArea is ", unpack(cp.scroll_panel.clientArea))
-					local ca = cp.scroll_panel.clientArea
-					-- local col_width = ca[3]/2 -- - panel_left - panel_right
-					local col_width = cp.win.width/2 - panel_left - panel_right
-					local image_size = (col_width - 65)
-					local colx = col_width + 20
-					-- local wratio = obj.midx / obj.midy
-					-- local hratio = obj.midy / obj.midx
-					-- local width = image_size * (wratio > 1 and 1 or wratio)
-					-- local height = image_size * (hratio < 1 and 1 or hratio)
-					-- Echo("whratio is ", whratio,'midx, midy', obj.midx, obj.midy)
-					-- Echo('width', width,'height', height)
-					-- Echo("width / obj.midx, -height / obj.midy is ", width / obj.midx, -height / obj.midy)
-					-- local x = col_width + (obj.midx+1)
-					local y = (obj.midy+3)
-					-- local ratio = width / (obj.midx*2)
-					local ratio
-					if obj.midx > obj.midy then
-						ratio = image_size / (obj.midx*2)
-					else
-						ratio = image_size / (obj.midy*2)
-					end
+					local w = cp.win.width/2  - panel_left - panel_right
+					local h = cp.win.height - panel_top  - panel_bottom
+					local ratio = math.min((w - 65) / (obj.midx * 2), (h - 60) / (obj.midy * 2))
+
 					glPushMatrix()
-					gl.Color(1,1,1,0.5)
-					-- glTranslate(x, y*ratio, 0)
-					-- glScale(width / obj.midx, -height / obj.midy, 1)
-					glTranslate(colx , 0, 0)
+					glColor(LINE_COLOR)
+					glTranslate(w + 20, 0, 0)
 					glScale(ratio, -ratio, 1)
-					glTranslate(obj.midx , -y, 0)
+					glTranslate(obj.midx, -(obj.midy + 3), 0)
+					if devMode and obj.dbg_list then
+						glCallList(obj.dbg_list)
+					else
+						glCallList(obj.list)
+					end
 
-					glCallList(obj.list)
 					glPopMatrix()
-				end
-				-- local ratio = self.width / ((obj.midx+1) * 2)
-				-- glPushMatrix()
-				-- gl.Color(1,1,1,0.5)
-				-- glScale(ratio * reduce, ratio * reduce, 1)
-				-- glTranslate((obj.midx+1) / reduce, (obj.midy+1), 0)
-				-- glScale(1,-1,1)
-				-- glCallList(obj.list)
-				-- glPopMatrix()
-			end,
+					glColor(1, 1, 1, 1)
 
+				end
+			end,
 		}
 	end
-	CreateMarkerImage()
 
-
-
---
+	CreateCustomizationMarkerImage()
 
 	cp.scroll_panel = WG.Chili.ScrollPanel:New{
 		name = 'marker_custom_panel',
@@ -1232,41 +1284,95 @@ local function MakeCustomizationPanel()
 		right = panel_right,
 		bottom = panel_bottom,
 		orientation   = "vertical",
+		OnResize = {
+			function(self)
+				for i, v in ipairs(self.children) do -- hack to adapt our image size manually
+					if v.classname == 'image' then
+						if v._own_dlist then
+							gl.DeleteList(v._own_dlist)
+							v._own_dlist = gl.CreateList(v.DrawControl, v)
+						end
+					end
+				end
+			end
+		}
 	}
 	cp.scroll_panel:AddChild(cp.useDefault)
 
 	cp.scroll_panel:AddChild(cp.header_mode)
+
 	for i, ctrl in ipairs(cp.modes) do
 		cp.scroll_panel:AddChild(ctrl)
 	end
 
-	cp.scroll_panel:AddChild(cp.header_pix_detect)
-	cp.scroll_panel:AddChild(cp.pix_detect)
-
-	cp.scroll_panel:AddChild(cp.header_analyze_size)
-	cp.scroll_panel:AddChild(cp.analyze_size)
-
-	cp.scroll_panel:AddChild(cp.header_onscreen_size)
-	cp.scroll_panel:AddChild(cp.onscreen_size)
-
-	cp.scroll_panel:AddChild(cp.header_angle_tolerance)
-	cp.scroll_panel:AddChild(cp.angle_tolerance)
-
-	cp.scroll_panel:AddChild(cp.header_noise_reduction)
-	cp.scroll_panel:AddChild(cp.noise_reduction)
-
-	if dev then
-		cp.scroll_panel:AddChild(cp.header_angleGap)
-		cp.scroll_panel:AddChild(cp.angleGap)
-
-		cp.scroll_panel:AddChild(cp.header_windowLen)
-		cp.scroll_panel:AddChild(cp.windowLen)
+	for i, name in ipairs(CUSTOM_PARAMS_ORDER) do
+		if p[name].generic then
+			local control = cp[name]
+			if control then
+				cp.scroll_panel:AddChild(cp['header_' .. name])
+				cp.scroll_panel:AddChild(control)
+			end
+		end
 	end
 
-	cp.scroll_panel:AddChild(cp.reset_defaults)
-	
 	cp.scroll_panel:AddChild(cp.marker_image)
 
+	cp.reset_defaults = WG.Chili.Button:New{
+		x = 10,
+		bottom = 6,
+		width = 160,
+		height = button_height,
+		-- right = panel_col_width,
+		caption = 'Reset Customization',
+		tooltip = 'Return to default values:\n' .. defaults_tooltip,
+		trackColor = color_text,
+		OnClick = {
+			function(self)
+				if customize then
+					for i, m in ipairs({'contour', 'spaghetti', 'plain'}) do
+						if p.mode.default == m then
+							if not cp.modes[i].checked then
+								cp.modes[i]:Toggle()
+							end
+							break
+						end
+					end
+
+					for i, name in ipairs(CUSTOM_PARAMS_ORDER) do
+						local param = p[name]
+						if param.generic then
+							local control = cp[name]
+							if control and math.abs(control.value - param.default) > 1e-6 then -- value of angle_tolerance can differ a tiny bit when getting digested by the trackbar control
+								control:SetValue(param.default)
+								control.OnMouseUp[1](control, -1, -1, 1)
+							end
+						end
+					end
+					showMultFrame = false
+				end
+			end
+		},
+	}
+
+	if devMode then
+		cp.devModeToggle = WG.Chili.Checkbox:New{
+			x = '47%',
+			bottom = 6,
+			width = 80,
+			caption = 'Dev Mode',
+			boxalign = 'left',
+			checked = devMode,
+			OnChange = {function(self)
+				local newchecked = not self.checked
+				if options.devMode.value ~= newchecked then
+					options.devMode.value = newchecked
+					options.devMode:OnChange()
+				end
+			end},
+			tooltip = "",
+			round = true,
+		}
+	end
 
 	cp.closeButton = WG.Chili.Button:New{
 		caption = 'Close',
@@ -1279,12 +1385,19 @@ local function MakeCustomizationPanel()
 		--backgroundColor=color.sub_close_bg,
 		--textColor=color.sub_close_fg,
 		--classname = "navigation_button",
-		
 		right = 10,
 		bottom = 6,
 		width = 60,
 		height = button_height,
 	}
+	local win_children = {
+		cp.scroll_panel,
+		cp.reset_defaults,
+		cp.closeButton,
+	}
+	if cp.devModeToggle then
+		table.insert(win_children, 3, cp.devModeToggle)
+	end
 
 	cp.win = {
 		x = (vsx - win_width) / 2,
@@ -1296,19 +1409,15 @@ local function MakeCustomizationPanel()
 		parent = WG.Chili.Screen0,
 		-- backgroundColor = color.sub_bg,
 		-- resizable = false,
-		caption = 'filename' .. '\'s param',
+		caption = 'filename' .. '\'s params',
 		-- minWidth = win_width,
 		-- minHeight = win_height,
-		children = {
-			cp.scroll_panel,
-			cp.closeButton,
-
-		},
+		children = win_children,
 	}
 
 	cp.RemakeImage = function()
 		cp.scroll_panel:RemoveChild(cp.marker_image)
-		CreateMarkerImage()
+		CreateCustomizationMarkerImage()
 		cp.scroll_panel:AddChild(cp.marker_image)
 	end
 
@@ -1347,9 +1456,8 @@ end
 function Init()
 	if not selector then
 		MakeSelector()
-		MakeCustomizationPanel()
-		customPanel.win:Hide()
 	end
+	RemakeCustomizationPanel()
 	tasks = {}
 	taskTime = 0
 
@@ -1362,21 +1470,38 @@ end
 
 function MarkerMaker:New(file, index, params)
 	-- Echo('new obj', file, index, params, params and params.mode, params and params.useDefault)
+	params = params or {}
 	local obj = {
 		file = file,
 		filename = nil,
+		sizeX = nil,
+		sizeY = nil,
+		mul = nil,
+		size = nil, -- the size is used as a signature to recognize the file
+
+		lines = {},
+		midx = nil, midy = nil,
+
+
+		useDefault       = params.useDefault ~= false, -- false only if param is false else true
+		mode             = params.mode               or p.mode.default,              smode             = nil,
+		pix_detect       = params.pix_detect         or p.pix_detect.default,        spix_detect       = nil,
+		analyze_size     = params.analyze_size       or p.analyze_size.default,      sanalyze_size     = nil,
+		onscreen_size    = params.onscreen_size      or p.onscreen_size.default,     sonscreensize     = nil,
+		angle_tolerance  = params.angle_tolerance    or p.angle_tolerance.default,   sangle_tolerance  = nil,
+		noise_reduction  = params.noise_reduction    or p.noise_reduction.default,   snoise_reduction  = nil,
+		refine_curve     = params.refine_curve       or p.refine_curve.default,      srefine_curve     = nil,
+		angle_gap        = params.angle_gap          or p.angle_gap.default,         sangle_gap        = nil,
+		window_len       = params.window_len         or p.window_len.default,        swindow_len       = nil,
+		arrow_limit      = params.arrow_limit        or p.arrow_limit.default,       sarrow_limit      = nil,
+		max_seg_angle    = params.max_seg_angle      or p.max_seg_angle.default,     smax_seg_angle    = nil,
+		radius_ref       = params.radius_ref         or p.radius_ref.default,        sradius_ref       = nil,
+
+		---- live params
 		index = nil,
 		list = nil, -- drawing list
+		dbg_list = nil, -- drawing list
 		control = nil,
-		size = nil, -- the size is used as a signature, to recognize the file
-
-		useDefault = true,
-		mode = mode,							smode = nil,
-		pix_detect = pix_detect, 				spix_detect = nil,
-		analyze_size = analyze_size, 			sanalyze_size = nil,
-		angle_tolerance = angle_tolerance, 		sangle_tolerance = nil,
-		noise_reduction = noise_reduction, 		snoise_reduction = nil,
-		onscreen_size = onscreen_size,
 
 		screen_ratio = nil,
 
@@ -1384,29 +1509,15 @@ function MarkerMaker:New(file, index, params)
 		mx = false, my = false,
 		onMapDirX = 1, onMapDirY = 1,
 
-		lines = {},
-		left = nil, top = nil, right = nil, bottom = nil,
-		midx = nil, midy = nil,
 	}
-	if params then
-		obj.useDefault = params.useDefault
-		obj.mode = params.mode							
-		obj.angle_tolerance = params.angle_tolerance
-		obj.noise_reduction = params.noise_reduction
-		obj.analyze_size = params.analyze_size
-		obj.onscreen_size = params.onscreen_size
-		obj.pix_detect = params.pix_detect
-		--
-		obj.angleGap = params.angleGap or angleGap
-		obj.windowLen = params.windowLen or windowLen
-		if params == customize then
-			customize = obj
-		end
+
+	if params == customize then
+		customize = obj
 	end
 	setmetatable(obj, MarkerMaker.mt)
 	local lines
 
-	if obj.useDefault and mode == "plain" or not obj.useDefault and obj.mode == "plain" then
+	if obj.useDefault and p.mode.default == "plain" or not obj.useDefault and obj.mode == "plain" then
 		lines = obj:ImageToLineObj()
 	else
 		lines = obj:AddNewContouredImage()
@@ -1422,15 +1533,157 @@ function MarkerMaker:New(file, index, params)
 	end
 end
 
+local cnt = 0
+function MarkerMaker:IsConform()
+	local wrong
+	local type = type
+	local useDefault = self.useDefault ~= false
+	local plainMode = self.s_mode == 'plain' and (useDefault and p.mode.default == 'plain' or not useDefault and self.mode == 'plain')
+
+	for name, param in pairs(p) do
+		if param.mandatory then
+			if type(self[name]) ~= param.type then
+				wrong = true
+				break
+			end
+		elseif param.default and param.need_remake then
+			if useDefault then
+				if self['s_'..name] ~= param.default then
+					if not plainMode or not param.noPlain then
+						if console_debugging then
+							Echo(self.filename, os.clock()%3600, 'wrong, using default', name, 'got', self['s_'..name], 'wanted', param.default, 'isPlain', plainMode, 'param.noPlain', param.noPlain)
+						end
+						wrong = true
+						break
+					end
+				end
+			else
+				if self['s_'..name] ~= self[name] then
+					if not plainMode or not param.noPlain then
+						if console_debugging then
+							Echo(self.filename, os.clock()%3600, 'wrong, using custom', name, 'got', self['s_'..name], 'wanted', self[name], 'isPlain', plainMode, 'param.noPlain', param.noPlain)
+						end
+						wrong = true
+						break
+					end
+				end
+			end
+		end
+	end
+
+	if not wrong then
+		local file = self.file
+		local size = 0
+		local read = io.open(file)
+		if read then
+			size = read:seek('end')
+			read:close()
+		end
+		wrong = size ~= self.size
+	end
+	return not wrong
+end
+
+function MarkerMaker:Save()
+	if console_debugging then
+		Echo('save', self.filename, os.clock()%3600, 'useDefault', self.useDefault)
+	end
+	if self.useDefault then
+		for name, param in pairs(p) do
+			if param.default and not param.no_s then
+				if param.always_custom then
+					self['s_'..name] = self[name]	
+				else
+					self['s_'..name] = param.default
+				end
+			end
+		end
+	else
+		for name, param in pairs(p) do
+			if param.default and not param.no_s then
+				self['s_'..name] = self[name]
+			end
+		end
+	end
+
+	self.file = self.file:gsub('\\', '/')
+	self.filename = self.file:gsub(DRAWINGS_DIR, '')
+	local jsonfile = self.file  .. '.json'
+	-- local jsonfile = file:sub(1, (file:find('%.[^%.]+$') or 0) - 1)  .. '.json'
+	local toSave = {}
+	for key, v in pairs(self) do
+		local param = p[key:gsub('^s_', '')]
+		if param and (param.mandatory or param.default) then
+			 toSave[key] = v
+		end
+	end
+	local success, jsonstring = pcall(json.encode, toSave)
+	if success then
+		local f = io.open(jsonfile, "w")
+		if f then
+			f:write((UnminifyJSON(jsonstring)))
+			f:close()
+		else
+			Echo(sig..'Couldn\'t write file '..jsonfile)
+		end
+	else
+		Echo(sig..'Json encoding failed for '..self.file)
+		Echo('Error:', jsonstring)
+	end
+end
+
+function MarkerMaker:LoadObj(file)
+	-- local jsonfile = file:sub(1, (file:find('%.[^%.]+$') or 0) - 1)  .. '.json'
+	local jsonfile = file  .. '.json'
+	local code = io.open(jsonfile, "r")
+	if code then
+		local success, obj = pcall(json.decode, code:read('*a'))
+		if not success then
+			Echo(sig..'Couldn\'t load the json file ' .. jsonfile, obj)
+			code:close()
+			return
+		else
+			obj.file = obj.file:gsub('\\', '/')
+			local add = {}
+			local tonumber, type = tonumber, type
+			local lines = obj.lines
+			for k,v in pairs(lines) do
+				if type(k) == 'string' and tonumber(k) then
+					lines[k] = nil
+					-- lines[tonumber(k)] = v
+					add[k] = v
+				end
+			end
+			for k, v in pairs(add) do
+				lines[tonumber(k)] = v
+			end
+
+			for name, param in pairs(p) do
+				if param.default then
+					if type(obj[name]) ~= param.type then
+						obj[name] = p[name].default
+					end
+				elseif param.initial then
+					obj[name] = param.value
+				end
+			end
+		end
+		code:close()
+		setmetatable(obj, MarkerMaker.mt)
+		return obj
+	end
+end
+
+
 function MarkerMaker:AddNewContouredImage()
 	local raster = self:GetRaster()
 	if not raster then
-		Echo('[' .. widget:GetInfo().name .. '] file ' .. self.file .. ' couldn\'t get loaded')
+		Echo(sig..'File ' .. self.file .. ' couldn\'t get loaded')
 	else
 		local contours = self:AcquireContours(raster)
 		if not contours then
-			Echo('[' .. widget:GetInfo().name .. '] file ' .. self.file .. ' couldn\'t make any contour')
-			self.left = 1 self.top = 50 self.right = 50 self.bottom = 1 self.midx = 25 self.midy = 25
+			Echo(sig..'File ' .. self.file .. ' couldn\'t make any contour')
+			self.midx = 25 self.midy = 25
 			return {}
 		else
 			local f
@@ -1451,16 +1704,16 @@ function MarkerMaker:AddNewContouredImage()
 			end
 			-- local isSpaghetti = self.useDefault and mode == 'spaghetti' or self.mode == 'spaghetti'
 			-- if isSpaghetti then
-			-- 	self:SimplifyContoursOLD(contours)
+			--  self:SimplifyContoursOLD(contours, true)
 			-- else
 				self:SimplifyContours(contours)
 			-- end
 			if not contours[1] then
-				Echo('[' .. widget:GetInfo().name .. '] file ' .. self.file .. ' couldn\'t make any contour after simplification')
-				self.left = 1 self.top = 50 self.right = 50 self.bottom = 1 self.midx = 25 self.midy = 25
+				Echo(sig..'File ' .. self.file .. ' couldn\'t make any contour after simplification')
+				self.midx = 25 self.midy = 25
 				return {}
 			end
-			if DEBUG_CONTOUR then
+			if debugContour then
 				for i, line in ipairs(raster) do
 					local txt = ''
 					for i, color in ipairs(line) do
@@ -1476,8 +1729,8 @@ function MarkerMaker:AddNewContouredImage()
 end
 
 function MarkerMaker:AcquireContours(raster)
-	local mode = self.useDefault and mode or self.mode
-	local pix_detect = self.useDefault and pix_detect or self.pix_detect
+	local mode = self.useDefault and p.mode.default or self.mode
+	local pix_detect = self.useDefault and p.pix_detect.default or self.pix_detect
 	local left, top, right, bottom = huge, -huge, -huge, huge
 	local contours, c = {}, 0
 	local inShape = false
@@ -1544,7 +1797,7 @@ function MarkerMaker:GetRaster()
 	end
 	-- f.Page(info)
 
-	local analyze_size = self.useDefault and analyze_size or self.analyze_size
+	local analyze_size = self.useDefault and p.analyze_size.default or self.analyze_size
 
 	local sizeX = info.xsize
 	local sizeY = info.ysize
@@ -1552,6 +1805,7 @@ function MarkerMaker:GetRaster()
 	local mul = analyze_size / diag
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
+	self.sizeX, self.sizeY = sizeX, sizeY
 	self.mul = mul
 	local tex = gl.CreateTexture(sizeX, sizeY, {
 		format = GL.RGBA8,
@@ -1600,7 +1854,7 @@ function MarkerMaker:AcquireContour(point, _y, _x, diry, dirx, raster, spaghetti
 		while point do
 			tries = tries + 1
 			if tries > 25000 then
-				Echo('TOO MANY TRIES CONTOUR')
+				Echo(sig..'TOO MANY TRIES CONTOUR')
 				break
 			end
 			i = i + 1
@@ -1660,13 +1914,13 @@ function MarkerMaker:FindContourPoint(y, x, diry, dirx, raster, spaghetti_mode, 
 	end
 end
 
-function MarkerMaker:SimplifyContoursOLD(contours)
+function MarkerMaker:SimplifyContoursOLD(contours, gross)
 	-- for debugging only
 	-- local float = function(n, dec)
-	-- 	return tostring(n):ftrim(dec or 2)
+	--  return tostring(n):ftrim(dec or 2)
 	-- end
-	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
-	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
+	local angle_tolerance = self.useDefault and p.angle_tolerance.default or self.angle_tolerance
+	local noise_reduction = self.useDefault and p.noise_reduction.default or self.noise_reduction
 	-- angle_tolerance = angle_tolerance*3
 	local abs, diag = math.abs, math.diag
 	local atan2 = math.atan2
@@ -1674,7 +1928,7 @@ function MarkerMaker:SimplifyContoursOLD(contours)
 	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
 	local step = math.max(3, diag(sizeX, sizeY) / 30)
 	local suppress_length =  diag(sizeX, sizeY) * (noise_reduction / 100)
-	local gross = false
+
 	-- Echo('*--------------------------------------------------')
 	-- Echo('--------------------------------------------------')
 	-- Echo('STEP', step)
@@ -1758,15 +2012,15 @@ function MarkerMaker:SimplifyContoursOLD(contours)
 										if angle > maxAngle then
 											maxAngle, maxI = angle, j
 										-- else
-										-- 	break
+										--  break
 										end
 									end
 								end
 								i = maxI
 							end
 							-- if c == 1 then
-							-- 	if devied then
-							-- 		Echo
+							--  if devied then
+							--      Echo
 							-- Echo(i, string.color({1,0,0,1}) .. '<<<<< remove from', segI+1, 'to', i-2)
 							for i = i - 2, segI + 1, -1  do
 								remove(contour, i)
@@ -1816,19 +2070,19 @@ function MarkerMaker:SimplifyContoursOLD(contours)
 
 	-- Echo('simplified')
 	-- for i, contour in ipairs(contours) do
-	-- 	Echo('contour',i,'#'..#contour)
-	-- 	if i >= 4 then
-	-- 		for i,v in pairs(contour) do
-	-- 			Echo(i,unpack(v))
-	-- 		end
-	-- 	end
+	--  Echo('contour',i,'#'..#contour)
+	--  if i >= 4 then
+	--      for i,v in pairs(contour) do
+	--          Echo(i,unpack(v))
+	--      end
+	--  end
 	-- end
 	-- Echo("contours", #contours, 'COUNT',COUNT)
 end
 
 
 
-local function BreakStaircase(contour)
+local function BreakStaircase(contour) -- unused
 	local c, c2, c3 = contour[1], contour[2], contour[3]
 	if not c3 then
 		return contour
@@ -1864,202 +2118,115 @@ local function BreakStaircase(contour)
 	return new
 end
 
-
-
-
-----------------------------------------
-
-function MarkerMaker:SimplifyContoursTEST(contours)
-	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
-	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-	-- if angle_tolerance > 0.45 then
-	-- 	return MarkerMaker:SimplifyContoursOLD(contours)
-	-- end
-	-- if angle_tolerance < 0.005 then
-	-- 	return MarkerMaker:SimplifyContoursSHARP(contours)
-	-- end
-	local abs, diag, pi = math.abs, math.diag, math.pi
-	local pi2 = pi * 2
-	local max = math.max
-	local atan2 = math.atan2
-	local remove = table.remove
-	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
-	local size = diag(sizeX, sizeY)
-	local mul = self.mul
-	-- local size_ratio = size * max(1, mul) / 200
-	-- Echo('SIZE_RATIO', size_ratio)
-	-- local windowLen = math.max(5, (size * self.mul) / ((1-angle_tolerance)*120))
-	-- local size_ratio = (50 / size)
-	-- local curveThreshold = max(1, mul) * (pi/2)
-	local curveThreshold = (pi) * angle_tolerance
-	local suppress_length =  size * (noise_reduction / 100)
-	-- local angleGap = max(1, mul) * 3
-	-- local angleGap = math.clamp(32 * size_ratio, 2.5, 4)
-	local angleGap = self.angleGap or 8
-
-	local windowLen = self.windowLen or max(angleGap, (size * mul) / 150) +2
-	if debugging then
-		Echo('-------------------------------------')
-		Echo(
-			('PARAMS[ size: %d (mul:%.2f), windowLen: %.3f, angleGap: %.3f, tolerance: %.4f, curveThreshold: %.4f, suppress_length: %.2f ]')
-			:format(size, self.mul, windowLen, angleGap, angle_tolerance, curveThreshold, suppress_length)
-		)
-	end
-
-
-	local function angleDiff(a, b)
-		local d = a - b
-		while d > pi do d = d - pi2 end
-		while d < -pi do d = d + pi2 end
-		return d
-	end
-	local total_lines, total_simplified = 0, 0
-	local total_curves, total_too_sharps, total_noises, total_small_noises = 0, 0, 0, 0
-	local c = 1
-	local contour = contours[c]
-	local deletion = false
-	local tries = 0
-	while contour do -- sliding window system
-		local len = #contour
-		local i = 2
-		local last = contour[1]
-		local lastdir, lastturn = 0, 0
-		local dev, shortDev = 0, 0
-		local devAbs, shortDevAbs = 0, 0
-		local segI, count = 1, 1
-		local short = {}
-		local start = contour[1]
-		local cur = contour[i]
-		local cuts = 0
-		while cur do
-			local dir = atan2(cur[1] - last[1], cur[2] - last[2])
-			-- local dir = atan2(cur[1] - start[1], cur[2] - start[2])
-			local turn = dir - (count > 1 and lastdir or dir)
-			-- if c == 1 and i < 5 then
-			-- 	Echo('i',i,'dir',dir,'turn',turn)
-			-- end
-			if turn > pi then turn = turn - pi2 elseif turn < -pi then turn = turn + pi2 end
-			dev = dev + turn
-			devAbs = devAbs + abs(turn)
-			-- dev = atan2(cur[1] - start[1], cur[2] - start[2])
-
-			if count <= 5 then
-				short[count] = turn
-				shortDev = shortDev + turn
-				shortDevAbs = shortDevAbs + abs(turn)
-				-- shortDev = dev
-			else
-				-- remove(short, 1)
-				-- shortDev = atan2(cur[1] - contour[i-4][1], cur[2] - contour[i-4][2])
-				local first = remove(short, 1)
-				shortDev = shortDev - first + turn
-				shortDevAbs = shortDevAbs - abs(first) + abs(turn)
-				short[5] = turn
-			end
-
-			if c == 1 
-				and turn ~= 0
-				and i < 25
-				and cuts < 5
-			then
-				Echo(('#%d/%d turn:%.2f, dev %.2f %.2f coherence %.2f'):format(i, #contour, turn, dev, shortDev, dev/devAbs))
-			end
-
-			if count >= 5 and (
-				-- abs(dev) > angle_tolerance
-				-- or abs(shortDev) > angle_tolerance
-				abs(dev/devAbs) > 0.34 and dev/count > angle_tolerance
-				-- or abs(shortDev) > angle_tolerance
-				or not contour[i+1]
-			) then
-				if c == 1 
-					-- and i < 25
-					and cuts < 5
-				then
-					Echo('out of tolerance at #', i, 'count', count, 'dev', dev, 'shortDev', shortDev, 'coherence', abs(dev/devAbs))
-				end
-				local maxTurnAbs, maxI = -1, 0
-				for i = 1, 5 do
-					local turnAbs = abs(short[i])
-					if turnAbs > maxTurnAbs then
-						maxI, maxTurnAbs = i, turnAbs
-					end
-				end
-				local endSegI = segI + count - 5 + maxI - 1 -- (end of segment one pixel before the highest turn)
-				for i = segI+1, endSegI-1 do
-					remove(contour, segI+1)
-				end
-				if c == 1
-					-- and i < 25
-					and cuts < 5
-				then
-					Echo(('cut from %d to %d maxI %d'):format(segI+1, endSegI-1, maxI))
-				end
-				i, segI = segI+1, segI+1
-				count, dev, devAbs, shortDev, shortDevAbs = 0, 0, 0, 0, 0
-				cur = contour[i]
-				start = cur
-				cuts = cuts + 1
-				if c == 1
-					-- and i < 25
-					and cuts < 5
-				then
-					Echo('end cut, cur is', i, 'dir', dir)
-				end
-			end
-			last, lastdir = cur, dir
-			count = count + 1
-			i = i + 1
-			cur = contour[i]
-		end
-		c = c + 1
-		if c == 1 then
-			Echo('end contour', #contour)
-		end
-		contour = contours[c]
-	end
-	-- (inchangé) : suppression des contours trop courts
-end
-
 function MarkerMaker:SimplifyContours(contours)
-	local dev = dev
-	local angle_tolerance = self.useDefault and angle_tolerance or self.angle_tolerance
-	local noise_reduction = self.useDefault and noise_reduction or self.noise_reduction
-	local abs, diag, pi = math.abs, math.diag, math.pi
+	local min, max, clamp, abs, diag, pi, atan2
+		= math.min, math.max, math.clamp, math.abs, math.diag, math.pi, math.atan2
 	local pi2 = pi * 2
-	local max = math.max
-	local atan2 = math.atan2
 	local remove = table.remove
-
+	---
 	local sizeX, sizeY = contours.right - contours.left, contours.top - contours.bottom
 	local size = diag(sizeX, sizeY)
-	local mul = self.mul
-	local curveThreshold = pi * angle_tolerance
-	local suppress_length =  size * (noise_reduction / 100)
-	local angleGap = dev and self.angleGap or angleGap
+	---
+	local console_debugging = console_debugging
+	local minRatioR, maxRatioR, downRatioR = minRatioR, maxRatioR, downRatioR
 
-	local windowLen = dev and self.windowLen or windowLen
-	if dev then
+	local angle_tolerance, noise_reduction, angle_gap, window_len, refine_curve, arrow_limit, max_seg_angle, radius_ref
+	if self.useDefault then
+		local p = p
+		angle_tolerance   = p.angle_tolerance.default
+		noise_reduction   = p.noise_reduction.default
+		angle_gap         = p.angle_gap.default
+		window_len        = p.window_len.default
+		refine_curve      = p.refine_curve.default
+		arrow_limit       = p.arrow_limit.default
+		max_seg_angle     = p.max_seg_angle.default
+		radius_ref        = p.radius_ref.default
+	else
+		local self = self
+		angle_tolerance   = self.angle_tolerance
+		noise_reduction   = self.noise_reduction
+		angle_gap         = self.angle_gap
+		window_len        = self.window_len
+		refine_curve      = self.refine_curve
+		arrow_limit       = self.arrow_limit
+		max_seg_angle     = self.max_seg_angle
+		radius_ref        = self.radius_ref
+	end
+	---
+	local size_ratio = size / 400
+	local suppress_length =  noise_reduction * size / 100
+	arrow_limit = arrow_limit * angle_tolerance
+	arrow_limit = arrow_limit * size_ratio -- normalize to size
+	radius_ref = max(1, radius_ref * size_ratio) 
+	-- angle_gap = max(1.5, angle_gap * size_ratio)
+	window_len = max(1, window_len * size_ratio)
+	local suppressCurvesFromCorners = false
+
+	local dbgcount = 0
+
+	local function partdown(x, min, max, n) -- reduce a bit min value if n > 1, reduce max values if n < 1
+		local norm = (x - min) / (max - min)
+		local w = n < 1 and norm or (1 - norm)
+		local p = (n < 1 and n or 1 / n) ^ w
+		-- Echo(('x: %.2f, norm: %.2f, n: %.1f, pow: %.2f => %.2f'):format(x, norm, n, p, p * x))
+		return x * p
+	end
+
+	local function CurveReady(angle, arc)
+		if angle > max_seg_angle then return true end
+		if angle <= 1e-5 or arc <= 1e-5 then return false end
+		local radius = max(arc, 1e-5) / max(angle, 1e-5) -- coord / angle => radius
+		local ratioRadius = (radius/radius_ref)
+		local limitMult = clamp(ratioRadius, minRatioR, maxRatioR) 
+		limitMult = partdown(limitMult, minRatioR, maxRatioR, refine_curve)
+		dbgcount = dbgcount + 1
+		-- if dbgcount%50 == 0 and (radius > 30 or radius < 5) then
+		--  Echo(
+		--      ('#%d angle: %.2f, arc: %.2f, radius: %.2f, ratioRadius: %.2f, refine_curve: %.2f, limitMult: %.2f'): format(
+		--              dbgcount, angle, arc, radius, ratioRadius, refine_curve, limitMult
+		--          )
+		--  )
+		-- end
+		return angle * arc > arrow_limit * 8 * limitMult
+	end
+	--
+	if console_debugging then
 		Echo('-------------------------------------')
 		Echo(
-			('PARAMS[ size: %d (mul:%.2f), windowLen: %.3f, angleGap: %.3f, tolerance: %.4f, curveThreshold: %.4f, suppress_length: %.2f ]')
-			:format(size, self.mul, windowLen, angleGap, angle_tolerance, curveThreshold, suppress_length)
+			('PARAMS[ size: %d (mul:%.2f), window_len: %.3f, angle_gap: %.3f, tolerance: %.4f,  suppress_length: %.2f ]')
+			:format(size, self.mul, window_len, angle_gap, angle_tolerance, suppress_length)
 		)
 	end
 
-
-	local function angleDiff(a, b)
-		local d = a - b
+	local function angleDiff(pin, cur, pout)
+		local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
+		local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
+		local d = angleOut - angleIn
 		while d > pi do d = d - pi2 end
 		while d < -pi do d = d + pi2 end
 		return d
 	end
 	local total_lines, total_simplified = 0, 0
-	local total_curves, total_too_sharps, total_noises, total_small_noises = 0, 0, 0, 0
+	local total_curves, total_too_sharps, total_noises, total_small_noises, total_supp_count = 0, 0, 0, 0, 0
 	local c = 1
 	local contour = contours[c]
 	local deletion = false
 	while contour do -- sliding window system
+
+		------ angle_gap adaptative, >=77 px diag of contour to get to full angle_gap
+		local GAP_RATIO = 0.1 * (angle_gap / BASE_ANGLE_GAP)
+		local minx, maxx, miny, maxy = huge, -huge, huge, -huge
+		for n = 1, #contour do
+			local pt = contour[n]
+			local x, y = pt[1], pt[2]
+			if x < minx then minx = x end
+			if x > maxx then maxx = x end
+			if y < miny then miny = y end
+			if y > maxy then maxy = y end
+		end
+		-- Echo('c'..c, 'diag', diag(maxx - minx, maxy - miny), diag(maxx - minx, maxy - miny) * GAP_RATIO, MIN_ANGLE_GAP, angle_gap, '=>', clamp(diag(maxx - minx, maxy - miny) * GAP_RATIO, MIN_ANGLE_GAP, angle_gap))
+		local angle_gap = clamp(diag(maxx - minx, maxy - miny) * GAP_RATIO, MIN_ANGLE_GAP, angle_gap)
+		------
 		local _first, _last = contour[1], contour[#contour]
 		local isLoop = _first[1] == _last[1] and _first[2] == _last[2]
 		local len = #contour
@@ -2067,7 +2234,8 @@ function MarkerMaker:SimplifyContours(contours)
 		local travel = 0
 		-- Passe 1 : distance cumulée le long du contour, point par point.
 		local cum = {[1] = 0}
-		if len > 2 then
+		local winJ, winK = {}, {}
+		if len > 1 then
 			for i = 2, len do
 				local p, q = contour[i-1], contour[i]
 				travel = travel + diag(q[1]-p[1], q[2]-p[2])
@@ -2077,12 +2245,9 @@ function MarkerMaker:SimplifyContours(contours)
 		local maxTurn, minTurn = 0, math.huge
 		if travel > suppress_length then
 			local avgStep = cum[len] / len
-			-- local mul = math.min(2 * size/200, 3)
-			-- windowLen = math.max(2, avgStep * mul)
-			
-			if dev and c == 1 then
-				Echo('travel', cum[len], 'avgStep', avgStep, 'windowLen', windowLen, 'avgItems', (windowLen*2)/avgStep, 'cum[len]', cum[len])
-			end
+			-- if devMode and c == 1 then
+			--  Echo('travel', cum[len], 'avgStep', avgStep, 'window_len', window_len, 'avgItems', (window_len*2)/avgStep, 'cum[len]', cum[len])
+			-- end
 			 -- fill up cum[0], cum[-1], cum[-2] ...
 			local k = 1
 			local winStart = 1
@@ -2094,7 +2259,7 @@ function MarkerMaker:SimplifyContours(contours)
 					from_start = full_travel - cum[i]
 					winStart = i-len+1
 					cum[winStart] = -from_start
-					if from_start > max(windowLen, angleGap) then
+					if from_start > max(window_len, angle_gap) then
 						break
 					end
 				end
@@ -2104,7 +2269,7 @@ function MarkerMaker:SimplifyContours(contours)
 					local extra = cum[m]
 					cumEnd = len + m - 1
 					cum[cumEnd] = full_travel + extra
-					if extra > max(windowLen, angleGap) then
+					if extra > max(window_len, angle_gap) then
 						break
 					end
 				end
@@ -2120,27 +2285,27 @@ function MarkerMaker:SimplifyContours(contours)
 			end
 			local r = math.round
 			----
-			if cum[len] > windowLen then
+			if cum[len] > window_len then
 
 				-- Passe 2 : angle de rotation en chaque point
 				local turnAngle = {[1] = 0, [len] = 0} -- [1] = 0 [len] = 0 for non loop case
 				local k = 1
 				local j = winStart
 				for i = 1, len do
-					while cum[j] and cum[i] - cum[j] >= angleGap do -- j is start of window
+					while cum[j] and cum[i] - cum[j] >= angle_gap do -- j is start of window
 						j = j + 1
 					end
-					while cum[k+1] and cum[k+1] - cum[i] < angleGap do -- k is end of window	
+					while cum[k+1] and cum[k+1] - cum[i] < angle_gap do -- k is end of window   
 						k = k + 1
 					end
 					if j < i and i < k then
 						local cur = contour[i]
 						-- local pin, pout = contour[j<1 and len+j-1 or j], contour[k]
 						local pin, pout = contour[idx(j)], contour[idx(k)]
-						local angleIn = atan2(cur[1]-pin[1], cur[2]-pin[2])
-						local angleOut = atan2(pout[1]-cur[1], pout[2]-cur[2])
-						local turn = angleDiff(angleIn, angleOut)
+
+						local turn = angleDiff(pin, cur, pout)
 						turnAngle[i] = turn
+						winJ[i], winK[i] = j, k
 						if turn > maxTurn then maxTurn = turn end
 						if turn < minTurn then minTurn = turn end
 
@@ -2162,17 +2327,22 @@ function MarkerMaker:SimplifyContours(contours)
 				local i = 1
 				local keep = {}
 				if not isLoop then
-					keep[1], keep[len] = true, true
+					keep[1], keep[len] = DBG_EXTREMITY, DBG_EXTREMITY
 					i = 2
 				end
 				local winEnd = 2
 				local curves, too_sharps, noises, small_noises = 0, 0, 0, 0
 				local accuAngle = 0
+				local startCum = 0
+
+				local lastAngleRaw, lastAngleTurn = false, false
 				while i <= len - 1 do -- len -1 because: if not isLoop => we keep both extremities, if isLoop => first point window == last point window
 					local turn = turnAngle[i]
-					-- local isNoise = abs((turnAngle[i-1] or 0) - (turnAngle[i+1] or 0)) < 0.001
+					local startAccuI, endAccuI
+					local isNoise = false
 					--[[
-					local isNoise = (turn) + (turnAngle[i-1] or 0) < 0.001
+					isNoise = abs((turnAngle[i-1] or 0) - (turnAngle[i+1] or 0)) < 0.001
+					--isNoise = abs(turn + (turnAngle[i-1] or 0)) < 0.001
 					if i < 20 then
 						Echo(turn, (turnAngle[i-1] or 0))
 					end
@@ -2183,18 +2353,6 @@ function MarkerMaker:SimplifyContours(contours)
 							-- Echo(('#%d/%s [noise]'):format(i, len))
 						end
 						small_noises = small_noises + 1
-					else
-						accuAngle = accuAngle + turn
-						if c == 1
-							and i < 20
-						then
-							-- Echo(('#%d/%d: %s%.5f = %.5f %s'):format(i, len, turn >= 0 and '+' or '', turn, accuAngle, abs(accuAngle) > curveThreshold and '[curve]' or ''), (turnAngle[i-1] or 0), (turnAngle[i+1] or 0))
-						end
-						if abs(accuAngle) > curveThreshold then
-							keep[i] = true
-							accuAngle = 0
-							curves = curves + 1
-						end
 					end
 					i = i + 1
 					]]
@@ -2202,23 +2360,25 @@ function MarkerMaker:SimplifyContours(contours)
 					local turnAbs = abs(turn)
 					-- Echo(('# %d, turn: %.4f tol %s'):format(i, turn, tostring(turn <= angle_tolerance)))
 					local foundNoise, foundAngle, foundCurve = false, false, false
-					if isNoise then
-						foundNoise = i
-						startAccuI, endAccuI = 0, -1
-					end
-					if not isNoise and turnAbs > angle_tolerance then
-						while cum[winStart] and cum[i] - cum[winStart] >= windowLen do
+
+					local tj = abs(turnAngle[winJ[i]] or 0)
+					local tk = abs(turnAngle[winK[i]] or 0)
+					if turnAbs > angle_tolerance 
+						-- and turnAbs > 1.5 * max(tj, tk)
+					then
+						while cum[winStart] and cum[i] - cum[winStart] >= window_len do
 							winStart = winStart + 1
 						end
-						while cum[winEnd+1] and cum[winEnd+1] - cum[i] < windowLen do
+						while cum[winEnd+1] and cum[winEnd+1] - cum[i] < window_len do
 							winEnd = winEnd + 1
 						end
+
 						local maxAngleI, maxAngleAbs = i, 0
 						local maxAngle = 0
 						local sum, sumPast, sumAbs = 0, 0, 0
-						local dbg = ''
+						local dbg = devMode and c == 1 and ''
 						for m = winStart, winEnd do
-							dbg = dev and dbg..('#%d (%.3f) | '):format(idx(m), turnAngle[m])
+							dbg = dbg and dbg..('#%d (%.3f) | '):format(idx(m), turnAngle[m])
 
 							local thisTurnAngle = turnAngle[m]
 							local thisTurnAngleAbs = abs(thisTurnAngle)
@@ -2233,25 +2393,50 @@ function MarkerMaker:SimplifyContours(contours)
 							end
 						end
 						-- Echo(('window [ %d <-> %d, maxI %d ]'):format(winStart, winEnd, maxAngleI))
-						if dev and c == 1 then
-							-- Echo(('#%d/%d, Window %d angles ratio:%.2f, [ %s ]'):format(i, len, (winEnd - winStart + 1), abs(sum / sumAbs), dbg:sub(1, -3)))
-						end
-						if abs(sum / sumAbs) < 0.5 then
-							if c == 1 then
-								-- Echo(('#%d/%d, Found noise at%d ratio sum is %.3f on %.3f'):format(i, len, maxAngleI, abs(sum / sumAbs), cum[winEnd] - cum[winStart]))
-							end
+						-- if devMode and c == 1 then
+						--  Echo(('#%d/%d, Window %d angles ratio:%.2f, [ %s ]'):format(i, len, (winEnd - winStart + 1), abs(sum / sumAbs), dbg:sub(1, -3)))
+						-- end
+						if abs(sum / sumAbs) < 0.5 then -- detect noise, might need to tinker the 0.5 threshold
+							-- if c == 1 then
+							--  Echo(('#%d/%d, Found noise at%d ratio sum is %.3f on %.3f'):format(i, len, maxAngleI, abs(sum / sumAbs), cum[winEnd] - cum[winStart]))
+							-- end
 							foundNoise = winStart
-							-- startAccuI, endAccuI = i, winEnd
-							startAccuI, endAccuI = winEnd + 1, winEnd
-							accuAngle = accuAngle + sumPast
+							startAccuI, endAccuI = i, min(winEnd, len-1)
+
 							i = winEnd + 1
-						else
-							if c == 1 then
-								-- Echo(('#i%d/%d, Found maxAngle at %d: %.4f in window [ %d <- %d -> %d ], sum %.4f, avg %.4f'):format(i, len, maxAngleI, maxAngle, winStart, i, winEnd, sum, sum/(winEnd - winStart + 1)))
+						else -- detect sharp angle
+							-- if c == 1 then
+							--  Echo(('#%d/%d, Found maxAngle at %d: %.4f in window [ %d <- %d -> %d ], sum %.4f, avg %.4f'):format(i, len, maxAngleI, maxAngle, winStart, i, winEnd, sum, sum/(winEnd - winStart + 1)))
+							-- end
+							foundAngle = idx(maxAngleI)
+							-- local MIN_RULER = 3 -- en dessous, la corde est trop courte pour donner un angle fiable
+							-- local m = maxAngleI + 1
+							-- while cum[m] and cum[m] - cum[maxAngleI] < angle_gap do
+							-- 	local k = winK[m]
+							-- 	if cum[m] - cum[maxAngleI] >= MIN_RULER and k and m < k then
+							-- 		turnAngle[m] = angleDiff(contour[idx(maxAngleI)], contour[idx(m)], contour[idx(k)])
+							-- 	end
+							-- 	m = m + 1
+							-- end
+							if suppressCurvesFromCorners then
+								lastAngleRaw = maxAngleI
+								lastAngleTurn = maxAngle
+								----- remove before
+								local k = maxAngleI - 1
+								local d, dprev = cum[maxAngleI], cum[k]
+								while dprev and d-dprev < angle_gap/3 do
+									if keep[k] == DBG_CURVE then
+										keep[k] = nil
+										curves = curves - 1
+									end
+									k = k - 1
+									dprev = cum[k]
+								end
 							end
-							foundAngle = maxAngleI
+
 							accuAngle = 0
-							startAccuI, endAccuI = max(maxAngleI+1, i), winEnd
+							startCum = cum[maxAngleI]
+							startAccuI, endAccuI = max(maxAngleI+1, i), min(winEnd, len-1)
 							-- startAccuI, endAccuI = i, winEnd
 							-- startAccuI, endAccuI = winEnd + 1, winEnd -- will not iterate for accuAngle
 							i = winEnd + 1
@@ -2264,38 +2449,56 @@ function MarkerMaker:SimplifyContours(contours)
 					-- detecting curves
 
 					if foundAngle then
-						if not keep[foundAngle] then
-							keep[foundAngle] = true
-							if c == 1 then
-								-- Echo(('[angle added %d]'):format(foundAngle))
+						local old = keep[foundAngle]
+						if old ~= DBG_SHARP_ANGLE then
+							-- if c == 1 then
+							--  Echo(('[angle added %d]'):format(foundAngle))
+							-- end
+							if old ~= DBG_EXTREMITY then
+								keep[foundAngle] = DBG_SHARP_ANGLE
 							end
 							too_sharps = too_sharps + 1
+							if old == DBG_CURVE then curves = curves - 1 end
 						end
 					end
 					for i = startAccuI, endAccuI do
-						accuAngle = accuAngle + turnAngle[i]
-						if c == 1 then
-							if dev and turnAngle[i] ~= 0 and i < 20 then
-								Echo(('accuAngle #%d %d/%d,%s%.3f = %.3f %s'):format(i, i-startAccuI+1, endAccuI-startAccuI+1, turnAngle[i] >= 0 and '+' or '', turnAngle[i], accuAngle, (abs(accuAngle) > curveThreshold and '<rdy for curve>' or '')))
+						local t = turnAngle[i]
+						if lastAngleRaw then
+							local d = cum[i] - cum[lastAngleRaw]
+							if d >= 0 and d < angle_gap then
+								t = t - lastAngleTurn * (1 - d / angle_gap)
 							end
 						end
-						if abs(accuAngle) > curveThreshold then
-							foundCurve = i
-							if dev and c == 1 then
-								-- Echo(('#%d/%d, Found curve: accuAngle %s%.3f = %.3f / %.3f in [ %d %d ]'):format(foundCurve, len, turnAngle[foundCurve] >= 0 and '+' or '', turnAngle[foundCurve], accuAngle, curveThreshold, startAccuI, endAccuI))
-							end
-							if not keep[foundCurve] then
-								keep[foundCurve] = true
-								if dev and c == 1 then
-									-- Echo(('[curve added %d]'):format(foundCurve))
+						local w = cum[i-1] and (cum[i] - cum[i-1]) / angle_gap or avgStep / angle_gap
+						accuAngle = accuAngle + t * w
+						-- accuAngle = accuAngle + turnAngle[i] * (cum[i] - cum[i-1]) / angle_gap
+						if c == 1 then
+							-- if devMode and turnAngle[i] ~= 0 and (i <= 20 or i >= len-20) then
+							--  Echo(('accuAngle #%d %d/%d,%s%.3f = %.3f'):format(i, i-startAccuI+1, endAccuI-startAccuI+1, turnAngle[i] >= 0 and '+' or '', turnAngle[i], accuAngle))
+							-- end
+						end
+						-- if abs(accuAngle) * (cum[i] - startCum) > arrow_limit * 8 or abs(accuAngle) > max_seg_angle then
+						if CurveReady(abs(accuAngle), cum[i] - startCum) then
+							-- Echo('foundCurve', i, idx(i))
+							-- if not lastAngleRaw or cum[i] - cum[lastAngleRaw] > angle_gap then -- don't pose a curve just after a sharp angle
+								foundCurve = i
+								-- if devMode and c == 1 and (i <= 20 or i >= len-20)  then
+								--  Echo(('#%d/%d, Found curve: accuAngle %s%.3f = %.3f in [ %d %d ]'):format(foundCurve, len, turnAngle[foundCurve] >= 0 and '+' or '', turnAngle[foundCurve], accuAngle, startAccuI, endAccuI))
+								-- end
+								if not keep[foundCurve] then
+									keep[foundCurve] = DBG_CURVE
+									-- if devMode and c == 1 then
+									--  Echo(('[curve added %d]'):format(foundCurve))
+									-- end
+									curves = curves + 1
 								end
-								curves = curves + 1
-							end
+							-- end
 							accuAngle = 0
+							startCum = cum[i]
 						end
 					end
 					if foundNoise and not (foundCurve or foundAngle) then
-						if dev and c == 1 then
+						if devMode and c == 1 then
 							-- Echo(('noise [ %d <-> %d ]'):format(foundNoise, i-1))
 						end
 						if isNoise then
@@ -2307,26 +2510,94 @@ function MarkerMaker:SimplifyContours(contours)
 					--]]
 
 				end
+				-- if devMode and c <= 3 then
+				--  local prev, maxGap, gi = nil, 0, nil
+				--  for k = 1, len - 1 do
+				--      if keep[k] then
+				--          if prev and cum[k] - cum[prev] > maxGap then maxGap, gi = cum[k] - cum[prev], prev end
+				--          prev = k
+				--      end
+				--  end
+				--  Echo(('contour %d: plus long segment %.0f px (moyen %.0f), depuis #%s type %s')
+				--      :format(c, maxGap, cum[len] / max(1, curves + too_sharps), tostring(gi), tostring(gi and keep[gi])))
+				-- end
+				if isLoop then -- completing the curvature after last kept point
+					local F -- premier point gardé
+					for k = 1, len - 1 do
+						if keep[k] then F = k break end
+					end
+					local L
+					for k = len, 1, -1 do
+						if keep[k] then L = k break end
+					end
+					-- if devMode and c == 1 then
+					--  Echo('FIRST KEPT', F, 'LAST KEPT', L, '-'..len-L, 'LEN', len)
+					-- end
+					if F then
+						for k = 1, F - 1 do
+							if keep[F] == DBG_SHARP_ANGLE and cum[F] - cum[k] < angle_gap then break end -- don't add just before a sharp angle
+							local w = cum[k-1] and (cum[k] - cum[k-1]) / angle_gap or avgStep / angle_gap
+							accuAngle = accuAngle + turnAngle[k] * w
+							-- if abs(accuAngle) * (cum[len] - startCum + cum[k]) > arrow_limit * 8 or abs(accuAngle) > max_seg_angle then
+							if CurveReady(abs(accuAngle), cum[len] - startCum + cum[k]) then
+								if not keep[k] then
+									keep[k] = DBG_CURVE
+									-- if devMode and c == 1 then
+									--  Echo('ADDED CURVE', k)
+									-- end
+									curves = curves + 1
+								end
+								-- if k >= F * 0.6 and keep[F] == DBG_CURVE then 
+								--  keep[F] = nil
+								--  curves = curves - 1
+								-- end
+								if keep[F] == DBG_CURVE and cum[k] > 0.6 * cum[F] then -- remove F curve if the new curve point is too close from curve F
+									-- if devMode and c == 1 then
+									--  Echo('REMOVED CURVE', F)
+									-- end
+									keep[F] = nil
+									curves = curves - 1
+								end
+								break
+							end
+						end
+					end
+				end
 				total_curves, total_too_sharps, total_noises, total_small_noises = total_curves + curves, total_too_sharps + too_sharps, total_noises + noises, total_small_noises + small_noises
-				if dev and c == 1 then
+				if console_debugging and c == 1 then
 					Echo(" C1: total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps), 'total_noises:'..tostring(total_noises), 'total_small_noises:'..tostring(total_small_noises))
 					Echo(
-						('PARAMS[ size: %d (mul:%.2f), windowLen: %.3f, angleGap %.3f, tolerance: %.3f, avgItems: %.3f, curveThreshold: %.3f, suppress_length: %.2f ]')
-						:format(size, self.mul, windowLen, angleGap, angle_tolerance, (windowLen*2)/avgStep, curveThreshold, suppress_length)
+						('PARAMS[ size: %d (mul:%.2f), window_len: %.3f, angle_gap %.3f, tolerance: %.3f, avgItems: %.3f, suppress_length: %.2f'
+							..' radius_ref: %.2f, arrow_limit: %.2f]')
+						:format(size, self.mul, window_len, angle_gap, angle_tolerance, (window_len*2)/avgStep, suppress_length, radius_ref, arrow_limit)
 					)
 					Echo('minTurn', minTurn, 'maxTurn', maxTurn)
 				end
 				local simplified, s = {}, 0
 				local first
+				local prev, p_prev, p_p_prev
+				local supp_count = 0
 				for i = 1, len do
-					if keep[i] then
+					local toKeep = keep[i]
+					if toKeep then
+						local point = contour[i]
 						if isLoop and not first then
-							first = contour[i]
+							first = point
+							first[5] = --[[tonumber(toKeep) or ]]DBG_EXTREMITY
+						elseif toKeep ~= true then
+							point[5] = toKeep
 						end
-						s = s + 1
-						simplified[s] = contour[i]
+						if not p_prev or abs(angleDiff(p_prev, prev, point)) > 0.01 then
+							s = s + 1
+						else
+							supp_count = supp_count + 1
+							p_prev, prev = p_p_prev, p_prev
+						end
+						simplified[s] = point
+						p_p_prev, p_prev, prev = p_prev, prev, point
 					end
 				end
+				total_supp_count = total_supp_count + supp_count
 				if first then
 					local last = simplified[s]
 					if first[1] ~= last[1] or first[2] ~= last[2] then
@@ -2341,9 +2612,8 @@ function MarkerMaker:SimplifyContours(contours)
 					contours[c] = nil
 					deletion = true
 				end
-			else
-				contours[c] = nil
-				deletion = true
+			else -- cum[len] <= window_len
+				contour[1][5], contour[len][5] = DBG_EXTREMITY, DBG_EXTREMITY
 			end
 		else
 			contours[c] = nil
@@ -2356,27 +2626,26 @@ function MarkerMaker:SimplifyContours(contours)
 	if deletion then
 		table.restoreArray(contours) 
 	end
-	if dev then
+	if console_debugging then
 		-- Echo(
-		-- 	('PARAMS[ size: %d (mul:%.2f), windowLen: %.3f, tolerance: %.4f, curveThreshold: %.4f, suppress_length: %.2f ]')
-		-- 	:format(size, self.mul, windowLen, angle_tolerance, curveThreshold, suppress_length)
+		--  ('PARAMS[ size: %d (mul:%.2f), window_len: %.3f, tolerance: %.4f, suppress_length: %.2f ]')
+		--  :format(size, self.mul, window_len, angle_tolerance, suppress_length)
 		-- )
 		Echo(('simplification: %d => %d, %d%%'):format(total_lines, total_simplified, 100*total_simplified/total_lines))
-		Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps), 'total_noises:'..tostring(total_noises), 'total_small_noises:'..tostring(total_small_noises))
+		Echo("total_curves:"..tostring(total_curves)..", total_too_sharps:"..tostring(total_too_sharps), 'total_noises:'..tostring(total_noises), 'total_small_noises:'..tostring(total_small_noises), 'total_supp_count:'..tostring(total_supp_count))
 	end
 	-- (inchangé) : suppression des contours trop courts
 end
 
 function MarkerMaker:SetScreenRatio()
-	local onscreen_size = self.use_default and onscreen_size or self.onscreen_size
+	local onscreen_size = self.onscreen_size or p.onscreen_size.default
 	self.screen_ratio = onscreen_size / math.diag((self.midx + self.midy) * 2)
-	-- self.screen_ratio = 0.2
 	return
 end
 
 function MarkerMaker:ContourToLineObj(contours)
-	local onscreen_size = self.useDefault and onscreen_size or self.onscreen_size
-	local analyze_size = self.useDefault and analyze_size or self.analyze_size
+	local onscreen_size = self.onscreen_size or p.onscreen_size.default
+	local analyze_size = self.useDefault and p.analyze_size.default or self.analyze_size
 	table.sort(contours, SortByLength)
 	local lines, l = {}, 0
 	local bottom, top = huge, -huge
@@ -2414,11 +2683,12 @@ function MarkerMaker:ContourToLineObj(contours)
 				end
 			end
 		else
-			Echo(self.filename .. ' !no line at contour ' .. i)
+			Echo(sig..self.filename .. ' !no line at contour ' .. i)
 		end
 	end
 	self.l = l
-	local midx, midy = ((right or left) - left) / 2, (top - bottom) / 2
+	local midx, midy = ((right or left) - left) / 2, ((top or bottom) - bottom) / 2
+	midx, midy = math.max(midx, 0.5), math.max(midy, 0.5)
 	self.midx, self.midy = midx, midy
 	local offx, offy = -left - midx, -top + midy
 	for i, line in ipairs(lines) do
@@ -2438,25 +2708,25 @@ function MarkerMaker:ImageToLineObj()
 	glTexture(0, file)
 	local info = glTextureInfo(file)
 	if not info or info.xsize == -1 then
-		Echo("CAN'T LOAD FILE " .. file)
+		Echo(sig.."CAN'T LOAD FILE " .. file)
 		glTexture(0, false)
 		glDeleteTexture(file)
 		return
 	end
-	local analyze_size, onscreen_size, pix_detect = analyze_size, onscreen_size, pix_detect
+	local analyze_size, onscreen_size, pix_detect
 	if self.useDefault then
-		analyze_size = analyze_size
-		onscreen_size = onscreen_size
-		pix_detect = pix_detect
+		analyze_size = p.analyze_size.default
+		pix_detect = p.pix_detect.default
 	else
 		analyze_size = self.analyze_size
-		onscreen_size = self.onscreen_size
 		pix_detect = self.pix_detect
 	end
+	onscreen_size = self.onscreen_size or p.onscreen_size.default
 	local sizeX = info.xsize
 	local sizeY = info.ysize
 	local diag = math.diag(sizeX, sizeY)
 	local mul = analyze_size / diag
+	self.sizeX, self.sizeY = sizeX, sizeY
 	self.mul = mul
 	sizeX = sizeX * mul
 	sizeY = sizeY * mul
@@ -2481,7 +2751,7 @@ function MarkerMaker:ImageToLineObj()
 	gl.RenderToTexture(tex, function()
 		gl.Clear(GL.COLOR_BUFFER_BIT)
 		glTexRect(-1, -1, 1, 1)
-		-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving values at the wrong place
+		-- FIXME gl.ReadPixels is bugged when asking a map (w > 1 and h > 1), giving misaligned values
 		-- so we ask line by line...
 		for y = sizeY-1, 0, -1 do -- y0 is at bottom
 			if not skip or modf(y)%skip == 0 then
@@ -2494,17 +2764,14 @@ function MarkerMaker:ImageToLineObj()
 						if not something then
 							if line[1] == lastX then
 								lastX = lastX + 1
-								if lastX > right then
-									right = lastX
-								end
 							end
 							line[3], line[4] = lastX, lastY
 							line = false
 						else
 							lastX, lastY = x, y
-							if lastX > right then
-								right = lastX
-							end
+						end
+						if lastX > right then
+							right = lastX
 						end
 					elseif something then
 						lastX, lastY = x, y
@@ -2543,6 +2810,7 @@ function MarkerMaker:ImageToLineObj()
 	self.l = l
 
 	local midx, midy = ((right or left) - left) / 2, (top - bottom) / 2
+	midx, midy = math.max(midx, 0.5), math.max(midy, 0.5)
 	local offx, offy = -left - midx, -top + midy
 	for i, line in ipairs(lines) do
 		line[1], line[2], line[3], line[4] =
@@ -2554,6 +2822,8 @@ function MarkerMaker:ImageToLineObj()
 	self.midx, self.midy = midx, midy
 	return lines
 end
+
+
 
 function MarkerMaker:AddLineObj(index, isLoaded)
 	self:SetScreenRatio()
@@ -2579,11 +2849,56 @@ function MarkerMaker:AddLineObj(index, isLoaded)
 		holder[len] = self
 	end
 	self.index = index
+	local visual_debug = self.lines[1] and self.lines[1][5]
+	if visual_debug then
+		self.dbg_list = gl.CreateList(
+			function()
+				gl.BeginEnd(
+					GL.LINES,
+					function()
+						local lines = self.lines
+						for i, line in ipairs(lines) do
+							local next_line = lines[i+1]
+							local isCurve = next_line and next_line[5] == DBG_CURVE
+							if isCurve then
+								glColor(KIND_COLORS[DBG_CURVE])
+							end
+							glVertex(line[1], line[2], 0)
+							glVertex(line[3], line[4], 0)
+							if isCurve then
+								glColor(LINE_COLOR)
+							end
+
+						end
+					end
+				)
+				if visual_debug then
+					gl.PointSize(1.5)
+					gl.BeginEnd(
+						GL.POINTS,
+						function()
+							for i, line in ipairs(self.lines) do
+								local dbg_kind = line[5]
+								local dbg_color = (dbg_kind == DBG_CURVE or dbg_kind == DBG_EXTREMITY or dbg_kind == DBG_SHARP_ANGLE) and KIND_COLORS[dbg_kind]
+								if dbg_color then
+									glColor(dbg_color)
+									glVertex(line[1], line[2], 0)
+								end
+							end
+						end
+					)
+					glColor(LINE_COLOR)
+					gl.PointSize(1)
+				end
+
+			end
+		)
+	end
 	self.list = gl.CreateList(
 		gl.BeginEnd,
 		GL.LINES,
 		function()
-			for _, line in ipairs(self.lines) do
+			for i, line in ipairs(self.lines) do
 				glVertex(line[1], line[2], 0)
 				glVertex(line[3], line[4], 0)
 			end
@@ -2601,9 +2916,9 @@ end
 function MarkerMaker:AddControl(index)
 	local obj = self
 	local backgroundColor = {0.3,0.3,0.3,1}
-	local w = buttonWidth 
-	local wmargin = buttonPadding[1] + buttonPadding[3]
-	local hmargin = buttonPadding[2] + buttonPadding[4]
+	local w = SELECTOR_BUTTON_W 
+	local wmargin = SELECTOR_BTN_PADDING[1] + SELECTOR_BTN_PADDING[3]
+	local hmargin = SELECTOR_BTN_PADDING[2] + SELECTOR_BTN_PADDING[4]
 	local hratio = (obj.midy+1) / (obj.midx+1)
 	-- for reducing image when height ratio is too big and repositionning at the middle of the button
 	local reduce = 1
@@ -2623,10 +2938,10 @@ function MarkerMaker:AddControl(index)
 		width = w,
 		height = h,
 		backgroundColor = backgroundColor,
-		padding = buttonPadding,
+		padding = SELECTOR_BTN_PADDING,
 		OnMouseDown = {
 			function(self)
-				local mx, my, lButton, _, rightButton = spGetMouseState()
+				local mx, my, leftButton, _, rightButton = spGetMouseState()
 				if rightButton then
 					obj:SetupCustomPanel()
 					customPanel.win:Show()
@@ -2648,12 +2963,13 @@ function MarkerMaker:AddControl(index)
 					local ratio = self.width / (obj.midx * 2)
 					ratio = ratio * 0.9
 					glPushMatrix()
-					gl.Color(1,1,1,0.5)
+					glColor(LINE_COLOR)
 					glTranslate(self.width/2, self.height/2, 0)
 					glScale(ratio * reduce, ratio * reduce, 1)
 					glScale(1,-1,1)
 					glCallList(obj.list)
 					glPopMatrix()
+					glColor(1,1,1,1)
 				end,
 			}
 		}
@@ -2669,9 +2985,6 @@ function MarkerMaker:AddControl(index)
 		selectedColor = MakeSelectedColor(r,g,b,a)
 	end
 	obj.control = control
-	-- local lastChild = selector.children[#selector.children]
-	-- win:SetPos(nil, nil, nil, lastChild.y + lastChild.height + 45)
-	-- selector:SetPos(nil, nil, nil, lastChild.y + lastChild.height + 12)
 	taskTime = 0
 	updateCategories = 0
 	scroll:UpdateLayout()
@@ -2685,7 +2998,7 @@ function MarkerMaker:SetupCustomPanel()
 	-- Echo("self.useDefault is ", self.useDefault)
 	customize = nil
 	local len = #self.lines
-	customPanel.win.caption = ('%s  (%d lines, %d sec to draw)'):format(self.filename, len, math.ceil(markerDelay * len))
+	customPanel.win.caption = ('%s  (%d lines, %d sec to draw)'):format(self.filename, len, math.ceil(MARKER_DELAY * len))
 	customPanel.win:Invalidate()
 	if customPanel.useDefault.checked ~= self.useDefault then
 		customPanel.useDefault:Toggle()
@@ -2701,31 +3014,19 @@ function MarkerMaker:SetupCustomPanel()
 		end
 	end
 
-	if customPanel.pix_detect.value ~= self.pix_detect then
-		customPanel.pix_detect:SetValue(self.pix_detect)
-	end
-
-	if customPanel.analyze_size.value ~= self.analyze_size then
-		customPanel.analyze_size:SetValue(self.analyze_size)
-	end
-
-	if customPanel.onscreen_size.value ~= self.onscreen_size then
-		customPanel.onscreen_size:SetValue(self.onscreen_size)
-	end
-
-	if customPanel.angle_tolerance.value ~= self.angle_tolerance then
-		customPanel.angle_tolerance:SetValue(self.angle_tolerance)
-	end
-
-	if customPanel.noise_reduction.value ~= self.noise_reduction then
-		customPanel.noise_reduction:SetValue(self.noise_reduction)
-	end
-	--
-	if dev and customPanel.angleGap.value ~= self.angleGap then
-		customPanel.angleGap:SetValue(self.angleGap)
-	end
-	if dev and customPanel.windowLen.value ~= self.windowLen then
-		customPanel.windowLen:SetValue(self.windowLen)
+	for _, name in ipairs(CUSTOM_PARAMS_ORDER) do
+		if p[name].generic then
+			local control = customPanel[name]
+			if control then
+				local value = self[name]
+				local header = customPanel['header_'..name]
+				local caption = header.caption:gsub(': %d.*$', '')
+				if control.value ~= value then
+					control:SetValue(value)
+				end
+				header:SetCaption(('%s: '..(p[name].format)):format(caption, value))
+			end
+		end
 	end
 
 	customize = self
@@ -2771,7 +3072,7 @@ end
 
 function MarkerMaker:PrepareMarker()
 	if selected ~= self then
-		Echo('Drawing Marker Obj Selection Mismatch !')
+		Echo(sig..'Drawing Marker Obj Selection Mismatch !')
 		return
 	end
 	-- create list to be drawn as preview on map when supplementary marker are pendings
@@ -2790,162 +3091,43 @@ end
 
 function MarkerMaker:SetupCoords(l, screen_ratio)
 	local lines = self.lines
-	local midx, midy = self.midx, self.midy
 	local mx, my = self.mx, self.my
 	local dirx, diry = self.onMapDirX, self.onMapDirY
-
-	for i, line in ipairs(lines) do
+	local watch_duplicate = self.s_mode == 'plain' or self.s_mode == 'spaghetti'
+	local lastline = {-1,-1,1e8,-1}
+	local min, max, r = math.min, math.max, math.round
+	for i = 1, #lines do
+		local line = lines[i]
 		local x1, y1, x2, y2 = line[1] * (dirx or 1), line[2] * (diry or 1), line[3] * (dirx or 1), line[4] * (diry or 1)
-		local _, c1 = spTraceScreenRay(x1 * screen_ratio + mx, y1 * screen_ratio + my, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
-		local _, c2 = spTraceScreenRay(x2 * screen_ratio + mx, y2 * screen_ratio + my, true, false, false, false)
+		local _, c1 = spTraceScreenRay(mx + x1 * screen_ratio, my + y1 * screen_ratio, true, false, false, false) --onlyCoords, useMinimap, includeSky, ignoreWater
+		local _, c2 = spTraceScreenRay(mx + x2 * screen_ratio, my + y2 * screen_ratio, true, false, false, false)
 		if c1 and c2 then
-			l = l + 1
-			toDraw[l] = {c1, c2}
+			local draw = true
+			if watch_duplicate then
+				---- ignore lines that will not be drawn anyway
+				local nwy1, nwy2, nwx1, nwx2 = r(c1[3]), r(c2[3]), r(c1[1]), r(c2[1])
+				local wy1, wy2, wx1, wx2 = lastline[1], lastline[2], lastline[3], lastline[4]
+				if nwx1 > nwx2 then nwx1, nwx2 = nwx2, nwx1 end
+				if nwy1 == wy1 and nwy2 == wy2 then
+					if nwx1 >= wx1 and nwx2 <= wx2 then
+						draw = false
+					end
+					nwx1, nwx2 = min(nwx1, wx1), max(nwx2, wx2)
+				end
+				lastline[1], lastline[2], lastline[3], lastline[4] = nwy1, nwy2, nwx1, nwx2
+			end
+			-----
+			if draw then
+				l = l + 1
+				toDraw[l] = {c1, c2}
+			end
 		end
 	end
 	return l
 end
-function MarkerMaker:IsConform()
-	local wrong
-	if not self. mul then
-		wrong = true
-	elseif self.useDefault then
-		wrong = self.smode ~= mode
-			or self.sangle_tolerance ~= angle_tolerance
-			or self.snoise_reduction ~= noise_reduction
-			or self.spix_detect ~= pix_detect
-			or self.sanalyze_size ~= analyze_size
-	else
-		wrong = self.smode ~= self.mode
-			or self.sangle_tolerance ~= self.angle_tolerance
-			or self.snoise_reduction ~= self.noise_reduction
-			or self.spix_detect ~= self.pix_detect
-			or self.sanalyze_size ~= self.analyze_size
-	end
-	if not wrong then
-		local file = self.file
-		local size = 0
-		local read = io.open(file)
-		if read then
-			size = read:seek('end')
-			read:close()
-		end
-		wrong = size ~= self.size
-	end
-	return not wrong
-end
 
-local function UnminifyJSON(jsonStr, indent)
-	indent = indent or '\t'
-	local level = 0
-	local suppress = false
-	return jsonStr:gsub('([{%[,%]}])()', function(c, p)
-		if c == '[' then
-			suppress = true
-			if jsonStr:sub(p, p) == '[' then
-				level = level + 1
-				return '[\n'..('\t'):rep(level)
-			end
-		elseif c == ']' then
-			suppress = false
-			if jsonStr:sub(p, p) == ']' then
-				level = level - 1
-				return ']\n'..('\t'):rep(level)
-			end
-		elseif suppress then
-			return
-		elseif c == '{' then
-			level = level + 1
-			return '{\n'..('\t'):rep(level)
-		elseif c == '}' then
-			level = level - 1
-			return '\n'..('\t'):rep(level)..'}'
-		else
-			return ',\n'..('\t'):rep(level)
-		end
-	end)
-end
-function MarkerMaker:Save()
-	if self.useDefault then
-		self.smode = mode
-		self.sangle_tolerance = angle_tolerance
-		self.snoise_reduction = noise_reduction
-		self.spix_detect = pix_detect
-		self.sanalyze_size = analyze_size
-		self.sonscreen_size = onscreen_size
-	else
-		self.smode = self.mode
-		self.sangle_tolerance = self.angle_tolerance
-		self.snoise_reduction = self.noise_reduction
-		self.spix_detect = self.pix_detect
-		self.sanalyze_size = self.analyze_size
-		self.sonscreen_size = self.onscreen_size
-	end
-	self.angleGap = self.angleGap or angleGap
-	self.windowLen = self.windowLen or windowLen
-	self.file = self.file:gsub('\\', '/')
-	local jsonstring = json.encode(self)
-	if jsonstring then
-		-- local jsonfile = file:sub(1, (file:find('%.[^%.]+$') or 0) - 1)  .. '.json'
-		jsonstring = UnminifyJSON(jsonstring)
-		local jsonfile = self.file  .. '.json'
-		local f = io.open(jsonfile, "w")
-		f:write(jsonstring)
-		f:close()
-	end
-end
 
-function MarkerMaker:LoadObj(file)
-	-- local jsonfile = file:sub(1, (file:find('%.[^%.]+$') or 0) - 1)  .. '.json'
-	local jsonfile = file  .. '.json'
-	local code = io.open(jsonfile, "r")
-	if code then
-		local success, obj = pcall(json.decode, code:read('*a'))
-		if not success then
-			Echo('couldn\'t load the json file ' .. jsonfile, obj)
-			code:close()
-			return
-		else
-			obj.file = obj.file:gsub('\\', '/')
-			local add = {}
-			local lines = obj.lines
-			for k,v in pairs(lines) do
-				if type(k) == 'string' and tonumber(k) then
-					lines[k] = nil
-					-- lines[tonumber(k)] = v
-					add[k] = v
-				end
-			end
-			for k, v in pairs(add) do
-				lines[tonumber(k)] = v
-			end
-			if not self.mode then
-				self.mode = mode
-			end
-			if not self.pix_detect then
-				self.pix_detect = pix_detect
-			end
-			if not self.angle_tolerance then
-				self.angle_tolerance = angle_tolerance
-			end
-			if not self.onscreen_size then
-				self.onscreen_size = onscreen_size
-			end
-			if not self.analyze_size then
-				self.analyze_size = analyze_size
-			end
-			if not self.noise_reduction then
-				self.noise_reduction = noise_reduction
-			end
-			--
-			self.windowLen = obj.windowLen or windowLen
-			self.angleGap = obj.angleGap or angleGap
-		end
-		code:close()
-		setmetatable(obj, MarkerMaker.mt)
-		return obj
-	end
-end
+
 
 function MarkerMaker:FastUpdate()
 	if holder[self.file] then -- when resetting customization, several FastUpdate will likely happen
@@ -2970,16 +3152,13 @@ function MarkerMaker:UpdateFile(file, alphaIndex)
 		loaded = self:LoadObj(file)
 		if loaded then
 			conform = loaded:IsConform()
-			-- Echo('loaded check', conform, "loaded.useDefault", loaded.useDefault, 'loaded.mode', loaded.mode, 'loaded.smode', loaded.smode)
 			if not conform then
 				customParams = loaded
-
 				loaded = nil
 			end
 		end
 	else
 		conform = obj:IsConform()
-		-- Echo('obj check', conform, "obj.useDefault", obj.useDefault, 'obj.mode', obj.mode, 'obj.smode', obj.smode, 'index', obj.index)
 		if not conform then
 			obj:Remove()
 			customParams = obj
@@ -3002,7 +3181,7 @@ end
 local Timer = Spring.GetTimer
 local Diff = Spring.DiffTimers
 function MarkerMaker:UpdateFiles()
-	local files = VFS.DirList(DRAWINGS_DIR, '{*.png,*.jpg,*.jpeg,*.tif,*.tiff}', VFS.RAW)
+	local files = VFS.DirList(DRAWINGS_DIR, ALLOWED_FORMATS, VFS.RAW)
 	local count = 0
 	if not files[current] then
 		current = 1
@@ -3013,7 +3192,7 @@ function MarkerMaker:UpdateFiles()
 	for i, file in ipairs(files) do
 		files[file] = true
 		count = count + 1
-		if count >= current and time <= maxUpdateTime then
+		if count >= current and time <= max_update_time then
 			self:UpdateFile(file, i)
 			local endTimer = Timer()
 			time = time + Diff(endTimer, timer)
@@ -3035,13 +3214,19 @@ function MarkerMaker:UpdateFiles()
 		end
 	end
 	-- if hasNew then
-	-- 	updateCategories = 0
+	--  updateCategories = 0
 	-- end
 end
 
 function MarkerMaker:Remove(fastUpdate)
 	if selected == self then
 		selected:Deselect()
+	end
+	if self.list then
+		gl.DeleteList(self.list)
+	end
+	if self.dbg_list then
+		gl.DeleteList(self.dbg_list)
 	end
 	if customize == self and not fastUpdate then
 		customPanel.closeButton.OnClick[1](customPanel.closeButton)
@@ -3052,13 +3237,13 @@ function MarkerMaker:Remove(fastUpdate)
 	local index = self.index
 	local rem = table.remove(holder, index)
 	if self ~= rem then
-		Echo('removed the wrong obj, '..self.filename..', file didnt have the correct index ' .. self.index .. ', instead '..rem.filename..' got removed')
+		Echo(sig..'Removed the wrong obj, '..self.filename..', file didn\'t have the correct index ' .. self.index .. ', instead '..rem.filename..' got removed')
 	end
 	holder[self.file] = nil
 
 	for i = index, #holder do
 		if not holder[i] then
-			Echo('Indexing problem! Trying to reindex image from #'.. i .. ' to', #holder)
+			Echo(sig..'Indexing problem! Trying to reindex image from #'.. i .. ' to', #holder)
 			Echo('debug:')
 			for i = index, #holder do
 				Echo(i .. ':', holder[i])
@@ -3071,7 +3256,7 @@ function MarkerMaker:Remove(fastUpdate)
 	local err
 	for i = 1, #holder do
 		if not holder[i] then
-			Echo('object missing at index', i, 'after removing', self.filename, 'at index', self.index)
+			Echo(sig..'Object missing at index', i, 'after removing', self.filename, 'at index', self.index)
 			err = true
 		end
 	end
@@ -3079,13 +3264,9 @@ function MarkerMaker:Remove(fastUpdate)
 		error()
 	end
 
-	-- local y = obj.control.y
 	selector:RemoveChild(self.control)
 	scroll:UpdateLayout()
 	updateCategories = 0
-	if self.list then
-		glDeleteList(self.list)
-	end
 end
 
 
@@ -3161,7 +3342,7 @@ function widget:Update(dt)
 			else
 				selected.pressed = false
 				deselectOnRelease = true
-			end	
+			end 
 		end
 	end
 	updateTime = updateTime + dt
@@ -3169,7 +3350,7 @@ function widget:Update(dt)
 
 	if drawing then
 		markerTime = markerTime + dt
-		if markerTime > markerDelay then
+		if markerTime > MARKER_DELAY then
 			markerTime = 0
 			currentMarkerLine = currentMarkerLine + 1
 			if pendingLists[currentMarkerLine] then
@@ -3233,9 +3414,9 @@ function widget:DrawScreen()
 	if not initialized then
 		Init()
 		MarkerMaker:UpdateFiles()
-		updateTime = updateDelay
+		updateTime = update_delay
 	end
-	if updateTime >= updateDelay then
+	if updateTime >= update_delay then
 		MarkerMaker:UpdateFiles()
 		updateTime = 0
 	end
@@ -3288,22 +3469,7 @@ function widget:DrawScreen()
 		glCallList(frame)
 		glPopMatrix()
 	end
-	-- glTexture(0, imageFile)
-	-- local info = glTextureInfo(imageFile)
-	-- glTexRect(0, 0, info.xsize, info.ysize)
-	-- glTexture(0, false)
 
-
-	-- if holder[1] then
-	-- 	local lines = holder[1]
-	-- 	glPushMatrix()
-	-- 	-- glTranslate(vsx - lines.midx-1, lines.midy, 0)
-	-- 	glTranslate(500, 500, 0)
-	-- 	gl.LineStipple(false)
-	-- 	glCallList(lines.list)
-	-- 	glPopMatrix()
-	-- end
-	
 end
 
 function widget:Initialize()
@@ -3315,18 +3481,22 @@ function widget:Shutdown()
 		if obj.list then
 			glDeleteList(obj.list)
 		end
+		if obj.dbg_list then
+			glDeleteList(obj.dbg_list)
+		end
 	end
 	for _, list in pairs(pendingLists) do
 		glDeleteList(list)
 	end
 	glDeleteList(frame)
 end
-if f then
-	f.DebugWidget(widget)
-end
 
 
 function widget:ViewResize(viewSizeX, viewSizeY)
 	scaled_vsx, scaled_vsy = viewSizeX, viewSizeY
 	vsx, vsy = Spring.Orig.GetViewGeometry()
+end
+
+if f then
+	f.DebugWidget(widget)
 end
