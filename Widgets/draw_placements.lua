@@ -4416,8 +4416,8 @@ function widget:Update()
 		sp.SetMouseCursor(CURSOR_ERASE_NAME)
 		return
 	end
-
 end
+
 local lastx = -1
 local loopcount = 0
 function widget:IsAbove(x, y)	-- previously Update
@@ -5537,8 +5537,7 @@ function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 				specsLen = specsLen - 1
 				TestBuild('forget extra')
 				if cancelled and cancelled < lasP.r then
-
-					processed = llasP.r -- case it can beconnected, let the last rail point be reprocessed
+					processed = lasP.r -- case it can be connected, let the last rail point be reprocessed
 				end
 				if special then 
 					allGrids = {} 
@@ -5547,6 +5546,16 @@ function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 							allGrids[k] = true 
 						end
 					end
+				end
+				-- update variables...
+				lasPx, lasPz = llasPx, llasPz
+				lasP_To_Cur = llasP_To_Cur
+				llasP = specs[specsLen - 1]
+				if llasP then
+					llasPx, llasPz = llasP[1], llasP[2]
+					llasP_To_Cur = (llasPx-px)^2 + (llasPz-pz)^2 
+				else
+					llasP_To_Cur = false
 				end
 			end
 
@@ -5597,9 +5606,9 @@ function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 								specs[specsLen] = nil
 								specsLen = specsLen - 1
 								TestBuild('forget extra')
-								lasP = specs[specsLen]
+								lasP = llasP
 								if lasP and lasP.r > 1 then
-									processed = llasP.r - 1
+									processed = lasP.r - 1
 								else
 									processed = 1
 								end
@@ -5612,6 +5621,20 @@ function widget:MouseMove(x, y, _, _, button, recursion, realPos)
 											allGrids[k] = true 
 										end
 									end
+								end
+								-- update variables...
+								llasP = specs[specsLen - 1]
+								if lasP then
+									lasPx, lasPz = llasPx, llasPz
+									lasP_To_Cur = llasP_To_Cur
+									if llasP then
+										llasPx, llasPz = llasP[1], llasP[2]
+										llasP_To_Cur = (llasPx-px)^2 + (llasPz-pz)^2 
+									else
+										llasP_To_Cur = false
+									end
+								else
+									lasP_To_Cur = false
 								end
 							end
 						end
