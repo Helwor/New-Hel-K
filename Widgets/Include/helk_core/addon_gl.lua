@@ -487,6 +487,6 @@ function gl.GetBlendState(echo)
 	end
 	return ret
 end
-Echo('[HEL-K] Successfully implemented gl Addons')
+Echo('[HEL-K]: Successfully implemented gl Addons')
 --// =============================================================================
 
