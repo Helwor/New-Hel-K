@@ -56,12 +56,14 @@ local function isCommWreck(def)
 	return def.name:match('_base_') or def.name:match('dyn') -- TODO IMPROVE DEFINITION 
 end
 local wantedFeatureDefID = {} -- optionnable with/without comm
-for defID, def in pairs(FeatureDefs) do
-	if def.reclaimable then
-		wantedFeatureDefID[defID] = true
+do
+	local max = math.max
+	for defID, def in pairs(FeatureDefs) do
+		if def.reclaimable and max(def.energy, def.metal) > 0.0015 then
+			wantedFeatureDefID[defID] = true
+		end
 	end
 end
-
 local tagConv = {
 	manual = 'm',
 	reclaiming = 'c',
@@ -598,7 +600,6 @@ local spValidFeatureID            = Spring.ValidFeatureID
 local spSendCommands              = Spring.SendCommands
 local spuCheckBit                 = Spring.Utilities.CheckBit
 local spGetTeamRulesParam        = Spring.GetTeamRulesParam
-local spGetTeamResources          = Spring.GetTeamResources
 local spGetUnitRulesParam         = Spring.GetUnitRulesParam
 local widgetName
 local spGetUnitCurrentCommand     = Spring.GetUnitCurrentCommand
@@ -1532,13 +1533,19 @@ function NotifyIdle(id,unit)
 		end
 	end
 	b.isIdle = true
-	if Debug.sequence() then
+	local dbgSequence = Debug.sequence()
+	if dbgSequence then
 		-- Echo('unit idle put in waiting')
-		Echo('unit idle, Updating order')
+		Echo(b.sign, 'unit idle, Updating order')
 	end
 	b.idleTime = spGetGameSeconds()
-	b.movingBack = false
-	unit.movingBack = false
+	if b.movingBack then
+		b.movingBack = false
+		unit.movingBack = false
+		if dbgSequence then
+			Echo(b.sign, 'end of movingBack')
+		end
+	end
 	b.fightingOrder = false
 	b.fighting = false
 	b:UpdateRoam()
@@ -1805,7 +1812,7 @@ local function UpdateOrder(bID,b,frame)
 
 	--Echo("nearUnits of Caretaker #", bID, "=>", nearUnits[1], ":", Name(nearUnits[1]), nearUnits[2], ":", Name(nearUnits[2]))
 	--local minM,minE = -b.buildSpeed,-b.buildSpeed + (res.eMax>0 and res.eReserve or 0)
-	local bestFeature,recM,recE,debugFeature = false,false,false,false
+	local bestFeature, recM, recE, debugFeature = false, false, false, false
 
 	if res.wantM > b.buildSpeed*2 or res.wantE > b.buildSpeed*2 then
 		-- Echo("res.wantM, res.wantE is ", res.wantM, res.wantE, res.needM, res.needE)
@@ -2213,7 +2220,7 @@ local function UpdateOrder(bID,b,frame)
 	--Echo("name is ", new_target and Units[new_target].name)
 	---------------------------------------------------------------------------------------------
 	if bestFeature  and (new_target) and ((wantedAction=="building" and canBuild) or (wantedAction=="repairing" and canRepair))  then
-		bestFeature, recM, recE, debugFeature = false,false,false, false
+		bestFeature, recM, recE, debugFeature = false, false, false, false
 		-- not reclaiming metal if we're building Energy and we're stalling on E
 		-- if res.needM<=0 and res.needE and not recE and wantedAction=="building" and Units[Prio1 or Prio2].isE then bestFeature,recM,recE = false,false,false end
 
@@ -2364,17 +2371,23 @@ local function UpdateOrder(bID,b,frame)
 						-- GiveOrderToUnit(bID,CMD_GUARD,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
 						b:GiveOrder(CMD_GUARD, builtBy)
 					else
+						b.currentAction = action
+						b.tag = tagConv[b.currentAction]
 						b:GiveOrder(CMD_REPAIR, new_target)
 					end
 				else
 					--     Echo('build it directly')
 					-- TABLE_PARAM[1] = new_target
 					-- GiveOrderToUnit(bID,CMD_REPAIR,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
+					b.currentAction = action
+					b.tag = tagConv[b.currentAction]
 					b:GiveOrder(CMD_REPAIR, new_target)
 				end
 			else
 				-- TABLE_PARAM[1] = new_target
 				-- GiveOrderToUnit(bID,CMD_REPAIR,TABLE_PARAM,SB_INTERNAL + CMD_OPT_SHIFT)
+				b.currentAction = action
+				b.tag = tagConv[b.currentAction]
 				b:GiveOrder(CMD_REPAIR, new_target)
 			end
 		end
@@ -2394,7 +2407,7 @@ local function UpdateOrder(bID,b,frame)
 		elseif Units[curID] then
 			x, z = Units[curID]:GetPos(3)
 		end
-		if not x or diag(b.posX-x, b.posZ-z) > range then
+		if not x or diag(b.posX-x, b.posZ-z) > range and not b.movingBack then
 			Stop(bID, isFighting, tag)
 			-- Echo('stop')
 			return true
@@ -2875,7 +2888,7 @@ local dangerousFeatures = setmetatable(
 						local dist =  diag(ux - x, uz - z)
 						local ranges = weapRanges[u.defID]
 						if not ranges then
-							Echo('NO RANGES?', u.defID, UnitDefs[u.defID] and UnitDefs[u.defID].name)
+							Echo('NO RANGES?', u.defID, UnitDefs[u.defID] and UnitDefs[u.defID].name, f.GetCalledLine())
 						end
 						if ranges and (dist < ((ranges[1] or 0) - minBuildDist) or dist < ((ranges[2] or 0) - minBuildDist)) then
 							allowed = false
@@ -2922,12 +2935,12 @@ function CheckFeatures(b, wantM, wantE, needM, needE)
 	local reallyNeedE = res.needE > -50
 	x,z = b.posX, b.posZ
 	for i,fID in ipairs(nearFeatures) do
-		if not rezedFeatures[fID] and wantedFeatureDefID[GetFeatureDefID(fID)] and not (b.canRoam) or dangerousFeatures[fID].allowed then
+		if not rezedFeatures[fID] and wantedFeatureDefID[GetFeatureDefID(fID)] and (not (b.canRoam) or dangerousFeatures[fID].allowed) then
 			local fx,_,fz  = GetFeaturePosition(fID)
 			if diag(fx-x, fz-z) < range then -- GetUnitInCylinder catch some farther feature
 				local fm, _, fe  = GetFeatureResources(fID)
-				recM = fm > 0.001
-				recE = fe > 0.001
+				recM = fm > 0.0015
+				recE = fe > 0.0015
 				matchM, matchE = (res.wantM > buildSpeed2) == recM, (res.wantE > buildSpeed2) == recE
 				if noMoreEfeatures then
 					if matchM then 
@@ -2990,7 +3003,7 @@ function CheckFeatures(b, wantM, wantE, needM, needE)
 	end
 	-- Echo("p is ", p, prefered[1] and FeatureDefs[GetFeatureDefID(prefered[1])].name, b.sign .. 'Check Best Feature:',unpack(prefered))
 	-- Echo('res.wantM,res.wantE',res.wantM,res.wantE,'res.needM,res.needE',res.needM,res.needE,"recM,recE is ", recM,recE,bestFeature)
-	Debug.Log(b.sign .. 'Check Best Feature:',unpack(prefered))
+	Debug.prio(b.sign .. 'Check Best Feature:', '#prefered: '.. p,  unpack(prefered))
 	return unpack(prefered)
 end
 
@@ -3003,16 +3016,21 @@ function Stop(bID, isFighting, tag)
 		GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
 	else
 		if b.canMove then
-			local x, _, z = Units[bID]:GetPos(3)
-			if diag(x - b.posX, z - b.posZ) > 320 then
-				-- Echo('move back')
-				if tag then
-					GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
+			if not b .movingBack then
+				local x, _, z = Units[bID]:GetPos(3)
+				if diag(x - b.posX, z - b.posZ) > 320 then
+					if Debug.sequence() then
+						Echo(b.sign, 'start moving back')
+					end
+					-- Echo('move back')
+					if tag then
+						GiveOrderToUnit(bID, CMD_REMOVE, {tag}, 0)
+					end
+					GiveOrderToUnit(bID, CMD_RAW_MOVE, {b.posX, b.posY, b.posZ}, SB_INTERNAL + CMD_OPT_SHIFT)
+					b.movingBack = true
+					b.unit.movingBack = true
+					return true
 				end
-				GiveOrderToUnit(bID, CMD_RAW_MOVE, {b.posX, b.posY, b.posZ}, SB_INTERNAL + CMD_OPT_SHIFT)
-				b.movingBack = true
-				b.unit.movingBack = true
-				return true
 			end
 		end
 		if not b.isDumb then
@@ -3035,7 +3053,7 @@ end
 
 
 function widget:UnitGiven(id, unitDefID, unitTeam)
-	if unitTeam~=myTeamID then return end
+	if unitTeam ~= myTeamID then return end
 	local _, _, _, _, BP = spGetUnitHealth(id)
 	if (BP == 1) then
 		widget:UnitFinished(id, unitDefID, myTeamID)
@@ -3047,7 +3065,7 @@ end
 -- register the builder and its buildspeed for time estimation
 
 function widget:UnitCreated(unitID, unitDefID, unitTeam,builderID)
-	if unitTeam~=myTeamID then return end
+	if unitTeam ~= myTeamID then return end
 	local builder = builderID and Units[builderID]
 	if builder then
 		local unit = Units[unitID]
@@ -3063,7 +3081,7 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam,builderID)
 end
 
 function widget:UnitDestroyed(id, unitDefID, unitTeam)
-	if unitTeam~=myTeamID then return end
+	if unitTeam ~= myTeamID then return end
 	local b = builders[id]
 	if not b then return end
 	local rec = b.rec
@@ -3080,14 +3098,14 @@ function widget:UnitDestroyed(id, unitDefID, unitTeam)
 end
 
 function widget:UnitTaken(id, unitDefID, unitTeam)
-	if unitTeam~=myTeamID then return end
+	if unitTeam ~= myTeamID then return end
 	widget:UnitDestroyed(id, unitDefID, myTeamID)
 end
 function widget:UnitReverseBuilt(id, unitDefID, unitTeam)
-	if unitTeam~=myTeamID then return end
+	if unitTeam ~= myTeamID then return end
 	widget:UnitDestroyed(id, unitDefID, myTeamID)
 end
-local drawValue = true
+
 function widget:DrawScreen()
 	if Debug.showBalance() and res.mDelta then
 		glColor(0.5,0.7,1,1)
