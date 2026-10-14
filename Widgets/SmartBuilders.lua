@@ -914,8 +914,8 @@ local function UpdateResources()
 	res.mMax = res.mMax - HIDDEN_STORAGE 
 	res.eMax = res.eMax - HIDDEN_STORAGE
 
-	res.ePer = ((res.eCur) / res.eMax)
-	res.mPer = ((res.mCur) / res.mMax)
+	res.ePer = res.eCur / res.eMax
+	res.mPer = res.mCur / res.mMax
 
 	--local totalPull = ePull + extraEnergyPull + extraChange
 	res.needStorage = res.eMax==0 or res.mMax==0
@@ -3103,8 +3103,8 @@ function widget:UnitDestroyed(id, unitDefID, unitTeam)
 	local b = builders[id]
 	if not b then return end
 	local rec = b.rec
-	if rec and featReclaimed[rec or rec-maxUnits] then
-		featReclaimed[rec or rec-maxUnits]=nil
+	if rec then -- FIX ME, what if multiple cons on same reclaim???
+		featReclaimed[rec] = nil
 	end
 	builders[id] = nil
 	n_builders = n_builders-1
