@@ -556,7 +556,7 @@ local roundFrame = currentFrame
 --
 local terraUnitDefID = UnitDefNames['terraunit'].id
 local updateResourceFrame = currentFrame + UPDATE_RESOURCE_RATE
-
+local manualTarget, manualCommand
 
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
 local l = f.l
@@ -704,15 +704,22 @@ local ENERGY_BALANCE = {
 	repairing  = -1,
 	listening  =  0
 }
+
+local debugOff = function() return true end
+
 local GetUnitPos = function(id, threshold)
 	local unit = Units[id]
 	local pos = unit.pos
-	if not unit.isStructure and pos.frame < currentFrame + threshold then
+	if not unit.isStructure and pos.frame < currentFrame - threshold then
 		pos[1], pos[2], pos[3] = spGetUnitPosition(id)
+		pos.frame = currentFrame
 	end
 	return  pos[1], pos[2], pos[3]
 end
-
+local function UpdateRates()
+	CHECK_DELAY = max(1, round(UPDATE_RATE / max(n_builders, 1)))
+	BUILDERS_PER_FRAME = max(1, min(round(n_builders / UPDATE_RATE), MAX_BUILDERS_PER_FRAME))
+end
 local function AdjustForLag()
 
 -- adjust with lag
@@ -816,13 +823,13 @@ local function IsOwnOrder(coded, cmd)
 		-- or cmd == CMD_RAW_MOVE and coded == SB_INTERNAL
 end
 local function Name(ID)
-	if spValidUnitID(ID)  and GetUnitDefID(ID) then
+	if spValidUnitID(ID) and GetUnitDefID(ID) then
 		return UnitDefs[GetUnitDefID(ID)].humanName
 	end
 	if spValidFeatureID(ID) then
 		return FeatureDefs[GetFeatureDefID(ID)].tooltip
 	end
-	return false
+	return '<unknown>'
 end
 local function FactoryAround(id)
 	-- Echo('fac around ?')
@@ -836,7 +843,8 @@ local function FactoryAround(id)
 		end
 	end
 end
-local function FindIntersect(x, z, s1, s2, e1, e2) -- actually clamping a point into a segment
+-- TODO: Move to funcs library GEOMETRY
+local function FindBissect(x, z, s1, s2, e1, e2) -- actually clamping a point into a segment
 	-- get the corresponding point on a line, x,z beeing the pos to transform, s1,s2 start of line, e1, e2, end of line
 	-- count = (count or 0) + 1
 	local ps = diag(x-s1, z-s2)
@@ -864,6 +872,18 @@ local function FindIntersect(x, z, s1, s2, e1, e2) -- actually clamping a point 
 	-- Echo(count,'ps',ps,'pe',pe,"dx,dz", dx,dz,"ratio",ratio,"posX,posZ",posX,posZ)
 	return posX, posZ
 end
+
+-- TODO: Move to funcs library GEOMETRY
+local function FindIntersect(x, z, s1, s2, e1, e2) -- actually clamping a point into a segment
+	-- get the corresponding point on a line, x,z beeing the pos to transform, s1,s2 start of line, e1, e2, end of line
+	local dx, dz = e1 - s1, e2 - s2
+	local lenSq = dx*dx + dz*dz
+	if lenSq == 0 then return s1, s2 end
+	local t = ((x - s1)*dx + (z - s2)*dz) / lenSq
+	t = t < 0 and 0 or t > 1 and 1 or t
+	return s1 + dx*t, s2 + dz*t
+end
+
 local myAllyTeamID = Spring.GetMyAllyTeamID()
 local teams = Spring.GetTeamList(myAllyTeamID)
 
@@ -940,7 +960,7 @@ local function UpdateResources()
 	res.Estalling = res.Estalling and (res.ePer<0.15 and res.eCur<225) -- 
 	--
 	res.OverEnergy = res.ePer > 0.98
-	res.OverMetal = res.mPer > 0.98
+	-- res.OverMetal = res.mPer > 0.98
 	-- Echo("res.Estalling, res.OverMetal is ", res.Estalling, res.OverMetal)
 	if ((res.mMax - res.mCur) < mInc) then 
 		res.OverMetal = true 
@@ -954,7 +974,7 @@ local function UpdateResources()
 	--if res.mCur < 50 or res.mCur < (res.mMax * 0.1) then res.Mstalling = true else res.Mstalling = false end
 	-- if we're expending more than income and we're below 50 percent stock, wouldlikereclaim become true -- not used for now
 
-	wouldlikereclaim = ((mPull / mInc) > 0.95 and (mPull / mInc) < 1.05 and (res.mPer < 0.5))
+	res.wouldlikereclaim = ((mPull / mInc) > 0.95 and (mPull / mInc) < 1.05 and (res.mPer < 0.5))
 
 	local eStall = res.eCur - res.eReserve + res.eDelta
 	if eStall < 0 then
@@ -1233,13 +1253,9 @@ function builderClass:New(id, unitDefID, unitTeam, def)
 
 	OrderDraw('pos', id, Debug.pos() and {posX,posY,posZ})
 	n_builders = n_builders+1
-	CHECK_DELAY = max(1,round(UPDATE_RATE/n_builders)) --* lag[1]
-	BUILDERS_PER_FRAME = min (round(1/(UPDATE_RATE/n_builders)), MAX_BUILDERS_PER_FRAME)
+	UpdateRates()
 	-- builder_per_frame = round(math.max(1, builder_per_frame / lag[1]))
 
-	if BUILDERS_PER_FRAME < 1 then
-		BUILDERS_PER_FRAME = 1
-	end
 	if cfg.antilag and lag[1]> 1 then
 		updateResourceFrame = lastResFrame + UPDATE_RESOURCE_RATE * lag[1]
 		builders_per_frame, check_delay = AdjustForLag()
@@ -1260,10 +1276,10 @@ do
 	local INSERT_OPTS = CMD_OPT_ALT + CMD_OPT_SHIFT + SB_INTERNAL
 	function builderClass:GiveOrder(cmd,target)
 		if self.isDumb and cmd == CMD_GUARD then
-			PARAMS[1], PARAMS[2], PARAMS[3] = b.posX + b.size, b.posY, b.posZ + b.size -- Important, position must be out of  unit footprint! 
-			-- GiveOrderToUnit(self.id, CMD_INSERT, {0, CMD.FIGHT, CMD_OPT_SHIFT + SB_INTERNAL, b.posX, b.posY, b.posZ}, INSERT_OPTS)
+			PARAMS[1], PARAMS[2], PARAMS[3] = self.posX + self.size, self.posY, self.posZ + self.size -- Important, position must be out of  unit footprint! 
+			-- GiveOrderToUnit(self.id, CMD_INSERT, {0, CMD.FIGHT, CMD_OPT_SHIFT + SB_INTERNAL, self.posX, self.posY, self.posZ}, INSERT_OPTS)
 			GiveOrderToUnit(self.id, CMD.FIGHT, PARAMS, OPTS)
-		elseif self.fighting or self.unit.isFighting and b.canMove then
+		elseif (self.fighting or self.unit.isFighting) and self.canMove then
 			INSERT_PARAMS[2], INSERT_PARAMS[4] = cmd, target
 			GiveOrderToUnit(self.id, CMD_INSERT, INSERT_PARAMS, INSERT_OPTS)
 		else
@@ -1296,12 +1312,13 @@ function widget:CommandNotify(cmd,params, opt)
 					b.wantCloak = wantCloak
 					applied = true
 					if wantCloak then -- if want cloak remove the automatic orders
-						local curCmd,curTag,curOwn
+						local curCmd, curTag, curOwn, curTgt
 						local queue = spGetCommandQueue(id,2)
 						local current = queue[1]
 
 						if current then
-							curCmd,curTag,curOwn,curTgt = current.id, current.tag, current.options and IsOwnOrder(current.options.coded), not current.params[3] and current.params[1]
+							curCmd, curTag, curOwn, curTgt
+							 = current.id, current.tag, current.options and IsOwnOrder(current.options.coded), not current.params[3] and current.params[1]
 							if not curOwn then
 								if curCmd == CMD_RAW_BUILD then
 									local nex = queue[2]
@@ -1394,13 +1411,11 @@ local UpdateAction = function(b,cmd,params)
 	params = params or EMPTY_TABLE
 	if b.cmd == cmd and b.params[1] == params[1] then
 		Debug.prevision(b.sign .. 'the action has already been registered in the Update process, it is just confirmed in NotifyExecute')
-		-- the action has already been registered in the Update process, it is just confirmed in NotifyExecute
 		return b.action, false
 	end
 	b.cmd, b.params = cmd, params
 	if not (b.action or relevantCmd[cmd]) then
 		Debug.prevision(b.sign .. 'no relevant cmd, no current action, nothing to do')
-		-- no relevant cmd, no current action, nothing to do
 		return false, false
 	end
 	local eChange, mChange = 0, 0
@@ -1456,19 +1471,20 @@ local UpdateAction = function(b,cmd,params)
 	end
 	-- update the eco
 	-- Echo("eChange,mChange is ", eChange,mChange)
+	local debugShowBalance = Debug.showBalance()
 	if eChange ~= 0 then
 		res.eDelta = res.eDelta + eChange * b.buildSpeed
 		res.wantE = res.eMax==0 and -res.eDelta or res.eMax - (max(res.eCur,res.eReserve) + res.eDelta)
 		if res.wantE<res.eMax*0.01 then res.wantE=0 end
 		res.needE = res.eReserve - res.eCur - res.eDelta
-		OrderDraw('balance',Debug.showBalance() and 'E')
+		OrderDraw('balance', debugShowBalance and 'E')
 	end
 	if mChange ~= 0 then
 		res.mDelta = res.mDelta + mChange * b.buildSpeed
 		res.wantM = res.mMax==0 and -res.mDelta or res.mMax - (max(res.mCur,res.mReserve) + res.mDelta)
 		if res.wantM < res.mMax*0.01 then res.wantM = 0 end
 		res.needM = res.mReserve - res.mCur - res.mDelta
-		OrderDraw('balance',Debug.showBalance() and 'M')
+		OrderDraw('balance', debugShowBalance and 'M')
 	end
 
 	b.action = action
@@ -1480,6 +1496,7 @@ local function PutOnListening(b)
 	b.tag = tagConv[b.currentAction]
 	-- b.maincmd, b.mainparams = false, EMPTY_TABLE
 	local actBefore, eBefore, mBefore = b.action, res.eDelta, res.mDelta
+	local needMBefore, needEBefore = res.needM, res.needE
 	local newaction = UpdateAction(b, false)
 	if Debug.prevision() and newaction then
 		Echo(
@@ -1893,7 +1910,6 @@ local function UpdateOrder(bID,b,frame)
 		local somethingToBuild = false
 		local Units = Units
 		local buildTick = res.buildTick
-		local diag = diag
 		local bx, bz = b.posX, b.posZ
 		for i, id in pairs(nearUnits) do
 			local n = Units[id]
@@ -2003,7 +2019,8 @@ local function UpdateOrder(bID,b,frame)
 										n.lastState       = n.dmgPer
 									end
 								else
-									n.hpDelta,n.dmgRate,n.critical,   n.lastHit,n.attack_time,n.lastState = 0,0,false, false,false,false
+									n.hpDelta, n.dmgRate, n.critical, n.lastHit, n.attack_time, n.lastState
+										= 0, 0, false, false, false, false
 								end
 
 								n.dmg                     = n.dmgPer*maxHP
@@ -2022,12 +2039,12 @@ local function UpdateOrder(bID,b,frame)
 							--end
 							-- end
 								LeastPercent              = n.perHP < 1 and                   (not LeastPercent  or   n.perHP < Units[LeastPercent].perHP  ) and id or LeastPercent
-								if n.isDamaged and not n.isGtReclaimed and not n.isHopeless then
-									MostDamaged        = n.isDamaged and                                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamaged
-									MostDamagedDefense = n.isDefense and n.isDamaged and                       (not MostDamaged   or   n.dmgPer    > Units[MostDamaged].dmgPer      ) and id or MostDamagedDefense
-									DmgedComm          = n.isComm and                                          (not DmgedComm     or   HP        < Units[DmgedComm].health[1]            ) and id or DmgedComm
-									Rworthy            = n.rworth and                                          (not Rworthy       or   n.rworth    > Units[Rworthy].rworth          ) and id or Rworthy
-									MostCritical       = n.critical and (n.critical>0) and                     (not MostCritical  or   n.critical  > Units[MostCritical].critical   ) and id or MostCritical
+								if n.isDamaged and not (n.isGtReclaimed or n.isHopeless) then
+									MostDamaged        = n.isDamaged and                                       (not MostDamaged          or   n.dmgPer    > Units[MostDamaged].dmgPer         ) and id or MostDamaged
+									MostDamagedDefense = n.isDefense and n.isDamaged and                       (not MostDamagedDefense   or   n.dmgPer    > Units[MostDamagedDefense].dmgPer  ) and id or MostDamagedDefense
+									DmgedComm          = n.isComm and                                          (not DmgedComm            or   HP          < Units[DmgedComm].health[1]        ) and id or DmgedComm
+									Rworthy            = n.rworth and                                          (not Rworthy              or   n.rworth    > Units[Rworthy].rworth             ) and id or Rworthy
+									MostCritical       = n.critical and (n.critical>0) and                     (not MostCritical         or   n.critical  > Units[MostCritical].critical      ) and id or MostCritical
 
 								elseif n.ReallyDamaged then
 									ReallyDamaged = n.dmg>1 and not n.isHopeless  and (not ReallyDamaged or   n.TrueDamage   > Units[ReallyDamaged].TrueDamage) and id or ReallyDamaged
@@ -2036,7 +2053,7 @@ local function UpdateOrder(bID,b,frame)
 							if not n.isAllied then
 								if n.isGtBuilt  and not n.isGtReclaimed and not n.isEnemy
 									and (n.defID ~= terraunitDefID or buildP>0.01) -- ignoring terraunit not started to be built yet
-									then 
+								then 
 									somethingToBuild = true
 									FinishIt      = n.buildTime and n.buildTime<3
 									 and n.cost>200
@@ -2049,16 +2066,16 @@ local function UpdateOrder(bID,b,frame)
 									CheapUnit     = n.isUnit          and (not CheapUnit     or   n.remb         < Units[CheapUnit].remb   ) and id or CheapUnit
 									Bworthy       = n.bworth          and (not Bworthy       or   n.bworth       > Units[Bworthy].bworth   ) and id or Bworthy
 									Faster        = n.buildTime       and (not Faster        or   n.buildTime    < Units[Faster].buildTime ) and id or Faster
-									if not eStalling and not mStalling then
-										Caretaker     = n.isCaretaker     and (not Caretaker     or   n.remb < Units[Caretaker].remb  ) and id or Caretaker
+									if not (res.Estalling or res.Mstalling) then
+										Caretaker = n.isCaretaker     and (not Caretaker     or   n.remb < Units[Caretaker].remb  ) and id or Caretaker
 									end
 								end
-								if n.remb>0 then
+								if n.remb > 0 then
 									Wind          = n.isWind          and (not Wind          or   n.remb < Units[Wind].remb       ) and id or Wind
 									Solar         = n.isSolar         and (not Solar         or   n.remb < Units[Solar].remb      ) and id or Solar
 									Fusion        = n.isFusion        and (not Fusion        or   n.remb < Units[Fusion].remb     ) and id or Fusion
-									if res.wantM==0 or res.needStorage then
-										 Storage       = n.isStorage     and (not Storage         or   n.remb < Units[Storage].remb  ) and id or Storage
+									if res.wantM == 0 or res.needStorage then
+										Storage   = n.isStorage     and (not Storage         or   n.remb < Units[Storage].remb  ) and id or Storage
 									end
 								end
 							-- else
@@ -2086,7 +2103,7 @@ local function UpdateOrder(bID,b,frame)
 				return true
 			end
 		else
-			debug = function() return true end
+			debug = debugOff
 		end
 		--Debug=true
 
@@ -2186,7 +2203,7 @@ local function UpdateOrder(bID,b,frame)
 		-- cancelling build if we cannot afford it and there is reclaim to take
 		-- unless the build is Energy and we need it
 		if resultM > b.buildSpeed*2 or resultE > b.buildSpeed*2  then
-			Prio2, Prio3, newtarget = nil,nil,nil
+			Prio2, Prio3, new_target = nil,nil,nil
 			if Debug.prevision() then
 				Echo(b.sign .. wantedAction .. ' cancelled', 'needM: ' .. res.needM .. ' => ' .. resultM, 'needE: ' .. res.needE .. ' => ' .. resultE)
 			end
@@ -2259,12 +2276,12 @@ local function UpdateOrder(bID,b,frame)
 			return true
 		end
 	else
-		debug = function() return true end
+		debug = debugOff
 	end
 	local toReclaim = (
-			AttackReclaim     and debug(AttackReclaim-maxUnits,'AttackReclaim')   and AttackReclaim
+		AttackReclaim       and debug(AttackReclaim-maxUnits,'AttackReclaim')   and AttackReclaim
 		or SpecialReclaim   and debug(SpecialReclaim-maxUnits,'SpecialReclaim') and SpecialReclaim
-		or manualTarget     and spValidFeatureID(manualTarget-maxUnits) and debug(manualTarget-maxUnits,'manualTarget') and manualTarget
+		or manualTarget     and spValidFeatureID(manualTarget-maxUnits)         and debug(manualTarget-maxUnits,'manualTarget') and manualTarget
 		or bestFeature      and debug(bestFeature,'bestFeature', FeatureDefs[GetFeatureDefID(bestFeature)].name) and bestFeature + maxUnits 
 	)
 	-- if selBuilders[bID] then
@@ -2456,7 +2473,7 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 		end
 		if newCmd==CMD_INSERT then
 			newCmd = params[2]
-			params = {select(4,params)}
+			params = {select(4,unpack(params))}
 		end
 		if newCmd == CMD_STOP or newCmd == CMD_FIRE_STATE then
 			return
@@ -2478,14 +2495,15 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 		local newOwn = IsOwnOrder(opts.coded)
 		-- Echo("newOwn is ", newOwn,spGetUnitPosition())
 		-- Echo("newOwn,newCmd is ", newOwn,newCmd)
-		local curCmd,curTag,curOwn
+		local curCmd, curTag, curOwn, curTgt
 		local queue = spGetCommandQueue(id,2)
 		local current = queue[1]
 		local nex = queue[2]
 		-- Echo(newCmd,"trackedunit.manual is ", trackedunit.manual,'unit.manual',unit.manual,"unit == trackedunit",unit == trackedunit)
 		-- Echo("trackedunit.holder is ", trackedunit.holder.creation_time,unit.holder.creation_time)
 		if current then
-			curCmd,curTag,curOwn,curTgt = current.id, current.tag, current.options and IsOwnOrder(current.options.coded), not current.params[3] and current.params[1]
+			curCmd, curTag, curOwn, curTgt
+			 = current.id, current.tag, current.options and IsOwnOrder(current.options.coded), not current.params[3] and current.params[1]
 		end
 		-- Echo("newOwn,curOwn, nex.id is ", newOwn,curOwn, nex.id)
 		if current then
@@ -2629,10 +2647,10 @@ function widget:UnitCommand(id, defID, unitTeam, newCmd, params, opts, cmdTag, p
 			-- Echo('non internal order, put b on manual',newCmd)
 			manualTarget = params[1]
 			local unit = spValidUnitID(manualTarget) and not spGetUnitIsDead(manualTarget) and Units[manualTarget]
-			manualCommand =  newCmd == (CMD_REPAIR or newCmd<0) and (unit and (select(5, spGetUnitHealth(manualTarget)))<1 and "building" or "repairing")
+			manualCommand =  newCmd == (newCmd == CMD_REPAIR or newCmd<0) and (unit and (select(5, spGetUnitHealth(manualTarget)))<1 and "building" or "repairing")
 							or newCmd == CMD_RECLAIM and "reclaiming"
 			if manualCommand     == "reclaiming" and unit then unit.isGtReclaimed = true 
-			elseif manualCommand == "building"  and unit then unit.isGtReclaimed = false
+			elseif (manualCommand == "building" or manualCommand == "repairing")  and unit then unit.isGtReclaimed = false
 			end
 			if b.priority == "high" then
 				GiveOrderToUnit(id, CMD_PRIORITY, TABLE_1, SB_INTERNAL)
@@ -2760,10 +2778,10 @@ function widget:GameFrame(frame)
 		end
 	end
 		------------------ full Definition of Energy and Metal States every 30 frames (1 sec in the best time) --------------------
-	if frame >= updateResourceFrame then
+	if frame >= updateResourceFrame and frame%30 == 1 then
 		UpdateResources()
-		updateResourceFrame = currentFrame + UPDATE_RESOURCE_RATE * lag[1]
-		lastResFrame = currentFrame
+		updateResourceFrame = frame + UPDATE_RESOURCE_RATE * lag[1]
+		lastResFrame = frame
 	-- elseif frame % 10 == 1 then
 	--     UpdateResourcesQuick()
 	end
@@ -3090,11 +3108,8 @@ function widget:UnitDestroyed(id, unitDefID, unitTeam)
 	end
 	builders[id] = nil
 	n_builders = n_builders-1
-	BUILDERS_PER_FRAME = n_builders == 0 and 0 or round(UPDATE_RATE/n_builders)
+	UpdateRates()
 	OrderDraw('pos',id)
-	if BUILDERS_PER_FRAME<1 then 
-		BUILDERS_PER_FRAME=1
-	end
 end
 
 function widget:UnitTaken(id, unitDefID, unitTeam)
@@ -3169,7 +3184,7 @@ function widget:DrawWorld()
 				local x,y,z = GetUnitPos(id,5)
 				glDrawGroundCircle(px,py,pz, b.range , 90)
 				glDrawGroundCircle(px,py,pz, 2 , 90)
-				if x~=px and z~=pz then
+				if x ~= px or z ~= pz then
 					-- glLineStipple(2,4095)
 					glLineStipple(true)
 					glBeginEnd(GL_LINES, LineVerts, x,y,z,px,py,pz)
