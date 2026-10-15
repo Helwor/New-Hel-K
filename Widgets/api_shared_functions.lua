@@ -62,12 +62,21 @@ local iconFrameTex = setmetatable(
 local function GetBuildIconFrame(udef)
 	return iconFrameTex[udef]
 end
+local exists = {}
+setmetatable(exists, { -- fixing missing textures for mods
+	__index = function(self, buildpicname)
+		local existing = VFS.FileExists("unitpics_9_11/" .. buildpicname, VFS.RAW_FIRST)
+		rawset(self, buildpicname, existing)
+		return existing
+	end
+})
+
 local function GetSquareBuildTexture(udef)
-	return ("#" .. udef.id)
+	return "#" .. udef.id
 end
 local function GetRectangleBuildTexture(udef)
-	if not udef.buildpicname then
-		return false
+	if not (udef.buildpicname and exists[udef.buildpicname]) then
+		return GetSquareBuildTexture(udef)
 	end
 	return ":l:unitpics_9_11/" .. udef.buildpicname
 end
