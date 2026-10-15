@@ -3232,7 +3232,7 @@ function widget:DrawWorld()
 				--         glPopMatrix()
 				--         glColor(1, 1, 1, 1)
 				-- end
-				local x,y,z = GetUnitPos(id,5)
+				local x,y,z = GetUnitPos(id,-1)
 
 				-- gl.Color(1,1,1,1)
 				-- gl.DrawGroundCircle(x,y,z, b.buildDistance, 90)
