@@ -5,7 +5,7 @@ local aim_from_pieces = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_
 local aim_from_pieces_2 = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_pieces_2.lua')
 local aim_from_poses = VFS.Include(LUAUI_DIRNAME .. '/Widgets/Include/aim_from_poses.lua')
 local commDefID = WG.commDefID
-
+Echo('TEST', aim_from_poses.nebula[5])
 WG.weapRanges = (function()
 	local weapRanges = {}
 	local WeaponDefs = WeaponDefs
@@ -65,8 +65,7 @@ WG.weapRanges = (function()
 					local aimFromUnit = aim_from_pieces[scriptName]
 					local aimFromModel = aim_from_pieces_2[scriptName]
 					local aimPieceModel = type(aimFromModel) == 'table' and aimFromModel[i] or aimFromModel
-					local offY = type(poses) == 'table' and poses[i] or poses
-
+					local offY = type(poses) == 'number' and poses or type(poses) == 'table' and poses[i]
 					if not offY then
 						-- some notable units script doesnt have AimFrom... function
 						-- if wType == 'BeamLaser' or wType == 'BeamLaser' == 'LaserCannon' or wType == 'LightningCannon' then
