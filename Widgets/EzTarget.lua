@@ -2171,6 +2171,7 @@ function widget:MouseRelease(mx,my,button)
 	local mx, my, lmb, mmb, rmb, outsideSpring = spGetMouseState()
 	v.mousePressed = (lmb or mmb or rmb)
 	v.cmdOverride = false
+	updateAllowed = true
 	if not cf2.CF2 then -- 
 		return
 	end
