@@ -128,8 +128,16 @@ if not widgetFiles then
 end
 local source = debug.getinfo(3).source
 local this_widget_file = source:sub(source:find('[%w_]+%.lua'))
-
-------- Verify ourself local widgets due to cawidgets.lua not respecting it
+local this_widget_pat = this_widget_file .. '$'
+local this_widget_index
+local this_widget_name = widget.GetInfo().name
+for i=1, #widgetFiles do
+	if widgetFiles[i]:find(this_widget_pat) then
+		this_widget_index = i
+		break
+	end
+end
+-------WORK AROUND Verify ourself local widgets due to cawidgets.lua not respecting it
 local localWidgetsFirst = false
 local localWidgets = false
 local CONFIG_FILENAME    = LUAUI_DIRNAME .. 'Config/ZK_data.lua'
@@ -174,7 +182,7 @@ end
 if VFSMODE == VFS.ZIP then
 	Echo(sig .. 'User doesn\'t want local widgets, aborting installation process')
 	-- removing the local files that shouldnt be in the list
-	local i, filename = 1, widgetFiles[1]
+	local i, filename = this_widget_index or 1, widgetFiles[1]
 	local count = 0
 	while filename do
 		if not VFS.FileExists(filename, VFS.ZIP) then
@@ -241,16 +249,7 @@ VFS.Include(HELK_CORE_DIR .. "addon_gl.lua")
 
 
 
-local this_widget_pat = this_widget_file .. '$'
-local this_widget_index, on_widget_state_index , add_sleep_wake_index
-local this_widget_name = widget.GetInfo().name
-for i=1, #widgetFiles do
-	if widgetFiles[i]:find(this_widget_pat) then
-		-- Echo('FOUND FILENAME',i,filename)
-		this_widget_index = i
-		break
-	end
-end
+
 if this_widget_index then
 	local function GetLuaFileName(file)
 	    local s, e = file:find('[/\\][^/\\]+%.lua$')
