@@ -1,7 +1,9 @@
 -- Author Helwor
 -- license GNU GPL v2 or later
 local WIDGET_DIR = "LuaUI/Widgets/"
+local UTILITIES_DIR = "LuaUI/Utilities/"
 local HELK_CORE_DIR = WIDGET_DIR .. "Include/helk_core/"
+local sig = '[Hel-K]: '
 
 local apiOrder = {
 	'api_on_widget_state.lua',
@@ -78,7 +80,30 @@ local function GetLocal(func, searchname)
 		j = j + 1
 		name, value = debug.getlocal(found, j)
 		if name == searchname then
-			return value
+			return value, j
+		end
+	end
+end
+
+local function GetUpvalue(func, searchname)
+	local i = 1
+	local found
+	while i < 10 do
+		i = i + 1
+		if debug.getinfo(i,'f').func == func then
+			found = i
+			break
+		end
+	end
+	if not found then
+		return
+	end
+	local j, name, value = 0, true, nil 
+	while name do
+		j = j + 1
+		name, value = debug.getupvalue(func, j)
+		if name == searchname then
+			return value, j
 		end
 	end
 end
@@ -89,7 +114,7 @@ local copy = function(t) local t2 = {} for k,v in pairs(t) do t2[k] = v end retu
 Echo = Spring.Echo
 realHandler = GetRealHandler()
 if not realHandler then
-	Echo('[Hel-K]: FAILED TO INSTALL, Couldn\'t get realHandler')
+	Echo(sig .. 'FAILED TO INSTALL, Couldn\'t get realHandler')
 	return
 end
 local widgetFiles = GetLocal(realHandler.Initialize, 'widgetFiles')
@@ -98,13 +123,105 @@ local widgetFiles = GetLocal(realHandler.Initialize, 'widgetFiles')
 --  Spring.Echo('#'..i, v)
 -- end
 if not widgetFiles then
-	Echo('[Hel-K]: FAILED TO INSTALL, Couldn\'t retrieve widgetFiles')
+	Echo(sig .. 'FAILED TO INSTALL, Couldn\'t retrieve widgetFiles')
 	return
 end
 local source = debug.getinfo(3).source
 local this_widget_file = source:sub(source:find('[%w_]+%.lua'))
 
-Echo('[Hel-K]: Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
+------- Verify ourself local widgets due to cawidgets.lua not respecting it
+local localWidgetsFirst = false
+local localWidgets = false
+local CONFIG_FILENAME    = LUAUI_DIRNAME .. 'Config/ZK_data.lua'
+if VFS.FileExists(CONFIG_FILENAME) then 
+	local cadata = VFS.Include(CONFIG_FILENAME)
+	if cadata and cadata["Local Widgets Config"] then
+		localWidgetsFirst = cadata["Local Widgets Config"].useLocalWidgetsFirst
+		localWidgets = cadata["Local Widgets Config"].useLocalWidgets
+	end
+end
+local wantedVFSMODE, wantedVFSNAME
+wantedVFSNAME = localWidgetsFirst and "RAW_FIRST"
+wantedVFSNAME = wantedVFSNAME or localWidgets and "ZIP_FIRST"
+wantedVFSNAME = wantedVFSNAME or "ZIP"
+if wantedVFSNAME == "ZIP_FIRST" then
+	Echo(sig .. 'WARN: wanted VFSMODE forced to VFS.RAW_FIRST instead of ZIP_FIRST, as it is needed for Hel-K to run correctly')
+	wantedVFSNAME = "RAW_FIRST"
+end
+wantedVFSMODE = VFS[wantedVFSNAME]
+-- verify the current VFS used by cawidgets.lua
+local VFSMODE, upv_index = GetUpvalue(realHandler.Initialize, 'VFSMODE')
+if not VFSMODE then
+	Echo(sig .. 'ERROR: Couldn\'t find the current VFSMODE!')
+	if not localWidgets then
+		Echo(sig .. 'ERROR: User set local widgets to NOT be loaded but we cannot change it, HEL-K WILL BE LOADED ANYWAY')
+	end
+elseif VFSMODE ~= wantedVFSMODE then
+	debug.setupvalue(realHandler.Initialize, upv_index, wantedVFSMODE)
+	VFSMODE = GetUpvalue(realHandler.Initialize, 'VFSMODE')
+	if VFSMODE == wantedVFSMODE then
+		Echo(sig .. 'VFSMODE correctly set to ' .. wantedVFSNAME)
+	else
+		local modeName
+		for k, v in pairs(VFS) do
+			if v == VFSMODE then
+				modeName = k
+			end
+		end
+		Echo(sig .. 'ERROR: Couldn\'t change the current VFSMODE, staying on ' .. modeName)
+	end
+end
+if VFSMODE == VFS.ZIP then
+	Echo(sig .. 'User doesn\'t want local widgets, aborting installation process')
+	-- removing the local files that shouldnt be in the list
+	local i, filename = 1, widgetFiles[1]
+	local count = 0
+	while filename do
+		if not VFS.FileExists(filename, VFS.ZIP) then
+			count = count + 1
+			table.remove(widgetFiles, i)
+		else
+			i = i + 1
+		end
+		filename = widgetFiles[i]
+	end
+	Echo(sig .. 'Removed '.. count ..' purely local widgets from the to-be-loaded widget list.')
+	Echo(sig .. 'Replacing function VFS.Include to prevent accidentally loading annex local files')
+	VFS.oriInclude = VFS.Include
+	VFS.Include = function(filename, env, mode, ...)
+		if not mode then
+			mode = VFS.DEF_MODE
+		end
+		local i_stack
+		if not env then
+			i_stack = 3 -- 3+ in stack where 1 is pcall env, and 2 is here
+			local success
+			while not env and i_stack < 50 do
+				success, env = pcall(getfenv, i_stack)
+				if success then
+					break
+				else 
+					env = nil
+				end
+				i_stack = i_stack + 1
+			end
+		else
+			i_stack = 'custom env' 
+		end
+		local absfile = filename:gsub('\\', '/')
+		if mode == VFS.RAW_FIRST and VFS.FileExists(filename, VFS.ZIP) and (absfile:find(WIDGET_DIR) or absfile:find(UTILITIES_DIR)) then
+			-- Echo('mode changed for ', filename, env, mode, 'env stack #', i_stack, ...)
+			mode = VFS.ZIP
+		else
+			-- Echo('normal include ', filename, env, mode, 'env stack #', i_stack, ...)
+		end
+		return VFS.oriInclude(filename, env, mode, ...)
+	end
+	Echo(sig .. 'Installation process cancelled.')
+	return
+end
+---------
+Echo(sig .. 'Installing at ' .. tostring(this_widget_file) .. '\'s loading.')
 
 VFS.Include(HELK_CORE_DIR .. "def_shortcuts.lua")
 VFS.Include(HELK_CORE_DIR .. "sign_order.lua")
@@ -153,10 +270,10 @@ if this_widget_index then
 		local file = HELK_CORE_DIR .. "widgets/" .. filename
 		if VFS.FileExists(file) then
 			table.insert(widgetFiles, this_widget_index + 1 + off, file)
-			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
+			Echo(sig .. 'Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
 			off = off + 1
 		else
-			Echo('[Hel-K]: WARN IMPORTANT API MISSING: ' .. file)
+			Echo(sig .. 'WARN IMPORTANT API MISSING: ' .. file)
 			anyMissing = true
 		end
 	end
@@ -193,11 +310,11 @@ if this_widget_index then
 	-- 		if index then
 	-- 			if index > this_widget_index then -- not replacing already loaded widget
 	-- 				widgetFiles[index + off] = file
-	-- 				Echo('[Hel-K]: Replaced widget origin ' .. filename .. ' at #' .. index + off)
+	-- 				Echo(sig .. 'Replaced widget origin ' .. filename .. ' at #' .. index + off)
 	-- 			end
 	-- 		else
 	-- 			table.insert(widgetFiles, this_widget_index + 1 + off, file)
-	-- 			Echo('[Hel-K]: Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
+	-- 			Echo(sig .. 'Inserted widget ' .. filename .. ' at #' .. this_widget_index + 1 + off)
 	-- 			off = off + 1
 	-- 		end
 	-- 	end					
@@ -212,13 +329,13 @@ end
 for i, filename in ipairs(includes) do
 	local file = WIDGET_DIR .. "Include/" .. filename
 	if not VFS.FileExists(file, VFS.RAW) then
-		Echo('[Hel-K]: MISSING FILE: ' .. file)
+		Echo(sig .. 'MISSING FILE: ' .. file)
 	end
 end
 for i, filename in ipairs(importantWidgets) do
 	local file = WIDGET_DIR .. filename
 	if not VFS.FileExists(file, VFS.RAW) then
-		Echo('[Hel-K]: IMPORTANT FILE MISSING: ' .. file)
+		Echo(sig .. 'IMPORTANT FILE MISSING: ' .. file)
 	end
 end
 
