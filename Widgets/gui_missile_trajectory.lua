@@ -295,21 +295,10 @@ function widget:CommandsChanged()
 	end
 end
 
-function widget:Update()
-	multiPos = false
-	targetPos = false
-	if not next(selectedRockets) then
-		draw = false
-		return
-	end
-
-	local _, activeCmd = spGetActiveCommand()
-	if not allowedCmd[activeCmd] then
-		draw = false
-		return
-	end
-	
+local function GetMultiPos()
+	local multiPos = false
 	local cf2Nodes = WG.TrailHandler and WG.TrailHandler.trails.cf2
+
 	if cf2Nodes and multiSelected and cf2Nodes.interpolated[2] and not cf2Nodes.interpolated[50] then
 		local now = os.clock()
 		if not currentNodeOrder
@@ -343,6 +332,24 @@ function widget:Update()
 	else
 		currentNodeOrder = false
 	end
+	return multiPos
+end
+
+function widget:Update()
+	multiPos = GetMultiPos()
+	targetPos = false
+	if not next(selectedRockets) then
+		draw = false
+		return
+	end
+
+	local _, activeCmd = spGetActiveCommand()
+	if not allowedCmd[activeCmd] then
+		draw = false
+		return
+	end
+	
+
 
 	local _
 	if not multiPos then
