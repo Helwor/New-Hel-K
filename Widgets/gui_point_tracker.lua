@@ -8,7 +8,7 @@ function widget:GetInfo()
 		author    = "Evil4Zerggin",
 		date      = "29 December 2008",
 		license   = "GNU LGPL, v2.1 or later",
-		layer     = 0,
+		layer     = -10e36, -- draw on top of about everything
 		enabled   = true  --  loaded by default?
 	}
 end
@@ -22,44 +22,46 @@ local GetMiniMapFlipped = Spring.Utilities.IsMinimapFlipped
 local blinkPeriod = -1
 local exp_time = 0.7
 local ttl = 13
-local mul = 0.4
-local highlightSize = 32 * mul
-local highlightLineMin = 24 * mul
-local highlightLineMax = 40 * mul
-local edgeMarkerSize = 16
+local mapMarkerSize = 13
+local edgeMarkerSize = 32
 local lineWidth = 1
 local maxAlpha = 1
 local fontSize = 16
 local maxLabelLength = 16
 
-local minimapHighlightSize = 8
-local minimapHighlightLineMin = 6
-local minimapHighlightLineMax = 10
+local minimapMarkerSize = 8
 
 local useFade = true
 local animate = false
 ----------------------------------------------------------------
 --speedups
 ----------------------------------------------------------------
-local ArePlayersAllied = Spring.ArePlayersAllied
-local GetPlayerInfo = Spring.GetPlayerInfo
-local GetTeamColor = Spring.GetTeamColor
-local GetSpectatingState = Spring.GetSpectatingState
+local ArePlayersAllied    = Spring.ArePlayersAllied
+local GetPlayerInfo       = Spring.GetPlayerInfo
+local GetTeamColor        = Spring.GetTeamColor
+local GetSpectatingState  = Spring.GetSpectatingState
 local WorldToScreenCoords = Spring.WorldToScreenCoords
-local glColor = gl.Color
-local glRect = gl.Rect
-local glLineWidth = gl.LineWidth
-local glShape = gl.Shape
-local glPolygonMode = gl.PolygonMode
-local glText = gl.Text
-local max = math.max
-local abs = math.abs
-local strSub = string.sub
-local GL_LINES = GL.LINES
-local GL_TRIANGLES = GL.TRIANGLES
-local GL_LINE = GL.LINE
+
+local glColor        = gl.Color
+local glRect         = gl.Rect
+local glLineWidth    = gl.LineWidth
+local glShape        = gl.Shape
+local glPolygonMode  = gl.PolygonMode
+local glText         = gl.Text
+local glPushMatrix   = gl.PushMatrix
+local glPopMatrix    = gl.PopMatrix
+local glTranslate    = gl.Translate
+local glScale        = gl.Scale
+local glRotate       = gl.Rotate
+
+local abs    = math.abs
+local diag   = math.diag
+
 local GL_FRONT_AND_BACK = GL.FRONT_AND_BACK
-local GL_FILL = GL.FILL
+local GL_LINES          = GL.LINES
+local GL_TRIANGLES      = GL.TRIANGLES
+local GL_LINE           = GL.LINE
+local GL_FILL           = GL.FILL
 
 ----------------------------------------------------------------
 --vars
@@ -67,31 +69,31 @@ local GL_FILL = GL.FILL
 --table; i = {r, g, b, a, px, pz, label, expiration}
 local mapPoints = {}
 local mapPointCount = 0
-local MAP_POINT_LIMIT = 50
+local MAP_POINT_LIMIT = 15
 local myPlayerID
 local timeNow, timePart
 local on = false
 local mapX = Game.mapX * 512
 local mapY = Game.mapY * 512
 local diagScr
-local diagScrHalf
 local vsx, vsy, sMidX, sMidY
 
-local verticlesCache_8 = {
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
+local mapMarkerVerts = {
+	{v = {  0,   -0.75,   0}},
+	{v = {  0,   -1.20,   0}},
+	{v = {  0,    0.75,   0}},
+	{v = {  0,    1.20,   0}},
+	{v = {-0.75,    0,    0}},
+	{v = {-1.20,    0,    0}},
+	{v = { 0.75,    0,    0}},
+	{v = { 1.20,    0,    0}},
 }
 
-local verticlesCache_3 = {
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
-	{v = {0, 0, 0}},
+
+local edgeMarkerVert = {
+	{v = {0.5,  0.5, 0}},
+	{v = { 0,    0,  0}},
+	{v = {0.5, -0.5, 0}},
 }
 
 
@@ -105,6 +107,17 @@ options.animate = {
 	OnChange = function(self)
 		animate = self.value
 	end
+}
+
+options.debug = {
+	name = 'Debugging',
+	type = 'bool',
+	value = debugging,
+	action = 'debugpoint',
+	OnChange = function(self)
+		debugging = self.value
+	end,
+	dev = true,
 }
 
 ----------------------------------------------------------------
@@ -151,8 +164,8 @@ function widget:Shutdown()
 	WG.PointTracker = nil
 end
 
-function widget:DrawScreen()
-	if (not on) then
+function widget:DrawScreen() -- fix some ui like minimap being on top
+	if not on then
 		return
 	end
 	
@@ -164,7 +177,10 @@ function widget:DrawScreen()
 		local time_remain = (curr[6] - timeNow)
 		local time = ttl - time_remain
 		local alpha = (maxAlpha * time_remain / ttl) ^ 2.5
-		if (alpha <= 0.01) then
+		if debugging then
+			Echo('point', i, alpha, curr[6], timeNow, time_remain, (maxAlpha * time_remain / ttl))
+		end
+		if (alpha <= 0.01 or time_remain < 0) then
 			mapPoints[i] = mapPoints[mapPointCount]
 			mapPoints[mapPointCount] = nil
 			mapPointCount = mapPointCount - 1
@@ -172,57 +188,40 @@ function widget:DrawScreen()
 			local sx, sy, sz = WorldToScreenCoords(curr[2], curr[3], curr[4])
 			local inscreen = (sx >= 0 and sy >= 0 and sx <= vsx and sy <= vsy)
 			if inscreen or animate then
-				--in screen
-
 				local expand_fact = 0
 				if animate then
 					expand_fact = exp_time-time
-					expand_fact = expand_fact 
 					local slow_t = exp_time * 0.8
 					if expand_fact > slow_t then
 						local rem = (expand_fact - slow_t)
 						expand_fact = expand_fact + rem^3
 					end
 				end
+				local color = curr[1]
 				if expand_fact > 0 then
-					glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha) - expand_fact*0.75)
+					glColor(color[1], color[2], color[3], math.min(1, alpha) - expand_fact*0.75)
 				else
-					glColor(curr[1][1], curr[1][2], curr[1][3], math.min(1, alpha))
+					glColor(color[1], color[2], color[3], math.min(1, alpha))
 				end
-				verticlesCache_8[1].v[1] = 0
-				verticlesCache_8[2].v[1] = 0
-				verticlesCache_8[3].v[1] = 0
-				verticlesCache_8[4].v[1] = 0
-				verticlesCache_8[5].v[1] = 0 - 0.75
-				verticlesCache_8[6].v[1] = 0 - 1.15
-				verticlesCache_8[7].v[1] = 0 + 0.75
-				verticlesCache_8[8].v[1] = 0 + 1.15
-				
-				verticlesCache_8[1].v[2] = 0 - 0.75
-				verticlesCache_8[2].v[2] = 0 - 1.15
-				verticlesCache_8[3].v[2] = 0 + 0.75
-				verticlesCache_8[4].v[2] = 0 + 1.15
-				verticlesCache_8[5].v[2] = 0
-				verticlesCache_8[6].v[2] = 0
-				verticlesCache_8[7].v[2] = 0
-				verticlesCache_8[8].v[2] = 0
-				
+			
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-				gl.PushMatrix()
-				gl.Translate(sx , sy , 0)
-				local scale = highlightSize
+				glPushMatrix()
+				glTranslate(sx , sy , 0)
+				local scale = mapMarkerSize
 				if expand_fact > 0 then
 					-- glLineWidth(lineWidth * (1+expand_fact*2))
-					gl.Rotate(-100 * expand_fact, 0, 0, 1)
-					local scr_dist = math.diag(sx - vsx/2, sy - vsy/2)
-					glLineWidth(lineWidth + 7*expand_fact*scr_dist/diagScr)
-					scale = scale * (1 + expand_fact * scr_dist / (highlightSize/2))
+					glRotate(-100 * expand_fact, 0, 0, 1)
+					local scr_dist = diag(sx - vsx/2, sy - vsy/2)
+					glLineWidth(lineWidth + 7 * expand_fact * scr_dist / diagScr)
+					-- scale = scale * (1 + expand_fact * scr_dist / (mapMarkerSize/2))
+					scale = scale + 2 * expand_fact * scr_dist -- same but simpler
 				end
-				gl.Scale(scale, scale, 1)
-				glRect(- 1, - 1, 1, 1)
-				glShape(GL_LINES, verticlesCache_8)
-				gl.PopMatrix()
-			else
+				glScale(scale, scale, 1)
+				glRect(-1, -1, 1, 1)
+				glShape(GL_LINES, mapMarkerVerts)
+				glPopMatrix()
+			end
+			if not inscreen then
 				--out of screen
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 				--flip if behind screen
@@ -233,62 +232,41 @@ function widget:DrawScreen()
 				local xRatio = sMidX / abs(sx - sMidX)
 				local yRatio = sMidY / abs(sy - sMidY)
 				local edgeDist, textX, textY, textOptions
+				glPushMatrix()
+
 				if (xRatio < yRatio) then
 					edgeDist = (sy - sMidY) * xRatio + sMidY
-					if (sx > 0) then
-						verticlesCache_3[1].v[1] = vsx
-						verticlesCache_3[2].v[1] = vsx - edgeMarkerSize
-						verticlesCache_3[3].v[1] = vsx - edgeMarkerSize
-						
-						verticlesCache_3[1].v[2] = edgeDist
-						verticlesCache_3[2].v[2] = edgeDist + edgeMarkerSize
-						verticlesCache_3[3].v[2] = edgeDist - edgeMarkerSize
-						
-						textX = vsx - edgeMarkerSize
-						textY = edgeDist - fontSize * 0.5
+					textY = edgeDist - fontSize * 0.5
+					if (sx > 0) then -- on right
+						glTranslate(vsx, edgeDist, 0)
+						glRotate(180, 0, 0, 1)
+						textX = vsx - edgeMarkerSize/2
 						textOptions = "rn"
-					else
-						verticlesCache_3[1].v[1] = 0
-						verticlesCache_3[2].v[1] = edgeMarkerSize
-						verticlesCache_3[3].v[1] = edgeMarkerSize
-						
-						verticlesCache_3[1].v[2] = edgeDist
-						verticlesCache_3[2].v[2] = edgeDist - edgeMarkerSize
-						verticlesCache_3[3].v[2] = edgeDist + edgeMarkerSize
-						
-						textX = edgeMarkerSize
-						textY = edgeDist - fontSize * 0.5
+					else -- on left
+						glTranslate(0, edgeDist, 0)
+						textX = edgeMarkerSize/2
 						textOptions = "n"
 					end
 				else
 					edgeDist = (sx - sMidX) * yRatio + sMidX
-					if (sy > 0) then
-						verticlesCache_3[1].v[1] = edgeDist
-						verticlesCache_3[2].v[1] = edgeDist - edgeMarkerSize
-						verticlesCache_3[3].v[1] = edgeDist + edgeMarkerSize
-						
-						verticlesCache_3[1].v[2] = vsy
-						verticlesCache_3[2].v[2] = vsy - edgeMarkerSize
-						verticlesCache_3[3].v[2] = vsy - edgeMarkerSize
-						
-						textX = edgeDist
-						textY = vsy - edgeMarkerSize - fontSize
+					textX = edgeDist
+					if (sy > 0) then -- on top
+						glTranslate(edgeDist, vsy, 0)
+						glRotate(270, 0, 0, 1)
+						textY = vsy - edgeMarkerSize/2 - fontSize
 						textOptions = "cn"
-					else
-						verticlesCache_3[1].v[1] = edgeDist
-						verticlesCache_3[2].v[1] = edgeDist + edgeMarkerSize
-						verticlesCache_3[3].v[1] = edgeDist - edgeMarkerSize
-						
-						verticlesCache_3[1].v[2] = 0
-						verticlesCache_3[2].v[2] = edgeMarkerSize
-						verticlesCache_3[3].v[2] = edgeMarkerSize
-						
-						textX = edgeDist
-						textY = edgeMarkerSize
+					else -- on bottom
+						glTranslate(edgeDist, 0, 0)
+						glRotate(90, 0, 0, 1)
+						textY = edgeMarkerSize*3/4
 						textOptions = "cn"
 					end
 				end
-				glShape(GL_TRIANGLES, verticlesCache_3)
+				local color = curr[1]
+				glColor(color[1], color[2], color[3], alpha)
+				glScale(edgeMarkerSize, edgeMarkerSize, 1)
+				glShape(GL_TRIANGLES, edgeMarkerVert)
+				glPopMatrix()
 				glColor(1, 1, 1, alpha)
 				glText(curr[5], textX, textY, fontSize, textOptions)
 			end
@@ -306,14 +284,10 @@ function widget:ViewResize(viewSizeX, viewSizeY)
 	vsy = viewSizeY
 	sMidX = viewSizeX * 0.5
 	sMidY = viewSizeY * 0.5
-	diagScr = math.diag(vsx,vsy)
-	diagScrHalf = diagScr * 0.5
+	diagScr = diag(vsx,vsy)
 end
 
 function widget:MapDrawCmd(playerID, cmdType, px, py, pz, label)
-	if mapPointCount >= MAP_POINT_LIMIT then
-		return
-	end
 	if (not timeNow) then
 		StartTime()
 	end
@@ -329,8 +303,12 @@ function widget:MapDrawCmd(playerID, cmdType, px, py, pz, label)
 	local color = {r, g, b}
 	local expiration = timeNow + ttl
 	
-	mapPointCount = mapPointCount + 1
-	mapPoints[mapPointCount] = {color, px, py, pz, strSub(label, 1, maxLabelLength), expiration}
+	if mapPointCount < MAP_POINT_LIMIT then
+		mapPointCount = mapPointCount + 1
+	else
+		table.remove(mapPoints, 1)
+	end
+	mapPoints[mapPointCount] = {color, px, py, pz, label:sub(1, maxLabelLength), expiration}
 end
 
 function widget:Update(dt)
@@ -375,28 +353,14 @@ function widget:DrawInMiniMap(sx, sy)
 			mapPoints[mapPointCount] = nil
 			mapPointCount = mapPointCount - 1
 		else
-			glColor(curr[1][1], curr[1][2], curr[1][3], alpha)
-			verticlesCache_8[1].v[1] = x
-			verticlesCache_8[2].v[1] = x
-			verticlesCache_8[3].v[1] = x
-			verticlesCache_8[4].v[1] = x
-			verticlesCache_8[5].v[1] = x - minimapHighlightLineMin
-			verticlesCache_8[6].v[1] = x - minimapHighlightLineMax
-			verticlesCache_8[7].v[1] = x + minimapHighlightLineMin
-			verticlesCache_8[8].v[1] = x + minimapHighlightLineMax
-			
-			verticlesCache_8[1].v[2] = y - minimapHighlightLineMin
-			verticlesCache_8[2].v[2] = y - minimapHighlightLineMax
-			verticlesCache_8[3].v[2] = y + minimapHighlightLineMin
-			verticlesCache_8[4].v[2] = y + minimapHighlightLineMax
-			verticlesCache_8[5].v[2] = y
-			verticlesCache_8[6].v[2] = y
-			verticlesCache_8[7].v[2] = y
-			verticlesCache_8[8].v[2] = y
-			
-			glRect(x - minimapHighlightSize, y - minimapHighlightSize, x + minimapHighlightSize, y + minimapHighlightSize)
-			glShape(GL_LINES, verticlesCache_8)
-			
+			local color = curr[1]
+			glColor(color[1], color[2], color[3], alpha)
+			glPushMatrix()
+			glTranslate(x, y, 0)
+			glScale(minimapMarkerSize, minimapMarkerSize, 1)
+			glRect(- 1, - 1, 1, 1)
+			glShape(GL_LINES, mapMarkerVerts)
+			glPopMatrix()
 			i = i + 1
 		end
 	end
