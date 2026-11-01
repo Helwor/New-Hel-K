@@ -18,7 +18,7 @@ if Spring.GetModOptions().singleplayercampaignbattleid then
 
 	return
 end
-local countryFull = VFS.Include("Include/countryShortname.lua")
+local countryFull = VFS.Include(LUAUI_DIRNAME .. "Widgets/Include/countryShortname.lua")
 local LOG_RES = false
 
 --------------------------------------------------------------------------------
