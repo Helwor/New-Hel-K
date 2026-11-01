@@ -18,9 +18,9 @@ if Spring.GetModOptions().singleplayercampaignbattleid then
 
 	return
 end
-local countryFull = VFS.Include("LuaMenu/configs/countryShortname.lua")
+local countryFull = VFS.Include("Include/countryShortname.lua")
 local LOG_RES = false
--- A test game: http://zero-k.info/Battles/Detail/797379
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
