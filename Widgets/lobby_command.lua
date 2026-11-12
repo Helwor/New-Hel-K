@@ -50,12 +50,14 @@ function widget:Initialize()
         --     userName, message = message:match('^[/!]p?[wm] ([%w_]+) (.+)')
 
         if command:find('^join')
-        or command:find('^open ')
-        or command:find('^reload api')
-        or command:find('^reload lobby ')
-        or command:find('^pm ')
-        or command:find('^tell ')
-        or command:find('^getrunningsince')
+            or command:find('^open ')
+            or command:find('^reload api')
+            or command:find('^reload lobby ')
+            or command:find('^pm ')
+            or command:find('^tell ')
+            or command:find('^getrunningsince')
+            or command:find('^get_userinfo')
+            or command:find('^get_mybattleinfo')
         then
             WG.SocketClient:Send(command) -- my own method before I knew
             return
@@ -107,6 +109,7 @@ end
 function widget:Shutdown()
     if widgetHandler.__ConfigureLayout then
         widgetHandler.ConfigureLayout = widgetHandler.__ConfigureLayout
+        widgetHandler.__ConfigureLayout = nil
     end
 end
 if f then
