@@ -19,7 +19,9 @@ if Spring.GetModOptions().singleplayercampaignbattleid then
 	return
 end
 local countryFull = VFS.Include(LUAUI_DIRNAME .. "Widgets/Include/countryShortname.lua")
-local LOG_RES = false
+local displayResources = false
+local debugging = false
+local isMatchMaker = false
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -28,14 +30,28 @@ local myAllyTeamID          = Spring.GetMyAllyTeamID()
 local myTeamID              = Spring.GetMyTeamID()
 local myPlayerID            = Spring.GetMyPlayerID()
 local mySpectating          = Spring.GetSpectatingState()
+
+
 local spGetPlayerRulesParam = Spring.GetPlayerRulesParam
+local spGetTeamRulesParam   = Spring.GetTeamRulesParam
+local spGetGameRulesParam   = Spring.GetGameRulesParam
 local spGetPlayerList 		= Spring.GetPlayerList
 local spGetPlayerInfo		= Spring.GetPlayerInfo
 local spGetTeamInfo			= Spring.GetTeamInfo
-if mySpectating then
-	myTeamID = false
-	myAllyTeamID = false
-end
+local spGetTeamList         = Spring.GetTeamList
+local spGetGaiaTeamID       = Spring.GetGaiaTeamID
+local spGetGameFrame        = Spring.GetGameFrame
+local spGetAIInfo           = Spring.GetAIInfo
+local spGetTeamColor        = spGetTeamColor
+local spGetUnitTeam         = Spring.GetUnitTeam
+local spGetTeamColor        = Spring.GetTeamColor
+
+local min   = math.min
+local max   = math.max
+local ceil  = math.ceil
+local floor = math.floor
+
+
 local fallbackAllyTeamID    = Spring.GetMyAllyTeamID()
 
 local Chili
@@ -43,13 +59,28 @@ local Chili
 local function GetColorChar(colorTable)
 	if colorTable == nil then return string.char(255,255,255,255) end
 	local col = {}
-	for i = 1, 4 do
-		col[i] = math.ceil(colorTable[i]*255)
+	for i = 1, 3 do
+		col[i] = max(colorTable[i]*255, 1)
 	end
-	return string.char(col[4],col[1],col[2],col[3])
+	return string.char(255,col[1],col[2],col[3])
 end
 local function coloredString(str,color)
-	return '\255' .. string.char(color[1]*255) .. string.char(color[2]*255) ..  string.char(color[3]*255) .. str .. '\008'
+	return '\255'
+		.. string.char(max(color[1]*255, 1))
+		.. string.char(max(color[2]*255, 1))
+		.. string.char(max(color[3]*255, 1))
+		.. str
+		.. '\008'
+end
+
+local Truncate = function(v, max_length)
+	if type(v) == 'string' then
+		local len = #v
+		if len > 3 and len > max_length - 3 then
+			v = v:sub(1, max_length - 3) .. '...'
+		end
+	end
+	return v
 end
 
 local pingCpuColors = {
@@ -62,7 +93,8 @@ local pingCpuColors = {
 }
 
 local playerInfo
-
+local myControls
+local ShareUnits
 local ALLY_COLOR  = {0, 1, 1, 1}
 local ENEMY_COLOR = {1, 0, 0, 1}
 
@@ -71,10 +103,10 @@ local PING_TIMEOUT = 2 -- seconds
 local MAX_NAME_LENGTH = 100
 local SHOW_TEAMID = false
 
-local UPDATE_PERIOD = 1
+local pingUpdatePeriod = 1
 local DEFAULT_TEXT_HEIGHT = 13
-local IMAGE_SHARE  = ":n:" .. LUAUI_DIRNAME .. "Images/playerlist/share.png"
-local IMAGE_CPU    = ":n:" .. LUAUI_DIRNAME .. "Images/playerlist/cpu.png"
+local IMAGE_SHARE  = "" .. LUAUI_DIRNAME .. "Images/gift2.png"
+local IMAGE_CPU    = ":n:" .. LUAUI_DIRNAME .. "Images/playerlist/cpu.png" -- :n: is for nearest (pixelated)
 local IMAGE_PING   = ":n:" .. LUAUI_DIRNAME .. "Images/playerlist/ping.png"
 local IMAGE_METAL  = 'LuaUI/Images/ibeam.png'
 local IMAGE_ENERGY = 'LuaUI/Images/energy.png'
@@ -88,8 +120,10 @@ local LAGOUT_FLASH_THRESHOLD = 4 -- ping threshold in seconds where player start
 local BLINK_PERIOD = 1.25 -- total time on/off blink for flashing player
 local BLINK_END = BLINK_PERIOD * 4.5 -- timeout where it stop blinking and stay permanent redish
 local laggingOut = {} -- holder of player's mainControl to colorize
-local time = 0 -- real time spent
-
+local time = 0 -- real time spen
+local godmode = Spring.IsGodModeEnabled()
+local cheating = Spring.IsCheatingEnabled()
+local initialized = false
 local res_tooltip_mod_info = table.concat({
 	"Give " .. defaultamount,
 	"Shift: Give " .. 5 * defaultamount,
@@ -98,24 +132,162 @@ local res_tooltip_mod_info = table.concat({
 	"Alt + Shift: Give max for ".. CONTINUE_TIME .." seconds.",
 }, '\n')
 
+local playerlistWindow
+local scrollPanel
+local stackPanel
+local header
+local listControls = {}
+local controlsByPlayerID = {}
+local controlsByTeamID = {}
+local updatePlayers = {}
+local updateTeams = {}
 
+local resortRequired, recolorRequired, updateButtons = false, false, false
+
+
+options_path = 'Settings/HUD Panels/Player List'
+local helk_path = 'Hel-K/'..widget.GetInfo().name
+options_order = {'text_height', 'backgroundOpacity', 'alignToTop', 'give_to_hovered', 'show_res', 'debugging'}
+options = {
+	text_height = {
+		name = 'Font Size (10-18)',
+		type = 'number',
+		value = DEFAULT_TEXT_HEIGHT,
+		min = 10, max = 18, step = 1,
+		OnChange = function() initialized = false end,
+		advanced = true
+	},
+	backgroundOpacity = {
+		name = "Background opacity",
+		type = "number",
+		value = 0, min = 0, max = 1, step = 0.01,
+		OnChange = function(self)
+			if playerlistWindow then
+				playerlistWindow.backgroundColor = {1,1,1,self.value}
+				playerlistWindow.borderColor = {1,1,1,self.value}
+				playerlistWindow:Invalidate()
+			end
+		end,
+	},
+	alignToTop = {
+		name = "Align to top",
+		type = 'bool',
+		value = false,
+		desc = "Align list entries to top (i.e. don't push to bottom)",
+		OnChange = function() resortRequired = true end,
+	},
+	give_to_hovered = {
+		type = 'button',
+		value = false,
+		name = 'Give To Hovered',
+		desc = 'Give the selected units to the hovered team (hotkey needed)',
+		action = 'givetohovered',
+		OnChange = function(self)
+			local underID = WG.PreSelection_GetUnitUnderCursor()
+			if underID then
+				local teamID = spGetUnitTeam(underID)
+				if teamID then
+					if teamID ~= myTeamID then
+						local controls = controlsByTeamID[teamID]
+						if controls then
+							if not controls.btnShare:DisableFunc() then
+								ShareUnits(nil, teamID)
+								return true
+							else
+								Echo('> Impossible to give units in that situation')
+							end
+						end
+					else
+						Echo('> Not giving units to self')
+					end
+				end
+			end
+		end,
+		path = helk_path,
+	},
+	show_res = {
+		type = 'bool',
+		value = displayResources,
+		name = 'Show Player Resources',
+		OnChange = function(self)
+			if displayResources ~= self.value then
+				displayResources = self.value
+				for i, controls in ipairs(listControls) do
+					local entry = controls.entry
+					if controls.btnMetal and not controls.entry.isSpec then
+						if displayResources then
+							controls.btnMetal:RemoveChild(controls.btnMetal.children[1]) -- remove image
+							controls.btnMetal:SetCaption('0')
+							controls.btnEnergy:RemoveChild(controls.btnEnergy.children[1]) -- remove image
+							controls.btnEnergy:SetCaption('0')
+
+							controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+							controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+
+						else
+							Chili.Image:New {
+								name = "imMetal",
+								x = 0,
+								y = 0,
+								right = 0,
+								bottom = 0,
+								parent = controls.btnMetal,
+								keepAspect = true,
+								file = IMAGE_METAL,
+							}
+							controls.btnMetal:SetCaption('')
+							Chili.Image:New {
+								name = "imEnergy",
+								x = 0,
+								y = 0,
+								right = 0,
+								bottom = 0,
+								parent = controls.btnEnergy,
+								keepAspect = true,
+								file = IMAGE_ENERGY,
+							}
+							controls.btnEnergy:SetCaption('')
+							controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+							controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+						end
+					end
+				end
+			end
+		end,
+		path = helk_path,
+	},
+	debugging = {
+		name = 'Debug via tooltip',
+		type = 'bool',
+		value = debugging,
+		OnChange = function(self)
+			initialized = false
+			debugging = self.value
+		end,
+		dev = true,
+		path = helk_path,
+	}
+}
+--------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 local function PingTimeOut(pingTime)
 	if pingTime < 1 then
-		return "Ping " .. (math.floor(pingTime*1000) ..'ms')
+		return "Ping " .. (floor(pingTime*1000) ..'ms')
 	elseif pingTime > 999 then
-		return "Ping " .. ('' .. (math.floor(pingTime*100/60)/100)):sub(1,4) .. 'min'
+		return "Ping " .. ('' .. (floor(pingTime*100/60)/100)):sub(1,4) .. 'min'
 	end
-	--return (math.floor(pingTime*100))/100
-	return "Ping " .. ('' .. (math.floor(pingTime*100)/100)):sub(1,4) .. 's' --needed due to rounding errors.
+	--return (floor(pingTime*100))/100
+	return "Ping " .. ('' .. (floor(pingTime*100)/100)):sub(1,4) .. 's' --needed due to rounding errors.
 end
 
 local function CpuUsageOut(cpuUsage)
-	return "CPU usage " .. math.ceil(cpuUsage*100) .. "%"
+	return "CPU usage " .. ceil(cpuUsage*100) .. "%"
 end
+
+local grey = {0.6, 0.6, 0.6, 1}
 
 local function ToGrey(v)
 	if v < 0.6 then
@@ -124,50 +296,110 @@ local function ToGrey(v)
 	return 0.6 + 0.1*(v - 0.6)
 end
 
-local function GetName(name, font, state)
-	if state.isDead then
-		name = "[D] " .. name
-	elseif state.isLagging then
-		name = "[L] " .. name
-	elseif state.isWaiting then
-		if state.isSpec and (state.isGone or state.isConnecting) then
-			if state.isGone then
-				name = "[G] " .. name
-			else
-				name = "[C] " .. name
-			end
-		else
-			name = "[W] " .. name
-		end
-
-		
-	elseif state.isAfk then
-		name = "[afk] " .. name
+local function ColoredGrey(v)
+	if v < 0.6 then
+		return 0.6 - 0.6*(0.6 - v)
 	end
-	
+	return 0.6 + 0.25*(v - 0.6)
+end
+
+local function Darken(r, g, b, malus)
+	local mul = 1 - malus
+	return r * mul, g * mul, b * mul
+end
+
+local unicodes = {
+	ELECTRICITY = string.char(226, 154, 161),        -- ⚡
+	HOUR_GLASS = string.char(226, 143, 179),         -- ⏳
+	SKULL = string.char(240, 159, 146, 128),         -- 💀
+	ZZZ = string.char(240, 159, 146, 164),           -- 💤
+	THEATER_MASKS = string.char(240, 159, 142, 173), -- 🎭
+	TWO_PERSONS = string.char(240, 159, 145, 165),   -- 👥
+	ARROW_RIGHT = string.char(226, 134, 146),        -- →
+	ELECTRIC_PLUG = string.char(240, 159, 148, 140), -- 🔌
+	ARROW_RETURN = string.char(226, 134, 170),       -- ↪
+	SMALL_SPACE = string.char(226, 128, 134),        -- small space
+	HAIR_SPACE = string.char(226, 128, 138),         -- hair space
+}
+
+local SYMB_CONNECTING    = unicodes.ELECTRICITY
+local SYMB_LAG           = unicodes.HAIR_SPACE .. unicodes.HOUR_GLASS .. unicodes.HAIR_SPACE
+local SYMB_DEAD          = unicodes.SKULL
+local SYMB_AFK           = unicodes.ZZZ .. unicodes.HAIR_SPACE:rep(2)
+local SYMB_SQUAD         = unicodes.TWO_PERSONS
+local SYMB_IMPERSONATION = unicodes.THEATER_MASKS
+local SYMB_GONE          = unicodes.ARROW_RETURN .. unicodes.SMALL_SPACE-- best pick I think
+
+local function GetName(entry, font)
+	local name = entry.name
+	if not entry.name:find('unknown') then
+		if entry.isDead then
+			name = SYMB_DEAD .. name
+		end
+		if entry.isAfk then
+			name = SYMB_AFK .. name
+		end
+		if entry.isLagging then
+			name = SYMB_LAG .. name
+		elseif entry.isGone then
+			name = SYMB_GONE .. name
+		elseif entry.isConnecting then
+			name = SYMB_CONNECTING .. name
+		end
+	end
+	if entry.impersonating then
+		-- name = coloredString('<', {spGetTeamColor(entry.teamID)}) .. name
+		if entry.isSpec then
+			name = coloredString(SYMB_IMPERSONATION, grey) .. name
+		else
+			name = coloredString(SYMB_IMPERSONATION, {spGetTeamColor(entry.teamID)}) .. name
+		end
+	end
+	if not entry.initSpec then
+		local squad = spGetPlayerList(entry.initTeamID)
+		local playerID = entry.playerID
+		for i, thisPlayerID in ipairs(squad) do
+			if playerID ~= thisPlayerID or entry.isAiTeam then
+				local thisControls = controlsByPlayerID[thisPlayerID]
+				local thisEntry = thisControls.entry
+				name = coloredString(SYMB_SQUAD, thisEntry.initSpec and grey or {spGetTeamColor(thisEntry.initTeamID)}) .. name
+			end
+		end
+	end
+
 	if not font then
 		return name
 	end
+
 	return Spring.Utilities.TruncateStringIfRequiredAndDotDot(name, font, MAX_NAME_LENGTH) or name
 end
 
-local function GetPlayerTeamColor(teamID, isDead, specGone)
-	local r, g, b, a = Spring.GetTeamColor(teamID)
-	if specGone then
-		r,g,b,a = 0.3,0.3,0.3,1
-	elseif isDead then
-		r, g, b = ToGrey(r), ToGrey(g), ToGrey(b)
+
+local function GetPlayerTeamColor(entry)
+	local teamID = entry.initSpec and entry.teamID or entry.initTeamID
+	local r, g, b
+	if entry.initSpec then
+		r, g, b = grey[1], grey[2], grey[3]
+	else
+		r, g, b = spGetTeamColor(teamID)
+		if entry.isDead and not entry.impersonating then
+			r, g, b = ColoredGrey(r), ColoredGrey(g), ColoredGrey(b)
+		end
 	end
-	return {r, g, b, a}
+	local darkMalus = (not entry.isActive and 0.20 or 0) * (entry.initSpec and 2 or 1) + (entry.isDead and 0.1 or 0)
+	r, g, b = Darken(r, g, b, math.min(darkMalus, 0.4))
+
+	return {r, g, b, 1}
 end
 
 local function GetTeamName(teamID)
 	local name
-	local _, leader, _, isAI = Spring.GetTeamInfo(teamID, false)
+	local _, leader, _, isAI = spGetTeamInfo(teamID, false)
 	if isAI then
 		name = select(2,Spring.GetAIInfo(teamID))
+
 	else
- 		name = select(1,Spring.GetPlayerInfo(leader, false))
+ 		name = select(1,Spring.GetPlayerInfo(leader > -1 and leader or teamID, false))
 	end
 	local playerslist = Spring.GetPlayerList(teamID, true)
 	if #playerslist > 1 then
@@ -176,13 +408,16 @@ local function GetTeamName(teamID)
 	return name
 end
 
-local function FilterOwnUnits(defIDs, count)
-	if not Spring.IsGodModeEnabled() then
-		return count
-	end
+local function FilterOwnUnits(defIDs, count, toTeam)
+	-- local godmode, allyControl, enemyControl = Spring.IsGodModeEnabled()
+	-- if not godmode then
+	-- 	return count
+	-- end
 	local myTeamID = Spring.GetMyTeamID()
 	local GetUnitTeam = Spring.GetUnitTeam
+	local AreTeamsAllied = Spring.AreTeamsAllied
 	local tremove = table.remove
+	-- Echo("myTeamID:"..tostring(myTeamID), 'count', count, 'godmode', godmode, 'allyControl', allyControl, 'enemyControl', enemyControl)
 	for defID, units in pairs(defIDs) do
 		local i = 1
 		local unitID = units[i]
@@ -203,9 +438,10 @@ local function FilterOwnUnits(defIDs, count)
 end
 
 
-local function ShareUnits(playername, teamID)
+function ShareUnits(playername, teamID)
+	-- ENGINE LIMITATION: sadly it is not possible to give units from other controlled team than the original
 	if not teamID then
-		Spring.Echo('Player List: Invalid team to share.')
+		Spring.Echo('Player List: Invalid team', teamID, 'to share.')
 		return
 	end
 	playername = playername or GetTeamName(teamID)
@@ -215,33 +451,46 @@ local function ShareUnits(playername, teamID)
 		return
 	end
 	local sel = Spring.GetSelectedUnitsSorted()
-	selcnt = FilterOwnUnits(sel, selcnt)
+	selcnt = FilterOwnUnits(sel, selcnt, teamID)
 	if selcnt == 0 then
 		Echo('Player List: No own units in selection to share.')
 		return
 	end
 	local names = ''
-	local count = 0
-	local maxcount = 3
+	local typecount = 0
+	local maxtypecount = 3
 	for defID, t in pairs(sel) do
 		local name = UnitDefs[defID].humanName
 		if name then
-			count = count + 1
-			if count > maxcount then
+			typecount = typecount + 1
+			if typecount > maxtypecount then
 				names = names .. '..., '
 				break
 			else
-				names = names .. name .. ', '
+				names = names .. #t .. ' ' .. name .. ', '
 			end
 		end
 	end
 	names = names:sub(1,-3)
-	
-	if names == '' then
-		Spring.SendCommands("say a: I gave " .. selcnt .. " units to " .. playername .. ".")
+	local comment
+	if names == "" then
+		comment = "gave " .. selcnt .. " units to " .. playername .. "."
 	else
-		Spring.SendCommands("say a: I gave " .. selcnt .. ' ' .. names.. " to " .. playername .. ".")
+		if typecount > maxtypecount then
+			names = names .. " ("..selcnt..")"
+		end
+		comment = "gave " .. names.. " to " .. playername .. "."
 	end
+	if myTeamID ~= myControls.entry.initTeamID then
+		comment = ('['..GetTeamName(myTeamID)..'] ') .. comment
+		-- sadly can't work
+		-- Echo('> Engine doesn\'t allow to transfer unit from impersonated team')
+		-- return
+	else 
+		comment = 'I ' .. comment
+	end
+
+	Spring.SendCommands("say a:" .. comment)
 	Spring.ShareResources(teamID, "units")
 end
 local function GetResource(target, kind)
@@ -252,8 +501,23 @@ local function GetResource(target, kind)
 		return tgtCurr, tgtStor, maxfill
 	end
 end
-local function GiveResource(target, kind, mod, quiet) -- directly copied from gui_chili_share.lua, the TAB playlist
-	--mod = 20,500,all
+local function GiveResource(teamID, target, kind, mod, quiet) -- directly copied from gui_chili_share.lua, the TAB playlist
+	-- ENGINE LIMITATION: cannot transfer resource accross different ally team
+	local tgtCurr, tgtStor, maxfill = GetResource(target, kind)
+	local prefix
+	local comment
+	if tgtStor == nil then
+		Echo('> Engine doesn\'t allow to transfer resource across different ally teams')
+		return
+	end
+
+	if myTeamID ~= WG.myInitialTeamID or mySpectating then
+		prefix = '['..GetTeamName(myTeamID)..'] '
+	else 
+		prefix = ' I '
+	end
+
+
 	if not mod then
 		local alt,ctrl,_,shift = Spring.GetModKeyState()
 		if alt and shift then
@@ -271,44 +535,50 @@ local function GiveResource(target, kind, mod, quiet) -- directly copied from gu
 	local name = GetTeamName(target)
 
 	local num = 0
-	local currentResourceValue = Spring.GetTeamResources(select(1, Spring.GetMyTeamID(), kind))
+
+	local currentResourceValue = Spring.GetTeamResources(select(1, teamID, kind))
 	if mod == "continue" then
 		CONTINUE[kind] = {time = os.clock() + CONTINUE_TIME, target = target, next_time = os.clock() + CONTINUE_FREQUENCY}
 		if not quiet then
-			Spring.SendCommands("say a: Giving continued " .. kind .. " to " .. name .. " for " .. CONTINUE_TIME .. " seconds.")
+			Spring.SendCommands("say a:" .. prefix .. "Giving continued " .. kind .. " to " .. name .. " for " .. CONTINUE_TIME .. " seconds.")
 			quiet = true
 		end
 		num = currentResourceValue
 	elseif mod == "all" then
 		num = currentResourceValue
 	elseif mod ~= nil then
-		num = math.min(mod, currentResourceValue)
+		num = min(mod, currentResourceValue)
 	else
 		return
 	end
 
 
-	local tgtCurr, tgtStor, maxfill = GetResource(target, kind)
-
-	if tgtStor <= 0 then
-		if not quiet then
-			Echo(name .. " don't have " .. kind .. ' storage')
+	local comment
+	if tgtStor ~= nil then
+		if tgtStor <= 0 then
+			if not quiet then
+				Echo(name .. " don't have " .. kind .. ' storage')
+			end
+			return
 		end
-		return
-	end
 
-	if maxfill <= 0 then
-		if not quiet then
-			Echo(name .. "'s " .. kind .. ' storage is full')
+		if maxfill <= 0 then
+			if not quiet then
+				Echo(name .. "'s " .. kind .. ' storage is full')
+			end
+			return
 		end
-		return
-	end
 
-	if num > maxfill then
-		num = maxfill
+		if num > maxfill then
+			num = maxfill
+		end
+		comment = prefix .. "gave " .. floor(num) .. " " .. kind .. " to " .. name .. "."
+	else
+		-- sadly can't work
+		comment = prefix .. "Trying to give " .. floor(num) .. " " .. kind .. " to ennemy " .. name .. "."
 	end
 	if not quiet then
-		Spring.SendCommands("say a: I gave " .. math.floor(num) .. " " .. kind .. " to " .. name .. ".")
+		Spring.SendCommands("say a:" .. comment)
 	end
 	Spring.ShareResources(target, kind, num)
 end
@@ -332,7 +602,7 @@ local function Mix(...)
 	end
 	return col
 end
-local HIDDEN_STORAGE = 10000
+
 local prefix = {
 	metal = GetColorChar(col_metal),
 	metal_low = GetColorChar(Mix(col_metal, col_metal, red)),
@@ -341,7 +611,7 @@ local prefix = {
 	energy_low = GetColorChar(Mix(col_energy, col_energy, red)),
 	energy_hi = GetColorChar(Mix(col_energy, col_energy, green)),
 }
-local max = math.max
+local max = max
 local modf = math.modf
 local function kformat(num)
 	if num >= 1000 then
@@ -358,764 +628,53 @@ end
 local function ColorResString(num, cur, max, type)
 	return prefix[type .. ((cur < num or (max) <= 0) and '_low' or cur > (max) and '_hi' or '')] .. kformat(num)
 end
-local function UpdateResources(controls, teamID)
-	local mCur, mMax, mPull, mInc, mExp, mShar, mSent, mReci = Spring.GetTeamResources(teamID, "metal")
-
-	if mInc then
-		local eCur, eMax, ePull, eInc, eExp, eShar, eSent, eReci = Spring.GetTeamResources(teamID, "energy")
-
-		-- local energyOverdrive = Spring.GetTeamRulesParam(teamID,'OD_energyOverdrive') or 0
-		-- local extraEnergyPull = Spring.GetTeamRulesParam(teamID,'extraEnergyPull') or 0
-		-- local extraMetalPull  = Spring.GetTeamRulesParam(teamID,'extraMetalPull') or 0
-		-- local metalMisc       = Spring.GetTeamRulesParam(teamID,'OD_team_metalMisc') or 0
-		-- local metalBase       = Spring.GetTeamRulesParam(teamID,'OD_team_metalBase') or 0
-		-- local metalOverdrive  = Spring.GetTeamRulesParam(teamID,'OD_team_metalOverdrive') or 0
-		local energyIncome    = Spring.GetTeamRulesParam(teamID, "OD_energyIncome") or 0
-		-- local energyMisc      = Spring.GetTeamRulesParam(teamID, "OD_energyMisc") or 0
-		-- local energyChange    = Spring.GetTeamRulesParam(teamID, "OD_energyChange") or 0
-		-- if eMax < 11000 then
-			-- Echo("team: "..teamID, "ePull: "..math.round(ePull), "eInc: "..math.round(eInc), "eExp: "..math.round(eExp), "eReci: "..math.round(eReci), "eShar: "..math.round(eShar), "exEPull: "..extraEnergyPull, "eOD: "..math.round(energyOverdrive), "eInc2: "..math.round(energyIncome), "eMisc: "..math.round(energyMisc), "eChange: "..math.round(energyChange))
-			-- Echo("mPull: "..math.round(mPull), "mInc: "..math.round(mInc), "mExp: "..math.round(mExp), "mReci: "..math.round(mReci), "mextraPull: "..math.round(extraMetalPull), "mMisc: "..math.round(metalMisc), "mBase: "..math.round(metalBase), "mOD: "..math.round(metalOverdrive))
-		-- end
-		controls.btnMetal:SetCaption(ColorResString(tonumber(math.round(mInc + mReci)), mCur, mMax - HIDDEN_STORAGE, 'metal'))
-		controls.btnEnergy:SetCaption(ColorResString(tonumber(math.round(max(eInc, energyIncome))), eCur, eMax - HIDDEN_STORAGE, 'energy'))
-		controls.mainControl:UpdateLayout()
-	end
-end
-
-local function UpdateEntryData(entryData, controls, pingCpuOnly, forceUpdateControls,info, connecting)
-	local newTeamID, newAllyTeamID = entryData.teamID, entryData.allyTeamID
-	local newIsLagging = entryData.isLagging
-	local newIsWaiting = entryData.isWaiting
-	local newIsConnecting = connecting
-	local isSpectator = false
-	local resortRequired, updateColors = false, false
-	if LOG_RES and controls and (controls.btnMetal and controls.btnMetal.visible) then
-		UpdateResources(controls, newTeamID)
-	end
-
-	if entryData.playerID then
-		local playerName, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(entryData.playerID, true)
-		if info then
-			if info.name and entryData.name ~= info.name then
-				entryData.name = info.name
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-
-			end
-			country = country~='' and country or info.country~='' and info.country or nil
-			if country then
-				entryData.country = country
-				entryData.countryFlag = ("LuaUI/Images/flags/" .. country ..".png")
-				entryData.countryLong = countryFull[country] or 'Unknown'
-				controls.imCountry.file = entryData.countryFlag
-				controls.imCountry.color = {1,1,1,1} -- remove the transparency, since we made a placeholder for the image (that would have been blank without transparency)
-				controls.imCountry:Invalidate()
-			end
-			if info.icon and entryData.rank == "LuaUI/Images/LobbyRanks/0_0.png" then
-				entryData.rank = "LuaUI/Images/LobbyRanks/" .. info.icon .. ".png"
-				controls.imRank.file = entryData.rank
-				controls.imRank:Invalidate()
-			end
-			if not entryData.clan then
-				local clan
-				if info.clan and VFS.FileExists("LuaUI/Configs/Clans/" .. info.clan ..".png") then
-					clan = "LuaUI/Configs/Clans/" .. info.clan ..".png"
-				elseif info.faction and  VFS.FileExists("LuaUI/Configs/Factions/" .. info.faction .. ".png") then
-					clan = "LuaUI/Configs/Factions/" .. info.faction .. ".png"
-				end
-				if clan then
-					entryData.clan = clan
-					controls.imClan.file = entryData.clan
-					controls.imClan.color = {1,1,1,1} -- remove the transparency, since we made a placeholder for the image (that would have been blank without transparency)
-					controls.imClan:Invalidate()
-				end
-			end
-			return
-		end
-
-		newTeamID, newAllyTeamID = teamID, allyTeamID
-		entryData.isMe = (entryData.playerID == myPlayerID)
-
-		if spectator then
-			isSpectator = true
-			newTeamID, newAllyTeamID = entryData.initTeamID,  entryData.initAllyTeamID
-		end
-		
-		local pingBucket = (active and math.max(1, math.min(5, math.ceil(math.min(pingTime, 1) * 5)))) or 6
-		if forceUpdateControls or pingBucket ~= entryData.pingBucket then
-			entryData.pingBucket = pingBucket
-			if controls then
-				controls.imPing.color = pingCpuColors[entryData.pingBucket]
-				controls.imPing:Invalidate()
-
-			end
-		end
-		
-		local cpuBucket = (active and math.max(1, math.min(5, math.ceil(cpuUsage * 5)))) or 6
-		if forceUpdateControls or cpuBucket ~= entryData.cpuBucket then
-			entryData.cpuBucket = cpuBucket
-			if controls then
-				controls.imCpu.color = pingCpuColors[entryData.cpuBucket]
-				controls.imCpu:Invalidate()
-			end
-		end
-		
-		if controls then
-			controls.imCpu.tooltip = CpuUsageOut(cpuUsage)
-			controls.imPing.tooltip = PingTimeOut(pingTime)
-			if not (entryData.isDead or entryData.isSpec) then
-				local laggedOut = laggingOut[controls.mainControl]
-				if laggedOut then
-					if pingTime <= LAGOUT_FLASH_THRESHOLD then
-						local bg = controls.mainControl.backgroundColor
-						if bg[1] ~= 0 then
-							bg[1], bg[4] = 0, 0
-							controls.mainControl:Invalidate()
-						end
-						laggingOut[controls.mainControl] = nil
-					end
-				else
-					if pingTime > LAGOUT_FLASH_THRESHOLD then
-						laggingOut[controls.mainControl] = time + BLINK_END
-					end
-				end
-			end
-		end
-
-		newIsLagging = ((pingTime > PING_TIMEOUT) and true) or false
-		if forceUpdateControls or newIsLagging ~= entryData.isLagging then
-			entryData.isLagging = newIsLagging
-			if controls and not entryData.isDead then
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-			end
-		end
-		
-		newIsWaiting = (not active)
-		if forceUpdateControls or newIsConnecting or newIsWaiting ~= entryData.isWaiting then
-			-- Echo('update for ',entryData.name)
-			-- Echo(entryData.name,'active update, now ' .. tostring(active),'before '.. tostring(entryData.isWaiting),'connecting: '..tostring(entryData.connecting))
-			resortRequired = true
-			entryData.isConnecting = newIsWaiting and newIsConnecting
-			entryData.isGone = not entryData.isWaiting and newIsWaiting -- and (newIsWaiting ~= entryData.isWaiting or entryData.isGone)
-			-- entryData.isWaiting = not entryData.isGone and not entryData.isConnecting
-			entryData.isWaiting = newIsWaiting
-			-- if not newIsWaiting and playerInfo[entryData.name] then
-			-- 	entryData.connecting = false
-			-- end
-			if controls and not (entryData.isDead or entryData.isLagging) then
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-			end
-			if entryData.isSpec then
-				if controls then
-					-- dark grey when specs are not connected
-					controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, true, newIsWaiting)
-					-- controls.textAllyTeam.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
-
-					controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-
-					controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
-					controls.textName:Invalidate()
-					-- controls.textAllyTeam:SetCaption('0')
-					-- controls.textAllyTeam:Invalidate()
-					if controls.textTeamID then
-						controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true,newIsWaiting)
-						controls.textTeamID:SetCaption('0')
-						controls.textTeamID:Invalidate()
-					end
-				end
-			end
-			-- Echo(entryData.name,'is now',newIsWaiting and 'waiting' or 'not waiting','connecting?',newIsConnecting )
-		end
-		newIsAfk = (spGetPlayerRulesParam(entryData.playerID, "lagmonitor_lagging") and true) or false
-		if forceUpdateControls or newIsAfk ~= entryData.isAfk then
-			entryData.isAfk = newIsAfk
-			-- entryData.isConnecting = newIsConnecting
-			if controls and not (entryData.isDead or entryData.isLagging or entryData.isWaiting) then
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-			end
-		end
-
-		if pingCpuOnly then
-			return false
-		end
-	elseif pingCpuOnly then
-		return false
-	end
-	
-	-- Ping and CPU cannot resort
-	if forceUpdateControls or newTeamID ~= entryData.teamID then
-		entryData.teamID = newTeamID
-		entryData.isMyTeam = (newTeamID == myTeamID)
-		resortRequired = true
-		if controls then
-			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isDead)
- 			controls.textName:Invalidate()
- 			if not isSpectator then
- 				if controls.textTeamID then
-					controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
-					controls.textTeamID:SetCaption(entryData.teamID)
-					controls.textTeamID:Invalidate()
-				end
-				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-				updateColors = true
-			end
-		end
-	end
-	if forceUpdateControls or newAllyTeamID ~= entryData.allyTeamID then
-		entryData.allyTeamID = newAllyTeamID
-		resortRequired = true
-		if entryData.isMe then
-			updateColors = true
-		end
-		if controls then
-			-- controls.textAllyTeam:SetCaption(entryData.allyTeamID + 1)
-			if controls.textTeamID then
-				controls.textTeamID:SetCaption(entryData.teamID)
-			end
-			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-		end
-	end
-	
-	local isMyAlly = (entryData.allyTeamID == (myAllyTeamID or fallbackAllyTeamID))
-	if forceUpdateControls or isMyAlly ~= entryData.isMyAlly then
-		entryData.isMyAlly = isMyAlly
-		entryData.allyTeamColor = (isMyAlly and ALLY_COLOR) or ENEMY_COLOR
-		resortRequired = true
-		if controls then
-			-- controls.textAllyTeam.font.color = entryData.allyTeamColor
-			-- controls.textAllyTeam:Invalidate()
-			if controls.textTeamID then
-				controls.textTeamID.font.color = entryData.allyTeamColor -- not used anymore to set the header team colors
-				controls.textTeamID:Invalidate()
-			end
-			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-			local shareVisible = myAllyTeamID and entryData.isMyAlly and not entryData.isDead and (entryData.teamID ~= myTeamID) and true or false
-			controls.btnShare:SetVisibility(shareVisible)
-			controls.btnMetal:SetVisibility(shareVisible)
-			controls.btnEnergy:SetVisibility(shareVisible)
-		end
-	end
-
-	local newIsDead = ((isSpectator and not entryData.isSpec or Spring.GetTeamRulesParam(entryData.teamID, "isDead")) and true) or false
-	if newIsDead then
-		if forceUpdateControls or newIsDead ~= entryData.isDead then
-			entryData.isDead = newIsDead
-			if controls then
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-				controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isDead)
-				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-				controls.textName:Invalidate()
-			end
-		end
-	elseif entryData.isDead and not newIsDead or entryData.isSpec and not isSpectator then -- case cheat when user go from spec to team
-		entryData.isDead = newIsDead
-		entryData.isSpec = isSpectator
-		resortRequired = true
-		if controls then
-			if controls.textTeamID then
-				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, false, entryData.isWaiting)
-				controls.textTeamID:SetCaption(entryData.teamID)
-				controls.textTeamID:Invalidate()
-			end
-			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, false)
-			controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-			controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-			controls.textName:Invalidate()
-		end
-
-	elseif isSpectator and entryData.isSpec then
-		if forceUpdateControls then
-
-			resortRequired = true
-			if controls then
-				controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
-				-- controls.textAllyTeam.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
-				if controls.textTeamID then
-					controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, true, entryData.isWaiting)
-					controls.textTeamID:SetCaption('0')
-					controls.textTeamID:Invalidate()
-				end
-				controls.textName:SetCaption(GetName(entryData.name, controls.textName.font, entryData))
-				controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
-				controls.textName:Invalidate()
-				-- controls.textAllyTeam:SetCaption('0')
-				-- controls.textAllyTeam:Invalidate()
-			end
-		end
-
-	end
-
-	return resortRequired, updateColors
-end
-
-local function GetEntryData(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec)
-	local entryData = {
-		playerID = playerID,
-		teamID = teamID,
-		allyTeamID = allyTeamID,
-		initTeamID = teamID,
-		initAllyTeamID = allyTeamID,
-		isAiTeam = isAiTeam,
-		isDead = isDead,
-		isSpec = isSpec,
-	}
-	
-	if playerID then
-		local playerName, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
-		local info = playerInfo[playerName]
-		-- if isSpec and not active and Spring.GetGameFrame()<1 then
-		-- 	entryData.connecting = true
-		-- end
-		if info then
-			country = country or info.country
-			customKeys.icon = customKeys.icon or info.icon
-			customKeys.clan = customKeys.clan or info.clan
-			customKeys.faction = customKeys.faction or info.faction
-			customKeys.elo = customKeys.elo or info.elo
-		end
-		-- if not spectator then
-		-- 	Echo("playerName,customKeys.elo is ", playerName,customKeys.elo)
-		-- end
-		country = country ~= '' and country or nil
-		if country then
-			entryData.country = country
-			entryData.countryFlag = ("LuaUI/Images/flags/" .. country ..".png")
-			entryData.countryLong = countryFull[country] or 'Unknown'
-		end
-		customKeys = customKeys or {}
-		entryData.isMe = (entryData.playerID == myPlayerID)
-		entryData.name = playerName
-		entryData.rank = ("LuaUI/Images/LobbyRanks/" .. (customKeys.icon or "0_0") .. ".png")
-		entryData.elo = customKeys.elo
-		if customKeys.clan and customKeys.clan ~= "" then
-			entryData.clan = VFS.FileExists("LuaUI/Configs/Clans/" .. customKeys.clan ..".png") and "LuaUI/Configs/Clans/" .. customKeys.clan ..".png" or nil
-		elseif customKeys.faction and customKeys.faction ~= "" then
-			entryData.clan = VFS.FileExists("LuaUI/Configs/Factions/" .. customKeys.faction .. ".png") and "LuaUI/Configs/Factions/" .. customKeys.faction .. ".png"
-		end
-	end
-	
-	if isAiTeam then
-		local _, name = Spring.GetAIInfo(teamID)
-		entryData.name = name
-	end
-	
-	if not entryData.name then
-		entryData.name = "noname"
-	end
-	
-	UpdateEntryData(entryData)
-	
-	return entryData
-end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
-local function GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec, parent)
-	local offset             = 0
-	local offsetY            = 0
-	local text_height        = options.text_height.value
-	local height             = text_height + 4
-	local userControls = {}
-	userControls.entryData = GetEntryData(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec)
-	local entryData = userControls.entryData
-
-	userControls.mainControl = Chili.Panel:New {
-		TileImageBK = ":cl:empty.png", -- set no background texture so we can colorize it
-		backgroundColor = {0,0,0,0},
-		x = 0,
-		top = 0,
-		bottom = 0,
-		right = 0,
-		height = height,
-		padding = {0, 0, 0, 0},
-		parent = parent,
-		keepAspect = false,
-	}
-
-	offset = offset + 1
-	-- if entryData.country then
-		userControls.imCountry = Chili.Image:New {
-			name = "imCountry",
-			color = not entryData.country and {0,0,0,0} or nil,
-			x = offset,
-			y = offsetY,
-			width = text_height + 3,
-			height = text_height + 3,
-			parent = userControls.mainControl,
-			keepAspect = true,
-			file = entryData.countryFlag,
-			-- tooltip = entryData.country and entryData.country:match('.+/([^%.]+)') or nil,
-			tooltip = entryData.country and entryData.countryLong,
-			HitTest = entryData.country and function(self) return self end or nil,
-		}
-		imCountry = userControls.imCountry
-	-- end
-	offset = offset + text_height + 3
-
-	offset = offset + 1
-	if entryData.rank then
-		userControls.imRank = Chili.Image:New {
-			name = "imRank",
-			x = offset,
-			y = offsetY,
-			width = text_height + 3,
-			height = text_height + 3,
-			parent = userControls.mainControl,
-			keepAspect = true,
-			file = entryData.rank,
-		}
-	end
-	offset = offset + text_height + 3
-	
-	offset = offset + 1
-	-- if entryData.clan then
-		userControls.imClan = Chili.Image:New {
-			backGroundColor = {0,0,0,0},
-			color = not entryData.clan and {0,0,0,0} or nil,
-			name = "imClan",
-			x = offset,
-			y = offsetY,
-			width = text_height + 3,
-			height = text_height + 3,
-			parent = userControls.mainControl,
-			keepAspect = true,
-			file = entryData.clan or '',
-			tooltip = entryData.clan and entryData.clan:match('.+/([^%.]+)') or nil,
-			HitTest = entryData.clan and function(self) return self end or nil,
-		}
-	-- end
-	offset = offset + text_height + 3
-
-	offset = offset + 1
-	-- if entryData.clan then
-	userControls.txtElo = Chili.Label:New {
-		name = "elo",
-		x = offset,
-		y = offsetY + 1,
-		width = text_height * 1.5,
-		bottom = 3,
-		parent = userControls.mainControl,
-		caption = entryData.elo and ('%.1f'):format(entryData.elo/1000) or '',
-		fontsize = text_height,
-		fontShadow = true,
-		autosize = false,
-		tooltip = entryData.elo,
-		HitTest = entryData.elo and function(self) return self end or nil,
-	}
-	-- end
-	if SHOW_TEAMID then
-		offset = offset + text_height + 3
-
-
-		offset = offset + 15
-
-
-		-- userControls.textAllyTeam = Chili.Label:New {
-		-- 	name = "textAllyTeam",
-		-- 	x = offset,
-		-- 	y = offsetY + 1,
-		-- 	right = 0,
-		-- 	bottom = 3,
-		-- 	-- parent = userControls.mainControl,
-		-- 	caption = entryData.allyTeamID + (isSpec and not isDead and 0 or 1),
-		-- 	textColor = entryData.allyTeamColor,
-		-- 	fontsize = text_height,
-		-- 	fontShadow = true,
-		-- 	autosize = false,
-		-- }
-
-		userControls.textTeamID = Chili.Label:New {
-			name = "textTeamID",
-			x = offset,
-			y = offsetY + 1,
-			right = 0,
-			bottom = 3,
-			parent = userControls.mainControl,
-			caption = isSpec and not isDead and 0 or entryData.teamID,
-			textColor = entryData.allyTeamColor,
-			fontsize = text_height,
-			fontShadow = true,
-			autosize = false,
-		}
-		offset = offset + text_height --+ 3
-		
-		offset = offset + 2
-	else
-		offset = offset + text_height + 8
-	end
-	userControls.textName = Chili.Label:New {
-		name = "textName",
-		x = offset,
-		y = offsetY + 1,
-		-- right = 0,
-		bottom = 3,
-		align = "left",
-		width = MAX_NAME_LENGTH,
-		parent = userControls.mainControl,
-		caption = GetName(entryData.name, nil, entryData),
-		textColor = GetPlayerTeamColor(entryData.teamID, entryData.isDead or entryData.isSpec),
-		fontsize = text_height,
-		fontShadow = true,
-		autosize = false,
-		tooltip = entryData.name,
-		HitTest = function(self) return self end,
-	}
-	userControls.textName:SetCaption(GetName(entryData.name, userControls.textName.font, entryData))
-	offset = offset + MAX_NAME_LENGTH
-
-	offset = offset + 1
-	userControls.btnShare = Chili.Button:New {
-		name = "btnShare",
-		x = offset + 2,
-		y = offsetY + 2,
-		width = text_height - 1,
-		height = text_height - 1,
-		parent = userControls.mainControl,
-		caption = "",
-		tooltip = "Click to share the units you have selected to this player.",
-		padding ={0,0,0,0},
-		OnClick = {function(self)
-			ShareUnits(entryData.name, entryData.teamID)
-		end, },
-	}
-	Chili.Image:New {
-		name = "imShare",
-		x = 0,
-		y = 0,
-		right = 0,
-		bottom = 0,
-		parent = userControls.btnShare,
-		keepAspect = true,
-		file = IMAGE_SHARE,
-	}
-	userControls.btnShare:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + text_height + 1
-
-
-
-	offset = offset + 1
-	userControls.btnMetal = Chili.Button:New {
-		name = "btnMetal",
-		x = offset + 2,
-		y = offsetY + 2,
-		width = text_height - 1,
-		height = text_height - 1,
-		parent = userControls.mainControl,
-		caption = LOG_RES and "0" or "",
-		fontsize = text_height-3,
-		tooltip = "",
-		padding ={0,0,0,0},
-		color = {0,0,0,0},
-		DisableFunc = function(self)
-			return entryData.isSpec or (
-				entryData.teamID == myTeamID or (entryData.allyTeamID ~= myAllyTeamID and not Spring.IsGodModeEnabled())
-			)
-		end,
-		OnMouseOver = {
-			function(self)
-				local cur, stor = GetResource(entryData.teamID, 'metal')
-				if cur then
-					self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
-					if not self:DisableFunc() then
-						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
-					end
-					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
-				end
-			end
-		},
-		OnClick = {function(self)
-			if not self:DisableFunc() then
-				GiveResource(entryData.teamID,"metal")
-				local cur, stor = GetResource(entryData.teamID, 'metal')
-				self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-			end
-		end, },
-	}
-	if not LOG_RES then
-		Chili.Image:New {
-			name = "imMetal",
-			x = 0,
-			y = 0,
-			right = 0,
-			bottom = 0,
-			parent = userControls.btnMetal,
-			keepAspect = true,
-			file = IMAGE_METAL,
-		}
-	end
-	userControls.btnMetal:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + text_height + 1
-
-	offset = offset + 1
-	userControls.btnEnergy = Chili.Button:New {
-		name = "btnEnergy",
-		x = offset + 2,
-		y = offsetY + 2,
-		width = text_height - 1,
-		height = text_height - 1,
-		parent = userControls.mainControl,
-		caption = LOG_RES and "0" or "",
-		fontsize = text_height-3,
-		align = 'center',
-		tooltip = "",
-		padding ={0,0,0,0},
-		DisableFunc = function(self)
-			return entryData.isSpec or (
-				entryData.teamID == myTeamID or (entryData.allyTeamID ~= myAllyTeamID and not Spring.IsGodModeEnabled())
-			)
-		end,
-		OnMouseOver = {
-			function(self)
-				local cur, stor = GetResource(entryData.teamID, 'energy')
-				if cur then
-					self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
-					if not self:DisableFunc() then
-						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
-					end
-					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
-				end
-			end
-		},
-		OnClick = {function(self)
-			if not self:DisableFunc() then
-				GiveResource(entryData.teamID,"energy")
-				local cur, stor = GetResource(entryData.teamID, 'energy')
-				self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
-			end
-		end, },
-	}
-	if not LOG_RES then
-		Chili.Image:New {
-			name = "imEnergy",
-			x = 0,
-			y = 0,
-			right = 0,
-			bottom = 0,
-			parent = userControls.btnEnergy,
-			keepAspect = true,
-			file = IMAGE_ENERGY,
-		}
-	end
-	userControls.btnEnergy:SetVisibility((entryData.isMyAlly and (entryData.teamID ~= myTeamID) and true) or false)
-	offset = offset + text_height + 1
-
-
-
-	offset = offset + 1
-	if entryData.cpuBucket then
-		userControls.imCpu = Chili.Image:New {
-			name = "imCpu",
-			x = offset,
-			y = offsetY,
-			width = text_height + 3,
-			height = text_height + 3,
-			parent = userControls.mainControl,
-			keepAspect = true,
-			file = IMAGE_CPU,
-			color = pingCpuColors[entryData.cpuBucket],
-		}
-		function userControls.imCpu:HitTest(x,y) return self end
-	end
-	offset = offset + text_height
-	
-	offset = offset + 1
-	if entryData.pingBucket then
-		userControls.imPing = Chili.Image:New {
-			name = "imPing",
-			x = offset,
-			y = offsetY,
-			width = text_height + 3,
-			height = text_height + 3,
-			parent = userControls.mainControl,
-			keepAspect = true,
-			file = IMAGE_PING,
-			color = pingCpuColors[entryData.pingBucket],
-		}
-		function userControls.imPing:HitTest(x,y) return self end
-	end
-	offset = offset + text_height
-
-	UpdateEntryData(entryData, userControls, false, true)
-
-	return userControls
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
-local playerlistWindow
-local scrollPanel
-local stackPanel
-local header
-local listControls = {}
-local playersByPlayerID = {}
-local teamByTeamID = {}
 
 local function Compare(ac, bc)
-	local a, b = ac.entryData, bc.entryData
-
-	if a.isSpec ~= b.isSpec then
-		return not a.isSpec
-	elseif a.isSpec and b.isSpec and not b.isMe then
-		if a.isWaiting ~= b.isWaiting then
-			return b.isWaiting 
+	local a, b = ac.entry, bc.entry
+	-- sorting the specs
+	if a.initSpec ~= b.initSpec then
+		return b.initSpec
+	elseif a.initSpec then
+		if a.isMe ~= b.isMe then
+			return a.isMe
+		elseif a.elo ~= b.elo then
+			return (a.elo or 0) > (b.elo or 0)
+		elseif not not a.name:find('unknown') ~= not not b.name:find('unknown') then
+			return not a.name:find('unknown')
+		elseif a.isActive ~= b.isActive then
+			return not b.isActive 
+		else
+			return a.playerID < b.playerID
 		end
 	end
-
-	if a.allyTeamID ~= b.allyTeamID then
-		return a.allyTeamID < b.allyTeamID
-	end
-
-
-	if not a.isAiTeam ~= not b.isAiTeam then
-		return not a.isAiTeam
+	-- sorting the allies
+	if a.initAllyTeamID ~= b.initAllyTeamID then
+		return a.initAllyTeamID < b.initAllyTeamID
+	-- sorting the ais
+	elseif a.isAiTeam ~= b.isAiTeam then
+		return b.isAiTeam
 	elseif a.isAiTeam then
-		return a.teamID < b.teamID
+		if a.name ~= b.name then
+			return a.name < b.name
+		else
+			return a.initTeamID < b.initTeamID
+		end
+	-- sorting the players playing
+	elseif a.elo ~= b.elo then
+		return (a.elo or 0) > (b.elo or 0)
 	end
-	--
-	
-	-- if not a.isMyTeam ~= not b.isMyTeam then
-	-- 	return b.isMyTeam
-	-- end
-
-	if not a.isMe ~= not b.isMe then
-		return a.isMe
-	end
-
-	if not a.isMyAlly ~= not b.isMyAlly then
-		return b.isMyAlly
-	end
-	
-	if not a.isAiTeam ~= not b.isAiTeam then
-		return a.isAiTeam
-	end
-	
-	if --[[not a.isSpec and--]] a.elo and b.elo then
-		return tonumber(a.elo) > tonumber(b.elo)
-	end
-	if a.rank and b.rank then
-		return tonumber(a.rank:match('%d')) > tonumber(b.rank:match('%d'))
-	end	
-
-	if a.teamID ~= b.teamID then
-		return a.teamID > b.teamID
-	end
-	if a.playerID then
-		return (not b.playerID) or a.playerID > b.playerID
-	end
-	return (not b.playerID)
+	return a.playerID < b.playerID
 end
-local function Unlink(obj)
-	while type(obj)=='userdata' do
-		obj = obj()
-	end
-	return obj
-end
+
 local function SortEntries()
 	if not playerlistWindow then
 		return
+	end
+	if debugging then
+		Echo('<< Resorting entries >>')
 	end
 	table.sort(listControls, Compare)
 	
@@ -1126,32 +685,30 @@ local function SortEntries()
 	for i = 1, #listControls do
 		local control = listControls[i]
 		local userControl = control.mainControl
-		local userData = control.entryData
-		local isPlayer = not userData.isSpec
+		local entry = control.entry
+		local isPlayer = not entry.initSpec
 		-- local teamTxt = tonumber(listControls[i].textAllyTeam.caption)
-		local allyTeam = tonumber(userData.allyTeamID) + (isPlayer and 1 or 0)
+		local allyTeam = entry.initAllyTeamID + (isPlayer and 1 or 0)
 		local thisTeam = teams[allyTeam]
 
-		if not userData.isSpec then
-			if not thisTeam then
-				thisTeam = {}
-				teams[allyTeam] = thisTeam
-				thisTeam.count = 1
-				thisTeam.aiCount = 0
-				if isPlayer then
-					thisTeam.elo = userData.elo or 0
-				end
-				-- local color = userData.allyTeamColor
-				local color = listControls[i].textName.font.color
-				thisTeam.color = not isPlayer and {ToGrey(color[1]), ToGrey(color[2]), ToGrey(color[3])} or color
-			else
-				thisTeam.count = thisTeam.count + 1
-				if isPlayer then
-					thisTeam.elo = thisTeam.elo + (userData.elo or 0)
-				end
+		if not thisTeam then
+			thisTeam = {}
+			teams[allyTeam] = thisTeam
+			thisTeam.count = 1
+			thisTeam.aiCount = 0
+			if isPlayer then
+				thisTeam.elo = entry.elo or 0
+			end
+			-- local color = entry.allyTeamColor
+			thisTeam.color = not isPlayer and grey or {spGetTeamColor(entry.initTeamID)}
+		else
+			thisTeam.count = thisTeam.count + 1
+			if isPlayer then
+				thisTeam.elo = thisTeam.elo + (entry.elo or 0)
 			end
 		end
-		if userData.isAiTeam then
+
+		if entry.isAiTeam then
 			thisTeam.aiCount = thisTeam.aiCount + 1
 		end
 		if toTop then
@@ -1177,109 +734,927 @@ local function SortEntries()
 	local headerCaption = ''
 
 	for _, t in ipairs(teams) do
-		local countTxt =  coloredString(t.count,t.color)
+		local countTxt =  coloredString(t.count, t.color)
 		local humanPlayers = t.count - t.aiCount
-		headerCaption = headerCaption .. countTxt .. (tonumber(t.elo)>0 and ' (' .. ('%.1f'):format(t.elo/(humanPlayers)/1000) .. ') ' or '') .. 'v '
+		headerCaption = headerCaption .. countTxt .. (t.elo>0 and ' (' .. ('%.1f'):format(t.elo/(humanPlayers)/1000) .. ') ' or '') .. 'v '
+		-- Echo('team count', _, t.count)
 	end
 	headerCaption = headerCaption:sub(1,-3)
-	if not teams[3] and teams[1] and teams[2] and tonumber(teams[1].elo)>0 and tonumber(teams[2].elo)>0 then
+	if not teams[3] and teams[1] and teams[2] and teams[1].elo>0 and teams[2].elo>0 then
 		local avgElo1 = teams[1].elo/teams[1].count
 		local avgElo2 = teams[2].elo/teams[2].count
 		local avgEloDiff = avgElo1 - avgElo2
 		-- local eloDiff = teams[1].elo - teams[2].elo -- not relevant since teams can be uneven
 		headerCaption = headerCaption .. ' | elo ~'..(avgEloDiff>0 and '+' or '') ..  ('%d'):format(avgEloDiff)
 	end
-	local specCount = teams[0] and coloredString(teams[0].count,teams[0].color)
+	local specCount = teams[0] and coloredString(teams[0].count, teams[0].color)
 	if specCount then
 		headerCaption = headerCaption .. ' | ' .. specCount
 	end
 	header:SetCaption(headerCaption)
 	header.font.autoOutlineColor = false -- keep the outline black no matter which color in the string (much less ugly)
+end
 
+local function CorrectUserInfo(info)
+	if info.clan and not VFS.FileExists("LuaUI/Configs/Clans/" .. info.clan ..".png") then
+		if VFS.FileExists("LuaUI/Configs/Factions/" .. info.clan .. ".png") then
+			info.faction, info.clan = info.clan, nil
+		elseif VFS.FileExists("LuaUI/Images/flags/" .. info.clan ..".png") then
+			info.country, info.clan = info.clan, nil
+		end
+	end
+	if info.faction and not VFS.FileExists("LuaUI/Configs/Factions/" .. info.faction .. ".png") then
+		if VFS.FileExists("LuaUI/Images/flags/" .. info.faction ..".png") then
+			info.country, info.faction = info.faction, nil
+		end
+	end
+end
+
+local function MergeAndUpdateInfo(info, new_info)
+	local changed = false
+	for k, v in pairs(new_info) do
+		-- Echo('Received info: ' .. k .. ' = ' .. tostring(v) .. ', old: ' .. tostring(info[k]))
+		if k == 'icon' and info[k] == '0_0' and v and v ~= '' and v ~= '0_0'
+			or v ~= '' and info[k] == nil or info[k] == '' then
+			-- Echo('completing info ' .. k .. ' => ' .. tostring(v))
+			info[k] = v
+			changed = true
+		end
+	end
+	return changed
+end
+
+
+
+local function UpdateName(entry, controls)
+	local colorText = GetPlayerTeamColor(entry)
+	controls.textName.font.color = colorText
+	controls.textName:SetCaption(GetName(entry, controls.textName.font))
+	if entry.isSpec then
+		controls.textName.tooltip = not controls.textName.caption:find(entry.name) and entry.name or ''
+	else
+		controls.textName.tooltip = entry.name .. ' (teamID ' .. entry.initTeamID .. ')'
+	end
+	if debugging then
+		local t = {}
+		for k,v in pairs(entry) do
+			t[#t+1] = k .. ' = ' .. tostring(v)
+		end
+		controls.textName.tooltip = controls.textName.tooltip .. '\n' .. table.concat(t, '\n')
+	end
+	-- controls.textName:SetCaption(controls.textName.caption .. 'A')
+	controls.textName:Invalidate()
+	if controls.textTeamID then
+		controls.textTeamID.font.color = colorText
+		controls.textTeamID:SetCaption(entry.teamID)
+		controls.textTeamID:Invalidate()
+	end
+end
+
+local function RecolorEntries()
+	for _, controls in pairs(listControls) do
+		UpdateName(controls.entry, controls)
+	end
+end
+
+local function UpdateButtons()
+	for i = 1, #listControls do
+		local controls = listControls[i]
+		local entry = controls.entry
+		if controls.btnShare then
+			controls.btnShare:SetVisibility(not controls.btnShare:DisableFunc())
+			controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+			controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+		end
+	end
+end
+
+
+local function UpdateResources(controls, teamID)
+	local mCur, mMax, mPull, mInc, mExp, mShar, mSent, mReci = Spring.GetTeamResources(teamID, "metal")
+
+	if mInc then
+		local eCur, eMax, ePull, eInc, eExp, eShar, eSent, eReci = Spring.GetTeamResources(teamID, "energy")
+
+		-- local energyOverdrive = Spring.GetTeamRulesParam(teamID,'OD_energyOverdrive') or 0
+		-- local extraEnergyPull = Spring.GetTeamRulesParam(teamID,'extraEnergyPull') or 0
+		-- local extraMetalPull  = Spring.GetTeamRulesParam(teamID,'extraMetalPull') or 0
+		-- local metalMisc       = Spring.GetTeamRulesParam(teamID,'OD_team_metalMisc') or 0
+		-- local metalBase       = Spring.GetTeamRulesParam(teamID,'OD_team_metalBase') or 0
+		-- local metalOverdrive  = Spring.GetTeamRulesParam(teamID,'OD_team_metalOverdrive') or 0
+		local energyIncome    = Spring.GetTeamRulesParam(teamID, "OD_energyIncome") or 0
+		-- local energyMisc      = Spring.GetTeamRulesParam(teamID, "OD_energyMisc") or 0
+		-- local energyChange    = Spring.GetTeamRulesParam(teamID, "OD_energyChange") or 0
+		-- if eMax < 11000 then
+			-- Echo("team: "..teamID, "ePull: "..math.round(ePull), "eInc: "..math.round(eInc), "eExp: "..math.round(eExp), "eReci: "..math.round(eReci), "eShar: "..math.round(eShar), "exEPull: "..extraEnergyPull, "eOD: "..math.round(energyOverdrive), "eInc2: "..math.round(energyIncome), "eMisc: "..math.round(energyMisc), "eChange: "..math.round(energyChange))
+			-- Echo("mPull: "..math.round(mPull), "mInc: "..math.round(mInc), "mExp: "..math.round(mExp), "mReci: "..math.round(mReci), "mextraPull: "..math.round(extraMetalPull), "mMisc: "..math.round(metalMisc), "mBase: "..math.round(metalBase), "mOD: "..math.round(metalOverdrive))
+		-- end
+		controls.btnMetal:SetCaption(ColorResString(tonumber(math.round(mInc + mReci)), mCur, mMax - HIDDEN_STORAGE, 'metal'))
+		controls.btnEnergy:SetCaption(ColorResString(tonumber(math.round(max(eInc, energyIncome))), eCur, eMax - HIDDEN_STORAGE, 'energy'))
+		controls.mainControl:UpdateLayout()
+	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
-local function UpdateTeam(teamID)
-	local controls = teamByTeamID[teamID]
-	if not controls then
-		return
+local function UpdatePing(playerID, controls, forceUpdate)
+	local entry = controls.entry
+	local teamID, allyTeamID = entry.teamID, entry.allyTeamID
+	local spectator = false
+	if displayResources and controls and (controls.btnMetal and controls.btnMetal.visible) then
+		UpdateResources(controls, teamID)
 	end
-	
-	local toSort = UpdateEntryData(controls.entryData, controls)
-	if toSort then
-		SortEntries()
-	end
-end
-
-local function UpdatePlayer(playerID, info, connecting)
-	local controls = playersByPlayerID[playerID]
-	local toSort
-	local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country = spGetPlayerInfo(playerID, false)
-	if not controls then
-		local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country = spGetPlayerInfo(playerID, false)
-		local isSpec = (--[[teamID == 0 and --]]spectator and spGetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1)
-
-		-- if isSpec then
-		if not controls then
-			toSort = true
-			controls = GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec, scrollPanel)
-			listControls[#listControls + 1] = controls
-			teamByTeamID[teamID] = controls
-			playersByPlayerID[playerID] = controls
+	if entry.playerID then
+		if entry.playerID == 0 then
+			local new_godmode = Spring.IsGodModeEnabled()
+			local new_cheating = Spring.IsCheatingEnabled()
+			if godmode ~= new_godmode or new_cheating ~= cheating then
+				cheating = new_cheating
+				godmode = new_godmode
+				updateButtons = true
+			end
 		end
-		if not controls then
-			return
-		end
-	end
+		local playerName, active, _spectator, _teamID, _allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(entry.playerID, true)
+		local info = playerInfo[playerName]
+		teamID, allyTeamID = _teamID, _allyTeamID
 
-	local _toSort, updateColors = UpdateEntryData(controls.entryData, controls, false, false, info, connecting)
-	-- Echo('received ', info and info.name,'sort?',toSort)
-	if updateColors then
-		for _, controls in pairs (listControls) do
-			local entryData = controls.entryData
-			controls.textName.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isSpec, entryData.isWaiting)
-			if entryData.isSpec then
-				controls.textName.tooltip = not controls.textName.caption:find(entryData.name) and entryData.name or ''
+		if _spectator then
+			spectator = true
+			teamID, allyTeamID = entry.initTeamID,  entry.initAllyTeamID
+		end
+		
+		entry.isMe = (entry.playerID == myPlayerID)
+
+		local isConnecting = not active and entry.isConnecting
+		local isGone = not (active or isConnecting) and (entry.isActive or entry.isGone or (info and info.isGone))
+
+		
+		if entry.isActive ~= active
+			or entry.isGone ~= isGone
+			or entry.isConnecting ~= isConnecting
+		then
+			entry.isActive = active
+			entry.isGone = isGone
+			if info then
+				info.isGone = isGone
+			end
+			entry.isConnecting = isConnecting
+			UpdateName(entry, controls)
+		end
+
+		local pingBucket = (active and max(1, min(5, ceil(min(pingTime, 1) * 5)))) or 6
+		if pingBucket ~= entry.pingBucket then
+			entry.pingBucket = pingBucket
+			controls.imPing.color = pingCpuColors[entry.pingBucket]
+			controls.imPing:Invalidate()
+		end
+		local cpuBucket = (active and max(1, min(5, ceil(cpuUsage * 5)))) or 6
+		if forceUpdate or cpuBucket ~= entry.cpuBucket then
+			entry.cpuBucket = cpuBucket
+			controls.imCpu.color = pingCpuColors[entry.cpuBucket]
+			controls.imCpu:Invalidate()
+		end
+		controls.imCpu.tooltip = CpuUsageOut(cpuUsage)
+		controls.imPing.tooltip = PingTimeOut(pingTime)
+		if not (entry.isDead or entry.isSpec) then
+			local laggedOut = laggingOut[controls.mainControl]
+			if laggedOut then
+				if pingTime <= LAGOUT_FLASH_THRESHOLD then
+					local bg = controls.mainControl.backgroundColor
+					if bg[1] ~= 0 then
+						bg[1], bg[4] = 0, 0
+						controls.mainControl:Invalidate()
+					end
+					laggingOut[controls.mainControl] = nil
+				end
 			else
-				controls.textName.tooltip = entryData.name .. ' (teamID ' .. entryData.teamID .. ')'
-			end
-			-- controls.textName:SetCaption(controls.textName.caption .. 'A')
-			controls.textName:Invalidate()
-			if controls.textTeamID then
-				controls.textTeamID.font.color = GetPlayerTeamColor(entryData.teamID, entryData.isSpec, entryData.isWaiting)
-				-- controls.textTeamID:SetCaption(controls.textTeamID.caption .. 'B')
-				controls.textTeamID:Invalidate()
+				if pingTime > LAGOUT_FLASH_THRESHOLD then
+					laggingOut[controls.mainControl] = time + BLINK_END
+				end
 			end
 		end
-	end
-	if toSort or _toSort then
-		SortEntries()
+		local lagging = ((pingTime > PING_TIMEOUT) and true) or false
+		if lagging ~= entry.isLagging then
+			entry.isLagging = lagging
+			UpdateName(entry, controls)
+		end
+		local afk = false
+		if not entry.initSpec then
+			afk = not not spGetPlayerRulesParam(entry.playerID, "lagmonitor_lagging")
+		else
+			afk = not not playerInfo[entry.name].isAfk
+		end
+		if afk ~= entry.isAfk then
+			entry.isAfk = afk
+			UpdateName(entry, controls)
+		end
+
 	end
 end
 
+local function GetInitialTeam(playerID, teamList, gaiaTeamID) -- unused but working for debugging
+	local name, active, isSpec, teamID, allyTeamID = spGetPlayerInfo(playerID)
+	local debugging = true
+	if debugging then
+		Echo('Treating player ' .. name)
+	end
+	-- edge cases impersonation (player changed team through cheat and reloaded the widget, we're deducing his initial team)
+	local initSpec = true
+	local initTeamID = 0
+	local initAllyTeamID = 0
+	local impersonating
+	local initTeamFound = false
+	for i, teamID in ipairs(teamList) do
+		if teamID ~= gaiaTeamID then
+			local squad = spGetPlayerList(teamID)
+			local _, leader, isDead, isAITeam, side, allyTeamID, customTeamKeys, incomeMult = spGetTeamInfo(teamID, true)
+			local initLeader = spGetTeamRulesParam(teamID, 'initLeaderID')
+			if debugging then
+				Echo('Check team', teamID, "leader:"..tostring(leader)..", initLeader:"..tostring(initLeader)..", isDead:"..tostring(isDead)..", isAITeam:"..tostring(isAITeam)..", side:"..tostring(side)..", allyTeamID:"..tostring(allyTeamID), 'isCommSharing', isCommSharing, 'Squad', #squad)
+			end
+			if (leader == playerID or initLeader == playerID) and not isAITeam then
+				initTeamID = teamID
+				initAllyTeamID = allyTeamID
+				initSpec = false
+				initTeamFound = true
+				if debugging then
+					Echo('found initial team of ' .. name .. ': ' .. teamID)
+				end
+			end
+			if debugging and impersonating == nil then
+				for i, pid in ipairs(squad) do
+					if playerID == pid then
+						if leader == playerID and not isAITeam then
+							impersonating = false
+							-- Echo('-Not impersonating nor in squad-')
+						else
+							
+							if isAITeam then
+								impersonating = true
+								Echo('player ' .. name .. ' is impersonating ' .. select(2, spGetAIInfo(teamID)) ..  ' teamID ' .. teamID)
+							else
+								-- local isCommsharing = spGetTeamRulesParam(teamID, "isCommsharing")
+								local commshare_team_id = spGetPlayerRulesParam(playerID, "commshare_team_id")
+								local targetPlayerName = tostring(spGetPlayerInfo(leader))
+								if commshare_team_id == teamID then
+									Echo('player ' .. name .. ' is in the squad of ' .. targetPlayerName)
+									impersonating = false
+								else
+									Echo('player ' .. name .. ' is impersonating ' .. targetPlayerName .. ' teamID ' .. teamID)
+									impersonating = true
+								end
+							end
+						end
+
+						break
+					end
+				end
+			end
+			if initTeamFound and (not debugging or impersonating ~= nil) then
+				break
+			end
+		end
+	end
+	return {initSpec = initSpec, initTeamID = initTeamID, initAllyTeamID = initAllyTeamID}
+end
+
+local function UpdateClan(entry, info)
+	if info.clan and info.clan ~= "" then
+		entry.clan = VFS.FileExists("LuaUI/Configs/Clans/" .. info.clan ..".png") and "LuaUI/Configs/Clans/" .. info.clan ..".png" or nil
+	elseif info.faction and info.faction ~= "" then
+		entry.clan = VFS.FileExists("LuaUI/Configs/Factions/" .. info.faction .. ".png") and "LuaUI/Configs/Factions/" .. info.faction .. ".png"
+	end
+	return entry.clan
+end
+
+local function UpdateEntry(controls, forceUpdate, isConnecting)
+	local entry = controls.entry
+	local teamID, allyTeamID = entry.teamID, entry.allyTeamID
+	local spectator = false
+	local active = true
+	local isGone = false
+	local entry = controls.entry
+	local info
+	if displayResources and controls and (controls.btnMetal and controls.btnMetal.visible) then
+		UpdateResources(controls, teamID)
+	end
+	if not entry.initSpec or entry.isAiTeam then
+		updateTeams[entry.initTeamID] = nil
+	end
+	if not entry.isAiTeam then
+		updatePlayers[entry.playerID] = nil
+		if entry.playerID == 0 then
+			local new_godmode = Spring.IsGodModeEnabled()
+			local new_cheating = Spring.IsCheatingEnabled()
+			if godmode ~= new_godmode or new_cheating ~= cheating then
+				cheating = new_cheating
+				godmode = new_godmode
+				updateButtons = true
+			end
+		end
+		local playerName, _active, _spectator, _teamID, _allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(entry.playerID, true)
+		info = playerInfo[playerName]
+		if info then
+			isGone = not not info.isGone
+			if  forceUpdate then
+				if info.name and entry.name ~= info.name then
+					if debugging then
+						Echo('-- changing name of ' .. entry.name .. ' to ' .. info.name .. ' --')
+					end
+					entry.name = info.name
+					UpdateName(entry, controls)
+				end
+				country = country~='' and country or info.country~='' and info.country or nil
+				if country and entry.country ~= country then
+					if debugging then
+						Echo('-- changing country for ' .. entry.name .. ' to ' .. country .. ' --')
+					end
+					entry.country = country
+					entry.countryFlag = ("LuaUI/Images/flags/" .. country ..".png")
+					entry.countryLong = countryFull[country] or 'Unknown'
+					if VFS.FileExists(entry.countryFlag) then
+						controls.imCountry.file = entry.countryFlag
+						controls.imCountry.color = {1,1,1,1} -- remove the transparency, since we made a placeholder for the image (that would have been blank without transparency)
+						controls.imCountry.tooltip = entry.countryLong
+						controls.imCountry:Invalidate()
+					end
+				end
+				if info.icon and entry.rank == "LuaUI/Images/LobbyRanks/0_0.png" then
+					entry.rank = "LuaUI/Images/LobbyRanks/" .. info.icon .. ".png"
+					if debugging then
+						Echo('-- changing rank of '.. entry.name .. ' to ' .. info.icon .. ' --')
+					end
+					controls.imRank.file = entry.rank
+					controls.imRank:Invalidate()
+				end
+
+				if info.elo and not entry.elo then
+					entry.elo = tonumber(info.elo)
+					controls.txtElo:SetCaption(('%.1f'):format(entry.elo/1000))
+					controls.txtElo.tooltip = entry.elo
+					if debugging then
+						Echo('-- adding elo of ' .. entry.name .. ': ' .. ('%.1f'):format(entry.elo/1000))
+					end
+					resortRequired = true
+				end
+				if not entry.clan then
+					if UpdateClan(entry, info) then
+						if debugging then
+							Echo('-- adding clan/faction of ' .. entry.name .. ': ' .. entry.clan .. ' --')
+						end
+						controls.imClan.file = entry.clan
+						controls.imClan.color = {1,1,1,1} -- remove the transparency, since we made a placeholder for the image (that would have been blank without transparency)
+						controls.imClan.tooltip = info.clan
+						controls.imClan:Invalidate()
+					end
+				end
+				if debugging then
+					for k, v in pairs(info) do
+						entry['[info]'..k] = Truncate(v, 25)
+					end
+				end
+			end
+		end
+
+		teamID, allyTeamID = _teamID, _allyTeamID
+
+		if _spectator then
+			spectator = true
+			teamID, allyTeamID = entry.initTeamID,  entry.initAllyTeamID
+		end
+
+		if not _active then
+			active = false
+		end
+		
+		if forceUpdate then
+			UpdatePing(entry.playerID, controls, true)
+		end
+	end
+	local isDead = entry.isDead or not entry.initSpec and spGetTeamRulesParam(entry.initTeamID, 'WasKilled') or false
+	local isConnecting = not active and (isConnecting or entry.isConnecting)
+	local isGone = not (active or isConnecting) and (entry.isActive or entry.isGone or isGone)
+
+	if forceUpdate
+		or entry.teamID ~= teamID
+		or entry.allyTeamID ~= allyTeamID
+		or entry.isSpec ~= spectator
+		or entry.isDead ~= isDead
+		or entry.isGone ~= isGone
+		or entry.isConnecting ~= isConnecting
+		or entry.isActive ~= active
+	then
+		entry.teamID = teamID
+		entry.allyTeamID = allyTeamID
+		entry.isSpec = spectator
+		entry.isDead = isDead
+		entry.isGone = isGone
+		if info then
+			info.isGone = isGone
+		end
+		entry.isConnecting = isConnecting
+		entry.isActive = active
+
+		entry.impersonating = 
+			not entry.initSpec and entry.isSpec and not entry.isDead
+			or entry.initSpec and not entry.isSpec
+			or not entry.initSpec and entry.initTeamID ~= entry.teamID
+			or entry.isDead and not entry.isSpec
+
+		resortRequired = true
+		recolorRequired = true
+		updateButtons = true
+		--
+		if controls.btnShare then
+			controls.btnShare:SetVisibility(not controls.btnShare:DisableFunc())
+			controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+			controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
+		end
+
+	end
+end
+
+local function CreateEntry(playerID, initTeamID, initAllyTeamID, initSpec, isAiTeam)
+	local isDead = not initSpec and spGetTeamRulesParam(initTeamID, 'WasKilled')
+	local entry = {
+		playerID = playerID,
+		teamID = initTeamID,
+		allyTeamID = initAllyTeamID,
+		initTeamID = initTeamID,
+		initAllyTeamID = initAllyTeamID,
+		initSpec = initSpec,
+		isAiTeam = isAiTeam,
+		isDead = isDead,
+		isSpec = initSpec,
+	}
+	
+	local info
+	if not isAiTeam then
+		local playerName, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
+		 -- in replay there is placeholder 'unknown' for future player
+		if playerName == 'unknown' then
+			playerName = '<unknown'..playerID..'>'
+		end
+		country = country ~= '' and country or nil
+		-- customKeys.icon = customKeys.icon or rank
+		customKeys.country = country
+
+		info = playerInfo[playerName]
+		if not info then
+			info = {playerID = playerID, name = playerName}
+			playerInfo[playerName] = info
+		end
+		MergeAndUpdateInfo(info, customKeys)
+
+		entry.teamID = teamID
+		entry.allyTeamID = allyTeamID
+
+		entry.playerID = playerID
+		entry.isMe = entry.playerID == myPlayerID and not isAiTeam
+		entry.allyTeamID = allyTeamID
+		entry.isAiTeam = false
+		entry.isDead = isDead
+		entry.isGone = not not info.isGone
+		entry.isActive = active
+		entry.isSpec = spectator
+		entry.impersonating = 
+			not entry.initSpec and entry.isSpec and not entry.isDead
+			or entry.initSpec and not entry.isSpec
+			or not entry.initSpec and entry.initTeamID ~= entry.teamID
+			or entry.isDead and not entry.isSpec
+		if info.country then
+			entry.country = country
+			entry.countryFlag = ("LuaUI/Images/flags/" .. info.country ..".png")
+			entry.countryLong = countryFull[country] or 'Unknown'
+		end
+		entry.name = playerName
+
+		entry.rank = ("LuaUI/Images/LobbyRanks/" .. (info.icon or "0_0") .. ".png")
+		entry.elo = tonumber(customKeys.elo or info.elo)
+		UpdateClan(entry, info)
+	else
+		entry.name = select(2, spGetAIInfo(initTeamID)) or '<unknownAI' .. initTeamID .. '>'
+	end
+	if debugging then
+		Echo(
+			('<< Entry Created for %s %s %s initTeamID %d >>'):format(
+				initSpec and 'spectator' or 'player',
+				entry.name,
+				isAiTeam and 'AI' or 'playerID ' .. playerID,
+				initTeamID
+			)
+		)
+	end
+	return entry
+end
+
+
+local function CreateControls(playerID, teamID, allyTeamID, isSpec, isAiTeam)
+	local offset             = 0
+	local offsetY            = 0
+	local text_height        = options.text_height.value
+	local height             = text_height + 4
+	local controls = {}
+	controls.entry = CreateEntry(playerID, teamID, allyTeamID, isSpec, isAiTeam)
+	local entry = controls.entry
+
+	controls.mainControl = Chili.Panel:New {
+		TileImageBK = ":cl:empty.png", -- set no background texture so we can colorize it
+		backgroundColor = {0,0,0,0},
+		x = 0,
+		top = 0,
+		bottom = 0,
+		right = 0,
+		height = height,
+		padding = {0, 0, 0, 0},
+		parent = scrollPanel,
+		keepAspect = false,
+	}
+
+	offset = offset + 1
+	if not isAiTeam then
+		controls.imCountry = Chili.Image:New {
+			name = "imCountry",
+			color = not (entry.country and VFS.FileExists(entry.countryFlag)) and {0,0,0,0} or nil,
+			x = offset,
+			y = offsetY,
+			width = text_height + 3,
+			height = text_height + 3,
+			parent = controls.mainControl,
+			keepAspect = true,
+			file = entry.countryFlag,
+			-- tooltip = entry.country and entry.country:match('.+/([^%.]+)') or nil,
+			tooltip = entry.country and entry.countryLong,
+			HitTest = function(self) return self end,
+		}
+	end
+
+	offset = offset + text_height + 3
+
+	offset = offset + 1
+
+	controls.imRank = Chili.Image:New {
+		name = "imRank",
+		x = offset,
+		y = offsetY,
+		width = text_height + 3,
+		height = text_height + 3,
+		parent = controls.mainControl,
+		keepAspect = true,
+		file = entry.rank,
+	}
+
+	offset = offset + text_height + 3
+	
+	offset = offset + 1
+	if not isAiTeam then
+		controls.imClan = Chili.Image:New {
+			backGroundColor = {0,0,0,0},
+			color = not entry.clan and {0,0,0,0} or nil,
+			name = "imClan",
+			x = offset,
+			y = offsetY,
+			width = text_height + 3,
+			height = text_height + 3,
+			parent = controls.mainControl,
+			keepAspect = true,
+			file = entry.clan or '',
+			tooltip = entry.clan and entry.clan:match('.+/([^%.]+)') or nil,
+			HitTest = function(self) return self end,
+		}
+	end
+
+	offset = offset + text_height + 3
+
+	offset = offset + 1
+
+	controls.txtElo = Chili.Label:New {
+		name = "elo",
+		x = offset,
+		y = offsetY + 1,
+		width = text_height * 1.5,
+		bottom = 3,
+		parent = controls.mainControl,
+		caption = entry.elo and ('%.1f'):format(entry.elo/1000) or '',
+		fontsize = text_height,
+		fontShadow = true,
+		autosize = false,
+		tooltip = entry.elo,
+		HitTest = function(self) return self end or nil,
+	}
+
+	if SHOW_TEAMID then
+		offset = offset + text_height + 3
+
+
+		offset = offset + 15
+
+
+		-- controls.textAllyTeam = Chili.Label:New {
+		-- 	name = "textAllyTeam",
+		-- 	x = offset,
+		-- 	y = offsetY + 1,
+		-- 	right = 0,
+		-- 	bottom = 3,
+		-- 	-- parent = controls.mainControl,
+		-- 	caption = entry.allyTeamID + (isSpec and not isDead and 0 or 1),
+		-- 	textColor = entry.allyTeamColor,
+		-- 	fontsize = text_height,
+		-- 	fontShadow = true,
+		-- 	autosize = false,
+		-- }
+
+		controls.textTeamID = Chili.Label:New {
+			name = "textTeamID",
+			x = offset,
+			y = offsetY + 1,
+			right = 0,
+			bottom = 3,
+			parent = controls.mainControl,
+			caption = entry.teamID,
+			textColor = entry.allyTeamColor,
+			fontsize = text_height,
+			fontShadow = true,
+			autosize = false,
+		}
+		offset = offset + text_height --+ 3
+		
+		offset = offset + 2
+	else
+		offset = offset + text_height + 8
+	end
+	controls.textName = Chili.Label:New {
+		name = "textName",
+		x = offset,
+		y = offsetY + 1,
+		-- right = 0,
+		bottom = 3,
+		align = "left",
+		width = MAX_NAME_LENGTH,
+		parent = controls.mainControl,
+		caption = entry.name,
+		textColor = GetPlayerTeamColor(entry),
+		fontsize = text_height,
+		fontShadow = true,
+		autosize = false,
+		tooltip = entry.name,
+		font = {
+			autoOutlineColor = false,
+		},
+		HitTest = function(self) return self end,
+	}
+	offset = offset + MAX_NAME_LENGTH
+
+	offset = offset + 1
+	controls.btnShare = Chili.Button:New {
+		name = "btnShare",
+		x = offset + 2,
+		y = offsetY + 2,
+		width = text_height - 1,
+		height = text_height - 1,
+		parent = controls.mainControl,
+		caption = "",
+		tooltip = "Click to share the units you have selected to this player.",
+		padding ={0,0,0,0},
+		DisableFunc = function(self)
+			return mySpectating
+				or entry.initSpec
+				or entry.initTeamID == myTeamID
+				or entry.initAllyTeamID ~= myAllyTeamID and not cheating -- cannot give to ennemy team unless cheating
+		end,
+		OnClick = {function(self)
+			if not self:DisableFunc() then
+				ShareUnits(entry.name, entry.teamID)
+			end
+		end, },
+	}
+
+	Chili.Image:New {
+		name = "imShare",
+		x = 0,
+		y = 0,
+		right = 0,
+		bottom = 0,
+		parent = controls.btnShare,
+		keepAspect = true,
+		file = IMAGE_SHARE,
+	}
+	controls.btnShare:SetVisibility(not controls.btnShare:DisableFunc())
+	offset = offset + text_height + 1
+
+
+	offset = offset + 1
+	controls.btnMetal = Chili.Button:New {
+		name = "btnMetal",
+		x = offset + 2,
+		y = offsetY + 2,
+		width = text_height - 1,
+		height = text_height - 1,
+		parent = controls.mainControl,
+		caption = displayResources and "0" or "",
+		fontsize = text_height-3,
+		tooltip = "",
+		padding ={0,0,0,0},
+		color = {0,0,0,0},
+		DisableFunc = function(self)
+			return mySpectating
+				or entry.initSpec
+				or entry.initTeamID == myTeamID
+				or entry.initAllyTeamID ~= myAllyTeamID -- never can give metal/energy across allyteam
+		end,
+		OnMouseOver = {
+			function(self)
+				local cur, stor = GetResource(entry.initTeamID, 'metal')
+				if cur then
+					self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
+					if not self:DisableFunc() then
+						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
+					end
+					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				end
+			end
+		},
+		OnClick = {function(self)
+			if not self:DisableFunc() then
+				GiveResource(myTeamID, entry.initTeamID, "metal")
+				local cur, stor = GetResource(entry.initTeamID, 'metal')
+				if cur then
+					self.tooltip = ('M:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
+				end
+			end
+		end, },
+	}
+	if not displayResources then
+		Chili.Image:New {
+			name = "imMetal",
+			x = 0,
+			y = 0,
+			right = 0,
+			bottom = 0,
+			parent = controls.btnMetal,
+			keepAspect = true,
+			file = IMAGE_METAL,
+		}
+	end
+	offset = offset + text_height + 1
+
+	offset = offset + 1
+	controls.btnEnergy = Chili.Button:New {
+		name = "btnEnergy",
+		x = offset + 2,
+		y = offsetY + 2,
+		width = text_height - 1,
+		height = text_height - 1,
+		parent = controls.mainControl,
+		caption = displayResources and "0" or "",
+		fontsize = text_height-3,
+		align = 'center',
+		tooltip = "",
+		padding ={0,0,0,0},
+		DisableFunc = function(self)
+			return mySpectating
+				or entry.initSpec
+				or entry.initTeamID == myTeamID
+				or entry.initAllyTeamID ~= myAllyTeamID -- never can give metal/energy across allyteam
+		end,
+		OnMouseOver = {
+			function(self)
+				local cur, stor = GetResource(entry.initTeamID, 'energy')
+				if cur then
+					self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) 
+					if not self:DisableFunc() then
+						self.tooltip = self.tooltip .. '\n' .. res_tooltip_mod_info
+					end
+					UPDATE_TOOLTIP = {control = self, next_time = os.clock() + 1}
+				end
+			end
+		},
+		OnClick = {function(self)
+			if not self:DisableFunc() then
+				GiveResource(myTeamID, entry.initTeamID,"energy")
+				local cur, stor = GetResource(entry.initTeamID, 'energy')
+				if cur then
+					self.tooltip = ('E:' .. '%d' .. '/' .. '%d'):format(cur, stor) .. '\n' .. res_tooltip_mod_info
+				end
+			end
+		end, },
+	}
+	if not displayResources then
+		Chili.Image:New {
+			name = "imEnergy",
+			x = 0,
+			y = 0,
+			right = 0,
+			bottom = 0,
+			parent = controls.btnEnergy,
+			keepAspect = true,
+			file = IMAGE_ENERGY,
+		}
+	end
+	offset = offset + text_height + 1
+
+
+
+	offset = offset + 1
+	if not isAiTeam then
+		controls.imCpu = Chili.Image:New {
+			name = "imCpu",
+			x = offset,
+			y = offsetY,
+			width = text_height + 3,
+			height = text_height + 3,
+			parent = controls.mainControl,
+			keepAspect = true,
+			file = IMAGE_CPU,
+			color = {1,1,1,1},
+		}
+		function controls.imCpu:HitTest(x,y) return self end
+	end
+
+	offset = offset + text_height
+	
+	offset = offset + 1
+	if not isAiTeam then
+		controls.imPing = Chili.Image:New {
+			name = "imPing",
+			x = offset,
+			y = offsetY,
+			width = text_height + 3,
+			height = text_height + 3,
+			parent = controls.mainControl,
+			keepAspect = true,
+			file = IMAGE_PING,
+			color = {1,1,1,1},
+		}
+		function controls.imPing:HitTest(x,y) return self end
+	end
+
+	offset = offset + text_height
+
+	if entry.isAiTeam then
+		updateTeams[entry.initTeamID] = max(2, updateTeams[entry.initTeamID] or 0)
+	else
+		updatePlayers[entry.playerID] = max(2, updatePlayers[entry.playerID] or 0)
+	end
+	return controls
+end
+
+local function UpdatePlayer(playerID, info, isConnecting)
+	local controls = controlsByPlayerID[playerID]
+	local forceUpdate = not not info
+	if not controls then
+		local name, active, spectator, teamID, allyTeamID = spGetPlayerInfo(playerID)
+		local initSpec = spectator and spGetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1
+		controls = CreateControls(playerID, teamID, allyTeamID, initSpec, false)
+		listControls[#listControls + 1] = controls
+		if not controlsByTeamID[teamID] then
+			controlsByTeamID[teamID] = controls
+		end
+		controlsByPlayerID[playerID] = controls
+		forceUpdate = true
+	else
+		if debugging then
+			Echo('<< UpdatePlayer playerID ' .. playerID .. ' ' .. controls.entry.name .. ' >>')
+		end
+	end
+	updatePlayers[playerID] = 3
+end
+
+
+
+
+
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+
 
 local function InitializePlayerlist()
-	if playerlistWindow then
-		playerlistWindow:Dispose()
-		playerlistWindow = nil
-	end
-	
 	if listControls then
 		for i = 1, #listControls do
 			if listControls[i].mainControl then
 				listControls[i].mainControl:Dispose()
 			end
 		end
+		myControls = nil
 		listControls = {}
-		playersByPlayerID = {}
-		teamByTeamID = {}
+		controlsByPlayerID = {}
+		controlsByTeamID = {}
 	end
 	local screenWidth, screenHeight = Spring.GetViewGeometry()
 	local windowWidth = MAX_NAME_LENGTH + 11*(options.text_height.value or 13) + 40 - (SHOW_TEAMID and 0 or 19)
+
+	local x = screenWidth - windowWidth
+	local y = floor(screenHeight/10)
+	local width = windowWidth
+	local minWidth = windowWidth
+	local height
+
+	if playerlistWindow then
+		playerlistWindow:Dispose()
+		x, y, width, height = playerlistWindow.x, playerlistWindow.y, playerlistWindow.width, playerlistWindow.height
+		playerlistWindow = nil
+	end
 
 	--// WINDOW
 	scrollPanel = Chili.ScrollPanel:New{
@@ -1312,16 +1687,19 @@ local function InitializePlayerlist()
 	playerlistWindow = Chili.Window:New{
 		backgroundColor = {0, 0, 0, 0},
 		color = {0, 0, 0, 0},
+		backgroundColor = {1, 1, 1, options.backgroundOpacity.value},
+		borderColor = {1, 1, 1, options.backgroundOpacity.value},
 		parent = Chili.Screen0,
 		-- margin = {0,13,0,0},
 		dockable = true,
 		name = "Player List", -- NB: this exact string is needed for HUD preset playerlist handling
 		padding = {0, 0, 11, 0},
-		x = screenWidth - windowWidth,
-		y = math.floor(screenHeight/10),
-		width = windowWidth,
-		minWidth = windowWidth,
-		clientHeight = math.floor(screenHeight/2),
+		x = x,
+		y = y,
+		width = width,
+		minWidth = minWidth,
+		height = height,
+		clientHeight = floor(screenHeight/2),
 		minHeight = 100,
 		draggable = false,
 		resizable = true,
@@ -1335,152 +1713,97 @@ local function InitializePlayerlist()
 		},
 	}
 
-	local gaiaTeamID = Spring.GetGaiaTeamID
+	local gaiaTeamID = Spring.GetGaiaTeamID()
 	local teamList = Spring.GetTeamList()
 	for i = 1, #teamList do
 		local teamID = teamList[i]
 		if teamID ~= gaiaTeamID then
 			local _, leaderID, isDead, isAiTeam, side, allyTeamID = spGetTeamInfo(teamID, false)
-			-- Echo(teamID,_,"isAiTeam, leaderID is ", isAiTeam, leaderID)
-			if leaderID < 0 then
-				leaderID = Spring.GetTeamRulesParam(teamID, "initLeaderID") or leaderID
-			end
-			
-			if leaderID >= 0 then
-				if isAiTeam then
-					leaderID = nil
-				end
-				
-				local controls = GetUserControls(leaderID, teamID, allyTeamID, isAiTeam, isDead, false, scrollPanel)
-				listControls[#listControls + 1] = controls
-				teamByTeamID[teamID] = controls
-				if leaderID then
-					playersByPlayerID[leaderID] = controls
-				end
-			end
-		end
-	end
-	-- go through all players, register as entities, assign to teams
-	for i,playerID in ipairs(spGetPlayerList()) do
-		local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country = spGetPlayerInfo(playerID, false)
-		local isSpec = (--[[teamID == 0 and--]] spectator and spGetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1)
-		if isSpec then
-			local controls = GetUserControls(playerID, teamID, allyTeamID, isAiTeam, isDead, isSpec, scrollPanel)
+			local initLeaderID = spGetTeamRulesParam(teamID, "initLeaderID")
+			local controls = CreateControls(initLeaderID, teamID, allyTeamID, false, isAiTeam)
 			listControls[#listControls + 1] = controls
-			teamByTeamID[teamID] = controls
-			playersByPlayerID[playerID] = controls
+			controlsByTeamID[teamID] = controls
+			if not isAiTeam then
+				controlsByPlayerID[initLeaderID] = controls
+				Spring.SendCommands('get_userinfo '..controls.entry.name)
+				if initLeaderID == myPlayerID then
+					myControls = controls
+				end
+			end
 		end
 	end
-	SortEntries()
+
+	for i, playerID in ipairs(spGetPlayerList()) do
+		if not controlsByPlayerID[playerID] then
+			local controls = CreateControls(playerID, 0, 0, true, false)
+			local entry = controls.entry
+			listControls[#listControls + 1] = controls
+			controlsByPlayerID[playerID] = controls
+			Spring.SendCommands('get_userinfo '..controls.entry.name)
+			if playerID == myPlayerID then
+				myControls = controls
+			end
+
+		end
+	end
+	resortRequired = true
+	updateButtons = true
 end
 
+local function Initialize()
+	Chili = WG.Chili
+
+	if (not Chili) then
+		widgetHandler:RemoveWidget()
+		return
+	end
+	WG.playerInfo = WG.playerInfo or {}
+	playerInfo = WG.playerInfo
+	for k in pairs(laggingOut) do
+		laggingOut[k] = nil
+	end
+	UPDATE_TOOLTIP = false
+	InitializePlayerlist()
+
+	Spring.SendCommands("info 0")
+	if not Spring.IsReplay() then
+		Spring.SendCommands('get_mybattleinfo')
+	end
+	initialized = true
+end
+
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-options_path = 'Settings/HUD Panels/Player List'
-local helk_path = 'Hel-K/'..widget.GetInfo().name
-options_order = {'text_height', 'backgroundOpacity', 'alignToTop', 'give_to_hovered', 'show_res'}
-options = {
-	text_height = {
-		name = 'Font Size (10-18)',
-		type = 'number',
-		value = DEFAULT_TEXT_HEIGHT,
-		min = 10, max = 18, step = 1,
-		OnChange = InitializePlayerlist,
-		advanced = true
-	},
-	backgroundOpacity = {
-		name = "Background opacity",
-		type = "number",
-		value = 0, min = 0, max = 1, step = 0.01,
-		OnChange = function(self)
-			playerlistWindow.backgroundColor = {1,1,1,self.value}
-			playerlistWindow.borderColor = {1,1,1,self.value}
-			playerlistWindow:Invalidate()
-		end,
-	},
-	alignToTop = {
-		name = "Align to top",
-		type = 'bool',
-		value = false,
-		desc = "Align list entries to top (i.e. don't push to bottom)",
-		OnChange = SortEntries,
-	},
-	give_to_hovered = {
-		type = 'button',
-		value = false,
-		name = 'Give To Hovered',
-		desc = 'Give the selected units to the hovered team (hotkey needed)',
-		OnChange = function(self)
-			local underID = WG.PreSelection_GetUnitUnderCursor()
-			if underID then
-				local teamID = Spring.GetUnitTeam(underID)
-				if teamID and teamID ~= Spring.GetMyTeamID() then
-					ShareUnits(nil, teamID)
-				end
-			end
-		end,
-		path = helk_path,
-	},
-	show_res = {
-		type = 'bool',
-		value = LOG_RES,
-		name = 'Show Player Resources',
-		OnChange = function(self)
-			if LOG_RES ~= self.value then
-				LOG_RES = self.value
-				for i, controls in ipairs(listControls) do
-					if controls.btnMetal and not controls.entryData.isSpec then
-						if LOG_RES then
-							controls.btnMetal:RemoveChild(controls.btnMetal.children[1]) -- remove image
-							controls.btnMetal:SetCaption('0')
-							controls.btnEnergy:RemoveChild(controls.btnEnergy.children[1]) -- remove image
-							controls.btnEnergy:SetCaption('0')
-							if controls.btnMetal.hidden then
-								controls.btnMetal:SetVisibility(true)
-								controls.btnEnergy:SetVisibility(true)
-							end
-						else
-							Chili.Image:New {
-								name = "imMetal",
-								x = 0,
-								y = 0,
-								right = 0,
-								bottom = 0,
-								parent = controls.btnMetal,
-								keepAspect = true,
-								file = IMAGE_METAL,
-							}
-							controls.btnMetal:SetCaption('')
-							Chili.Image:New {
-								name = "imEnergy",
-								x = 0,
-								y = 0,
-								right = 0,
-								bottom = 0,
-								parent = controls.btnEnergy,
-								keepAspect = true,
-								file = IMAGE_ENERGY,
-							}
-							if myAllyTeamID ~= controls.entryData.allyTeamID or (controls.entryData.teamID == myTeamID) then
-								controls.btnMetal:SetVisibility(false)
-								controls.btnEnergy:SetVisibility(false)
-							end
-							controls.btnEnergy:SetCaption('')
-						end
-					end
-				end
-			end
-		end,
-		path = helk_path,
-	},
-}
---------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local lastUpdate = 0
 
+
+local pingUpdateTime = 0
 function widget:Update(dt)
+	if not initialized then
+		Initialize()
+	end
+	for playerID, v in pairs(updatePlayers) do
+		UpdateEntry(controlsByPlayerID[playerID], v > 1, v > 2)
+	end
+	for teamID, v in pairs(updateTeams) do
+		UpdateEntry(controlsByTeamID[teamID], v > 1, v > 2)
+	end
+	if resortRequired then
+		SortEntries()
+		resortRequired = false
+	end
+	if recolorRequired then
+		RecolorEntries()
+		recolorRequired = false
+	end
+	if updateButtons then
+		UpdateButtons()
+		updateButtons = false
+	end
+
 	time = time + dt
 	if next(laggingOut) then
 		for mainControl, blink_timeout in pairs(laggingOut) do
@@ -1510,144 +1833,220 @@ function widget:Update(dt)
 			local now = os.clock()
 			if cont.next_time < now then
 				cont.next_time = now + 1
-				GiveResource(cont.target, kind, 'all', true)
+				GiveResource(myTeamID, cont.target, kind, 'all', true)
 				if cont.time < now then
 					cont.target = false
 				end
 			end
 		end
 	end
-	lastUpdate = lastUpdate + dt
-	if lastUpdate < UPDATE_PERIOD then
-		return
-	end
-	lastUpdate = 0
-	
-	for i, control in ipairs(listControls) do
-		UpdateEntryData(control.entryData, control, true)
+	pingUpdateTime = pingUpdateTime + dt
+	if pingUpdateTime >= pingUpdatePeriod then
+		pingUpdateTime = 0
+		for playerID, controls in pairs(controlsByPlayerID) do
+			UpdatePing(playerID, controls)
+		end
 	end
 end
 
 function widget:PlayerChanged(playerID)
-	-- local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
-	-- Echo('player',playerID,'CHANGED','name?',name,'playerInfo?',playerInfo[name])
-	if playerID == myPlayerID then
-		local isSpectating = Spring.GetSpectatingState()
-		local ownAllyTeamID = Spring.GetMyAllyTeamID()
-		local ownTeamID = Spring.GetMyTeamID()
-		local updateAll = false
-		-- local changedTeam = ownTeamID ~= myTeamID
-		
-		if mySpectating ~= isSpectating then
-			updateAll = true
-			mySpectating = isSpectating
-		end
-		if myAllyTeamID ~= (not mySpectating and ownAllyTeamID) then
-			updateAll = true
-			myAllyTeamID = (not mySpectating and ownAllyTeamID)
-		end
-		if myTeamID ~= (not mySpectating and ownTeamID) then
-			updateAll = true
-			myTeamID = (not mySpectating and ownTeamID)
-		end
-		
-		if changedTeam then
-			local toSort = false
-			for i = 1, #listControls do
-				toSort = UpdateEntryData(listControls[i].entryData, listControls[i], false, true) or toSort
-			end
-			
-			if toSort then
-				SortEntries()
-			end
-			return
-		end
+	if debugging then
+		Echo('<< PlayerChanged ' .. controlsByPlayerID[playerID].entry.name .. ' playerID ' .. playerID .. '>>')
 	end
-	
-	UpdatePlayer(playerID,nil, not playerInfo[name])
+	if playerID == myPlayerID then
+		myTeamID = Spring.GetMyTeamID()
+		myAllyTeamID = Spring.GetMyAllyTeamID()
+		mySpectating = Spring.GetSpectatingState()
+		updateButtons = true
+	end
+	updatePlayers[playerID] = 1
 end
 
 function widget:PlayerAdded(playerID)
-	UpdatePlayer(playerID,nil, true)
-	-- local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
-	-- Echo('player',playerID,'ADDED','name?',name,'playerInfo?',playerInfo[name],'elo?',customKeys.elo)
-
+	if debugging then
+		Echo('<< PlayerAdded '.. playerID .. ' >>')
+	end
+	UpdatePlayer(playerID, true)
 end
 
 function widget:PlayerRemoved(playerID)
 	-- local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
 	-- Echo('player',playerID,'REMOVED','name?',name,'playerInfo?',playerInfo[name])
-	UpdatePlayer(playerID)
+	if debugging then
+		Echo('<< PlayerRemoved '.. playerID .. ' ' .. controlsByPlayerID[playerID].entry.name .. ' >>')
+	end
+	updatePlayers[playerID] = 1
 end
 
 function widget:TeamDied(teamID)
-	UpdateTeam(teamID)
+	if debugging then
+		Echo('<< TeamDied '.. teamID .. ' ' .. controlsByTeamID[teamID].entry.name .. ' >>')
+	end
+	for i, playerID in ipairs(spGetPlayerList()) do
+		local controls = controlsByPlayerID[playerID]
+		local entry = controls.entry
+		if not entry.initSpec and (entry.initTeamID == teamID or entry.teamID == teamID) then
+			updatePlayers[playerID] = 1
+		end
+	end
+	local controls = controlsByTeamID[teamID]
+	if controls.entry.isAiTeam then
+		updateTeams[teamID] = max(1, updateTeams[teamID] or 0)
+	end
 end
 
 function widget:TeamChanged(teamID)
-	UpdateTeam(teamID)
-end
-local function CorrectUserInfo(info)
-	if info.clan and not VFS.FileExists("LuaUI/Configs/Clans/" .. info.clan ..".png") then
-		if VFS.FileExists("LuaUI/Configs/Factions/" .. info.clan .. ".png") then
-			info.faction, info.clan = info.clan, nil
-		elseif VFS.FileExists("LuaUI/Images/flags/" .. info.clan ..".png") then
-			info.country, info.clan = info.clan, nil
+	if debugging then
+		Echo('<< TeamChanged '.. teamID .. ' ' .. controlsByTeamID[teamID].entry.name .. ' >>')
+	end
+	for i, playerID in ipairs(spGetPlayerList()) do
+		local controls = controlsByPlayerID[playerID]
+		local entry = controls.entry
+		if entry.initTeamID == teamID or entry.teamID == teamID then
+			updatePlayers[playerID] = max(1, updatePlayers[playerID] or 0)
 		end
 	end
-	if info.faction and not VFS.FileExists("LuaUI/Configs/Factions/" .. info.faction .. ".png") then
-		if VFS.FileExists("LuaUI/Images/flags/" .. info.faction ..".png") then
-			info.country, info.faction = info.faction, nil
-		end
+	local controls = controlsByTeamID[teamID]
+	if controls.entry.isAiTeam then
+		updateTeams[teamID] = max(1, updateTeams[teamID] or 0)
 	end
-	return info
+
 end
-function widget:ReceiveUserInfo(info, simulated)
-	local newPlayer = not simulated and not playerInfo[info.name]
-	playerInfo[info.name] = CorrectUserInfo(info)
+
+function widget:ReceiveUserInfo(new_info, simulated)
+	local info = playerInfo[new_info.name]
+	local isConnecting = false
+	if not simulated then
+		isConnecting = true
+		CorrectUserInfo(new_info)
+	end
+	if info then
+		MergeAndUpdateInfo(info, new_info)
+		new_info = info
+	else
+		playerInfo[new_info.name] = new_info
+	end
+	if debugging then
+		Echo('>>> Received info ' .. new_info.name .. ' #' .. table.size(new_info) .. ' <<<')
+	end
 
 	for i,playerID in ipairs(spGetPlayerList()) do
 		local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(playerID, true)
-		if name == info.name then
-			info.elo = customKeys.elo or info.elo
-			-- for k,v in pairs(info) do
-			-- 	if k~='name' then
-			-- 		Echo('=> ' .. k .. ' = ' .. tostring(v))
-			-- 	end
-			-- end
-
-			-- Echo('got playerID: ' .. playerID,'country?',country,info.country)
-			UpdatePlayer(playerID, info, newPlayer)
+		if name == new_info.name then
+			if debugging then
+				Echo('<< ReceiveUserInfo '.. new_info.name .. ' playerID ' .. playerID .. ' teamID ' .. teamID .. (simulated and ' (simulated)' or '') .. ' >>')
+			end
+			new_info.playerID = playerID
+			UpdatePlayer(playerID, new_info, isConnecting)
+			Spring.SendCommands('get_userinfo ' .. name) -- complete the job
 			break
 		end
 	end
-	-- for playerID, controls in pairs(playersByPlayerID) do
-	-- 	if controls.entryData and controls.entryData.name == info.name then
-	-- 		UpdateEntryData(controls.entryData, controls, false, false, info)
-	-- 		break
-	-- 	end
-	-- end
-
 end
 
-function widget:Initialize()
-	Chili = WG.Chili
+-- Completing user infos (need Hel-Chobby)
+local userKeyOrder = {'name', 'accountID', 'steamID', 'admin', 'isBot', 'avatar', 'icon', 'level', 'skill', 'casualSkill', 'country', 'clan', 'faction', 'isInGame', 'isAfk', 'inGameSince', }
+local battleKeyOrder = {
+	'title', 'battleID', 'founder',
+	'playerCount', 'battleMode', 'engineName',
+	'engineVersion', 'gameName', 'mapName',
+	'maxPlayers', 'maxEvenPlayers',	'spectatorCount',
+	'runningSince',	'lastRunningTime', 'passworded',
+	'isMatchMaker',	'isRunning', 'disallowBots',
+	'disallowCustomTeams',
+	-- 'users',
+	-- 'battleAis',
+}
 
-	if (not Chili) then
-		widgetHandler:RemoveWidget()
-		return
+function widget:RecvLuaMsg(msg, playerID)
+	if msg:find('^afk_changed ') then
+		local name, isAfk = msg:match('^afk_changed%s+(%S+)%s+(%S+)')
+		if name and isAfk then
+			isAfk = isAfk == '1'
+			local info = playerInfo[name]
+			if info then
+				local controls = controlsByPlayerID[info.playerID]
+				if controls.entry.initSpec then
+					info.isAfk = isAfk
+					if debugging then
+						Echo('Detected spec changing afk state !!', name, isAfk)
+					end
+				end
+			end
+		end
+	elseif msg:find('mybattleinfo ') then
+		local battleStr = msg:sub(('mybattleinfo '):len()+1)
+		local battleArray = string.split(battleStr, '|')
+		for i, v in ipairs(battleArray) do
+			local k = battleKeyOrder[i]
+			if v == 'false' then
+				v = false
+			elseif v == 'true' then
+				v = true
+			elseif v == 'nil' then
+				v = nil
+			elseif tostring(tonumber(v)) == v  then
+				v = tonumber(v)
+			end
+			if k == 'isMatchMaker' then
+				isMatchMaker = v
+				if debugging then
+					Echo('Battle ' .. battleArray[1] .. ' isMatchMaker: ' .. tostring(isMatchMaker))
+				end
+				break
+			end
+		end
+	elseif msg:find('userinfo ') then
+		local userStr = msg:sub(('userinfo '):len()+1)
+		local userArray = string.split(userStr, '|')
+		local NAME = msg:sub(('userinfo '):len()+1, msg:find('|')-1)
+		local userInfo = {}
+		for i, v in ipairs(userArray) do
+			local k = userKeyOrder[i]
+			if v == 'false' then
+				v = false
+			elseif v == 'true' then
+				v = true
+			elseif v == 'nil' then
+				v = nil
+			elseif tostring(tonumber(v)) == v  then
+				v = tonumber(v)
+			end
+			userInfo[k] = v
+		end
+		if isMatchMaker then
+			if userInfo.skill then
+				userInfo.elo = userInfo.skill
+			end
+		else
+			if userInfo.casualSkill then
+				userInfo.elo = userInfo.casualSkill
+			end
+		end
+		if userInfo.name then
+			local info = playerInfo[userInfo.name]
+			if not info then
+				info = {name = userInfo.name}
+				for i, playerID in ipairs(spGetPlayerList()) do
+					if spGetPlayerInfo(playerID) == userInfo.name then
+						info.playerID = playerID
+						break
+					end
+				end
+				playerInfo[userInfo.name] = info
+			end
+			local changed = MergeAndUpdateInfo(info, userInfo)
+			if changed then
+				if debugging then
+					Echo('<<< Completing ' .. info.name .. 'infos from lobby >>>')
+				end
+				UpdatePlayer(info.playerID, info, true)
+			end
+		end
 	end
-	WG.playerInfo = WG.playerInfo or {}
-	playerInfo = WG.playerInfo
-	InitializePlayerlist()
-	for name, info in pairs(playerInfo) do
-		widget:ReceiveUserInfo(info, true)
-	end
-	if not next(playerInfo) then -- in case of cheat and impersonating a team
-		widget:PlayerChanged(Spring.GetMyPlayerID())
-	end
-	Spring.SendCommands("info 0")
 end
+
+
 
 function widget:Shutdown()
 	Spring.SendCommands("info 1")
