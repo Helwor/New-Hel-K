@@ -638,14 +638,14 @@ local function Compare(ac, bc)
 	if a.initSpec ~= b.initSpec then
 		return b.initSpec
 	elseif a.initSpec then
-		if a.isMe ~= b.isMe then
-			return a.isMe
+		if a.isActive ~= b.isActive then
+			return not b.isActive 
 		elseif a.elo ~= b.elo then
 			return (a.elo or 0) > (b.elo or 0)
+		elseif a.isMe ~= b.isMe then
+			return a.isMe
 		elseif not not a.name:find('unknown') ~= not not b.name:find('unknown') then
 			return not a.name:find('unknown')
-		elseif a.isActive ~= b.isActive then
-			return not b.isActive 
 		else
 			return a.playerID < b.playerID
 		end
