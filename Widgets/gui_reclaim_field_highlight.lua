@@ -323,6 +323,7 @@ local glRotate				 = gl.Rotate
 local glText				 = gl.Text
 local glTranslate			 = gl.Translate
 local glVertex				 = gl.Vertex
+local glTexRect              = gl.TexRect
 local spGetAllFeatures		 = Spring.GetAllFeatures
 local spGetCameraPosition	 = Spring.GetCameraPosition
 local spGetFeatureHeight	 = Spring.GetFeatureHeight
@@ -1206,6 +1207,7 @@ function PrepareTextures()
 		end
 	end
 end
+
 local done = {}
 local function CreateAtlas()
 	for i, atlas in ipairs(atlasses) do
@@ -1353,20 +1355,12 @@ local function DrawQuadsWithAtlas()
 					glTranslate(center.x - texSizeX/2, center.y, center.z + texSizeY/2)
 				end
 				glRotate(-90, 1, 0, 0)
-				glBeginEnd(GL.QUADS, function()
-					glTexCoord(u1, v1)
-					glVertex(0, 0, 0)
-					glTexCoord(u2, v1)
-					glVertex(texSizeX, 0, 0)
-					glTexCoord(u2, v2)
-					glVertex(texSizeX, texSizeY, 0)
-					glTexCoord(u1, v2)
-					glVertex(0, texSizeY, 0)
-				end)
+				glTexRect(0, 0, texSizeX, texSizeY, u1, v1, u2, v2)
 				glPopMatrix()
 			end
 		end
 	end
+	gl.Texture(0, false)
 	----- debug show the whole atlas
 	-- glTexture(0, atlasses[1].obj)
 	-- glPushMatrix()
