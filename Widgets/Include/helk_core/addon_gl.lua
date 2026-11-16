@@ -92,6 +92,42 @@ for k,v in pairs(texFormats) do
 	GL[k] = v
 end
 
+
+do -- ENGINE BUG WORKAROUND -- the engine doesn't assign unique name to 
+	gl.oriDeleteTextureAtlas = gl.DeleteTextureAtlas
+	local DeleteAtlas, TexInfo = gl.DeleteTextureAtlas, gl.TextureInfo
+	local pending = {}
+
+	local function IsTop(n) return not TexInfo('*' .. (n + 1)) end
+
+	local function Flush()
+		while true do
+			local best
+			for n in pairs(pending) do
+				if not best or n > best then best = n end
+			end
+			if not best or not IsTop(best) then return end
+			Echo('Deleted pending atlas ' .. '*' .. best)
+			DeleteAtlas(pending[best])
+			pending[best] = nil
+		end
+	end
+
+	gl.DeleteTextureAtlas = function(name)
+		local n = tonumber(name:match('^%*(%d+)$'))
+		if not n then return DeleteAtlas(name) end 
+		if IsTop(n) then
+			local ok = DeleteAtlas(name)
+			Flush()
+			return ok
+		end
+		Echo('Atlas ' .. name .. ' is not on top of the stack and will wait to be deleted')
+		pending[n] = name  -- on ne casse pas la pile : on libère plus tard
+		return true
+	end
+end
+
+
 -------------------------------------------------------
 -- gl.Enable / gl.Disable
 
