@@ -775,7 +775,7 @@ local function MergeAndUpdateInfo(info, new_info)
 	if new_info.skill then
 		if isMatchMaker and (not info.elo or info.casualSkill and info.casualSkill == info.elo) then
 			info.elo = nil
-			new_info.elo = info.skill 
+			new_info.elo = new_info.skill 
 		elseif not info.elo then
 			new_info.elo = new_info.casualSkill
 		end
