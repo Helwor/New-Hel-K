@@ -100,7 +100,7 @@ local ENEMY_COLOR = {1, 0, 0, 1}
 
 local PING_TIMEOUT = 2 -- seconds
 
-local MAX_NAME_LENGTH = 100
+local MAX_NAME_LENGTH = 103
 local SHOW_TEAMID = false
 
 local pingUpdatePeriod = 1
@@ -772,18 +772,31 @@ end
 
 local function MergeAndUpdateInfo(info, new_info)
 	local changed = false
+	if new_info.skill then
+		if isMatchMaker and (not info.elo or info.casualSkill and info.casualSkill == info.elo) then
+			info.elo = nil
+			new_info.elo = info.skill 
+		elseif not info.elo then
+			new_info.elo = new_info.casualSkill
+		end
+	end
 	for k, v in pairs(new_info) do
 		-- Echo('Received info: ' .. k .. ' = ' .. tostring(v) .. ', old: ' .. tostring(info[k]))
 		if k == 'icon' and info[k] == '0_0' and v and v ~= '' and v ~= '0_0'
-			or v ~= '' and info[k] == nil or info[k] == '' then
-			-- Echo('completing info ' .. k .. ' => ' .. tostring(v))
+			or v ~= '' and info[k] == nil or info[k] == ''
+			or k == 'elo'
+		then
+			if debugging then
+				Echo('completing info ' .. k .. ' => ' .. tostring(v))
+			end
 			info[k] = v
 			changed = true
 		end
 	end
 	return changed
 end
-
+local function MergeInfoToEntry(entry, info) -- TODO
+end
 
 
 local function UpdateName(entry, controls)
@@ -1087,8 +1100,7 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 					controls.imRank.file = entry.rank
 					controls.imRank:Invalidate()
 				end
-
-				if info.elo and not entry.elo then
+				if info.elo and (not entry.elo or entry.elo ~= info.elo) then
 					entry.elo = tonumber(info.elo)
 					controls.txtElo:SetCaption(('%.1f'):format(entry.elo/1000))
 					controls.txtElo.tooltip = entry.elo
@@ -1196,13 +1208,19 @@ local function CreateEntry(playerID, initTeamID, initAllyTeamID, initSpec, isAiT
 			playerName = '<unknown'..playerID..'>'
 		end
 		country = country ~= '' and country or nil
-		-- customKeys.icon = customKeys.icon or rank
+		-- customKeys.icon = customKeys.icon -- or rank -- rank is always -1 don't take it
 		customKeys.country = country
 
 		info = playerInfo[playerName]
 		if not info then
 			info = {playerID = playerID, name = playerName}
 			playerInfo[playerName] = info
+		end
+		if debugging then
+			Echo('<< CustomKeys ' .. playerName .. '>>')
+			for k,v in pairs(customKeys) do
+				Echo(k,v)
+			end
 		end
 		MergeAndUpdateInfo(info, customKeys)
 
@@ -1231,6 +1249,7 @@ local function CreateEntry(playerID, initTeamID, initAllyTeamID, initSpec, isAiT
 
 		entry.rank = ("LuaUI/Images/LobbyRanks/" .. (info.icon or "0_0") .. ".png")
 		entry.elo = tonumber(customKeys.elo or info.elo)
+
 		UpdateClan(entry, info)
 	else
 		entry.name = select(2, spGetAIInfo(initTeamID)) or '<unknownAI' .. initTeamID .. '>'
@@ -1757,6 +1776,9 @@ local function Initialize()
 		widgetHandler:RemoveWidget()
 		return
 	end
+	if not Spring.IsReplay() then
+		Spring.SendCommands('get_mybattleinfo')
+	end
 	WG.playerInfo = WG.playerInfo or {}
 	playerInfo = WG.playerInfo
 	for k in pairs(laggingOut) do
@@ -1766,9 +1788,6 @@ local function Initialize()
 	InitializePlayerlist()
 
 	Spring.SendCommands("info 0")
-	if not Spring.IsReplay() then
-		Spring.SendCommands('get_mybattleinfo')
-	end
 	initialized = true
 end
 
@@ -1935,6 +1954,9 @@ function widget:ReceiveUserInfo(new_info, simulated)
 		if name == new_info.name then
 			if debugging then
 				Echo('<< ReceiveUserInfo '.. new_info.name .. ' playerID ' .. playerID .. ' teamID ' .. teamID .. (simulated and ' (simulated)' or '') .. ' >>')
+				for k,v in pairs(new_info) do
+					Echo(k,v)
+				end
 			end
 			new_info.playerID = playerID
 			UpdatePlayer(playerID, new_info, isConnecting)
@@ -1990,19 +2012,26 @@ function widget:RecvLuaMsg(msg, playerID)
 			end
 			if k == 'isMatchMaker' then
 				isMatchMaker = v
-				if debugging then
-					Echo('Battle ' .. battleArray[1] .. ' isMatchMaker: ' .. tostring(isMatchMaker))
-				end
+				--if debugging then
+					Echo('<< Received Battle Info: ' .. battleArray[1] .. ' isMatchMaker: ' .. tostring(isMatchMaker) .. ' >>')
+				-- end
 				break
 			end
 		end
 	elseif msg:find('userinfo ') then
 		local userStr = msg:sub(('userinfo '):len()+1)
 		local userArray = string.split(userStr, '|')
-		local NAME = msg:sub(('userinfo '):len()+1, msg:find('|')-1)
+		-- local NAME = msg:sub(('userinfo '):len()+1, msg:find('|')-1)
+		local name = userArray[1]
 		local userInfo = {}
+		if debugging then
+			Echo('<< Received Lobby info ' .. userArray[1] .. ' >>')
+		end
 		for i, v in ipairs(userArray) do
 			local k = userKeyOrder[i]
+			if debugging then
+				Echo(k, v)
+			end
 			if v == 'false' then
 				v = false
 			elseif v == 'true' then
@@ -2014,15 +2043,15 @@ function widget:RecvLuaMsg(msg, playerID)
 			end
 			userInfo[k] = v
 		end
-		if isMatchMaker then
-			if userInfo.skill then
-				userInfo.elo = userInfo.skill
-			end
-		else
-			if userInfo.casualSkill then
-				userInfo.elo = userInfo.casualSkill
-			end
-		end
+		-- if isMatchMaker then
+		-- 	if userInfo.skill then
+		-- 		userInfo.elo = userInfo.skill
+		-- 	end
+		-- else
+		-- 	if userInfo.casualSkill then
+		-- 		userInfo.elo = userInfo.casualSkill
+		-- 	end
+		-- end
 		if userInfo.name then
 			local info = playerInfo[userInfo.name]
 			if not info then
