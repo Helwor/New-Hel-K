@@ -15,13 +15,32 @@ function widget:GetInfo()
 		handler   = true,
 	}
 end
-
+local sig = '['..widget.GetInfo().name .. '] '
 local Echo = Spring.Echo
 local myTeamID, myPlayerID
 local currentFrame = Spring.GetGameFrame()
 local MIN_RELOAD_TIME_NOTICE = 12 -- dont register reload weapons below this time
+local NEW_METHOD = true
+local FONT_NAME = "FreeSansBold.otf"
+local baseFontSize = 12
+local font
+local fontSize = 12
+local fonts = {}
 local gameSpeed = Game.gameSpeed
 local updateRate = 10
+local hasAmmoDefID = WG.hasAmmoDefID
+local globalList
+local atlasses = {}
+local lastView -- save some redundant work
+local cx, cy, cz = 0, 0, 0 -- current camera position
+
+local glTexture = gl.Texture
+local glTexRect = gl.TexRect
+local glAddAtlasTexture = gl.AddAtlasTexture
+local glGetAtlasTexture = gl.GetAtlasTexture
+local glDeleteTextureAtlas = gl.DeleteTextureAtlas
+local pcall = pcall
+local clock = os.clock
 ------------- EDIT MANUALLY
 -- some char cannot be just copy pasted, instead use string.char(num)
 
@@ -57,10 +76,17 @@ local symbolSelAlly = {
 }
 local symbolHealth = {
 	str = 'o',
-	list = false,
-	Draw = function() end,
 	offX = 1,
 	offY = 0,
+	-- str = string.char(226, 153, 165), -- ♥
+	-- str = "\225\131\166", -- ღ
+	-- str = string.char(226, 153, 161), -- ♡
+	-- str = string.char(226, 157, 164), -- ❤ 
+	-- fontSize = 9,
+	-- offX = 3,
+	-- offY = 1,
+	list = false,
+	Draw = function() end,
 }
 
 local symbolPrio = {
@@ -79,13 +105,45 @@ local symbolReload = {
 	offY = 1,
 }
 
+local symbolAmmo = {
+	-- str = string.char(183), -- '·'
+	-- str = '.',
+	-- str = '\226\154\171',
+	-- str = '¤',
+	-- str = '•',
+	-- str = '＊',
+	-- str = '✱',
+	-- str = '✳',
+	-- str = string.char(226, 129, 141),   -- ⁍ U+204D (E2 81 8D) black rightwards bullet
+	-- str = string.char(194, 161),           -- ¡ U+00A1 (C2 A1) point d'exclamation inversé
+	-- str = string.char(240, 159, 167, 168), -- 🧨 U+1F9E8 (F0 9F A7 A8)
+	str = string.char(226, 129, 131),   -- ⁃ U+2043 (E2 81 83) hyphen bullet
+
+	list = false,
+	Draw = function() end,
+	offX = 2,
+	offY = 1,
+}
+
+local symbolObjects = {symbolStatus, symbolSelAlly, symbolReload, symbolAmmo, symbolHealth, symbolPrio}
+
+
 local objNumbers = {
 	Draw = function() end,
-	lists = {},
 	offX = 3,
 	offY = -2,
 }
+local digits = {}
+for i = 0, 9 do
+	digits[48 + i] = {str = tostring(i)}   -- char code of digit as key
+end
+objNumbers.digits = digits
+objNumbers.adv = 7                         -- move distance to place next char when displaying more digits
 
+local glyphObjects = {unpack(symbolObjects)}
+for _, d in pairs(digits) do
+	glyphObjects[#glyphObjects + 1] = d
+end
 local RADAR_TIMEOUT = 30 * 12
 
 
@@ -130,16 +188,16 @@ local colors = {
 }
 
 local exponents = {
-    ['0'] = string.char(0xE2, 0x81, 0xB0), -- ⁰
-    ['1'] = string.char(0xC2, 0xB9),       -- ¹
-    ['2'] = string.char(0xC2, 0xB2),       -- ²
-    ['3'] = string.char(0xC2, 0xB3),       -- ³
-    ['4'] = string.char(0xE2, 0x81, 0xB4), -- ⁴
-    ['5'] = string.char(0xE2, 0x81, 0xB5), -- ⁵
-    ['6'] = string.char(0xE2, 0x81, 0xB6), -- ⁶
-    ['7'] = string.char(0xE2, 0x81, 0xB7), -- ⁷
-    ['8'] = string.char(0xE2, 0x81, 0xB8), -- ⁸
-    ['9'] = string.char(0xE2, 0x81, 0xB9)  -- ⁹
+	['0'] = string.char(0xE2, 0x81, 0xB0), -- ⁰
+	['1'] = string.char(0xC2, 0xB9),       -- ¹
+	['2'] = string.char(0xC2, 0xB2),       -- ²
+	['3'] = string.char(0xC2, 0xB3),       -- ³
+	['4'] = string.char(0xE2, 0x81, 0xB4), -- ⁴
+	['5'] = string.char(0xE2, 0x81, 0xB5), -- ⁵
+	['6'] = string.char(0xE2, 0x81, 0xB6), -- ⁶
+	['7'] = string.char(0xE2, 0x81, 0xB7), -- ⁷
+	['8'] = string.char(0xE2, 0x81, 0xB8), -- ⁸
+	['9'] = string.char(0xE2, 0x81, 0xB9)  -- ⁹
 }
 local CreateWindowTableEditer
 do
@@ -345,9 +403,9 @@ do
 				end
 			end
 			if checkFunc then
-				if not reloadTime or reloadTime >= MIN_RELOAD_TIME_NOTICE then
+				if not reloadTime or tonumber(reloadTime) >= MIN_RELOAD_TIME_NOTICE then -- string format compatible (Future Wars)
 					lrc[defID] = checkFunc
-					reloadTimes[defID] = reloadTime
+					reloadTimes[defID] = tonumber(reloadTime)
 					weaponNumber[defID] = weapNum
 					disallowReloadNotice[defID] = disallowReloadNotice[defID] or false
 				end
@@ -362,9 +420,10 @@ local useGlobalList
 local UseFont
 local TextDrawCentered, GetListCentered
 
-local font            = "LuaUI/Fonts/FreeSansBold_14"
-local fontWOutline    = "LuaUI/Fonts/FreeSansBoldWOutline_14"     -- White outline for font (special font set)
+local font1            = "LuaUI/Fonts/FreeSansBold_14"
+local font1WOutline    = "LuaUI/Fonts/FreeSansBoldWOutline_14"     -- White outline for font (special font set)
 local monobold        = "LuaUI/Fonts/FreeMonoBold_12"
+-- local monobold        = "FreeSansBold.otf"
 
 
 -- datas from HasViewChanged
@@ -379,20 +438,22 @@ WG.lastStatus = lastStatus
 local inRadar = WG.inRadar or {}
 WG.inRadar = inRadar
 local problems = {}
-local thisFrame = -1
 local delayAllyPoses = {}
 local numberLists = setmetatable(
 	{},
 	{
 		__index = function(self, str) 
-			local list = GetListCentered(str)
-			rawset(self, str, list)
-			return list
+			local list
+			if GetListCentered then
+				list = GetListCentered(str)
+				rawset(self, str, list)
+				return list
+			else
+				return 0
+			end
 		end
 	}
 )
-local lastView -- save some redundant work
-local cx, cy, cz = 0, 0, 0 -- current camera position
 
 -- default options value
 local onlyOnIcons = true
@@ -413,6 +474,7 @@ local alphaAlly = 1
 local alphaHealth = 1
 local alphaPrio = 1
 local alphaReload = 1
+local initialized = false
 
 local scale = 1
 
@@ -433,6 +495,7 @@ options_order = {
 	-- 'testTable',
 	-- 'testColors',
 	-- 'dummy',
+	'new_method',
 	'only_on_icons',
 	'auto_fix',
 	'fine_pos',
@@ -465,6 +528,19 @@ options_order = {
 	'dbgMissingUnits',
 }
 options = {}
+
+options.new_method = {
+	name = 'New Method',
+	type = 'bool',
+	desc = "Draw unicodes and using atlas",
+	value = NEW_METHOD,
+	OnChange = function(self)
+		NEW_METHOD = self.value
+		initialized = false
+	end,
+	hidden = true,
+	noHotkey = true,
+}
 
 options.only_on_icons = {
 	name = 'Draw only on unit icons',
@@ -821,7 +897,7 @@ options.currentTryFont = {
 	value = currentTryFont,
 	update_on_the_fly = true,
 
-	desc = 'If you choose to Try a Font in Debug Choice, select the character here',
+	desc = 'If you choose to Try a Font in Debug Choice, select the character here or push +/-, also commented in console (F8)',
 	tooltipFunction = function(self)
 		local str = string.char(self.value)
 		return str .. ' char code: ' .. self.value
@@ -952,26 +1028,12 @@ local blinkcolor = {
 --   outline       = false,
 --   color         = {1,1,1,1},
 --   outlineColor  = {0,0,0,1},
---   autoOutlineColor = true,
+--   autoOutlineColor = false,
 -- }
 -- local myFont = FontHandler.LoadFont(font, 20, 20, 3)
 --     Echo("myFont is ", myFont)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
--- local lists = {}
--- for _,color in pairs(colors) do
---   lists[color] = {}
--- end
--- for color1,color2 in pairs(blinkcolor) do
---   lists[color1] = {}
---   lists[color2] = {}
--- end
-
-
-function widget:GameFrame(f)
-	currentFrame = f
-end
 
 local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor, IconsAsUI)
 	local unit = Units[id]
@@ -1008,12 +1070,13 @@ local function ApplyColor(id, defID, blink, fovRatio, statusColor, healthColor, 
 		symbolStatus:Draw(mx, my, statusColor, alphaStatus)
 	end
 end
+
 local function DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 	local _,gy,_,x,y,z = unit:GetPos(1)
 	if x then
 		local info = unit.info
-		local statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, allySelColor
-		 = info[1], info[2], info[3], info[4], info[5], info[6], info[7]
+		local statusColor, healthColor, prioColor, reloadColor, ammoColor, stockpile, alphaStatus, allySelColor
+		 = info[1], info[2], info[3], info[4], info[5], info[6], info[7], info[8]
 		local isIcon
 		if useFinePos then
 			isIcon = onlyOnIcons or VisibleIcons[id]
@@ -1038,6 +1101,11 @@ local function DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 			end
 			-- end
 		end
+
+		if ammoColor then
+			symbolAmmo:Draw(mx,my, ammoColor, alphaReload)
+		end
+
 		if healthColor then
 			symbolHealth:Draw(mx, my, healthColor, alphaHealth)
 		end
@@ -1058,14 +1126,14 @@ local function DrawUnit(id, unit, blink, fovRatio, IconsAsUI)
 	else
 		lastStatus[id] = nil
 	end
-
 end
+
 local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullview)
-	local statusColor, healthColor, prioColor, reloadColor, stockpile, allySelColor
+	local statusColor, healthColor, prioColor, reloadColor, ammoColor, stockpile, allySelColor
 	local alphaStatus = alphaStatus
 	local gotAny
 	local info = unit.info
-	unit.lastInfo = thisFrame
+	unit.lastInfo = currentFrame
 	if not info then
 		info = {}
 		unit.info = info
@@ -1113,6 +1181,7 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 			allySelColor = white
 			prioColor = green
 			reloadColor = green
+			ammoColor = yellow
 		elseif debugChoice == 'try' then
 			allySelColor = white
 		end
@@ -1196,7 +1265,13 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 				local value, sp = checkFunc(defID, id)
 				if value >= 0.8 then
 					reloadColor = value >= 1 and green or white
-					stockpile = sp and sp <= 100 and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
+					stockpile = sp and (sp <= 100 and sp or 100) and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
+				end
+			end
+			if hasAmmoDefID[defID] then
+				local value = spGetUnitRulesParam(id, 'ammoFraction') or 1
+				if value < 0.6 then
+					ammoColor = value < 0.3 and red or orange
 				end
 			end
 		end
@@ -1204,45 +1279,32 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 	if not anyDebug and fullview~=1 and unit.isEnemy and (statusColor or healthColor) then
 		lastStatus[id] = unit
 	end
-	gotAny = healthColor or statusColor or allySelColor or prioColor or reloadColor
+	gotAny = healthColor or statusColor or allySelColor or prioColor or reloadColor or ammoColor
 	info.gotAny = gotAny
 	if gotAny then
-		info[1], info[2], info[3], info[4], info[5], info[6] , info[7]
-			= statusColor, healthColor, prioColor, reloadColor, stockpile, alphaStatus, allySelColor
+		info[1], info[2], info[3], info[4], info[5], info[6], info[7], info[8]
+			= statusColor, healthColor, prioColor, reloadColor, ammoColor, stockpile, alphaStatus, allySelColor
 	end
 	return gotAny
 end
 
-function widget:UnitEnteredLos(unitID)
-	if lastStatus[unitID] then
-		inRadar[unitID] = nil
-		lastStatus[unitID] = nil
-	end
-end
-function widget:UnitLeftLos(unitID)
-	if lastStatus[unitID] then
-		inRadar[unitID] = lastStatus[unitID]
-		inRadar[unitID].toframe = currentFrame + RADAR_TIMEOUT
-	end
-end
-function widget:UnitLeftRadar(unitID)
-	if inRadar[unitID] then
-		inRadar[unitID] = nil
-		lastStatus[unitID] = nil
-	end
-end
-function widget:UnitDestroyed(unitID)
-	if inRadar[unitID] then
-		inRadar[unitID] = nil
-		lastStatus[unitID] = nil
-	end
-end
-local globalList
+
+
 local problems = {}
 local lastMessage = ''
 local clockMessage = os.clock()
+local currentAtlas = false
+
+
 local GlobalDraw = function()
 	UseFont(monobold)
+	if NEW_METHOD then
+		gl.Blending(GL.ONE, GL.ONE_MINUS_SRC_ALPHA)
+		currentAtlas = atlasses[1] and atlasses[1].tex
+		if currentAtlas then
+			glTexture(0, currentAtlas)
+		end
+	end
 	local IconsAsUI = Spring.GetConfigInt("UnitIconsAsUI", 0) == 1
 
 	local subjects =
@@ -1259,9 +1321,9 @@ local GlobalDraw = function()
 			problems[id] = nil
 		end
 	end
-	local blink = os.clock()%0.5 < 0.25
+	local blink = clock()%0.5 < 0.25
 	local size = table.size(subjects)
-	local avoidLowCost = size > 300
+	local avoidLowCost = false and size > 300
 	cx, cy, cz = unpack(Cam.pos)
 	if allyOnTop then
 		delayAllyPoses = {}
@@ -1270,7 +1332,7 @@ local GlobalDraw = function()
 	local fullview, fov, lowCost, ignore, anyDebug = Cam.fullview, Cam.fov, lowCostDefID, ignoreUnitDefID, debugChoice ~= 'none'
 	local fovRatio = fov / 45
 	local updateFrame = currentFrame - updateRate
-	-- Echo("currentFrame, thisFrame is ", currentFrame, thisFrame)
+	-- Echo("currentFrame, currentFrame is ", currentFrame, currentFrame)
 	for id in pairs(subjects) do
 		local unit = Units[id]
 		if not unit then
@@ -1309,9 +1371,6 @@ local GlobalDraw = function()
 			end
 		end
 	end
-	-- for id in pairs(radar) do
-	-- 	if 
-	-- end
 	if debugMissingUnits then
 		local msg
 		if next(problems) then
@@ -1341,15 +1400,369 @@ local GlobalDraw = function()
 			lastMessage = msg
 		end
 	end
-	-- if math.round(os.clock()*10)%30 == 0 then
-	-- 	Echo('count in Infos on icons',count)
-	-- end
-	glColor(white)
 end
+
+local function SafeGlobalDraw()
+
+	local ok, err = pcall(GlobalDraw)
+	gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+	glColor(1, 1, 1, 1)
+	glTexture(0, false)
+	currentAtlas = false
+	if not ok then
+		Echo(sig .. 'GlobalDraw error: ' .. tostring(err))
+	end
+end
+
+local function MakeGlyphTex(str, fontSize)
+	local texSize = fontSize * 2
+	local tex = gl.CreateTexture(texSize, texSize, {
+		target = GL.TEXTURE_2D,
+		format = GL.RGBA8,
+		min_filter = GL.NEAREST,
+		mag_filter = GL.NEAREST,
+		wrap_s = GL.CLAMP_TO_EDGE,
+		wrap_t = GL.CLAMP_TO_EDGE,
+		fbo = true,
+	})
+	gl.RenderToTexture(tex, function()
+		gl.Clear(GL.COLOR_BUFFER_BIT, 0,0,0,0)
+
+		gl.BlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA)
+		gl.PushMatrix()
+		if str:byte(2) then
+			local font = fonts[fontSize or baseFontSize]
+			glScale(2/(texSize+1), -2/(texSize+1), 1)          -- 1 unité = 1 pixel de la texture
+			font:Begin(true)
+			font:SetTextColor(1,1,1,1)
+			font:Print(str, 0, 0, texSize*0.5, "cvno")   -- sans "B", inutile ici
+			font:End()
+		else
+			-- gl.Blending(GL.ONE, GL.ZERO)
+			gl.Scale(2/(texSize), -2/(texSize), 1)
+			TextDrawCentered(str, 0,0)
+		end
+		gl.PopMatrix()
+		gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+	end)
+	gl.DeleteTextureFBO(tex)
+	return tex
+end
+
+local function CreateTextures()
+	for _, obj in ipairs(glyphObjects) do
+		obj.tex = MakeGlyphTex(obj.str, obj.fontSize or baseFontSize)
+	end
+end
+
+local function CreateAtlas()
+	local n_tex = 0
+	local textures = {}
+	local area = 0
+	for _, obj in ipairs(glyphObjects) do
+		if obj.tex then
+			local info = gl.TextureInfo(obj.tex)
+			if info.xsize <= 0 then
+				Echo('['..widget.GetInfo().name .. '] Error with texture for ', obj.str)
+			else
+				area = area + info.xsize * info.ysize
+				obj.xsize, obj.ysize = info.xsize, info.ysize
+				n_tex = n_tex + 1
+				textures[n_tex] = obj
+			end
+		end
+	end
+
+	if n_tex == 0 then
+		Echo('['..widget.GetInfo().name .. '] No atlas to make (no valid textures)', obj.str)
+		return
+	end
+
+	local atlasMaxX = Spring.GetConfigInt("MaxTextureAtlasSizeX", 4096)
+	local atlasMaxY = Spring.GetConfigInt("MaxTextureAtlasSizeY", 4096)
+
+	local areaNeeded = math.ceil(area * 1.43) -- estimate it will be filled at 70%
+	local tries = 0
+
+	while n_tex > 0 do
+		tries = tries + 1
+		if tries > 40 then
+			Echo('['..widget.GetInfo().name .. '] ' .. 'TOO MANY TRIES TO MAKE ATLASSES')
+			useAtlas = false
+			return false
+		end
+		local atlas_xsize, atlas_ysize = math.min(atlasMaxX, 2048), math.min(atlasMaxY, 2048)
+		while atlas_xsize * atlas_ysize > areaNeeded do
+			if (atlas_xsize/2) * atlas_ysize >= areaNeeded and atlas_xsize >= atlas_ysize and atlas_xsize > 512 then
+				atlas_xsize = atlas_xsize/2
+			elseif atlas_xsize * (atlas_ysize/2) >= areaNeeded and atlas_ysize >= atlas_xsize and atlas_ysize > 512 then
+				atlas_ysize  = atlas_ysize/2
+			else
+				break
+			end
+		end
+
+		local atlas = gl.CreateTextureAtlas(atlas_xsize, atlas_ysize, 2) --  0 (Legacy), 1 (Quadtree), 2 (Row)
+		local n_atlas = #atlasses + 1
+		local in_tex = 0
+		local toFill = atlas_xsize * atlas_ysize
+		local filled = 0
+		local atlas_textures = {}
+
+		for i = n_tex, 1, -1 do
+			local texObj = textures[i]
+			local texName = texObj.tex
+			local xsize, ysize = texObj.xsize, texObj.ysize
+			-- if (xsize > atlas_xsize and xsize > atlas_ysize) or (ysize > atlas_xsize and ysize > atlas_ysize) then -- if they can be rotated ?
+			if (xsize > atlas_xsize or ysize > atlas_ysize) then
+				Echo('['..widget.GetInfo().name .. '] ' .. 'Texture ' .. texName, 'size', xsize, ysize, 'cannot fit in atlas of size', atlas_xsize, atlas_ysize)
+				useAtlas = false
+				return false
+			end
+			local area = (xsize * ysize) * 1.43
+			if filled + area > toFill then
+				break
+			end
+			atlas_textures[texObj.tex] = texObj
+			filled = filled + area
+			in_tex = in_tex + 1
+			glAddAtlasTexture(atlas, texName)
+		end
+		local floor = math.floor
+		if in_tex > 0 and gl.FinalizeTextureAtlas(atlas) then
+			local atlasInfo = gl.TextureInfo(atlas)
+			local aw, ah = atlasInfo.xsize, atlasInfo.ysize -- real size of atlas is optimized and can take less space
+			areaNeeded = areaNeeded - filled
+			atlasses[n_atlas] = {tex = atlas, num = in_tex, id = atlasInfo.id, target = atlasInfo.target, textures = atlas_textures, xsize = aw, ysize = ah}
+			for i = n_tex, n_tex - in_tex + 1, -1 do
+				local obj = textures[i]
+				local u1, u2, v1, v2 = glGetAtlasTexture(atlas, obj.tex)
+				u1 = floor(u1 * aw) / aw -- u1, u2... is given at middle of texel
+				v1 = floor(v1 * ah) / ah
+				u2 = floor(u2 * aw) / aw
+				v2 = floor(v2 * ah) / ah
+				-- textures are mirrored on y in atlas
+				v1, v2 = v2, v1
+				obj.u1, obj.u2, obj.v1, obj.v2 = u1, u2, v1, v2
+				obj.hw, obj.hh = obj.xsize/2, obj.ysize/2
+				obj.atlas = atlas
+			end
+			n_tex = n_tex - in_tex
+			Echo(sig..'Atlas ' .. atlas .. ' successfully created ' .. aw .. 'x' ..  ah, 'id ' .. atlasInfo.id, in_tex .. ' textures.')
+			-- Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
+		else
+			Echo(sig .. 'Atlas Creation failed')
+			glDeleteTextureAtlas(atlas)
+			areaNeeded = areaNeeded * 1.20
+		end
+	end
+	return true
+end
+
+
+
+local function DestroyGL() -- need modified gl.DeleteTextureAtlas due to engine bug (engine assign id according to number of atlas instead of unique ones)
+	for i, atlasObj in pairs(atlasses) do
+		if atlasObj.tex then
+			local atlasInfo = gl.TextureInfo(atlasObj.tex)
+			if not atlasInfo or atlasInfo.id ~= atlasObj.id or atlasInfo.xsize ~= atlasObj.xsize or atlasInfo.ysize ~= atlasObj.ysize then
+				-- should never happen now with the workaround
+				Echo(sig .. 'Not deleting atlas ' .. atlasObj.tex, 'id '..tostring(atlasInfo and atlasInfo.id), 'it\' s not our own')
+			else
+				glDeleteTextureAtlas(atlasObj.tex)
+			end
+			atlasObj.tex = nil
+		end
+		atlasses[i] = nil
+	end
+	if globalList then
+		glDeleteList(globalList)
+	end
+	globalList = nil
+	-- if font then
+	-- 	gl.DeleteFont(font)
+	-- 	font = nil
+	-- end
+
+	currentAtlas = false
+
+	for _, obj in ipairs(glyphObjects) do
+		if obj.tex then
+			gl.DeleteTexture(obj.tex)
+			obj.tex = nil
+		end
+		if obj.list then
+			glDeleteList(obj.list)
+			obj.list = nil
+		end
+		obj.atlas = nil
+	end
+	for k, list in pairs(numberLists) do
+		glDeleteList(list)
+		numberLists[k] = nil
+	end
+	lastView = nil
+end
+
+local function InitGL()
+	DestroyGL()
+
+	for _, obj in ipairs(symbolObjects) do
+		if obj.str:byte(2) then
+			local fontSize = obj.fontSize or baseFontSize
+			local font = fonts[fontSize]
+			if not font then
+				font = gl.LoadFont(FONT_NAME, fontSize, 2 * fontSize / baseFontSize, 20 * fontSize / baseFontSize)
+				font:SetOutlineColor({0,0,0,1})
+				font:SetAutoOutlineColor(false)
+				fonts[fontSize] = font
+			end
+		end
+	end
+	if WG.MyFont then
+		-- list work with own fontHandler (2 times faster) then 50% even faster using global list if view doesn't change
+		fontHandler = WG.MyFont -- it's a copy of mod_font.lua as widget, a parallel fontHandler that  doesn't reset the cache over time since there's no update
+		GetListCentered = WG.MyFont.GetListCentered
+	end
+	UseFont = fontHandler.UseFont
+	UseFont(monobold)
+	objNumbers.adv = fontHandler.GetTextWidth('0')
+	objNumbers.adv = floor(objNumbers.adv + 0.5)
+	TextDrawCentered = fontHandler.DrawCentered
+	-- preloading
+	for _, obj in ipairs(glyphObjects) do
+		if not obj.str:byte(2) then
+			TextDrawCentered(obj.str, 0,0) -- preload the font
+		end
+	end
+	--
+	useGlobalList = true
+
+	for i = 1, 100 do
+		if numberLists[tostring(i)] then -- FIXME: can't make lists during a list creation so I have to do it outside
+			-- list created
+		end
+	end
+
+	if NEW_METHOD then
+		CreateTextures()
+		CreateAtlas()
+	end
+
+	for _, obj in ipairs(symbolObjects) do
+		if NEW_METHOD then
+			obj.Draw = function(self, mx,my, color, alpha)
+				if currentAtlas ~= self.atlas then
+					currentAtlas = self.atlas
+					glTexture(0, currentAtlas)
+				end
+				local a = alpha or color[4]
+				glColor(color[1]*a, color[2]*a, color[3]*a, a)
+				local x, y = floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5)
+				local w, h = self.hw, self.hh
+				w, h = w * scale, h * scale
+				glTexRect(x - w, y - h, x + w, y + h, self.u1, self.v1, self.u2, self.v2)
+				-- TODO Delete individual textures once tests are not needed
+				-- glTexture(0, self.tex)
+				-- glTexRect(x - w, y - h, x + w, y + h)
+			end
+		elseif GetListCentered then
+			obj.list = GetListCentered(obj.str)
+			obj.Draw = function(self, mx,my,color, alpha)
+				glColor(color[1], color[2], color[3], alpha or color[4])
+				glPushMatrix()
+				glTranslate(floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5) , 0)
+				glScale(scale, scale, 0)
+				glCallList(self.list)
+				glPopMatrix()
+			end
+		else
+			obj.Draw = function(self, mx,my,color, alpha)
+				glColor(color[1], color[2], color[3], alpha or color[4])
+				glPushMatrix()
+				glScale(scale, scale, 0)
+				TextDrawCentered(self.str, floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5))
+				glPopMatrix()
+			end
+		end
+	end
+	if NEW_METHOD then
+		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
+			local a = alpha or color[4]
+			glColor(color[1]*a, color[2]*a, color[3]*a, a)
+			local n, w = #numbers, self.adv
+			local y = floor(my - self.offY - (useFinePos and 4 or 0) + 0.5)
+			local half = floor(w * 0.5)
+			local x0 = floor(mx + self.offX + 0.5) - floor(n * w * 0.5)
+			local digits = self.digits
+			for k = 1, n do
+				local d = digits[numbers:byte(k)]
+				if d then
+					if currentAtlas ~= d.atlas then
+						currentAtlas = d.atlas
+						glTexture(0, currentAtlas)
+					end
+					local x = x0 + (k - 1) * w + half
+					glTexRect(x - d.hw, y - d.hh, x + d.hw, y + d.hh, d.u1, d.v1, d.u2, d.v2)
+				end
+			end
+		end
+	elseif GetListCentered then
+		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
+			glColor(color[1], color[2], color[3], alpha or color[4])
+			glPushMatrix()
+			glScale(scale, scale, 0)
+			glTranslate(floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5), 0)
+			glCallList(numberLists[numbers])
+			glPopMatrix()
+		end
+	else
+		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
+			glColor(color[1], color[2], color[3], alpha or color[4])
+			glPushMatrix()
+			glScale(scale, scale, 0)
+			TextDrawCentered(numbers, floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5))
+			glPopMatrix()
+		end
+	end
+	if useGlobalList then
+		globalList = 0
+	end
+end
+
+
+function widget:UnitEnteredLos(unitID)
+	if lastStatus[unitID] then
+		inRadar[unitID] = nil
+		lastStatus[unitID] = nil
+	end
+end
+function widget:UnitLeftLos(unitID)
+	if lastStatus[unitID] then
+		inRadar[unitID] = lastStatus[unitID]
+		inRadar[unitID].toframe = currentFrame + RADAR_TIMEOUT
+	end
+end
+function widget:UnitLeftRadar(unitID)
+	if inRadar[unitID] then
+		inRadar[unitID] = nil
+		lastStatus[unitID] = nil
+	end
+end
+function widget:UnitDestroyed(unitID)
+	if inRadar[unitID] then
+		inRadar[unitID] = nil
+		lastStatus[unitID] = nil
+	end
+end
+
 
 local minus, plus = 269, 270
 
 function widget:KeyPress(key, mods)
+	if not initialized then
+		return
+	end
 	if not tryFont then
 		return
 	end
@@ -1376,31 +1789,34 @@ function widget:KeyPress(key, mods)
 	end
 end
 
+function widget:GameFrame(f)
+	currentFrame = f
+end
+
 function widget:DrawScreenEffects()
-	-- gl.Billboard()
-	-- gl.DepthTest(false)
-	-- Echo("gl.DrawListAtUnit(id,symbolHealth.list) is ", gl.DrawListAtUnit(id,symbolHealth.list,true,4,4,4))
-	-- gl.DepthTest(true)
-	--***************************
-	thisFrame = spGetGameFrame()
-	lastFrame = thisFrame
+	if not initialized then
+		InitGL()
+		initialized = true
+	end
+	local a = atlasses[1]
+	if a then
+		local info = gl.TextureInfo(a.tex)
+		if not info or info.xsize ~= a.xsize or info.ysize ~= a.ysize then
+			Echo(sig .. 'Invalid atlas ! Something gone wrong', 'assumed size', a.xsize .. 'x' .. a.ysize, 'size of atlas ' .. a.tex, tostring(info and info.xsize) .. 'x' .. tostring(info and info.ysize) , 'rebuilding')
+			initialized = false
+			return
+		end
+	end
 	if globalList then
 		if lastView ~= NewView[5] then -- 50% faster
 			glDeleteList(globalList)
-			globalList = glCreateList(GlobalDraw)
-			-- globalList = glCreateList(function() end)
+			globalList = glCreateList(SafeGlobalDraw)
 		end
 		glCallList(globalList)		
 	else
-		GlobalDraw()
+		SafeGlobalDraw()
 	end
-	--***************************
-	-- UseFont(monobold)
-	--***************************
-	-- local test = glCreateList(GlobalDraw)
-	-- glDeleteList(test)
 	lastView = NewView[5]
-	-- local isSpectating = spGetSpectatingState()
 end
 
 function widget:ViewResize(vsx, vsy)
@@ -1447,7 +1863,9 @@ function MorphFinished(unitID)
 	morphing[unitID] = nil
 end
 
+
 function widget:Initialize()
+	currentFrame = spGetGameFrame()
 	Cam = WG.Cam
 	if not Cam then
 		Echo(widget:GetInfo().name .. " requires api_has_view_changed.lua")
@@ -1464,64 +1882,6 @@ function widget:Initialize()
 
 	Units = Cam.Units
 	widget:ViewResize(Spring.GetViewGeometry())
-	-- local font = gl.LoadFont("FreeSansBold.otf", 12, 3, 3)
-	if WG.MyFont then
-		-- list work with own fontHandler (2 times faster) then 50% even faster using global list if view don't change
-		fontHandler = WG.MyFont -- it's a copy of mod_font.lua as widget, a parallel fontHandler that  doesn't reset the cache over time since there's no update
-		GetListCentered = glCallList and WG.MyFont.GetListCentered
-	end
-	UseFont = fontHandler.UseFont
-	UseFont(monobold)
-	TextDrawCentered = fontHandler.DrawCentered
-	useGlobalList = glCallList
-
-	for i = 1, 100 do
-		if numberLists[tostring(i)] then -- FIXME: can't make lists during a list creation so I have to do it outside
-			-- list created
-		end
-	end
-	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolReload, symbolHealth, symbolPrio}) do
-		if GetListCentered then
-			obj.list = GetListCentered(obj.str)
-			obj.Draw = function(self, mx,my,color, alpha)
-				glColor(color[1], color[2], color[3], alpha or color[4])
-				glPushMatrix()
-				glTranslate(floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5) , 0)
-				glScale(scale, scale, 0)
-				glCallList(self.list)
-				glPopMatrix()
-			end
-		else
-			obj.Draw = function(self, mx,my, color, alpha)
-				glColor(color[1], color[2], color[3], alpha or color[4])
-				glPushMatrix()
-				glScale(scale, scale, 0)
-				TextDrawCentered(self.str, floor(mx + self.offX + 0.5) , floor(my + self.offY - (useFinePos and 4 or 0) + 0.5))
-				glPopMatrix()
-			end
-		end
-	end
-	if GetListCentered then
-		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
-			glColor(color[1], color[2], color[3], alpha or color[4])
-			glPushMatrix()
-			glScale(scale, scale, 0)
-			glTranslate(floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5), 0)
-			glCallList(numberLists[numbers])
-			glPopMatrix()
-		end
-	else
-		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
-			glColor(color[1], color[2], color[3], alpha or color[4])
-			glPushMatrix()
-			glScale(scale, scale, 0)
-			TextDrawCentered(numbers, floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5))
-			glPopMatrix()
-		end
-	end
-	if useGlobalList then
-		globalList = glCreateList(GlobalDraw)
-	end
 
 	widgetHandler.actionHandler:AddAction( -- we cannot set the action through epic menu option or it won't switch as desired
 		widget,'showpropicon',
@@ -1552,20 +1912,14 @@ function widget:PlayerChanged(playerID)
 end
 
 function widget:Shutdown()
-	if globalList then
-		glDeleteList(globalList)
+
+
+	DestroyGL()
+	for fontSize, font in pairs(fonts) do
+		gl.DeleteFont(font)
+		fonts[fontSize] = nil
 	end
 	widgetHandler.actionHandler:RemoveAction(widget,'showpropicon')
-
-	for _, obj in ipairs({symbolStatus, symbolSelAlly, symbolHealth, symbolPrio, symbolReload}) do
-		if obj.list then
-			glDeleteList(obj.list)
-			obj.list = nil
-		end
-	end
-	for _, list in pairs(numberLists) do
-		glDeleteList(list)
-	end
 	widgetHandler:DeregisterGlobal(widget, 'MorphStart', MorphStart)
 	widgetHandler:DeregisterGlobal(widget, 'MorphUpdate', MorphUpdate)
 	widgetHandler:DeregisterGlobal(widget, 'MorphStop', MorphStop)
