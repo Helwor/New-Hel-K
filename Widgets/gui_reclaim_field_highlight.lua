@@ -1301,8 +1301,7 @@ local function CreateAtlas()
 				texObj.u1, texObj.u2, texObj.v1, texObj.v2 = u1, u2, v1, v2
 			end
 			n_tex = n_tex - in_tex
-			Echo(sig..'Atlas ' .. atlas .. ' successfully created ' .. aw .. 'x' ..  ah, 'id ' .. atlasInfo.id, 'target ' .. atlasInfo.target, in_tex .. ' textures.')
-			-- Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
+			-- Echo(sig..'Atlas ' .. atlas .. ' successfully created ' .. aw .. 'x' ..  ah, 'id ' .. atlasInfo.id, 'target ' .. atlasInfo.target, in_tex .. ' textures.')
 		else
 			Echo(sig .. 'Atlas ' .. atlas ..' Creation failed')
 			gl.DeleteTextureAtlas(atlas)
