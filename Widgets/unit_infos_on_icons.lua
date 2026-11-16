@@ -39,6 +39,7 @@ local glTexRect = gl.TexRect
 local glAddAtlasTexture = gl.AddAtlasTexture
 local glGetAtlasTexture = gl.GetAtlasTexture
 local glDeleteTextureAtlas = gl.DeleteTextureAtlas
+local glTextureInfo = gl.TextureInfo
 local pcall = pcall
 local clock = os.clock
 ------------- EDIT MANUALLY
@@ -1265,7 +1266,7 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 				local value, sp = checkFunc(defID, id)
 				if value >= 0.8 then
 					reloadColor = value >= 1 and green or white
-					stockpile = sp and (sp <= 100 and sp or 100) and tostring(sp)--:gsub('.', exponents) -- can't display exponent > 3
+					stockpile = sp and tostring(sp <= 100 and sp or 100)--:gsub('.', exponents) -- can't display exponent > 3
 				end
 			end
 			if hasAmmoDefID[defID] then
@@ -1461,7 +1462,7 @@ local function CreateAtlas()
 	local area = 0
 	for _, obj in ipairs(glyphObjects) do
 		if obj.tex then
-			local info = gl.TextureInfo(obj.tex)
+			local info = glTextureInfo(obj.tex)
 			if info.xsize <= 0 then
 				Echo('['..widget.GetInfo().name .. '] Error with texture for ', obj.str)
 			else
@@ -1474,7 +1475,7 @@ local function CreateAtlas()
 	end
 
 	if n_tex == 0 then
-		Echo('['..widget.GetInfo().name .. '] No atlas to make (no valid textures)', obj.str)
+		Echo(sig .. 'No atlas to make (no valid textures)')
 		return
 	end
 
@@ -1530,7 +1531,7 @@ local function CreateAtlas()
 		end
 		local floor = math.floor
 		if in_tex > 0 and gl.FinalizeTextureAtlas(atlas) then
-			local atlasInfo = gl.TextureInfo(atlas)
+			local atlasInfo = glTextureInfo(atlas)
 			local aw, ah = atlasInfo.xsize, atlasInfo.ysize -- real size of atlas is optimized and can take less space
 			areaNeeded = areaNeeded - filled
 			atlasses[n_atlas] = {tex = atlas, num = in_tex, id = atlasInfo.id, target = atlasInfo.target, textures = atlas_textures, xsize = aw, ysize = ah}
@@ -1564,7 +1565,7 @@ end
 local function DestroyGL() -- need modified gl.DeleteTextureAtlas due to engine bug (engine assign id according to number of atlas instead of unique ones)
 	for i, atlasObj in pairs(atlasses) do
 		if atlasObj.tex then
-			local atlasInfo = gl.TextureInfo(atlasObj.tex)
+			local atlasInfo = glTextureInfo(atlasObj.tex)
 			if not atlasInfo or atlasInfo.id ~= atlasObj.id or atlasInfo.xsize ~= atlasObj.xsize or atlasInfo.ysize ~= atlasObj.ysize then
 				-- should never happen now with the workaround
 				Echo(sig .. 'Not deleting atlas ' .. atlasObj.tex, 'id '..tostring(atlasInfo and atlasInfo.id), 'it\' s not our own')
@@ -1798,15 +1799,7 @@ function widget:DrawScreenEffects()
 		InitGL()
 		initialized = true
 	end
-	local a = atlasses[1]
-	if a then
-		local info = gl.TextureInfo(a.tex)
-		if not info or info.xsize ~= a.xsize or info.ysize ~= a.ysize then
-			Echo(sig .. 'Invalid atlas ! Something gone wrong', 'assumed size', a.xsize .. 'x' .. a.ysize, 'size of atlas ' .. a.tex, tostring(info and info.xsize) .. 'x' .. tostring(info and info.ysize) , 'rebuilding')
-			initialized = false
-			return
-		end
-	end
+
 	if globalList then
 		if lastView ~= NewView[5] then -- 50% faster
 			glDeleteList(globalList)
@@ -1863,6 +1856,22 @@ function MorphFinished(unitID)
 	morphing[unitID] = nil
 end
 
+local verifTime = 0
+function widget:Update(dt)
+	verifTime = verifTime + dt
+	if verifTime >= 1 then
+		verifTime = 0
+		local a = atlasses[1]
+		if a then
+			local info = glTextureInfo(a.tex)
+			if not info or info.xsize ~= a.xsize or info.ysize ~= a.ysize then
+				Echo(sig .. 'Invalid atlas ! Something gone wrong', 'assumed size', a.xsize .. 'x' .. a.ysize, 'size of atlas ' .. a.tex, tostring(info and info.xsize) .. 'x' .. tostring(info and info.ysize) , 'rebuilding')
+				initialized = false
+				return
+			end
+		end
+	end
+end
 
 function widget:Initialize()
 	currentFrame = spGetGameFrame()
