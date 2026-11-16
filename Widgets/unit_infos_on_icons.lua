@@ -1296,8 +1296,9 @@ local lastMessage = ''
 local clockMessage = os.clock()
 local currentAtlas = false
 
-
+local lastColor, lastA
 local GlobalDraw = function()
+	lastColor, lastA = nil, nil
 	UseFont(monobold)
 	if NEW_METHOD then
 		gl.Blending(GL.ONE, GL.ONE_MINUS_SRC_ALPHA)
@@ -1658,7 +1659,10 @@ local function InitGL()
 					glTexture(0, currentAtlas)
 				end
 				local a = alpha or color[4]
-				glColor(color[1]*a, color[2]*a, color[3]*a, a)
+				if color ~= lastColor or a ~= lastA then
+					lastColor, lastA = color, a
+					glColor(color[1]*a, color[2]*a, color[3]*a, a)
+				end
 				local x, y = floor(mx + self.offX + 0.5) , floor(my - self.offY - (useFinePos and 4 or 0) + 0.5)
 				local w, h = self.hw, self.hh
 				w, h = w * scale, h * scale
@@ -1690,7 +1694,11 @@ local function InitGL()
 	if NEW_METHOD then
 		objNumbers.Draw = function(self, mx,my, color, alpha, numbers)
 			local a = alpha or color[4]
-			glColor(color[1]*a, color[2]*a, color[3]*a, a)
+			local a = alpha or color[4]
+			if color ~= lastColor or a ~= lastA then
+				lastColor, lastA = color, a
+				glColor(color[1]*a, color[2]*a, color[3]*a, a)
+			end
 			local n, w = #numbers, self.adv
 			local y = floor(my - self.offY - (useFinePos and 4 or 0) + 0.5)
 			local half = floor(w * 0.5)
