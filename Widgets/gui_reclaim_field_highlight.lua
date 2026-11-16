@@ -3,13 +3,14 @@ function widget:GetInfo()
 	return {
 		name      = "Reclaim Field Highlight",
 		desc      = "Highlights clusters of reclaimable material",
-		author    = "ivand, refactored by esainane",
+		author    = "ivand, refactored by esainane, rewrote Helwor",
 		date      = "2020",
 		license   = "public",
 		layer     = 0,
 		enabled   = false  --  loaded by default?
 	}
 end
+local sig = '['..widget.GetInfo().name..'] '
 local debugging = false
 VFS.Include("LuaRules/Configs/customcmds.h.lua")
 local Benchmark = debugging and VFS.Include("LuaRules/Gadgets/Include/Benchmark.lua")
@@ -1208,10 +1209,19 @@ function PrepareTextures()
 	end
 end
 
+
 local done = {}
 local function CreateAtlas()
-	for i, atlas in ipairs(atlasses) do
-		glDeleteTextureAtlas(atlas.obj)
+	for i, atlasObj in ipairs(atlasses) do
+		local atlasInfo = gl.TextureInfo(atlasObj.tex)
+		if not atlasInfo or atlasInfo.id ~= atlasObj.id or atlasInfo.xsize ~= atlasObj.xsize or atlasInfo.ysize ~= atlasObj.ysize then
+			-- should never happen with the work around
+			Echo(sig .. ' Not deleting atlas ' .. atlasObj.tex, 'id '..tostring(atlasInfo and atlasInfo.id), 'it\' s not our own')
+		else
+			-- Echo(sig .. 'Deleting ' .. atlasObj.tex, 'id ' .. atlasObj.id)
+			glDeleteTextureAtlas(atlasObj.tex)
+			atlasObj.tex = nil
+		end
 		atlasses[i] = nil
 	end
 	local n_tex = table.size(textures)
@@ -1255,7 +1265,6 @@ local function CreateAtlas()
 		local toFill = atlas_xsize * atlas_ysize
 		local filled = 0
 		local atlas_textures = {}
-
 		for i = n_tex, 1, -1 do
 			local texObj = texArray[i]
 			local texName = texObj.tex
@@ -1275,16 +1284,28 @@ local function CreateAtlas()
 			in_tex = in_tex + 1
 			glAddAtlasTexture(atlas, texName)
 		end
-		if gl.FinalizeTextureAtlas(atlas) then
+		local floor = math.floor
+		if in_tex > 0 and gl.FinalizeTextureAtlas(atlas) then
+			local atlasInfo = gl.TextureInfo(atlas)
+			local aw, ah = atlasInfo.xsize, atlasInfo.ysize -- real size of atlas is optimized and can take less space
 			areaNeeded = areaNeeded - filled
-			atlasses[n_atlas] = {obj = atlas, num = in_tex, textures = atlas_textures}
+			atlasses[n_atlas] = {tex = atlas, id = atlasInfo.id, target = atlasInfo.target,  num = in_tex, textures = atlas_textures, xsize = aw, ysize = ah}
 			for i = n_tex, n_tex - in_tex + 1, -1 do
 				local texObj = texArray[i]
-				texObj.u1, texObj.u2, texObj.v1, texObj.v2 = glGetAtlasTexture(atlas, texObj.tex)
+				local u1, u2, v1, v2 = glGetAtlasTexture(atlas, texObj.tex)
+				u1 = floor(u1 * aw) / aw -- u1, u2... is given at middle of texel
+				v1 = floor(v1 * ah) / ah
+				u2 = floor(u2 * aw) / aw
+				v2 = floor(v2 * ah) / ah
+
+				texObj.u1, texObj.u2, texObj.v1, texObj.v2 = u1, u2, v1, v2
 			end
 			n_tex = n_tex - in_tex
+			Echo(sig..'Atlas ' .. atlas .. ' successfully created ' .. aw .. 'x' ..  ah, 'id ' .. atlasInfo.id, 'target ' .. atlasInfo.target, in_tex .. ' textures.')
 			-- Echo('created atlas', n_atlas, 'size', atlas_xsize, atlas_ysize, 'textures in', in_tex)
 		else
+			Echo(sig .. 'Atlas ' .. atlas ..' Creation failed')
+			gl.DeleteTextureAtlas(atlas)
 			areaNeeded = areaNeeded * 1.20
 		end
 	end
@@ -1340,7 +1361,7 @@ local function DrawQuadsWithAtlas()
 
 	local count = 0
 	for i, atlas in ipairs(atlasses) do
-		glTexture(0, atlas.obj)
+		glTexture(0, atlas.tex)
 		for texID, texObj in pairs(atlas.textures) do
 			local u1, u2, v1, v2 = texObj.u1, texObj.u2, texObj.v1, texObj.v2
 			local texSizeX, texSizeY = texObj.texSizeX, texObj.texSizeY
@@ -1362,7 +1383,7 @@ local function DrawQuadsWithAtlas()
 	end
 	gl.Texture(0, false)
 	----- debug show the whole atlas
-	-- glTexture(0, atlasses[1].obj)
+	-- glTexture(0, atlasses[1].tex)
 	-- glPushMatrix()
 	-- 	-- glRotate(-90, 1, 0, 0)
 	-- 	glColor(1,1,1,1)
@@ -1622,12 +1643,17 @@ function widget:Shutdown()
 		glDeleteTextureFBO(texObj.tex)
 		glDeleteTexture(texObj.tex)
 	end
-	for i, atlas in ipairs(atlasses) do
-		glDeleteTextureAtlas(atlas.obj)
+	for i, atlasObj in ipairs(atlasses) do
+		local atlasInfo = gl.TextureInfo(atlasObj.tex)
+		if not atlasInfo or atlasInfo.id ~= atlasObj.id or atlasInfo.xsize ~= atlasObj.xsize or atlasInfo.ysize ~= atlasObj.ysize then
+			Echo(sig .. ' Not deleting atlas ' .. atlasObj.tex, 'id '..tostring(atlasInfo and atlasInfo.id), 'it\' s not our own')
+		else
+			glDeleteTextureAtlas(atlasObj.tex)
+			atlasObj.tex = nil
+		end
 	end
 	if benchmark then
 		benchmark:PrintAllStat()
 	end
-	Echo('REUSED', reused)
 end
 f.DebugWidget(widget)
