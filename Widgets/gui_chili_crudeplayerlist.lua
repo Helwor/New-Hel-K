@@ -688,7 +688,7 @@ local function SortEntries()
 		local entry = control.entry
 		local isPlayer = not entry.initSpec
 		-- local teamTxt = tonumber(listControls[i].textAllyTeam.caption)
-		local allyTeam = entry.initAllyTeamID + (isPlayer and 1 or 0)
+		local allyTeam = (isPlayer and entry.initAllyTeamID + 1) or 0
 		local thisTeam = teams[allyTeam]
 
 		if not thisTeam then
@@ -696,8 +696,11 @@ local function SortEntries()
 			teams[allyTeam] = thisTeam
 			thisTeam.count = 1
 			thisTeam.aiCount = 0
+
 			if isPlayer then
 				thisTeam.elo = entry.elo or 0
+			elseif not entry.isActive then
+				thisTeam.count = thisTeam.count - 1
 			end
 			-- local color = entry.allyTeamColor
 			thisTeam.color = not isPlayer and grey or {spGetTeamColor(entry.initTeamID)}
@@ -705,6 +708,8 @@ local function SortEntries()
 			thisTeam.count = thisTeam.count + 1
 			if isPlayer then
 				thisTeam.elo = thisTeam.elo + (entry.elo or 0)
+			elseif not entry.isActive then
+				thisTeam.count = thisTeam.count - 1
 			end
 		end
 
@@ -737,7 +742,6 @@ local function SortEntries()
 		local countTxt =  coloredString(t.count, t.color)
 		local humanPlayers = t.count - t.aiCount
 		headerCaption = headerCaption .. countTxt .. (t.elo>0 and ' (' .. ('%.1f'):format(t.elo/(humanPlayers)/1000) .. ') ' or '') .. 'v '
-		-- Echo('team count', _, t.count)
 	end
 	headerCaption = headerCaption:sub(1,-3)
 	if not teams[3] and teams[1] and teams[2] and teams[1].elo>0 and teams[2].elo>0 then
@@ -747,7 +751,7 @@ local function SortEntries()
 		-- local eloDiff = teams[1].elo - teams[2].elo -- not relevant since teams can be uneven
 		headerCaption = headerCaption .. ' | elo ~'..(avgEloDiff>0 and '+' or '') ..  ('%d'):format(avgEloDiff)
 	end
-	local specCount = teams[0] and coloredString(teams[0].count, teams[0].color)
+	local specCount = teams[0] and teams[0].count > 0 and coloredString(teams[0].count, teams[0].color)
 	if specCount then
 		headerCaption = headerCaption .. ' | ' .. specCount
 	end
@@ -1120,11 +1124,11 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 						controls.imClan:Invalidate()
 					end
 				end
-				if debugging then
-					for k, v in pairs(info) do
-						entry['[info]'..k] = Truncate(v, 25)
-					end
-				end
+				-- if debugging then
+				-- 	for k, v in pairs(info) do
+				-- 		entry['[info]'..k] = Truncate(v, 25)
+				-- 	end
+				-- end
 			end
 		end
 
@@ -1753,7 +1757,10 @@ local function InitializePlayerlist()
 	end
 
 	for i, playerID in ipairs(spGetPlayerList()) do
-		if not controlsByPlayerID[playerID] then
+		if not controlsByPlayerID[playerID] then 
+			-- should always be spectator
+			local name, active, spectator, teamID, allyTeamID = spGetPlayerInfo(playerID)
+			local initSpec = spectator and spGetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1
 			local controls = CreateControls(playerID, 0, 0, true, false)
 			local entry = controls.entry
 			listControls[#listControls + 1] = controls
