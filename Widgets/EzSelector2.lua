@@ -27,7 +27,6 @@ include('keysym.lua')
 VFS.Include('LuaRules/Configs/customcmds.h.lua')
 
 -- !!! Add CMD_FIND_PAD , CMD_EXCLUDE PAD , CMD_AUTO_CALL TRANSPORT
-include("LuaRules/Configs/customcmds.h.lua")
 local resX, resY = Spring.GetScreenGeometry()
 local customCmds = VFS.Include("LuaRules/Configs/customcmds.lua")
 
@@ -2520,9 +2519,16 @@ local hotkeysCombos = {
 		name = 'Return under 50%%',
 		method = 'on_selection',
 		keys = {'?AIR', 'SPACE', 'R', '?RClick'}, -- RClick can be pressed when ordering moving at the same time
-		defs = {'under50%'},
+		defs = {
+			['?'] = {'under50%', 'underammo50%'}
+		},
+		-- switch = {
+		-- 	{'underammo50%'},
+		-- 	{'under50%'},
+		-- },
+		on_press = true,
 		keep_on_fail = true,
-		no_key_order = true,
+		no_key_order = true, 
 		force = true,
 		brush_order = {'return'}, -- that special order will send the unit to a position close where the closest caretaker is or where it's been created/registered by UnitsIDCard
 		mark_unit = {no_select = osclock},
@@ -2550,7 +2556,9 @@ local hotkeysCombos = {
 	{
 		name = 'Keep Above 50%%',
 		method = 'on_selection',
-		defs = {'above50%'},
+		defs = {
+			'above50%', ['?'] = {'!hasAmmo', 'aboveammo50%'}
+		},
 		on_press = true,
 		color = {0.9, 0.9, 0.1, 1},
 		fading = 0.8,
@@ -2561,7 +2569,9 @@ local hotkeysCombos = {
 		name = 'Return under 70%%',
 		method = 'on_selection',
 		keys = {'?AIR', 'SPACE', 'R', 'doubleTap'},
-		defs = {'under70%'},
+		defs = {
+			['?'] = {'under70%', 'underammo70%'}
+		},
 		keep_on_fail = true,
 		brush_order = {'return'},
 		second_call = 'Keep Above 70%%',
@@ -2572,7 +2582,9 @@ local hotkeysCombos = {
 	{
 		name = 'Keep Above 70%%',
 		method = 'on_selection',
-		defs = {'above70%'},
+		defs = {
+			'above70%', ['?'] = {'!hasAmmo', 'aboveammo70%'}
+		},
 		on_press = true,
 		color = {0.9, 0.9, 0.1, 1},
 		fading = 0.8,
@@ -2583,7 +2595,9 @@ local hotkeysCombos = {
 		name = 'Return under 95%%',
 		method = 'on_selection',
 		keys = {'SPACE', '?AIR', 'R', 'doubleTap', 'spam'},
-		defs = {'under95%'},
+		defs = {
+			['?'] = {'under95%', 'underammo95%'}
+		},
 		keep_on_fail = true,
 		brush_order = {'return'}, 
 		second_call = 'Keep Above 95%%',
@@ -2594,7 +2608,9 @@ local hotkeysCombos = {
 	{
 		name = 'Keep Above 95%%',
 		method = 'on_selection',
-		defs = {'above95%'},
+		defs = {
+			'above95%', ['?'] = {'!hasAmmo', 'aboveammo95%'}
+		},
 		on_press = true,
 		color = {0.9, 0.9, 0.1, 1},
 		fading = 0.8,
@@ -4171,10 +4187,21 @@ local merge = function(t, t2)
 end
 
 local function SortClosest(x, z)
+	local type = type
+	local diag = math.diag
 	return function(a, b)
-		local ax, _, az = spGetUnitPosition(a)
-		local bx, _, bz = spGetUnitPosition(b)
-		return ax and bx and (x-ax)^2+(z-az)^2<(x-bx)^2+(z-bz)^2
+		local ax, az, bx, bz
+		if type(a) == 'table' then
+			ax, az = a[1], a[3]
+		else
+			ax, _, az = spGetUnitPosition(a)
+		end
+		if type(b) == 'table' then
+			bx, bz = b[1], b[3]
+		else
+			bx, _, bz = spGetUnitPosition(b)
+		end
+		return ax and bx and diag(x-ax, z-az) < diag(x-bx, z-bz)
 	end
 end
 
@@ -4197,6 +4224,24 @@ do
 		UnitDefNames['staticrearm'].id,
 		UnitDefNames['factoryplane'].id,
 	}
+
+	alliesOfTeam = setmetatable(
+		{},
+		{
+			__index = function(self, thisTeamID)
+				local allyTeamID = Spring.GetTeamAllyTeamID(thisTeamID)
+				local allies = {}
+				for i, teamID in ipairs(Spring.GetTeamList(allyTeamID)) do
+					if teamID ~= thisTeamID then
+						allies[#allies+1] = teamID
+					end
+				end
+				rawset(alliesOfTeam, thisTeamID, allies)
+				return allies
+			end
+		}
+	)
+
 	SetRetreat = function(id, unit)
 		local isPlane = unit.isPlane
 		local time = osclock()
@@ -4212,30 +4257,51 @@ do
 			currentRetreatPlane = false
 			wantPad = true
 			possibles = spGetTeamUnitsByDefs(myTeamID, indexedAirpadDefID)
-			if possibles[1] then
-				wantPad = true
-			else
-				possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+			if not possibles[1] then
+				for i, teamID in ipairs(alliesOfTeam[myTeamID]) do
+					possibles = spGetTeamUnitsByDefs(teamID, indexedAirpadDefID)
+					if possibles[1] then
+						break
+					end
+				end
+				if not possibles[1] then
+					wantPad = false
+					-- possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+					if not possibles[1] then
+						possibles[1] = unit.create_pos
+					end
+				end
 			end
 		else
 			timeSet = time
 			currentRetreat = false
 			possibles = spGetTeamUnitsByDefs(myTeamID, caretakerDefID)
+			if not possibles[1] then
+				for i, teamID in ipairs(alliesOfTeam[myTeamID]) do
+					possibles = spGetTeamUnitsByDefs(teamID, caretakerDefID)
+					if possibles[1] then
+						break
+					end
+				end
+			end
 		end
 
 		if not possibles[1] then
 			possibles = spGetTeamUnitsByDefs(myTeamID, indexedCommanderDefID)
 		end
 		if possibles[1] then
-			table.sort(possibles, SortClosest(x, z))
+			if possibles[2] then
+				table.sort(possibles, SortClosest(x, z))
+			end
+			local destination = type(possibles[1]) == 'table' and possibles[1] or {spGetUnitPosition(possibles[1])}
 			if isPlane then
-				currentRetreatPlane = {spGetUnitPosition(possibles[1])}
+				currentRetreatPlane = destination
 				if wantPad then
 					currentRetreatPlane[4] = possibles[1]
 				end
 				return currentRetreatPlane
 			else
-				currentRetreat = {spGetUnitPosition(possibles[1])}
+				currentRetreat = destination
 				return currentRetreat
 			end
 		end
@@ -4463,7 +4529,7 @@ do
 				return
 			end
 			local posx, _, posz = spGetUnitPosition(id)
-			local return_pos = SetRetreat(id, unit) or unit.createpos
+			local return_pos = SetRetreat(id, unit)
 			if not return_pos then
 				return
 			end
@@ -6657,6 +6723,7 @@ end
 
 do
 	local spGetUnitRulesParams = Spring.GetUnitRulesParams
+	local spGetUnitRulesParam = Spring.GetUnitRulesParam
 	local spGetGameFrame = Spring.GetGameFrame
 	local spGetUnitWeaponState = Spring.GetUnitWeaponState
 	local spuGetUnitFireState     = Spring.Utilities.GetUnitFireState
@@ -6673,6 +6740,7 @@ do
 			end
 		end
 	end
+	local count = 0
 	 -- checking conditions defined in 'defs' table of the macro
 	CheckRequirements = function(reqTable, id, Or, Inv, cnt, fromTable)
 		if not spValidUnitID(id) or spGetUnitIsDead(id) then
@@ -6710,16 +6778,16 @@ do
 				-- if call.must_have == reqTable then checkMustHave = true end
 				if call.groups then for i, def in ipairs(call.groups) do if def == reqTable then checkGroups = i break end end end
 				-- if call.tempdefs == reqTable then checkTemp = true end
-				checktype = checkPreFilter 										and 'PREFILTER CHECK'
-						  or checkWantIf										and 'WANT IF CHECK FOR ' .. checkWantIf .. ': '
-						  or call.must_have == reqTable							and 'MUST HAVE CHECK: '
-						  or checkPrefer                                        and 'PREFERENCES #'..checkPrefer..' CHECK: '
-						  or checkSwitch                                        and 'SWITCH #'..checkSwitch..' CHECK: '
-					  	  or checkGroups										and 'GROUP #'..checkGroups..' CHECK: '
+				checktype = checkPreFilter 										  and 'PREFILTER CHECK'
+						  or checkWantIf										  and 'WANT IF CHECK FOR ' .. checkWantIf .. ': '
+						  or call.must_have == reqTable							  and 'MUST HAVE CHECK: '
+						  or checkPrefer                                          and 'PREFERENCES #'..checkPrefer..' CHECK: '
+						  or checkSwitch                                          and 'SWITCH #'..checkSwitch..' CHECK: '
+					  	  or checkGroups										  and 'GROUP #'..checkGroups..' CHECK: '
 					  	  or call.proximity and (reqTable == call.proximity.defs) and 'PROXIMITY CHECK: '
-					  	  or call.tempdefs == reqTable							and 'TEMP CHECK '
-						  or checkNormal										and 'NORMAL CHECK: '
-						  or 													    'UNKNOWN CHECK: '
+					  	  or call.tempdefs == reqTable							  and 'TEMP CHECK '
+						  or checkNormal										  and 'NORMAL CHECK: '
+						  or 													      'UNKNOWN CHECK: '
 				Echo('{{{{ '..checktype..Units[id].name:upper()..'('..id..') }}}}')
 			end
 		end
@@ -6781,9 +6849,9 @@ do
 			-- CASE SUBSET OF REQUIREMENTS => RECURSION
 			if type(reqProp) == 'table' then
 				-- subOr = subOr or type(reqProp[1])== 'table' -- no need to specify the key ['?'] in a case of subtable containing subtables, this is implicit
-				-- if debugCheck then
-				-- 	Echo('dive in table \'' .. key .. '\'...')
-				-- end
+				if debugCheck then
+					Echo('dive in table \'' .. key .. '\'...', 'Or?', Or, 'pass?', pass, 'subOr?', subOr)
+				end
 				pass = CheckRequirements(reqProp, id, subOr, subInv, 0, (fromTable or '') .. key .. '.') -- subtable passed?
 
 			-- CASE: CONDITION IS STANDALONE // requirements that have not been given any value, therefore must resolve to boolean
@@ -6795,13 +6863,27 @@ do
 					local trns = spGetUnitIsTransporting(id)
 					pass = trns and not not trns[1]
 				elseif reqProp:match('%d') then
-					local req, reqHP, percent = reqProp:match('(%a+)(%d+)(%%)')
-					reqHP = tonumber(reqHP)
-					local HP, maxHP = spGetUnitHealth(id)
-					if percent then HP = HP/maxHP*100 end
-					pass = req == 'above' and HP>reqHP or
-						 req == 'under' and HP<reqHP or
-						 req == 'equal' and abs(HP-reqHP)<7
+					local req, reqNum, percent = reqProp:match('(%a+)(%d+)(%%)')
+					reqNum = tonumber(reqNum)
+
+					local kind = req:find('ammo') and 'ammo' or 'hp'
+					local num, max
+					if kind == 'ammo' then 
+						num = spGetUnitRulesParam(id, "ammoFraction") or 1
+						max = 1
+						percent = true
+					else
+						num, max = spGetUnitHealth(id)
+					end
+					if percent then
+						num = num/max*100
+					end
+					count = count + 1
+					-- Echo('#'..count, 'id', id, 'kind', kind, "reqNum:"..tostring(reqNum)..", num:"..tostring(num))
+					pass = req:find('^above') and num>reqNum or
+						 req:find('^under') and num<reqNum or
+						 req:find('^equal') and abs(num-reqNum)<7 or
+						 false
 				else
 					pass = not not proptable[reqProp]
 				end
