@@ -172,6 +172,8 @@ local internalKeys = {
 	teamID = true,
 	isInSight = true,
 	isInRadar = true,
+	isDead = true,
+	isDeleted = true,
 	health = true,
 	defID = true,
 	checkHealth = true,
@@ -182,6 +184,7 @@ local internalKeys = {
 	facing = true,
 	created = true,
 	created_from = true,
+	create_pos = true,
 	isDiscovered = true,
 	isDefined = true,
 	knownByAlly = true,
@@ -436,6 +439,7 @@ local function CreateUnknownUnit(id, teamID)
 		id = id,
 		frame = currentFrame,
 		teamID = teamID,
+		allyTeamID = spGetUnitAllyTeam(id),
 		isMine = false,
 		isAllied = false,
 		isEnemy = true,
@@ -445,12 +449,14 @@ local function CreateUnknownUnit(id, teamID)
 		checkHealth = false,
 		health = DUMMY_HEALTH,
 		isKnown = false,
-		pos = {frame = currentFrame,spGetUnitPosition(id, true)},
+		pos = {},
 		GetPos = GetPos,
 		isStructure = false,
 		created = NOW,
 		created_from = 'CreateUnknownUnit',
 	}
+	local x, y, z = unit:GetPos(-1)
+	unit.create_pos = {x, y, z}
 	if not unit.pos[1] then
 		Echo('UNKNOWN UNIT ' .. id .. ' CREATED WITHOUT POS !')
 	end
@@ -474,6 +480,7 @@ local function CreateKnownUnit(id, teamID, defID)
 		health = {frame = currentFrame,spGetUnitHealth(id)}
 	end
 	local isMine = teamID == myTeamID
+	local allyTeamID = spGetUnitAllyTeam(id)
 	local isAllied = not isMine and spAreTeamsAllied(teamID, myTeamID)
 	local isStructure = structureDefID[defID] or false
 	local facing, knownByAlly
@@ -486,6 +493,7 @@ local function CreateKnownUnit(id, teamID, defID)
 		id = id,
 		frame = currentFrame,
 		teamID = teamID,
+		allyTeamID = allyTeamID,
 		isMine = isMine,
 		isAllied = isAllied,
 		isEnemy = not isAllied and not isMine,
@@ -495,7 +503,7 @@ local function CreateKnownUnit(id, teamID, defID)
 		health = health,
 		checkHealth = not ignore,
 		isKnown = true,
-		pos = {frame = currentFrame, spGetUnitPosition(id, true)},
+		pos = {},
 		GetPos = GetPos,
 		isStructure = isStructure,
 		knownByAlly = knownByAlly,
@@ -503,6 +511,8 @@ local function CreateKnownUnit(id, teamID, defID)
 		created = NOW,
 		created_from = 'CreateKnownUnit',
 	} 
+	local x, y, z = unit:GetPos(-1)
+	unit.create_pos = {x, y, z}
 	return unit
 end
 
@@ -510,10 +520,13 @@ local function UpdateAllegiance(unit, id, teamID)
 
 	unit.teamID = teamID
 	local isMine = teamID == myTeamID
-	local isAllied = not isMine and spAreTeamsAllied(teamID, myTeamID)
+	local allyTeamID = spGetUnitAllyTeam(id)
+
+	local isAllied = not isMine and allyTeamID == myAllyTeamID
 	if isMine ~= unit.isMine then
 		manager:UnitChangedOwner(unit, id, isMine)
 	end
+	unit.allyTeamID = allyTeamID
 	unit.isMine = isMine
 	unit.isAllied = isAllied
 	unit.isEnemy = not isAllied and not isMine
@@ -830,7 +843,8 @@ local function UpdateAll(fullview)
 
 						---- checking for immediate knowledge
 						if fullview == 1 and unit.isStructure and unit.isEnemy then
-							local unitAllyTeam = spGetUnitAllyTeam(id)
+							local unitAllyTeam = unit.allyTeamID
+
 							local knownByAlly = unit.knownByAlly
 							for allyTeam in pairs(allyTeams) do
 								if allyTeam ~= unitAllyTeam then
@@ -1020,7 +1034,9 @@ function widget:UnitGiven(id, defID, toTeam, fromTeam)
 			health.frame = currentFrame
 		end
 		local isMine = toTeam == myTeamID
-		local isAllied = not isMine and spAreTeamsAllied(toTeam, myTeamID)
+		local allyTeamID = spGetUnitAllyTeam(id)
+
+		local isAllied = not isMine and allyTeamID == myAllyTeamID
 
 		local isStructure = structureDefID[defID] or false
 		local facing, knownByAlly
@@ -1041,6 +1057,7 @@ function widget:UnitGiven(id, defID, toTeam, fromTeam)
 			isAllied = isAllied,
 			isEnemy = not isAllied and not isMine,
 			teamID = toTeam,
+			allyTeamID = allyTeamID,
 			defID = defID,
 			health = health,
 			isKnown = true,
@@ -1055,6 +1072,8 @@ function widget:UnitGiven(id, defID, toTeam, fromTeam)
 			created = NOW,
 			created_from = 'UnitGiven',
 		}
+		local x, y, z = unit:GetPos(-1)
+		unit.create_pos = {x, y, z}
 		Units[id] = unit
 		manager:NewUnit(unit, id, defID, toTeam)
 		inSight[id] = isInSight and unit or nil
@@ -1112,7 +1131,8 @@ function widget:UnitTaken(id, defID, fromTeam, toTeam)
 		local isInSight, isInRadar, isKnown, isStructure
 		local isStructure = structureDefID[defID]
 		local isMine = toTeam == myTeamID
-		local isAllied = not isMine and spAreTeamsAllied(myTeamID, toTeam)
+		local allyTeamID = spGetUnitAllyTeam(id)
+		local isAllied = not isMine and allyTeamID == myAllyTeamID
 		if fullview==1 then
 			isInSight = true
 		else
@@ -1154,6 +1174,7 @@ function widget:UnitTaken(id, defID, fromTeam, toTeam)
 			id = id,
 			frame = currentFrame,
 			teamID = teamID,
+			allyTeamID = allyTeamID,
 			isAllied = isAllied,
 			isMine = isMine,
 			isEnemy = not isAllied and not isMine,
@@ -1173,6 +1194,8 @@ function widget:UnitTaken(id, defID, fromTeam, toTeam)
 			created_from = 'UnitTaken',
 		}
 		unit:GetPos(-1)
+		local x, y, z = unit:GetPos(-1)
+		unit.create_pos = {x, y, z}
 		Units[id] = unit
 		if unit.health[5] < 1 then
 			manager:UnitCreated(unit, id, defID, teamID)
@@ -1211,7 +1234,8 @@ function widget:UnitCreated(id, defID, teamID, builderID)
 			health.frame = currentFrame
 		end
 		local isMine = teamID == myTeamID
-		local isAllied = not isMine and spAreTeamsAllied(teamID, myTeamID)
+		local allyTeamID = spGetUnitAllyTeam(id)
+		local isAllied = not isMine and allyTeamID == myAllyTeamID
 
 		local isStructure = structureDefID[defID] or false
 		local facing, knownByAlly
@@ -1227,6 +1251,7 @@ function widget:UnitCreated(id, defID, teamID, builderID)
 			isMine = isMine,
 			isEnemy = not isAllied and not isMine,
 			teamID = teamID,
+			allyTeamID = allyTeamID,
 			isInSight = true,
 			isInRadar = true,
 			isKnown = true,
@@ -1242,7 +1267,8 @@ function widget:UnitCreated(id, defID, teamID, builderID)
 			created_from = 'UnitCreated',
 		} 
 		-- Echo('unit ' .. id ..  ' created from created')
-		unit:GetPos(-1)
+		local x, y, z = unit:GetPos(-1)
+		unit.create_pos = {x, y, z}
 		Units[id] = unit
 		manager:NewUnit(unit, id, defID, teamID, builderID)
 		inSight[id] = unit
@@ -1269,7 +1295,8 @@ function widget:UnitFinished(id, defID, teamID)
 			health.frame = currentFrame
 		end
 		local isMine = teamID == myTeamID
-		local isAllied = not isMine and spAreTeamsAllied(teamID, myTeamID)
+		local allyTeamID = spGetUnitAllyTeam(id)
+		local isAllied = not isMine and allyTeamID == myAllyTeamID
 		local isInSight, isInRadar = true, true
 		-- local isInSight = spGetUnitLosState(id).los
 		-- if not isInSight then -- never happened
@@ -1291,6 +1318,7 @@ function widget:UnitFinished(id, defID, teamID)
 			isMine = isMine,
 			isEnemy = not isAllied and not isMine,
 			teamID = teamID,
+			allyTeamID = myAllyTeamID,
 			isInSight = isInSight,
 			isInRadar = isInRadar,
 			health = health,
@@ -1305,7 +1333,8 @@ function widget:UnitFinished(id, defID, teamID)
 			created = NOW,
 			created_from = 'UnitFinished',
 		} 
-		unit:GetPos(-1)
+		local x, y, z = unit:GetPos(-1)
+		unit.create_pos = {x, y, z}
 		Units[id] = unit
 		inSight[id] = isInSight and unit or nil
 	end
@@ -1567,6 +1596,7 @@ function widget:UnitLeftRadar(id, teamID)
 		-- 	id = id,
 		-- 	frame = currentFrame,
 		-- 	teamID = teamID,
+		--  allyTeamID = spGetUnitAllyTeam(id),
 		-- 	isMine = false,
 		-- 	isAllied = false,
 		-- 	isEnemy = true,
@@ -1605,7 +1635,7 @@ function widget:UnitDamaged(id, defID, teamID)
 		if not ignoreHealthDefID[defID] then
 			Units[id].checkHealth = true
 		end
-	else
+	else -- never happening
 		-- if not fullview and not spAreTeamsAllied(myTeamID,teamID) then
 		-- 	Echo('unit',id, 'is enemy damaged while not in full view !') -- never happened
 		-- end
@@ -1623,7 +1653,8 @@ function widget:UnitDamaged(id, defID, teamID)
 		-- end
 		health.frame = currentFrame
 		local isMine = teamID == myTeamID
-		local isAllied = not isMine or fullview and spAreTeamsAllied(teamID, myTeamID) -- without fullview, it will not be an allied in any case
+		local allyTeamID = spGetUnitAllyTeam(id)
+		local isAllied = not isMine or fullview and allyTeamID == myAllyTeamID -- without fullview, it will not be an allied in any case
 
 		local isStructure = structureDefID[defID] or false
 		local facing, knownByAlly
@@ -1640,6 +1671,7 @@ function widget:UnitDamaged(id, defID, teamID)
 			checkHealth  = not ignore and true,
 			health = health,
 			teamID = teamID,
+			allyTeamID = myAllyTeamID,
 			isAllied = isAllied, 
 			isMine = isMine,
 			isEnemy = not isAllied and not isMine,
@@ -1652,7 +1684,8 @@ function widget:UnitDamaged(id, defID, teamID)
 			created = NOW,
 			created_from = 'UnitDamaged',
 		} 
-		unit:GetPos(-1)
+		local x, y, z = unit:GetPos(-1)
+		unit.create_pos = {x, y, z}
 		Units[id] = unit
 		manager:NewUnit(unit, id, defID, teamID)
 		inSight[id] = isInSight and unit or nil
@@ -1686,7 +1719,9 @@ function widget:UnitDestroyed(id, defID, teamID)
 	lastDead = id
 	if unit then
 		-- Echo(id, 'destroyed' .. (INIT and ' (init)' or ''))
-		unit.isDead = currentFrame
+		if not unit.isDeleted then
+			unit.isDead = currentFrame
+		end
 		manager:UnitDestroyed(unit, id, defID, teamID)
 		local struct = structureDiscovered[id]
 		if struct then
@@ -1880,19 +1915,20 @@ function widget:GameFrame(f)
 		local count = 0
 		for id, unit in pairs(Units) do
 			if not (unit.isInRadar or unit.isInSight or unit.isStructure) then
-				-- if currentFrame - (unit.lastSeen or currentFrame) > 600 then
+				if currentFrame - (unit.lastSeen or -601) > 600 then
 					count = count + 1
 					MEM_UNITS[id] = unit
 					-- Echo('forgetting unit', id, unit.name)
 					DESTROYED[id] = nil
 					lastDead = nil
+					unit.isDeleted = currentFrame
 					widget:UnitDestroyed(id, unit.defID, unit.teamID)
 					DESTROYED[id] = nil
 					lastDead = nil
 					if count == 100 then
 				 		break
 					end
-				-- end
+				end
 			end
 		end
 	end

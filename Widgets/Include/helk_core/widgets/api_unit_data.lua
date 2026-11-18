@@ -477,7 +477,6 @@ end
 
 function manager:DefineUnit(id, defID, unit)
 	-- Echo('produce...',id,os.clock())
-	unit.createpos = {unpack(unit.pos)}
 	if defID then
 		setmetatable(unit, unitModels[defID].mt)
 		unit.isDefined = true
@@ -489,6 +488,7 @@ end
 local function CreateUnitModel(defID, def)
 	name = def.name
 	local moveType = spuGetMoveType(def) or -1
+	local cp = def.customParams
 	local isTransportable = not (def.canFly or def.cantBeTransported)
 	local heavy
 	if isTransportable then
@@ -512,6 +512,7 @@ local function CreateUnitModel(defID, def)
 		local class					= classByName[name] or conDefID[defID] and 'conunit' or 'unknown' 
 		proto.class                 = class
 		proto.family                = familyByName[name] or 'unknown'
+		proto.hasAmmo               = tonumber(cp.shots_per_refuel or 0) > 1
 		if planeDefID[defID] then
 			proto.isPlane           = true
 			if bomberDefID[defID] then
@@ -546,7 +547,7 @@ local function CreateUnitModel(defID, def)
 		proto.isStorage               = name == "staticstorage" or nil
 		proto.class					  = 'unknown'
 		proto.family                  = familyByName[name] or 'unknown'
-
+		proto.hasAmmo                 = tonumber(cp.shots_per_refuel or 0) > 1
 		if energyDefID[defID] then
 			if name=="energysolar" then
 				proto.isSolar = true
