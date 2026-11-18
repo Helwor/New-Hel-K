@@ -24,9 +24,11 @@ local conDefID = {}
 local controllableRepairerDefID = {}
 local controllableRepairerDefIDIndex = {}
 local impulseDefID = {}
+local hasAmmoDefID = {}
 
 
 for defID, def in pairs(UnitDefs) do
+	local cp = def.customParams
 	---- CAN ATTACK
 	if def.canAttack then
 		canAttackDefID[defID] = true
@@ -36,7 +38,10 @@ for defID, def in pairs(UnitDefs) do
 	if def.isAirUnit and def.canAttack then
 		airAttackerDefID[defID]=true
 	end
-	if def.isBomber or def.isBomberAirUnit or def.customParams.reammoseconds then
+	if tonumber(cp.shots_per_refuel or 0) > 1 then
+		hasAmmoDefID[defID] = true
+	end
+	if def.isBomber or def.isBomberAirUnit or cp.reammoseconds then
 		-- Echo("def.name is ", def.name, def.isBomber and 'isBomber' or def.isBomberAirUnit and 'isBomberAirUnit' or def.customParams.reallyabomber and 'reallyabomber')
 		bomberDefID[defID] = true
 		planeDefID[defID] = true
@@ -59,7 +64,7 @@ for defID, def in pairs(UnitDefs) do
 			turretDefID[defID] = true
 		end
 	---- JUMPER
-	elseif def.customParams.canjump then
+	elseif cp.canjump then
 		if not (def.name:match('plate') or def.name:match('factory')) then
 			jumperDefID[defID] = true
 		end
@@ -69,7 +74,7 @@ for defID, def in pairs(UnitDefs) do
 	end
 	---- COMM/CON
 	-- if (name:find('^dyn') or name:find('c%d+_base') or name:find('com%d+$') or (name:find('comm') and not name:find('egg')) or name:find('^hero')) then 
-	if def.customParams.dynamic_comm or def.customParams.level then
+	if cp.dynamic_comm or cp.level then
 		commDefID[defID] = true
 	elseif not def.isImmobile and def.buildOptions[1] then
 		conDefID[defID] = true
@@ -94,6 +99,7 @@ end
 
 WG.canAttackDefID = canAttackDefID
 WG.airAttackerDefID = airAttackerDefID
+WG.hasAmmoDefID = hasAmmoDefID
 WG.bomberDefID = bomberDefID
 WG.planeDefID = planeDefID
 WG.gunshipDefID = gunshipDefID
