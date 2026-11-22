@@ -1169,6 +1169,9 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 			info.isGone = isGone
 		end
 		entry.isConnecting = isConnecting
+		if debugging and entry.isActive ~= active then
+			Echo(entry.name .. ' active changed ' .. tostring(active))
+		end
 		entry.isActive = active
 
 		entry.impersonating = 
@@ -1628,6 +1631,9 @@ local function UpdatePlayer(playerID, info, isConnecting)
 	if not controls then
 		local name, active, spectator, teamID, allyTeamID = spGetPlayerInfo(playerID)
 		local initSpec = spectator and spGetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1
+		if debugging and not teamID then
+			Echo('PROBLEM WITH PLAYER', name, playerInfo[name or ''], controlsByPlayerID[playerID])
+		end
 		controls = CreateControls(playerID, teamID, allyTeamID, initSpec, false)
 		listControls[#listControls + 1] = controls
 		if not controlsByTeamID[teamID] then
@@ -1988,6 +1994,9 @@ local battleKeyOrder = {
 }
 
 function widget:RecvLuaMsg(msg, playerID)
+	if not playerInfo then
+		return
+	end
 	if msg:find('^afk_changed ') then
 		local name, isAfk = msg:match('^afk_changed%s+(%S+)%s+(%S+)')
 		if name and isAfk then
