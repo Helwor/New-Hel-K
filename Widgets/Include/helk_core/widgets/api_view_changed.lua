@@ -14,7 +14,7 @@ end
 
 --IMPORTANT NOTE: 
 -- !! Update come before PreUnit, unit visible can be detected in update, BUT ICONIZED STATE IS DETECTED FIRST AT PRE UNIT
--- !! PreUnit order is reversed, widget having lower layer will NOT COME FIRST FOR THIS CALLIN
+-- !! PreUnit order is reversed, widget having lower layer will NOT COME FIRST FOR THIS CALLIN like for every drawing callin
 -- so we have to make another with high layer for registering iconized unit
 -- !! Unit discovered directly by Los WILL TRIGGER ENTEREDRADAR AFTER
 -- !! Unit STRUCTURE discovered By Los ONCE will be seen as static build icon when entering radar again, BUT THE DEFID CANNOT BE RETRIEVED
@@ -203,7 +203,7 @@ local GetDist = function()
         local pos =  Cam.trace
         dist = diag(cs.px - pos[1], cs.py - pos[2], cs.pz - pos[3])
     end
-    return dist
+    return max(dist, 1)
 end
 -- each param is stored in unique table for widgets to keep around as local
 local lag, lagref = 0, 0.033
