@@ -791,7 +791,11 @@ local function MergeAndUpdateInfo(info, new_info)
 			or k == 'elo'
 		then
 			if debugging then
-				Echo('completing info ' .. k .. ' => ' .. tostring(v))
+				if new_info.playerID then
+					Echo('Feeding playerInfo from entry ' .. k .. ' => ' .. tostring(v))	
+				else
+					Echo('completing info ' .. k .. ' => ' .. tostring(v))
+				end
 			end
 			info[k] = v
 			changed = true
@@ -1052,6 +1056,7 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 	local isGone = false
 	local entry = controls.entry
 	local info
+	local isDead = false
 	if displayResources and controls and (controls.btnMetal and controls.btnMetal.visible) then
 		UpdateResources(controls, teamID)
 	end
@@ -1070,9 +1075,15 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 			end
 		end
 		local playerName, _active, _spectator, _teamID, _allyTeamID, pingTime, cpuUsage, country, rank, customKeys = spGetPlayerInfo(entry.playerID, true)
+		if not entry.initSpec and (spGetTeamRulesParam(entry.initTeamID, 'WasKilled') or select(3, spGetTeamInfo(_teamID, false))) then -- only way in FFA to know if team was really dead is to use TeamInfo, but can be wrong through cheat
+			isDead = true
+		end
 		info = playerInfo[playerName]
 		if info then
 			isGone = not not info.isGone
+			if not isDead and info.isDead then
+				isDead = true
+			end
 			if  forceUpdate then
 				if info.name and entry.name ~= info.name then
 					if debugging then
@@ -1147,7 +1158,7 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 			UpdatePing(entry.playerID, controls, true)
 		end
 	end
-	local isDead = entry.isDead or not entry.initSpec and spGetTeamRulesParam(entry.initTeamID, 'WasKilled') or false
+	isDead = isDead or entry.isDead
 	local isConnecting = not active and (isConnecting or entry.isConnecting)
 	local isGone = not (active or isConnecting) and (entry.isActive or entry.isGone or isGone)
 
@@ -1189,12 +1200,12 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 			controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
 			controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
 		end
-
+		MergeAndUpdateInfo(info, entry)
 	end
 end
 
 local function CreateEntry(playerID, initTeamID, initAllyTeamID, initSpec, isAiTeam)
-	local isDead = not initSpec and spGetTeamRulesParam(initTeamID, 'WasKilled')
+	local isDead = not initSpec and spGetTeamRulesParam(initTeamID, 'WasKilled') or false
 	local entry = {
 		playerID = playerID,
 		teamID = initTeamID,
@@ -1222,7 +1233,10 @@ local function CreateEntry(playerID, initTeamID, initAllyTeamID, initSpec, isAiT
 		if not info then
 			info = {playerID = playerID, name = playerName}
 			playerInfo[playerName] = info
+		elseif info.isDead then
+			isDead = true
 		end
+
 		if debugging then
 			Echo('<< CustomKeys ' .. playerName .. '>>')
 			for k,v in pairs(customKeys) do
