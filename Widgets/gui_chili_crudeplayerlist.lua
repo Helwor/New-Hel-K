@@ -1200,7 +1200,9 @@ local function UpdateEntry(controls, forceUpdate, isConnecting)
 			controls.btnMetal:SetVisibility(not controls.btnMetal:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
 			controls.btnEnergy:SetVisibility(not controls.btnEnergy:DisableFunc() or mySpectating and displayResources and not entry.initSpec)
 		end
-		MergeAndUpdateInfo(info, entry)
+		if info then
+			MergeAndUpdateInfo(info, entry)
+		end
 	end
 end
 
