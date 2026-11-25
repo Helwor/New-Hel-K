@@ -2934,7 +2934,9 @@ local function DrawBasicSlope(layers)
 		glColor(0, 1, 0, 0.9)
 		glBeginEnd(GL_LINES, DrawFlatGrid, slope.elevRect, slope.bw*2, slope.bh*2) -- replace engine grid with proper elevated grid, full green
 
-		--- ghost draw
+	end
+	--- ghost draw
+	if not WG.ReplaceBuildingPlacement then
 		glPushMatrix()
 		glDepthMask(true)
 		glDepthTest(GL_ALWAYS);
@@ -2942,10 +2944,11 @@ local function DrawBasicSlope(layers)
 		glRotate(facing*90, 0, 1, 0);
 		--glScale(1.01, 1.01, 1.01)
 		glUnitShape(pid, 0, false, true, false )
-		glDepthTest(false)
 		glDepthMask(false)
 		glPopMatrix()
 	end
+	glDepthTest(GL.LEQUAL)
+	glDepthTest(false)
 	uniShader:Deactivate()
 end
 
@@ -3337,17 +3340,20 @@ local function DrawSlope(layers)
 	-- end
 
 	--- ghost draw
-	glDepthMask(true)
-	glPushMatrix()
-	glTranslate(bx, by, bz)
-	glRotate(facing*90, 0, 1, 0);
+	if not WG.ReplaceBuildingPlacement then
+		glDepthMask(true)
+		glPushMatrix()
+		glTranslate(bx, by, bz)
+		glRotate(facing*90, 0, 1, 0);
 
-	--glScale(1.01, 1.01, 1.01)
-	glUnitShape(pid, 0, false, true, false )
-	glPopMatrix()
+		--glScale(1.01, 1.01, 1.01)
+		glUnitShape(pid, 0, false, true, false )
+		glPopMatrix()
+		glDepthMask(false)
+	end
+
 
 	glColor(1, 1, 1, 1)
-	glDepthMask(false)
 	glDepthTest(GL.LEQUAL)
 	glDepthTest(false);
 	uniShader:Deactivate()
