@@ -11,6 +11,9 @@ function widget:GetInfo()
 		enabled   = true,
 	}
 end
+
+local debugging = false
+
 local spGetActiveCommand = Spring.GetActiveCommand
 local spGetBuildFacing = Spring.GetBuildFacing
 local spGetMouseState = Spring.GetMouseState
