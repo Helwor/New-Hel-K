@@ -3193,7 +3193,6 @@ local function Process(mx, my, update)
 	-- if useMinimap then
 	-- 	mx, my = ClampMouseToMinimap(mx, my)
 	-- end
-
 	px, _, pz, offmap = UniTraceScreenRay(mx, my, useMinimap, not p.floatOnWater, p.sizeX, p.sizeZ)
 	if not px then
 		return
@@ -3332,7 +3331,7 @@ function widget:Update(dt)
 		-- Echo("batch is ", sum)
 
 	end
-	WG.placementX, WG.placementZ = pointX, pointZ
+	WG.placementX, WG.placementY, WG.placementZ = pointX, pointY, pointZ
 	local wasLeftClick, wasRightClick = leftClick, rightClick
 	alt,ctrl,meta,shift = spGetModKeyState()
 
@@ -4395,7 +4394,7 @@ function widget:Shutdown()
 		gl.DeleteList(elevRangeDraw.list)
 		elevRangeDraw.list = nil
 	end
-	WG.placementX, WG.placementZ = nil, nil
+	WG.placementX, WG.placementY, WG.placementZ = nil, nil, nil
 	WG.placementHeight = nil
 	if oldSpringSetActiveCommand then
 		Spring.SetActiveCommand = oldSpringSetActiveCommand
