@@ -24,6 +24,7 @@ local apiOrder = {
 	'api_draw_utils.lua',
 	'api_range_renderer_gl4.lua',
 	'api_ground_decal_drawer.lua',
+	'api_placement_building_replacer.lua',
 }
 
 local importantWidgets = {
