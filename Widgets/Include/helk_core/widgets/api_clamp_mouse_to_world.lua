@@ -111,7 +111,7 @@ do
 	local mapSizeX, mapSizeZ = Game.mapSizeX,Game.mapSizeZ
 	local spTraceScreenRay = Spring.TraceScreenRay
 	local spGetGroundHeight = Spring.GetGroundHeight
-
+	local remove = table.remove
 	-- OLD dirty work around
 	local clamp = function(x,z,off)
 		local off = off or 1
@@ -142,7 +142,7 @@ do
 		end
 		return x, y
 	end
-	local function process(center, height, margin, offsetHeight)
+	local function process(center, height, throughWater, margin, offsetHeight)
 		-- local newY = math.max(center[5] - height, 0)
 		local newY = center[5] - height
 		local mx, my = spWorldToScreenCoords(center[4], newY, center[6])
@@ -152,18 +152,24 @@ do
 			return
 		end
 		local x2, y2, z2 = test[4], test[5], test[6]
+		-- Echo('process, throughWater',throughWater,  test[1]..'/'..mapSizeX, test[3]..'/'..mapSizeZ, test[4]..'/'..mapSizeX, test[6]..'/'..mapSizeZ)
 		if not OUTHEIGHT and debugMe.state then
 			OUTHEIGHT = {x2, y2, z2}
 			local clx, clz = math.clamp(x2, 0, Game.mapSizeX), math.clamp(y2, 0, Game.mapSizeZ)
 			OUTHEIGHT_CLAMPED = {clx, spGetGroundHeight(clx, clz), clz}
 
 		end
-		for i = 1, 3 do
-			table.remove(test,1)
-		end
 
-		test[1], test[3] = clamp(test[1], test[3], margin or defaultMargin) -- margin < may fall too often out of map when traced
+		-- if test[4] < 0 or test[4] > mapSizeX or test[6] < 0 or test[6] > mapSizeZ then
+			for i = 1, 3 do
+				remove(test,1)
+			end
+			test[1], test[3] = clamp(test[1], test[3], margin or defaultMargin) -- margin < may fall too often out of map when traced
+		-- end
 		test[2] = spGetGroundHeight(test[1], test[3])
+		if not throughWater and test[2] < 0 then
+			test[2] = 0
+		end
 		if offsetHeight then
 			-- test[4], test[5], test[6] = x2, offsetHeight, z2
 			test[4], test[5], test[6] = test[1], offsetHeight, test[3]
@@ -175,7 +181,9 @@ do
 		local center2, center3, center4
 		local nature, center
 		 -- center[4-6] intersection of plane 0 (or offsetHeight)
-		nature, center = spTraceScreenRay(mx, my, true, false, true, throughWater ~= false, offsetHeight)
+		throughWater = throughWater ~= false
+		nature, center = spTraceScreenRay(mx, my, true, false, true, throughWater, offsetHeight)
+		-- Echo(mx, my, "throughWater:"..tostring(throughWater))
 		if not center then
 			-- trace error (should not happen anymore since some recent engine update iirc)
 			return mx, my, false
@@ -191,20 +199,24 @@ do
 		-- local height = spGetGroundHeight(center[4],center[6])
 		-- Echo(nature .. ' : ' .. round(cx),round(cy),round(cz) .. '   |   ' .. round(c2x),round(c2y),round(c2z) .. '| height: '.. round(height))
 		--
-		if nature == 'sky' then
+		-- NOTE: ENGINE BUG mouse can point on an inmap water surface and spTraceScreenRay when asking NOT throughWater still return "sky" as result if theres no inmap ground underneath the mouse.
+		if nature == 'sky' and (throughWater or center[4] > mapSizeX or center[4] < 0 or center[6] > mapSizeZ or center[6] < 0) then
 			local test
-			local height, newY
+			local height
 			if debugMe.state then
 				local clx, clz = math.clamp(center[4], 0, Game.mapSizeX), math.clamp(center[6], 0, Game.mapSizeZ)
 				CLAMPED = {clx, spGetGroundHeight(clx, clz), clz}
 			end
 			height = spGetGroundHeight(center[4],center[6])
+			if not throughWater and height < 0 then
+				height = 0
+			end
 			local _mx, _my
-			_mx, _my, test = process(center, height, margin, offsetHeight)
+			_mx, _my, test = process(center, height, throughWater, margin, offsetHeight)
 
 			if not test then
 				local height = height / 2
-				_mx, _my, test = process(center, height, margin, offsetHeight)
+				_mx, _my, test = process(center, height, throughWater, margin, offsetHeight)
 				if not test then
 					-- Echo('not clamped C')    
 					return mx, my, false
@@ -221,7 +233,7 @@ do
 			correct = true
 			if correct then
 				height = (height + test[2]) / 2
-				_mx,_my,test = process(center, height, margin, offsetHeight)
+				_mx,_my,test = process(center, height, throughWater, margin, offsetHeight)
 
 				if not test then
 					-- Echo('not clamped D')
