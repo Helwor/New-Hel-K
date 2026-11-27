@@ -1260,7 +1260,7 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 		if showAllySelected and allySelUnits[id] then
 			allySelColor = white
 		end
-		if showReload and unit.teamID == myTeamID then
+		if showReload --[[and unit.teamID == myTeamID]] then
 			local checkFunc = longReloadCheck[defID]
 			if checkFunc and not disallowReloadNotice[defID] then
 				local value, sp = checkFunc(defID, id)
