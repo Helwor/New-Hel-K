@@ -83,6 +83,7 @@ local widowDefID = WG.widowDefID
 local revDefID = WG.revDefID
 local krowDefID = WG.krowDefID
 local impalerDefID = WG.impalerDefID
+local zenithDefID = WG.zenithDefID
 --- air stuff
 local airDgunDefID = WG.airDgunDefID
 local airAttackerDefID = WG.airAttackerDefID
@@ -227,7 +228,7 @@ function widget:CommandsChanged()
 	local hasJumper, jumpers = false, EMPTY_TABLE
 
 	local hasPlane, hasBomber = false, false
-	local hasGunship, hasKrow, hasRev, hasAthena, hasOnlyAthena = false, false, false, false, false
+	local hasGunship, hasKrow, hasRev, hasAthena, hasOnlyAthena, hasZenith = false, false, false, false, false, false
 	local hasAirAttacker, hasAirDgun = false, false
 
 
@@ -276,6 +277,8 @@ function widget:CommandsChanged()
 			hasWidow = true
 		elseif not hasImpaler and defID == impalerDefID then
 			hasImpaler = true
+		elseif not hasZenith and defID == zenithDefID then
+			hasZenith = true
 
 		elseif immobileDefID[defID] then
 			hasImmobile = true
@@ -337,6 +340,7 @@ function widget:CommandsChanged()
 	mySelection.hasPuppy        = hasPuppy
 	mySelection.hasWidow        = hasWidow
 	mySelection.hasImpaler      = hasImpaler
+	mySelection.hasZenith       = hasZenith
 
 	mySelection.hasLobster      = hasLobster
 	mySelection.lobsters        = lobsters
@@ -360,7 +364,7 @@ function widget:CommandsChanged()
 	mySelection .hasTurret      = hasTurret
 
 	mySelection.hasBomb         = hasBomb
-	mySelection.hasComm			= hasComm
+	mySelection.hasComm			    = hasComm
 	mySelection.hasDgunCom      = hasDgunCom
 
 	mySelection.count 			= totalCount

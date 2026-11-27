@@ -123,6 +123,7 @@ WG.lobsterDefID = (UnitDefNames['amphlaunch'] or fakeIDTable).id
 WG.widowDefID = (UnitDefNames['spiderantiheavy'] or fakeIDTable).id
 WG.revDefID = (UnitDefNames['gunshipassault'] or fakeIDTable).id
 WG.krowDefID = (UnitDefNames['gunshipkrow'] or fakeIDTable).id
+WG.zenithDefID = (UnitDefNames['zenith'] or fakeIDTable).id
 WG.impalerDefID = (UnitDefNames['vehheavyarty'] or fakeIDTable).id
 WG.athenaDefID = (UnitDefNames['athena'] or fakeIDTable).id
 WG.transportDefID = (UnitDefNames['gunshiptrans'] or fakeIDTable).id

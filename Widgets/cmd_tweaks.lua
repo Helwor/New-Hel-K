@@ -1,5 +1,5 @@
 function widget:GetInfo()
-  return {
+	return {
 	name      = "Command Tweaks",
 	desc      = "",
 	author    = "Helwor",
@@ -9,7 +9,7 @@ function widget:GetInfo()
 	enabled   = true,  --  loaded by default?
 	handler   = true,
 	api       = true
-  }
+	}
 end
 
 local requirements = {
@@ -30,13 +30,21 @@ local mySelection
 local opt_widow_shootOnce = false
 local opt_rev_shootOnce = false
 local opt_puppy_shootOnce = false
+local opt_zenith_shootOnce = true
 local opt_precise_gs_move = true
 local opt_precise_plane_move = false
 local opt_cautious_athena = false -- not implemented
 options_path = 'Hel-K/' .. widget:GetInfo().name
 options = {}
 
-
+options.zenithShootOnce = {
+	type = 'bool',
+	name = 'Zenith Shoot Once',
+	value = opt_zenith_shootOnce,
+	OnChange = function(self)
+		opt_zenith_shootOnce = self.value
+	end
+}
 
 options.widowShootOnce = {
 	type = 'bool',
@@ -124,6 +132,7 @@ function widget:CommandsChanged()
 	hasWidow = mySelection.hasWidow
 	hasRev = mySelection.hasRev
 	hasPuppy = mySelection.hasPuppy
+	hasZenith = mySelection.hasZenith
 	-- hasBobmer = mySelection.hasBomber
 	-- hasOnlyAthena = mySelection.hasOnlyAthena
 	hasSmallSelection = mySelection.isSmall
@@ -145,6 +154,7 @@ function Process(cmd, params, opts, giveOrder) -- global function to be accessed
 		-- or hasBomber and params[3] and (not params[4] or params[4]==0)
 		or opt_rev_shootOnce and hasRev
 		or opt_puppy_shootOnce and hasPuppy
+		or opt_zenith_shootOnce and hasZenith
 	) then
 		opts.ctrl = true
 		opts.coded = opts.coded + CMD_OPT_CTRL
