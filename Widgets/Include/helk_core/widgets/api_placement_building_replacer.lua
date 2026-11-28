@@ -7,11 +7,11 @@ function widget:GetInfo()
 		version   = "v1",
 		date      = "nov 2026",
 		license   = "GNU GPL, v2 or later",
-		layer     = 999, -- after PBH
+		layer     = -10e36, -- after PBH
 		enabled   = true,
 	}
 end
-
+-- TODO: Make Custom grid to prevent it masking the model
 local debugging = false
 
 local spGetActiveCommand = Spring.GetActiveCommand
@@ -49,6 +49,7 @@ end
 
 
 local function GetPlacementCoords(defID, x, y, z, facing, placementHeight)
+	-- TODO VERIF Diff with spPos2BuildPos()
 	local offFacing = (facing == 1 or facing == 3)
 	
 	local def = UnitDefs[defID]
@@ -71,14 +72,17 @@ local function GetPlacementCoords(defID, x, y, z, facing, placementHeight)
 	return pointX, pointY, pointZ
 end
 
-local function ReplaceBuildingPlacement(defID, teamID, facing, engPosX, engPosY, engPosZ,  px, py, pz, scale)
+local function ReplaceBuildingPlacementOLD(defID, teamID, facing, engPosX, engPosY, engPosZ,  px, py, pz, scale)
 	teamID = teamID or 0
 	facing = facing or 0
 	scale = scale or 1
 
 	glDepthTest(true)
-
-	-- gl.Blending(GL.SRC_ALPHA, GL.ONE) -- glowy blending
+	glColor(1,1,1,1)
+	-- gl.Blending(GL.SRC_ALPHA, GL.ONE)
+	-- gl.Blending(GL.ONE, GL.ONE) 
+	-- gl.Blending(GL.ONE, GL.ZERO)
+	-- gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA) 
 	-------------
 	-- it's a bit circumvoluted but I didnt find an easier way to suppress the engine build ghost to replace it with mine
 	-- First we mark the stencil with the build shape while respecting the depth
@@ -110,7 +114,6 @@ local function ReplaceBuildingPlacement(defID, teamID, facing, engPosX, engPosY,
 
 	gl.DepthMask(true)
 
-	gl.UnitShape(defID, 0, true, true, true)
 	if engPosX then
 		glPushMatrix()
 		glTranslate(engPosX, engPosY, engPosZ)
@@ -153,6 +156,44 @@ local function ReplaceBuildingPlacement(defID, teamID, facing, engPosX, engPosY,
 	glDepthTest(false)
 	glColor(1, 1, 1, 1)
 end
+
+local function ReplaceBuildingPlacement(defID, teamID, facing, engPosX, engPosY, engPosZ,  px, py, pz, scale)
+	-- simpler, no stencil
+	teamID = teamID or 0
+	facing = facing or 0
+	scale = scale or 1
+
+	gl.DepthTest(GL.LEQUAL)
+	-- -- ghost
+	glPushMatrix()
+	glTranslate(px, py, pz)
+	gl.Rotate((facing or 0) * 90, 0, 1, 0)
+	glScale(scale, scale, scale)
+	gl.UnitShape(defID, teamID, false, true, false)
+	glPopMatrix()
+
+
+	if engPosX then
+		gl.DepthMask(true)
+		gl.Color(0,0,0,0)
+		glPushMatrix()
+		glTranslate(engPosX, engPosY, engPosZ)
+		gl.Rotate((facing or 0) * 90, 0, 1, 0)
+		---- old using box
+		-- local model = UnitDefs[defID].model
+		-- gl.Utilities.DrawMyBox(model.minx - 1 , model.miny - 1  , model.minz - 1 , model.maxx + 1 , model.maxy + 1 , model.maxz + 1 )
+		---- better with model using polygon offset
+		gl.PolygonOffset(-1, -1)
+		gl.PolygonMode(GL.FRONT_AND_BACK, GL.FILL)
+		gl.UnitShape(defID, teamID, true, true, true)
+		gl.PolygonOffset(false)
+		glPopMatrix()
+		gl.DepthMask(false)
+	end
+	gl.DepthTest(false)
+	-------------
+end
+
 
 function widget:DrawWorld()
 	local defID = select(2, spGetActiveCommand())
