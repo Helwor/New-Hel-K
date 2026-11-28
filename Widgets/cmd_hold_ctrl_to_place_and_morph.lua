@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/cmd_hold_ctrl_to_place_and_morph.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 function widget:GetInfo()
 	return {
 		name      = "Hold Ctrl during placement to morph",

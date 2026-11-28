@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/NewPadGoRearm.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaRules/Configs/airpad_defs.lua", "LuaRules/Configs/customcmds.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 function widget:GetInfo()
 	return {
 		name = "Go Rearm On New Pad",

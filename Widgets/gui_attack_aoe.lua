@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/gui_attack_aoe.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- $Id: gui_attack_aoe.lua 3823 2009-01-19 23:40:49Z evil4zerggin $
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

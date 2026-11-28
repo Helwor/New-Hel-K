@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/gui_contextmenu.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaRules/Configs/dynamic_comm_defs.lua", "LuaRules/Utilities/numberfunctions.lua", "LuaRules/Utilities/versionCompare.lua", "LuaUI/Configs/chilitip_conf.lua", "LuaUI/Configs/epicmenu_conf.lua", "LuaUI/Configs/icontypes.lua", "gamedata/buildoptions.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 function widget:GetInfo()
   return {
     name      = "Context Menu",

@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/gfx_paralyze_effect.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaUI/Widgets/Include/instancevboidtable.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 local widget = widget ---@type Widget
 
 function widget:GetInfo()
