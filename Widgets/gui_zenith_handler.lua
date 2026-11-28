@@ -307,7 +307,7 @@ local function CreateEntry(unitID)
 							if Spring.IsUnitSelected(unitID) then
 								Spring.SetActiveCommand('Attack')
 							else
-								Spring.SelectUnit(unitID)
+								Spring.SelectUnit(unitID, select(4, Spring.GetModKeyState()))
 							end
 						end
 					end
