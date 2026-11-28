@@ -29,6 +29,7 @@ local fonts = {}
 local gameSpeed = Game.gameSpeed
 local updateRate = 10
 local hasAmmoDefID = WG.hasAmmoDefID
+local zenithDefID = WG.zenithDefID
 local globalList
 local atlasses = {}
 local lastView -- save some redundant work
@@ -1261,18 +1262,23 @@ local function ProcessUnit(id, defID, allySelUnits, unit, blink, anyDebug, fullv
 			allySelColor = white
 		end
 		if showReload --[[and unit.teamID == myTeamID]] then
-			local checkFunc = longReloadCheck[defID]
-			if checkFunc and not disallowReloadNotice[defID] then
-				local value, sp = checkFunc(defID, id)
-				if value >= 0.8 then
-					reloadColor = value >= 1 and green or white
-					stockpile = sp and tostring(sp <= 100 and sp or 100)--:gsub('.', exponents) -- can't display exponent > 3
+			if defID == zenithDefID then
+				reloadColor = green
+				stockpile = tostring(spGetUnitRulesParam(id, "meteorsControlled") or 0)
+			else
+				local checkFunc = longReloadCheck[defID]
+				if checkFunc and not disallowReloadNotice[defID] then
+					local value, sp = checkFunc(defID, id)
+					if value >= 0.8 then
+						reloadColor = value >= 1 and green or white
+						stockpile = sp and tostring(sp <= 100 and sp or 100)--:gsub('.', exponents) -- can't display exponent > 3
+					end
 				end
-			end
-			if hasAmmoDefID[defID] then
-				local value = spGetUnitRulesParam(id, 'ammoFraction') or 1
-				if value < 0.6 then
-					ammoColor = value < 0.3 and red or orange
+				if hasAmmoDefID[defID] then
+					local value = spGetUnitRulesParam(id, 'ammoFraction') or 1
+					if value < 0.6 then
+						ammoColor = value < 0.3 and red or orange
+					end
 				end
 			end
 		end
