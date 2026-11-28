@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/unit_show_selected_range.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- mod version externalize the function to  draw units range WG.DrawUnitTypeRanges
 -- if not Game.modName:find('^Zero-K') then
 -- 	-- Echo(" is ", (VFS.LoadFile(LUAUI_DIRNAME .. 'Widgets/unit_show_selected_range.lua', VFS.ZIP) or ''):sub(1, 100))

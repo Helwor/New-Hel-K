@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/cmd_factory_plate_placer.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaRules/Gadgets/Include/IterableMap.lua", "LuaRules/Utilities/glVolumes.lua", "gamedata/unitdefs_pre.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- can use modified unit_initial_queue.lua to be used in pregame

@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/CtrlMoveOrbit.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaRules/Configs/customcmds.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 
 
 local version = '1.0'

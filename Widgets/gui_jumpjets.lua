@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/gui_jumpjets.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- $Id: gui_jumpjets.lua 4207 2009-03-29 01:08:09Z quantum $
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

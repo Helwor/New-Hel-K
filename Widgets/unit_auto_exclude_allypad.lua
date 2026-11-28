@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/unit_auto_exclude_allypad.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua", "LuaRules/Configs/customcmds.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- NOTE: pad eclusion cmd is done via an aircraft unit which is not ideal, ideally, pad exclusion (since it is global for every aircraft) should be dealt through a command that doesnt need any aircraft existing
 function widget:GetInfo()
 	return {

@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Widget("LuaUI/Widgets/my_debug.lua", getfenv(), "LuaUI/callins.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- license = "GNU GPL, v2 or later",
 -- Author = Helwor
 -- Debug Functions working on Zero-K mod (at least) of Spring engine, telling all functions at which lines in which widgets were involved in the error

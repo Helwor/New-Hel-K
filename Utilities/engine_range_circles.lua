@@ -1,3 +1,4 @@
+do local skip = VFS.Include("LuaUI/Widgets/Include/helk_core/game_check.lua", nil, VFS.RAW_FIRST).Include("LuaUI/Utilities/engine_range_circles.lua", getfenv(), "LuaUI/cawidgets.lua", "LuaRules/Configs/customcmds.h.lua") if skip then return unpack(skip, 1, skip.n) end end -- Hel-K game check
 -- emulates engine range circles. By very_bad_soldier and versus666
 -- corrected and completed by Helwor
 local max   = math.max
