@@ -140,22 +140,18 @@ do
 			o_pR,  o_pG,  o_pB = unpack(pressCol)
 		end
 		if entry.stunned then
-			Echo('st')
 			bgCol[1], bgCol[2], bgCol[3]          = g_bgR, g_bgG, g_bgB
 			focusCol[1], focusCol[2], focusCol[3] = g_fR,  g_fG , g_fB
 			pressCol[1], pressCol[2], pressCol[3] = g_pR,  g_pG , g_pB
 		elseif entry.working then
-			Echo('w')
 			bgCol[1], bgCol[2], bgCol[3]          = r_bgR, r_bgG, r_bgB
 			focusCol[1], focusCol[2], focusCol[3] = r_fR,  r_fG , r_fB
 			pressCol[1], pressCol[2], pressCol[3] = r_pR,  r_pG , r_pB
 		elseif not entry.powered then
-			Echo('p')
 			bgCol[1], bgCol[2], bgCol[3]          = s_bgR, s_bgG, s_bgB
 			focusCol[1], focusCol[2], focusCol[3] = s_fR,  s_fG , s_fB
 			pressCol[1], pressCol[2], pressCol[3] = s_pR,  s_pG , s_pB
 		else
-			Echo('o')
 			bgCol[1], bgCol[2], bgCol[3]          = o_bgR, o_bgG, o_bgB
 			focusCol[1], focusCol[2], focusCol[3] = o_fR,  o_fG , o_fB
 			pressCol[1], pressCol[2], pressCol[3] = o_pR,  o_pG , o_pB
